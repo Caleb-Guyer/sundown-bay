@@ -38,7 +38,7 @@
 
   let context, master, music, instruments, effects, ambience, hats, noise, waves;
   let enabled = false, paused = false;
-  let driving = false, speed = 0, heat = 0, siren = 0, rotor = 0, coast = 0, docks = 0, skid = 0;
+  let driving = false, boating = false, speed = 0, heat = 0, siren = 0, rotor = 0, coast = 0, docks = 0, skid = 0;
   let nextStep = 0, step = 0, nextMix = 0, skidSince = null, nextGull = 0, nextPortSound = 0;
   let nextHorn = 0, nextTrafficHorn = 0, nextSiren = 0, seed = 87533, portBell = true, worldTime = 0;
 
@@ -305,7 +305,7 @@
     if (now < nextMix) return;
     nextMix = now + 0.085;
     const velocity = Math.min(1, speed / 38);
-    const inside = driving ? 0.57 : 1;
+    const inside = driving && !boating ? 0.57 : 1;
     const swell = (0.5 + 0.5 * Math.sin(worldTime * 0.90 + 0.8 * Math.sin(worldTime * 0.27))) ** 1.7;
     const passing = (0.5 + 0.5 * Math.sin(worldTime * 0.71 + 2 * Math.sin(worldTime * 0.19))) ** 2;
     music.gain.setTargetAtTime(driving ? 0.71 : 0.47, now, 0.18);
@@ -314,7 +314,7 @@
     mixBed('quay', ambience, now, docks * inside * 0.019, 205, 100 + passing * 5);
 
     const gear = Math.min(3, Math.floor(speed / 10));
-    const revs = 43 + 11 * gear + Math.min(11, speed - gear * 10) * 3.6;
+    const revs = boating ? 54 + 2.8 * speed + 1.4 * Math.sin(worldTime * 5.8) : 43 + 11 * gear + Math.min(11, speed - gear * 10) * 3.6;
     mixBed('engine', effects, now, driving ? 0.060 + velocity * 0.038 : 0, 185 + 410 * velocity, revs);
     if (driving && speed > 4 && skid > 0.12) {
       if (skidSince === null) skidSince = now;
@@ -328,6 +328,7 @@
 
   function update(state = {}) {
     driving = Boolean(state.driving);
+    boating = Boolean(state.boating);
     speed = Math.abs(Number(state.speed) || 0);
     heat = Number(state.heat) || 0;
     siren = unit(state.siren);

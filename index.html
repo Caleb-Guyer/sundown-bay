@@ -22,6 +22,12 @@
       </div>
       <button id="miniButton" class="radar" title="Open city map (M)" aria-label="Open city map"><canvas id="mini" width="200" height="200"></canvas><span class="north">N</span><span class="map-key">M</span></button>
       <div id="objective" hidden><span id="objectiveTag"></span><b id="objectiveText"></b><small id="roadTurn"></small></div>
+      <div id="regattaHud" aria-label="Breakwater Run race timing" hidden>
+        <div class="race-head"><strong id="raceCourse"></strong><b id="racePlace"></b></div>
+        <div class="race-time"><strong id="raceTime"></strong><span id="raceGate"></span></div>
+        <div class="race-course-line"><i id="raceArrow" aria-hidden="true">↑</i><span id="raceGuide"></span></div>
+      </div>
+      <div id="raceStart" role="status" aria-live="polite" hidden></div>
       <div id="dashHud" aria-label="Low Tide Dash timing" hidden>
         <div class="dash-heading">Low Tide Dash <span id="dashCount"></span></div>
         <div class="dash-clock"><strong id="dashTime">0:00.00</strong><span id="dashBest"></span></div>
@@ -39,10 +45,18 @@
       <div class="intro-inner">
         <h1 id="title"><img src="wordmark.svg" alt="Sundown Bay"></h1>
         <div class="intro-actions"><button id="play" class="primary" autofocus>Enter the city <kbd>Enter</kbd></button>
-          <button id="playStory" class="intro-story">Play <i>Last Exposure</i><span aria-hidden="true">↗</span></button></div>
+          <button id="playStory" class="intro-story">Play <i>Last Exposure</i><span aria-hidden="true">↗</span></button>
+          <button id="playBay" class="intro-story intro-water">Race the bay</button></div>
         <div class="intro-controls"><span><kbd>WASD</kbd> Move</span><span>Mouse to look</span><span><kbd>Space</kbd> Jump</span><span><kbd>E</kbd> Take a car</span></div>
       </div>
     </section>
+    <template id="marinaSheet">
+      <div class="club-chart"><canvas width="720" height="190" aria-label="Chart of the selected race course"></canvas><p><strong class="chart-course"></strong><span class="chart-distance"></span></p></div>
+      <div class="club-course"><label for="clubCourse">Race course</label><select id="clubCourse"></select></div>
+      <fieldset class="hull-field"><legend>Choose your boat</legend><div class="hull-list"></div></fieldset>
+      <div class="club-entry"><span class="club-record"></span><div><button class="club-cruise">Free cruise</button><button class="club-race"></button></div></div>
+      <p class="club-controls"><kbd>W / S</kbd> Throttle / reverse &nbsp; <kbd>A / D</kbd> Steer &nbsp; <kbd>Space</kbd> Trim for speed</p>
+    </template>
     <template id="exposureCamera">
       <div class="finder-body">
         <div class="finder-strip"><strong>VEGA / 35</strong><span>COLOR NEG. &nbsp; 24 EXP.</span></div>
@@ -98,6 +112,9 @@
   <script src="radio.js"></script>
   <script src="exposure-art.js"></script>
   <script src="exposure.js"></script>
+  <script src="marina-art.js"></script>
+  <script src="marina.js"></script>
+  <script src="marina-view.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

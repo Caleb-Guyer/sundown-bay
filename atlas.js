@@ -599,6 +599,7 @@
       paintStatic(ctx,solids,street);ctx.restore();
     }
     if(radar&&player&&Number.isFinite(opt.cameraYaw)) cameraWedge(ctx,px(player.x),py(player.z),opt.cameraYaw,ui);
+    BayMarinaView.map(ctx,opt,px,py,s,ui,visible);
     if(opt.route&&!street){
       const pts=opt.route.points;ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
       ctx.beginPath();ctx.moveTo(px(pts[0].x),py(pts[0].z));
@@ -645,7 +646,7 @@
           if(player?.flatSide||selected||Math.hypot(marker[0]-x,marker[1]-y)<1)
             garageMark(ctx,marker[0],marker[1],ui*.86,"",selected);
         }
-      }else if(!street&&visible(x,y)){
+      }else if(place.kind!=="landing"&&!street&&visible(x,y)){
         disc(ctx,x,y,(radar?2.0:2.55)*ui,ink);disc(ctx,x,y,(radar?1:1.38)*ui,"#e1d9b2");
       }
     }
@@ -709,7 +710,8 @@
       const x=px(player.x),y=py(player.z);
       if(street) {
         if(player.driving && !playerCar) carSprite(ctx,player,x,y,s,streetTime);
-        if(!player.driving&&!player.inCabin) personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+        if(!player.driving&&!player.inCabin&&!opt.aboard) personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+        if(opt.aboard){const v=opt.marina.player,helm=BayDriving.world(v,-.38,-.35);disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
         const r=Math.max(player.driving?2.7*s:1.1*s,5.2*ui);
         ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.lineWidth=1.5*ui;ctx.strokeStyle=mint;ctx.stroke();
         const vx=Math.sin(player.yaw||0),vy=-Math.cos(player.yaw||0);

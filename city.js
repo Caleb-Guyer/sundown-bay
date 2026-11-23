@@ -1,6 +1,7 @@
 /* Static geometry, in metres. The road grid remains open in both directions. */
-window.buildBayCity = function buildBayCity(g) {
+window.buildBayCity = function buildBayCity(g,water) {
   "use strict";
+  water??=g;
   const solids = [], cameraObstacles = [];
   const roads = [-144, -72, 0, 72, 144];
   const garage={kind:"garage",name:"Portside Tire",x:-109,z:-17,halfWidth:4.7,halfDepth:7};
@@ -298,9 +299,9 @@ window.buildBayCity = function buildBayCity(g) {
     cameraBlock(x,z,2*r,2*r,2.52,3.08);
   }
 
-  // The bay and shoreline continue beyond the boundary of the playable district.
+  // Keep the water in its own batch so the animated surface costs one draw call.
   rect(-148,0,608,566,.005,"#aeb49b");
-  rect(697,0,980,1380,-.15,"#318f9d");
+  water.quad([207,-.15,-690],[207,-.15,690],[1187,-.15,690],[1187,-.15,-690],"#338c94");
   const coast=[];
   for(let i=-12;i<=12;i++) {
     const z=i*26;
@@ -310,8 +311,8 @@ window.buildBayCity = function buildBayCity(g) {
     const a=coast[i], b=coast[i+1];
     g.quad([155,.02,a.z],[155,.02,b.z],[b.x,.02,b.z],[a.x,.02,a.z],"#e5c59e");
     g.quad([a.x-4,.027,a.z],[b.x-4,.027,b.z],[b.x,.027,b.z],[a.x,.027,a.z],"#d9bea1");
-    g.quad([a.x,.04,a.z],[b.x,.04,b.z],[b.x+9,.04,b.z],[a.x+9,.04,a.z],"#80c8ba");
-    g.quad([a.x+9,.035,a.z],[b.x+9,.035,b.z],[b.x+29,.035,b.z],[a.x+29,.035,a.z],"#56ada9");
+    water.quad([a.x,.04,a.z],[b.x,.04,b.z],[b.x+9,.04,b.z],[a.x+9,.04,a.z],"#80c8ba");
+    water.quad([a.x+9,.035,a.z],[b.x+9,.035,b.z],[b.x+29,.035,b.z],[a.x+29,.035,a.z],"#56ada9");
     if(i%3!==1) g.quad([a.x+.9,.061,a.z+1.9],[b.x+.3,.061,b.z-1.1],[b.x+.65,.061,b.z-1.1],[a.x+1.55,.061,a.z+1.9],"#e8e7cb");
   }
   for(let i=0;i<70;i++){
@@ -928,6 +929,12 @@ window.buildBayCity = function buildBayCity(g) {
   building(174,133,9,6,3.8,W,"shop","#b3c9b6","#dfa387","PIER");
 
   // Timber fishing pier, watercraft and a western harbour crane.
+  for(const [x,z,name] of [[186,-123.7,"MARLIN PIER"],[201,96.3,"NORTH FLOAT"]]){
+    const land=facade(x,z,-1,0),sea=facade(x,z,1,0);
+    for(const u of [-1.48,1.48]){land.box(u,.99,0,.15,1.98,.15,"#8c725a");block(x,z-u,.15,.15,1.98);}
+    land.box(0,1.81,0,3.8,.81,.15,"#274d4c");land.face(0,2.13,.08,3.72,.055,"#e0ae61");
+    sign(land,"OUTBOARD CLUB",0,1.8,.081,.069,"#f9dfae");sign(sea,name,0,1.81,.081,.077,"#f9dfae");
+  }
   rect(215,-119,61,4.5,.37,"#bb9078");
   rect(241,-119,7.5,13,.371,"#c2977e");
   for(let x=186;x<=244;x+=6.9) for(const s of [-1,1]) g.box(x,.37,-119+s*2.1,.32,2.0,.32,"#a07767");

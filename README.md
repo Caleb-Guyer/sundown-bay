@@ -1,10 +1,14 @@
 # Sundown Bay
 
-Take the wheel in a coastal city with local jobs, police pursuits and a playable story.
+Take the wheel in a coastal city with local jobs and police pursuits, or head offshore to race the outboard club.
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
 Use **WASD** or the arrow keys to move and steer. Move the mouse to look around. Press **E** beside a car to get in or out. **Space** is the handbrake while driving and jump on foot. **M** opens the map, **J** opens jobs, and **R** toggles sound.
+
+**Race the bay** opens Breakwater Run. Pick the tight-turning **Needle 19** or the faster **Mako 22** and race Paz Ríos on three courses. Cross each gate between the red and green buoys in order. **W/S** work the throttle and reverse, **A/D** steer, and holding **Space** trims the bow up for faster straights and wider turns. First place earns **$220**, **$310** or **$400** depending on the course. Second place earns **$90**. Each course keeps a time record for each boat.
+
+Choose **Free cruise** to explore the bay and Gull Light. You can also walk out to a moored boat and board with **E**. Follow the anchors on the **M** offshore chart to Marlin Pier or North Float. Slow below four knots alongside an open berth and press **E** to tie up and step ashore.
 
 Choose **Play Last Exposure** on the title screen or call Mara Vega through **J**. Pick her up outside the Marlin Motel and follow the street route to Port Sol. Park and press **F** to frame the Lot 14 notice. Click to focus or use the arrow keys, then press **Space** for the shutter. Deliver the photo to the Sol FM van in 55 seconds for **$425**, or take it to Cine Luna for **$300**. The evening edition of Bay Wire remembers which outlet ran your picture.
 

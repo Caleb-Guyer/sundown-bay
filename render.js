@@ -54,7 +54,7 @@
   const VERTEX = LIGHT+`
     attribute vec3 pos; attribute vec3 col;
     uniform vec3 origin,eye,rightV,upV,forwardV; uniform vec2 turn,focal; uniform vec2 depth;
-    uniform vec4 tilt; uniform float castOnly;
+    uniform vec4 tilt,waterParams; uniform float castOnly;
     varying vec3 vColor,lightCoord; varying vec2 surface; varying float haze;
     void main(){
       vec3 q=vec3(pos.x,pos.y*tilt.x-pos.z*tilt.y,pos.y*tilt.y+pos.z*tilt.x);
@@ -64,7 +64,7 @@
       vec3 rel=world-eye; float z=dot(rel,forwardV);
       gl_Position=vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);
       lightCoord=lightClip(world)*.5+.5;
-      surface=vec2(world.x+world.z*.68,world.y+world.z*.44-world.x*.17);
+      surface=waterParams.w>.5?world.xz:vec2(world.x+world.z*.68,world.y+world.z*.44-world.x*.17);
       vColor=col; haze=smoothstep(62.,390.,z)*.68;
     }`;
   const PRECISION=`#ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -75,6 +75,7 @@
   `;
   const FRAGMENT = PRECISION+`
     varying vec3 vColor,lightCoord; varying vec2 surface; varying float haze;
+    uniform vec4 waterParams;
     uniform sampler2D sunDepth,paper; uniform float texel,hasShadow,castOnly,ghost,beam;
     float shadeAt(vec2 uv){
       vec2 rg=texture2D(sunDepth,uv).rg;
@@ -86,6 +87,20 @@
       if(ghost>.5){
         if(mod(floor(gl_FragCoord.x)+2.*floor(gl_FragCoord.y),4.)<2.)discard;
         gl_FragColor=vec4(mix(vec3(.31,.80,.78),vec3(.87,1.,.92),vColor.g),1.);return;
+      }
+      if(waterParams.w>.5){
+        vec2 offset=surface-waterParams.xy;float d=length(offset),t=waterParams.z;
+        float local=1.-smoothstep(30.,145.,d);
+        float swell=sin(dot(surface,vec2(.16,.22))+1.35*t+.85*sin(surface.y*.075-t*.43));
+        float ripple=sin(dot(surface,vec2(.56,-.79))+2.05*t+1.7*swell);
+        float grain=texture2D(paper,surface*vec2(.008,.022)+vec2(t*.0017,-t*.0021)).r;
+        float crest=smoothstep(.59,.93,.54*swell+.34*ripple+.30*grain);
+        float bearing=dot(offset/max(d,.01),vec2(.564,.826));
+        float sunset=smoothstep(.59,.99,bearing)*smoothstep(12.,95.,d);
+        vec3 sea=vColor*(.94+.085*swell*local+.045*ripple*local);
+        sea=mix(sea,vec3(.58,.80,.75),(.11+.32*local)*crest);
+        sea=mix(sea,vec3(1.,.77,.57),sunset*(.065+.40*crest)*(1.-haze*.65));
+        gl_FragColor=vec4(mix(sea,vec3(.84,.69,.68),haze*.83),1.);return;
       }
       float shade=0.;
       if(hasShadow>.5&&all(greaterThan(lightCoord.xy,vec2(.001)))&&all(lessThan(lightCoord.xy,vec2(.999)))){
@@ -122,7 +137,7 @@
         gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;};
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
-      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","sunDepth","paper","texel","hasShadow"])this.u[key]=gl.getUniformLocation(p,key);
+      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow"])this.u[key]=gl.getUniformLocation(p,key);
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0); const n=.13,f=1100;gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -195,6 +210,10 @@
     endShadow(){const gl=this.gl;gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.uniform1f(this.u.castOnly,0);}
     drawGhost(name,x,y,z,yaw){
       this.gl.uniform1f(this.u.ghost,1);this.draw(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
+    }
+    drawWater(t){
+      const gl=this.gl,eye=this.basis.camera;gl.uniform4f(this.u.waterParams,eye.x,eye.z,t,1);
+      this.draw("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
     }
     drawSearchlight(name){
       const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);
