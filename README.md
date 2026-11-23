@@ -8,4 +8,6 @@ Use **WASD** or the arrow keys to move and steer. Move the mouse to look around.
 
 At three stars, patrol cars set up roadblocks. At four, some crews lay spike strips. Clip one and the car pulls toward the flat tire. At five, Air One joins the chase.
 
+After you lose the cops, follow the wrench on the map to Portside Tire. Pull into the open bay and take your foot off the pedals. The shop replaces a flat for free.
+
 The game runs in the browser. To play locally, open `index.html` or serve this directory with `python -m http.server`. The overhead view is available when WebGL is unavailable.

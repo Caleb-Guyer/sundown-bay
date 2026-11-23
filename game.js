@@ -15,11 +15,11 @@
   const course=BayBeachDash.gates;
   const view=new BayView($("world")), cityMesh=new BayMesh(), city=buildBayCity(cityMesh);
   view.add("city",cityMesh);cityMesh.vertices.length=0;
-  const solids=city.solids, sound=window.BaySound;
+  const solids=city.solids, sound=window.BaySound,garage=city.garage;
   const locations=[
     {x:151,z:-13,name:"Marlin Motel"}, {x:6,z:66,name:"Cine Luna"},
     {x:-138,z:-73,name:"Port Sol"}, {x:-66,z:-137,name:"El Mercado"},
-    {x:139,z:140,name:"North Boardwalk"}
+    {x:139,z:140,name:"North Boardwalk"},garage
   ];
   const genres=BayDriving.cars;
   const paints=["#de6f62","#42afa5","#e6b77d","#718dac","#f0d8a9","#976e9a"];
@@ -34,6 +34,8 @@
   const chase=new BayPursuit(axes,solids),crashContacts=new Map();
   const backup=new BayBackup(chase,city.cameraObstacles||[]);
   let airBeam=null;
+  const repairSeconds=2;
+  let serviceVehicle=null,serviceTime=0;
   let skidLast=null,transfer=null,streetTime=2.4,hornReady=0,lastTrafficHorn=-12,speechTill=0;
   const hero={x:151,z:-27,y:.076,yaw:-.18};
   const motion=new BayPlayerMotion(),playerMesh=view.gl?new BayPlayerMesh(personColors[0]):null;
@@ -352,7 +354,13 @@
   function advanceJob(dt){
     const p=pos();
     if(transfer){if(active?.running)active.clock+=dt;return;}
-    if(!active){if(waypoint&&dist(p,waypoint)<5){waypoint=null;note("City map","Waypoint reached.",1.7);}return;}
+    if(!active){
+      if(waypoint&&dist(p,waypoint)<5){
+        if(waypoint.kind!=="garage"||!car?.flatSide)note("City map","Waypoint reached.",1.7);
+        waypoint=null;
+      }
+      return;
+    }
     if(active.job.id==="dash"){advanceDash(dt);return;}
     if(active.running)active.clock+=dt;
     const j=active.job,t=currentTarget(),isRace=j.id==="race";
@@ -426,6 +434,7 @@
   }
   function drive(dt,parking=false){
     const v=car,oldX=v.x,oldZ=v.z,oldYaw=v.yaw,surface=v.x>166.45?.55:nearStreet(v.x,v.z)?1:.84;
+    if(serviceVehicle===v&&!heat&&!held("KeyW","ArrowUp","KeyS","ArrowDown"))parking=true;
     const steering=parking?0:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
     BayDriving.step(v,dt,!parking&&held("KeyW","ArrowUp"),!parking&&held("KeyS","ArrowDown"),steering,!parking&&held("Space"),surface,save.tuned,parking);
     if(Math.abs(v.yaw-oldYaw)>.00001&&!fitsCar(v,v.x,v.z,v.yaw)&&fitsCar(v,v.x,v.z,oldYaw)){v.yaw=oldYaw;v.yawRate*=.3;}
@@ -453,6 +462,31 @@
     }
     BayDriving.signedSpeed(v);skidMarks(v,surface);
     BayCarAccess.pose(v,v.doorSide,1,hero,motion,footLevel,dt);
+  }
+  function inServiceBay(v){
+    const x=Math.abs(v.x-garage.x),z=v.z-garage.z;
+    if(x>garage.halfWidth||Math.abs(z)>garage.halfDepth)return false;
+    const shape=bayCarLayout(v.kind),sn=Math.abs(Math.sin(v.yaw)),cs=Math.abs(Math.cos(v.yaw));
+    const across=cs*shape.track+sn*shape.halfLength,along=sn*shape.track+cs*shape.halfLength;
+    return x+across<=garage.halfWidth+.12&&z+along<=garage.halfDepth-.18;
+  }
+  function serviceGarage(dt){
+    const v=car;
+    if(!v?.flatSide||heat||transfer||!inServiceBay(v)||Math.hypot(v.vx,v.vz)>1.6||held("KeyW","ArrowUp","KeyS","ArrowDown")){
+      serviceVehicle=null;serviceTime=0;return;
+    }
+    if(serviceVehicle!==v){serviceVehicle=v;serviceTime=0;}
+    serviceTime+=dt;
+    if(serviceTime+1e-6<repairSeconds)return;
+    const fixed=tirePosition(v);
+    v.flatSide=0;v.flatAxle=null;v.flatLoad=0;BayDriving.settle(v);
+    serviceVehicle=null;serviceTime=0;lastHud=lastMap=-10;
+    note(garage.name,fixed+" tire replaced.",3);
+  }
+  function serviceLift(v){
+    if(v!==serviceVehicle)return 0;
+    const p=serviceTime/repairSeconds,t=clamp(Math.min(p,1-p)*4.5,0,1);
+    return .15*t*t*(3-2*t);
   }
   function spaceToSwerve(v,x,z,yaw,ahead,checkPlayer=false){
     if(Math.min(Math.abs(x-nearestAxis(x)),Math.abs(z-nearestAxis(z)))>5.95||!fitsCar(v,x,z,yaw))return false;
@@ -629,7 +663,7 @@
     const allTraffic=modeName==="atlas"?patrol:cars.filter(v=>!driving||v!==car).concat(patrol);
     const p=transfer?hero:pos();
     return {mode:modeName,cx,cz,scale,solids,player:{x:p.x,z:p.z,yaw:p.yaw,driving,kind:car?.kind,color:car?.color||"#99ebc6",motion,
-      steer:car?.steer,brakes:car?.brakes,handbrake:car?.handbrake,reversing:car?.reversing,inCabin:!!transfer&&(motion.ride?.seat||0)>.54},skids,
+      steer:car?.steer,brakes:car?.brakes,handbrake:car?.handbrake,reversing:car?.reversing,flatSide:car?.flatSide,inCabin:!!transfer&&(motion.ride?.seat||0)>.54},skids,
       cars:allTraffic,peds:modeName==="street"?walkers.map(w=>({x:w.x,z:w.z,yaw:w.yaw,shirt:personColors[w.style][1],skin:personColors[w.style][0],startle:w.startle})):[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:currentTarget(),places:locations,elapsed,time:streetTime,
       searchPoint:heat&&chase.searching?chase.lastSeen:null,
@@ -642,7 +676,7 @@
   }
   function paintAtlas(){
     const c=$("bigmap");if(!c)return;const s=c.width/448;
-    drawBayMap(c.getContext("2d"),collectMap("atlas",13,0,s));
+    return drawBayMap(c.getContext("2d"),collectMap("atlas",13,0,s));
   }
   function drawCourse(see){
     const run=active?.dash||(dashResult&&elapsed<dashResult.until?dashResult.run:null);
@@ -666,15 +700,19 @@
   }
   function addRig(list,v,ground){
     const rig=vehicleRig(v),s=bayCarLayout(v.kind);
-    const bodyGround=ground-(v.flatLoad||0)*.045;
+    const phase=v===serviceVehicle?serviceTime/repairSeconds:0;
+    const flat=(v.flatLoad||0)*(1-clamp((phase-.55)*4,0,1));
+    const bodyGround=ground-flat*.045;
     list.push([rig.shell,v.x,bodyGround,v.z,v.yaw,v.pitch,v.lean]);
     for(const side of [-1,1]){
       const hinge=chassisPoint(v,side*s.hingeX,0,s.hingeZ,bodyGround);
       const open=side===v.doorSide?v.doorAngle:0;
       list.push([rig.doors[side],hinge.x,hinge.y,hinge.z,v.yaw-side*open,v.pitch,v.lean]);
       for(const axle of s.axles){
-        const w=BayDriving.world(v,side*(s.track-.085),axle);
-        const drop=side===v.flatSide&&axle===v.flatAxle?(v.flatLoad||0)*s.wheel*.25:0;
+        const damaged=side===v.flatSide&&axle===v.flatAxle;
+        const out=damaged&&phase>0 ? .33*Math.sin(Math.PI*clamp((phase-.22)/.54,0,1))**2 : 0;
+        const w=BayDriving.world(v,side*(s.track-.085+out),axle);
+        const drop=damaged?flat*s.wheel*.25:0;
         list.push([rig.wheels[side],w.x,ground+s.wheel-drop,w.z,v.yaw+(axle>0?v.steer:0),v.wheelSpin]);
       }
     }
@@ -699,10 +737,15 @@
     skyPainter.draw(view,cam,t);
     view.draw("city");
     const see=(o,limit)=>Math.abs(o.x-cam.x)<limit&&Math.abs(o.z-cam.z)<limit;
+    if(see(garage,125)){
+      const color=heat?"#ef856e":serviceVehicle?"#ffbf68":"#9ae5b7",name="garage-lamp/"+color;
+      model(name,g=>g.box(0,0,0,.87,.25,.05,color));
+      view.draw(name,garage.x-3.70,4.28,garage.z+garage.halfDepth+.42);
+    }
     for(const k of skids)if(elapsed-k.time<20&&see(k,100))view.draw("skid",k.x,.079,k.z,k.yaw);
     const visible=[],owned=transfer?.v||car;
     for(const v of cars)if(see(v,160)&&!(v===car&&!transfer&&cameraRig.hideActor)){
-      const ground=footLevel(v.x,v.z)+.008;
+      const ground=footLevel(v.x,v.z)+.008+serviceLift(v);
       if(v===owned)addRig(visible,v,ground);
       else{
         visible.push([v.model,v.x,ground,v.z,v.yaw,0,v.lean]);
@@ -757,7 +800,7 @@
     if(!cameraRig.hideActor&&playerMesh){
       if(playerMesh.update(motion))view.updateAnimated("player");
       if(car&&!transfer){
-        const s=bayCarLayout(car.kind),p=chassisPoint(car,-s.seatX,0,s.seatZ,footLevel(car.x,car.z)+.008);
+        const s=bayCarLayout(car.kind),p=chassisPoint(car,-s.seatX,0,s.seatZ,footLevel(car.x,car.z)+.008+serviceLift(car));
         visible.push(["player",p.x,p.y,p.z,car.yaw,car.pitch,car.lean]);
       }else visible.push(["player",hero.x,hero.y+motion.lift,hero.z,hero.yaw]);
     }
@@ -836,7 +879,8 @@
     $("dashRetry").hidden=!!heat||(!result&&!i);
     $("dashRetry").querySelector("span").textContent=result?"Run again":"Restart";
   }
-  function tireStatus(v){return (v.flatAxle>0?"Front ":"Rear ")+(v.flatSide<0?"left":"right")+" flat";}
+  function tirePosition(v){return (v.flatAxle>0?"Front ":"Rear ")+(v.flatSide<0?"left":"right");}
+  function tireStatus(v){return tirePosition(v)+" flat";}
   function hud(){
     const p=pos(),tar=currentTarget(),area=district(p);$("district").textContent=area;$("money").textContent=cash(save.wallet);
     $("stars").innerHTML='<span class="on">'+"★".repeat(heat)+'</span>'+"☆".repeat(5-heat);
@@ -877,8 +921,20 @@
       $("objectiveText").textContent=destination+"  ·  "+Math.round(dist(p,tar))+" m";
     }
     const nearby=car?null:enterable(),speaker=car?null:BayLocals.closestSpeaker(walkers,hero);
+    const atShop=car?.flatSide&&Math.abs(car.x-garage.x)<10
+      &&car.z>=garage.z-garage.halfDepth&&car.z<garage.z+garage.halfDepth+15;
+    const hint=$("context");hint.className=serviceVehicle?"servicing":"";
+    if(serviceVehicle)hint.style.setProperty("--repair-fill",String(clamp(serviceTime/repairSeconds,0,1)));
     if(transfer)contextHint("","");
     else if(boxed>1)contextHint("","Patrol closing in  ·  "+Math.ceil(5.3-boxed)+" s");
+    else if(serviceVehicle)contextHint("","Changing "+tirePosition(car).toLowerCase()+" tire");
+    else if(atShop){
+      let prompt="Release the pedals for tire service";
+      if(heat)prompt="Lose the cops for tire service";
+      else if(!inServiceBay(car))prompt="Pull into the open bay";
+      else if(Math.abs(car.speed)>1.6)prompt="Stop for tire service";
+      contextHint("",prompt);
+    }
     else if(active?.dash)contextHint("","");
     else if(tar&&active?.job.id==="dash"&&car&&dist(p,tar)<13)contextHint("E","Park and line up on foot");
     else if(!car&&!active&&dist(hero,course[0])<4)contextHint("F","Line up for Low Tide Dash");
@@ -917,14 +973,19 @@
     }else if(next==="map"){
       title="City map";kicker="Palm Coast  /  Street atlas";
       const wrap=document.createElement("div");wrap.className="map-wrap";const c=document.createElement("canvas");c.id="bigmap";c.width=704;c.height=624;c.tabIndex=0;c.setAttribute("aria-label","City map. Choose a destination from the list below or click the map.");wrap.append(c);
-      const legend=document.createElement("div");legend.className="map-legend";legend.innerHTML="<span>▲ You</span><span><em>◇</em> Waypoint</span><span><b>▣</b> Radio tape</span>";wrap.append(legend);b.append(wrap);paintAtlas();
+      const legend=document.createElement("div");legend.className="map-legend";legend.innerHTML="<span>▲ You</span><span><em>◇</em> Waypoint</span><span><b>▣</b> Radio tape</span><span>🔧 Tire garage</span>";wrap.append(legend);b.append(wrap);
+      const garageBounds=paintAtlas();
       const list=document.createElement("select");list.setAttribute("aria-label","Choose a map destination");
       const initial=document.createElement("option");initial.textContent=active?"Following the current job":"Choose a destination";initial.value="";list.append(initial);
       locations.forEach((v,i)=>{const opt=document.createElement("option");opt.value=i;opt.textContent=v.name;list.append(opt);});list.disabled=!!active;
       list.onchange=()=>{if(list.value!==""){waypoint={...locations[Number(list.value)]};closePanel();note("Map pin",waypoint.name,2);}};
       b.append(list);c.addEventListener("click",ev=>{if(active)return;const rect=c.getBoundingClientRect(),scale=c.width/448;
-        const wx=13+((ev.clientX-rect.left)/rect.width*c.width-c.width/2)/scale,wz=-((ev.clientY-rect.top)/rect.height*c.height-c.height/2)/scale;
-        const pin={x:clamp(wx,-181,207),z:clamp(wz,-179,179)};waypoint=valid(pin.x,pin.z,.36)?pin:nearestRoadPoint(pin);waypoint.name=district(waypoint);closePanel();note("Map pin",waypoint.name,2);});
+        const mx=(ev.clientX-rect.left)/rect.width*c.width,my=(ev.clientY-rect.top)/rect.height*c.height;
+        const wx=13+(mx-c.width/2)/scale,wz=(c.height/2-my)/scale;
+        const pin={x:clamp(wx,-181,207),z:clamp(wz,-179,179)};
+        if(garageBounds&&mx>=garageBounds.left&&mx<=garageBounds.right&&my>=garageBounds.top&&my<=garageBounds.bottom)waypoint={...garage};
+        else{waypoint=valid(pin.x,pin.z,.36)?pin:nearestRoadPoint(pin);waypoint.name=district(waypoint);}
+        closePanel();note("Map pin",waypoint.name,2);});
     }else{
       title="Paused";kicker="Sundown Bay  /  "+district(pos());const stats=document.createElement("div");stats.className="statline";stats.textContent=cash(save.wallet)+"  /  Jobs "+save.paid+"  /  Tapes "+save.tapes.length+" of 5";b.append(stats);
       const keysList=document.createElement("div");keysList.className="controls";const allControls=[["WASD / ↑↓←→","Walk or drive"],["Mouse","Look around"],["E","Enter / exit car"],["Shift","Sprint on foot"],["S / ↓","Brake, then reverse"],["Space","Jump / handbrake"],["H / F","Horn / talk"],["J / M","Jobs / map"],["Q / C","Keyboard look"],["V / X","Look back / recenter"],["+ / −","Camera distance"]];
@@ -1024,7 +1085,7 @@
     if(play&&!panel){
       elapsed+=dt;bumpLock=Math.max(0,bumpLock-dt);
       // Small steps keep steering and collision response consistent on slower hardware.
-      let left=dt;while(left>.00001){const d=Math.min(left,car?1/60:1/45);if(transfer)stepTransfer(d);else if(car)drive(d);else walk(d);traffic(d);pursuit(d);advanceJob(d);left-=d;}
+      let left=dt;while(left>.00001){const d=Math.min(left,car?1/60:1/45);if(transfer)stepTransfer(d);else if(car)drive(d);else walk(d);traffic(d);pursuit(d);advanceJob(d);serviceGarage(d);left-=d;}
       if(!transfer)checkTapes();const p=pos(),speed=Math.abs(car?.speed||0);
       sound.update({speed,driving:!!car,heat,siren:heat?clamp(1-chase.closestUnit/103,0,1):0,time:elapsed,coast:clamp((p.x-100)/93,0,1),
         rotor:backup.air?backup.air.light*clamp(1-Math.hypot(backup.air.x-p.x,backup.air.y,backup.air.z-p.z)/110,0,1):0,

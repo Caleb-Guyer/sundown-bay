@@ -3,6 +3,7 @@ window.buildBayCity = function buildBayCity(g) {
   "use strict";
   const solids = [], cameraObstacles = [];
   const roads = [-144, -72, 0, 72, 144];
+  const garage={kind:"garage",name:"Portside Tire",x:-109,z:-17,halfWidth:4.7,halfDepth:7};
   let state = 76219;
   function random() {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
@@ -748,7 +749,70 @@ window.buildBayCity = function buildBayCity(g) {
   building(29,-111,21,15,6,S,"house","#e5bba1","#8faa9d");
   building(52,-108,18,15,5.3,E,"house","#aac7b5","#c48c78");
   building(-109,-44,36,28,9,S,"shed","#92aaa9","#648d94","PORT SOL");
-  building(-109,-15,32,10,5.6,N,"shed","#bfa697","#8c8d87");
+  // The open tire bay shares its footprint with the service trigger and map.
+  {
+    const {x,z,halfWidth:w,halfDepth:d}=garage,shop=facade(x,z,0,1);
+    const blue="#3d7779",cream="#ead7b6",red="#c8654c",rubber="#39434a";
+    const wing=16-w;
+    for(const side of [-1,1]){
+      const u=side*(w+wing/2);
+      shop.box(u,2.55,0,wing,5.1,d*2,cream);block(x-u,z,wing,d*2,5.2);
+      shop.box(u,.65,d+.035,wing,1.10,.12,blue);
+      shop.face(u,1.36,d+.11,wing,.15,red);
+    }
+    shop.box(0,2.51,-d+.18,2*w,5.02,.36,"#a2b1a2");
+    block(x,z-d+.18,2*w,.36,5.02);
+    shop.box(0,5.35,0,32.6,.58,d*2+.70,blue);
+    shop.box(0,5.65,0,31.9,.13,d*2-.20,"#a5aaa0");
+    shop.camera(0,0,32.6,d*2+.7,5.03,5.73);
+    shop.box(0,4.75,d,2*w,.54,.45,"#b9c6b9");
+    for(let h=4.56;h<5;h+=.14)shop.face(0,h,d+.24,2*w-.16,.045,"#778e88");
+    shop.camera(0,d,2*w,.5,4.44,5.05);
+    // Tall fascia is visible from the cross street, above both truck and coupe roofs.
+    shop.box(0,6.00,d+.43,19.6,1.76,.35,cream);
+    shop.face(0,6.00,d+.62,19.24,1.53,blue);
+    for(const h of [5.36,6.64])shop.face(0,h,d+.64,18.98,.052,"#edb573");
+    sign(shop,"PORTSIDE TIRE",0,6.00,d+.66,.255,"#fff0cf");
+    shop.camera(0,d+.43,19.6,.36,5.12,6.88);
+    // Office and roller shutter flank the working bay.
+    shop.face(-10.65,2.57,d+.09,7.8,2.19,"#71999a");
+    for(const u of [-14.58,-11.96,-9.34,-6.72])shop.face(u,2.57,d+.12,.12,2.23,cream);
+    shop.face(-10.65,3.21,d+.13,7.88,.14,cream);
+    sign(shop,"OFFICE",-10.65,2.55,d+.15,.15,"#ffe5a2");
+    shop.face(10.68,2.13,d+.14,7.4,3.92,"#80938c");
+    for(let h=.42;h<4;h+=.37)shop.face(10.68,h,d+.16,7.3,.053,"#bbbdab");
+    shop.face(10.68,2.22,d+.18,7.3,.22,red);
+    // A concrete apron, two lift runways and a painted stop bar lead into the shop.
+    rect(x,z+2.3,2*w-.10,d*2+4.25,.114,"#b4b2a0");
+    for(const side of [-1,1]){
+      rect(x+side*3.48,z+.13,.13,11.4,.124,"#eee0b7");
+      rect(x+side*.96,z-.06,.60,6.45,.126,"#648483");
+      rect(x+side*.96,z+2.90,.62,.26,.133,"#d59a56");
+      for(const at of [4.4,6.8,9.2])rect(x+side*3.48,z+at,.26,.78,.13,"#f2c775");
+      shop.box(side*(w-.05),2.38,1.15,.11,.19,10.1,blue);
+      shop.box(side*2.37,4.93,.62,.18,.065,6.6,"#fff3cd");
+    }
+    rect(x,z-3.52,6.98,.16,.129,"#f3cf83");
+    const inside=-d+.38;
+    shop.face(0,1.18,inside,2*w,1.03,blue);
+    shop.face(0,1.82,inside+.01,2*w,.12,red);
+    shop.face(0,3.32,inside+.04,4.4,1.13,"#436464");
+    sign(shop,"TIRE BAY",0,3.33,inside+.055,.12,"#f6e3a9");
+    shop.box(-3.60,.82,-d+.83,1.55,1.35,.86,red);block(x+3.60,z-d+.83,1.55,.86,1.52);
+    for(const h of [.60,.88,1.16])shop.face(-3.60,h,-d+1.28,1.25,.07,"#e5c59f");
+    for(const u of [2.6,3.65])for(let n=0;n<3;n++){
+      const p=shop.at(u,.30+n*.29,-d+1.02);g.cyl(p[0],p[1],p[2],.50,.49,.27,10,rubber);
+      g.cyl(p[0],p[1]+.143,p[2],.235,.235,.01,10,"#899183");
+    }
+    block(x-3.12,z-d+1.02,2.12,1.04,1.04);
+    // Roadside tire blade and a signal over the driver's side of the entrance.
+    shop.box(14.88,2.66,d+1.04,.23,5.02,.24,blue);
+    const post=shop.at(14.88,0,d+1.04);block(post[0],post[2],.27,.28,5.17);
+    disc(shop,14.88,4.78,d+1.21,1.33,1.33,rubber,18);
+    disc(shop,14.88,4.78,d+1.23,.83,.83,"#eabc7b",14);
+    disc(shop,14.88,4.78,d+1.25,.50,.50,blue,12);
+    shop.box(3.70,4.28,d+.28,1.14,.49,.23,"#354746");
+  }
   building(-111,-113,33,21,8.7,E,"shed","#d5baa1","#6c9596","PORT");
   building(-114,34,27,25,8,E,"shed","#a7b9a8","#7b9693");
   building(-108,99,17,16,5.3,W,"house","#dfb6a7","#87a69d");
@@ -930,5 +994,5 @@ window.buildBayCity = function buildBayCity(g) {
     const x=between(-202,129),z=(i%2?1:-1)*between(233,267),h=between(8,27);
     g.box(x,h/2,z,between(12,23),h,between(11,21),pick(["#aba8a0","#a8a29f","#92a0a1"]));
   }
-  return {solids,cameraObstacles};
+  return {solids,cameraObstacles,garage};
 };

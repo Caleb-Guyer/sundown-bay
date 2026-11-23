@@ -535,6 +535,34 @@
     }
     disc(c,0,0,.26,"#5e716c");c.restore();
   }
+  function garageFloor(c,g,x,y,s){
+    const w=g.halfWidth,d=g.halfDepth;
+    c.save();c.translate(x,y);c.scale(s,-s);
+    rect(c,-w+.05,-d+.4,2*w-.1,2*d+4,"#bbb9a4");
+    for(const side of [-1,1]){
+      rect(c,side*3.48-.07,-5.56,.14,11.38,"#f4e4b9");
+      rect(c,side*.96-.3,-3.26,.60,6.45,"#638381");
+      for(const a of [2.90,6.8,9.2])rect(c,side*(a<3?.96:3.48)-.15,a-.23,.3,.46,"#e4b26e");
+    }
+    rect(c,-3.48,-3.59,6.96,.15,"#ebc676");
+    rect(c,2.83,-d+.42,1.55,.85,"#bc6751");
+    for(const u of [-2.6,-3.65]){disc(c,u,-d+1.02,.51,"#41494a");disc(c,u,-d+1.02,.22,"#9caa9a");}
+    c.restore();
+  }
+  function garageMark(c,x,y,ui,label,selected){
+    c.save();c.translate(x,y);c.scale(ui,ui);
+    let right=8;
+    if(label){
+      c.font="700 9.5px system-ui, sans-serif";c.textAlign="left";c.textBaseline="middle";
+      right=15+c.measureText(label).width;rect(c,4,-6.7,right-4,13.4,"#214e4d");
+      c.fillStyle="#fff0ce";c.fillText(label,11,.2);
+    }
+    disc(c,0,0,8.2,selected?"#ffce82":"#c1e6bd");disc(c,0,0,6.95,"#286461");
+    path(c,[[-4.9,3.15],[-1,-.86],[-1.22,-2.95],[.05,-4.79],[2.37,-5.3],[1.25,-3.32],
+      [2.62,-1.99],[4.96,-3.17],[4.36,-.82],[2.72,.45],[.78,.22],[-3.18,4.92],[-4.57,5.05],[-5.28,4.26]],"#fff0c9");
+    disc(c,-3.85,3.86,.62,"#286461");c.restore();
+    if(label)return {left:x-9*ui,right:x+(right+1)*ui,top:y-9*ui,bottom:y+9*ui};
+  }
   window.drawBayMap=function drawBayMap(ctx,opt) {
     const w=ctx.canvas.width,h=ctx.canvas.height,s=opt.scale;
     if(!(w>0 && h>0 && s>0)) return;
@@ -590,10 +618,20 @@
         if(visible(a,b)){ctx.strokeText(name,a,b);ctx.fillText(name,a,b);}
       }
     }
-    if(!street) {
-      for(const place of opt.places||empty) {
-        const x=px(place.x),y=py(place.z);
-        if(!visible(x,y))continue;
+    let garageBounds;
+    for(const place of opt.places||empty) {
+      const x=px(place.x),y=py(place.z);
+      if(place.kind==="garage"){
+        const selected=opt.target?.kind==="garage";
+        if(street){
+          if(visible(x,y,18*s)){garageFloor(ctx,place,x,y,s);garageMark(ctx,x+9*s,y,ui*.84,"",false);}
+        }else if(atlas)garageBounds=garageMark(ctx,x,y,ui,place.name,selected);
+        else if(radar){
+          const marker=edgePoint(x,y,w,h,true,10*ui);
+          if(player?.flatSide||selected||Math.hypot(marker[0]-x,marker[1]-y)<1)
+            garageMark(ctx,marker[0],marker[1],ui*.86,"",selected);
+        }
+      }else if(!street&&visible(x,y)){
         disc(ctx,x,y,(radar?2.0:2.55)*ui,ink);disc(ctx,x,y,(radar?1:1.38)*ui,"#e1d9b2");
       }
     }
@@ -631,7 +669,7 @@
       const x=px(sig.x),y=py(sig.z);
       if(visible(x,y,9*s)) intersectionLights(ctx,x,y,s,((streetTime+sig.offset)%14+14)%14<7);
     }
-    if(opt.target&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {
+    if(opt.target&&(street||opt.target.kind!=="garage")&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {
       const x=px(opt.target.x),y=py(opt.target.z);
       const pt=edgePoint(screenX(x,y),screenY(x,y),w,h,radar,(radar?11:15)*ui);
       ctx.save();ctx.setTransform(1,0,0,1,0,0);
@@ -662,6 +700,6 @@
         const marker=radar?edgePoint(x,y,w,h,true,8*ui):[x,y];airSprite(ctx,a,marker[0],marker[1],s,street,ui);
       }
     }
-    ctx.restore();
+    ctx.restore();return garageBounds;
   };
 })();
