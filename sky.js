@@ -24,6 +24,39 @@
     const channel=shift=>Math.round(((a>>shift)&255)*(1-weight)+((b>>shift)&255)*weight);
     return "rgb("+channel(16)+","+channel(8)+","+channel(0)+")";
   }
+  const colour=hex=>[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];
+  // The beach faces east. Dawn starts pale aqua above the water; sunset burns back over town.
+  const skies=[
+    [0,    ["#0a1930","#162a45","#283b56","#39495c","#485868","#435463"]],
+    [265,  ["#111e39","#1c3250","#364968","#465777","#5b6980","#5c7080"]],
+    [337,  ["#234561","#47697d","#80919b","#afaba4","#d8b597","#b6b7a6"]],
+    [390,  ["#37637c","#6aa2ae","#a2c7c4","#e2c7ad","#ffcf9d","#e4ceb0"]],
+    [500,  ["#32759c","#6aa6bd","#a2cbd0","#bcddd5","#d8e4cb","#c8ddd0"]],
+    [753,  ["#24689b","#4d92bb","#80b6cb","#a9d0d1","#d2dfcd","#c5d7c9"]],
+    [944,  ["#356c94","#699ab4","#a0bbc4","#c6c8be","#ecd8b7","#dfcdb5"]],
+    [1053, ["#4a6387","#828eab","#bc9cad","#e9aa98","#ffcf9f","#edb99f"]],
+    [1110, ["#344a71","#676888","#a17d92","#dd9392","#ffc288","#dda58c"]],
+    [1160, ["#1e3659","#384e71","#625e7c","#8c7189","#b38a8c","#987b84"]],
+    [1210, ["#112443","#213852","#384d66","#545b71","#71677b","#615e73"]],
+    [1300, ["#0c1c34","#1c304a","#2c4058","#3d4c63","#4f5a6e","#495767"]],
+    [1440, ["#0a1930","#162a45","#283b56","#39495c","#485868","#435463"]]
+  ].map(([minute,bands])=>[minute,bands.map(colour)]);
+  const stormLight=["#314751","#495e6a","#6b7d85","#8b9697","#acb0a8","#a0aba8"].map(colour);
+  const stormDark=["#0c1929","#16283a","#26394a","#394858","#4d5965","#455562"].map(colour);
+  function clockSky(minute,night,forced,rain){
+    const end=skies.findIndex((row,i)=>i&&row[0]>=minute);
+    const [startT,start]=skies[Math.max(0,end-1)],[endT,finish]=skies[end<1?1:end];
+    let weight=(minute-startT)/(endT-startT);weight=weight*weight*(3-2*weight);
+    return start.map((color,i)=>{
+      const channels=color.map((v,j)=>{
+        let base=v+(finish[i][j]-v)*weight;
+        base+=(skies[9][1][i][j]-base)*forced;
+        const overcast=stormLight[i][j]+(stormDark[i][j]-stormLight[i][j])*night;
+        return Math.round(base+(overcast-base)*rain*.87);
+      });
+      return "rgb("+channels.join(",")+")";
+    });
+  }
   // Tower, low shelf, high wind streaks and a broken bank. Each has its own light-facing edge.
   const silhouettes=[
     ["M4 90 Q31 83 48 84 Q60 73 79 76 Q92 47 114 54 Q110 41 126 38 Q129 24 147 22 Q167 16 177 30 Q196 28 204 49 Q222 47 233 61 Q258 57 273 71 Q302 70 316 80 Q342 79 375 85 Q342 89 293 88 Q252 96 204 90 Q170 101 113 93 Q62 98 4 90Z",
@@ -35,32 +68,48 @@
     ["M1 88 Q22 83 37 82 Q49 69 65 74 Q75 57 96 60 Q104 44 122 48 Q139 44 150 63 Q171 60 185 74 Q209 71 222 81 Q246 81 266 86 Q225 92 191 88 Q149 96 100 90 Q47 96 1 88Z M273 76 Q288 68 304 70 Q317 57 331 63 Q342 61 352 71 Q365 70 378 75 Q329 81 273 76Z",
       "M66 72 Q75 56 96 60 Q103 44 123 48 Q136 45 145 59 Q134 51 124 53 Q108 47 100 65 Q79 61 66 72Z"]
   ];
-  function cloud(variant,evening){
+  function cloud(variant,mood){
     const c=document.createElement("canvas");c.width=380;c.height=112;
     const g=c.getContext("2d"),[body,edge]=silhouettes[variant];
     const wash=g.createLinearGradient(0,18,0,98);
-    wash.addColorStop(0,evening?"#ba858a":"#ffe0b7");wash.addColorStop(.46,evening?"#786079":"#f4ccbd");
-    wash.addColorStop(.8,evening?"#594d67":"#dcc0c1");wash.addColorStop(1,evening?"#49475f":"#c6adbb");
+    const washes={
+      day:["#ffe0b7","#f4ccbd","#dcc0c1","#c6adbb","#ffe3bc"],
+      blue:["#fff9e4","#e8eddf","#c8d9d7","#a4bbc5","#fffced"],
+      dusk:["#ba858a","#786079","#594d67","#49475f","#d39890"],
+      dark:["#526071","#354454","#293b4c","#243545","#687485"],
+      rain:["#a7b1ad","#74858b","#586b75","#465b68","#bdc3b8"]
+    };
+    const tones=washes[mood];wash.addColorStop(0,tones[0]);wash.addColorStop(.46,tones[1]);
+    wash.addColorStop(.8,tones[2]);wash.addColorStop(1,tones[3]);
     g.fillStyle=wash;g.fill(new Path2D(body));
-    g.fillStyle=evening?(variant===2?"#98798b":"#d39890"):(variant===2?"#f6d5c1":"#ffe3bc");g.fill(new Path2D(edge));
+    g.fillStyle=tones[4];g.fill(new Path2D(edge));
     return c;
   }
   class Sky {
-    constructor(canvas){this.c=canvas;this.g=null;this.sprites=null;this.eveningSprites=null;this.last=null;}
-    draw(view,cam,t,dusk=0){
+    constructor(canvas){this.c=canvas;this.g=null;this.sprites={};this.last=null;}
+    banksFor(mood){
+      if(!this.sprites[mood])this.sprites[mood]=[0,1,2,3].map(i=>cloud(i,mood));
+      return this.sprites[mood];
+    }
+    draw(view,cam,t,dusk=0,weather=null){
       dusk=Math.max(0,Math.min(1,dusk||0));
-      const {c}=this;if(!this.g){this.g=c.getContext("2d",{alpha:false});this.sprites=[0,1,2,3].map(i=>cloud(i,false));}
-      if(dusk>0&&!this.eveningSprites)this.eveningSprites=[0,1,2,3].map(i=>cloud(i,true));
+      const timed=weather&&Number.isFinite(weather.minute);
+      const minute=timed?((weather.minute%1440)+1440)%1440:0,rain=timed?weather.rain||0:0;
+      const night=timed?weather.night||0:dusk,forced=timed?Math.max(0,(dusk-night)/Math.max(.001,1-night)):0;
+      const sceneNight=Math.max(dusk,night);
+      const {c}=this;if(!this.g)this.g=c.getContext("2d",{alpha:false});
+      if(!this.g)return;
       const g=this.g,w=Math.max(2,Math.round(innerWidth*.66)),h=Math.max(2,Math.round(innerHeight*.66)),f=cam.focal||1.5;
-      if(this.last&&w===c.width&&h===c.height&&Math.abs(this.last.yaw-cam.yaw)<.0008&&Math.abs(this.last.pitch-cam.pitch)<.0008&&Math.abs(this.last.f-f)<.003&&Math.abs(this.last.dusk-dusk)<.02&&t-this.last.t<.20)return;
+      if(this.last&&w===c.width&&h===c.height&&Math.abs(this.last.yaw-cam.yaw)<.0008&&Math.abs(this.last.pitch-cam.pitch)<.0008&&Math.abs(this.last.f-f)<.003&&Math.abs(this.last.dusk-dusk)<.02&&Math.abs(this.last.minute-minute)<.7&&Math.abs(this.last.rain-rain)<.018&&this.last.t<=t&&t-this.last.t<.20)return;
       if(w!==c.width||h!==c.height){c.width=w;c.height=h;}
-      this.last={t,yaw:cam.yaw,pitch:cam.pitch,f,dusk};
+      this.last={t,yaw:cam.yaw,pitch:cam.pitch,f,dusk,minute,rain};
       const sy=h/innerHeight,sx=w/innerWidth,horizon=h*(.5+Math.tan(cam.pitch)*f*.5);
       const air=g.createLinearGradient(0,horizon-h*1.08,0,horizon+h*.12);
-      for(const [stop,day,night] of horizonBands)air.addColorStop(stop,skyColor(day,night,dusk));
+      const colors=timed?clockSky(minute,sceneNight,forced,rain):null;
+      horizonBands.forEach(([stop,day,evening],i)=>air.addColorStop(stop,colors?colors[i]:skyColor(day,evening,dusk)));
       g.fillStyle=air;g.fillRect(0,0,w,h);
-      if(dusk>.42){
-        const fade=(dusk-.42)/.58,unit=Math.max(.82,h/590);
+      if(sceneNight>.42){
+        const fade=(sceneNight-.42)/.58*(1-rain*.98),unit=Math.max(.82,h/590);
         g.fillStyle="#ede7d4";
         for(const star of stars){
           const p=view.project(cam.x+star.x,cam.y+star.y,cam.z+star.z);
@@ -77,27 +126,47 @@
         }
         g.globalAlpha=1;
       }
-      const sun=view.project(cam.x+510,cam.y+430-502*dusk,cam.z+746);
-      if(sun&&dusk<.94){
+      const sweep=(minute-360)/1440*Math.PI*2,elevation=Math.sin(sweep);
+      const sun=timed?view.project(cam.x+Math.cos(sweep)*760,cam.y+elevation*730-16,
+        cam.z+295+elevation*103):view.project(cam.x+510,cam.y+430-502*dusk,cam.z+746);
+      if(sun&&sceneNight<.94&&(!timed||elevation>-.06)){
         const x=sun.x*sx,y=sun.y*sy,r=h*.041;
-        g.globalAlpha=Math.min(1,(.94-dusk)/.24);
+        g.globalAlpha=Math.min(1,(.94-sceneNight)/.24)*(1-rain*.94)*(1-forced);
         const glow=g.createRadialGradient(x,y,r*.4,x,y,r*5.2);glow.addColorStop(0,"rgba(255,230,170,.72)");
         glow.addColorStop(.32,"rgba(255,208,140,.36)");glow.addColorStop(1,"rgba(255,200,145,0)");
         g.fillStyle=glow;g.fillRect(x-r*5.2,y-r*5.2,r*10.4,r*10.4);
         g.fillStyle=skyColor("#fff0bd","#ffa481",dusk);g.beginPath();g.arc(x,y,r,0,Math.PI*2);g.fill();g.globalAlpha=1;
       }
-      for(const [yaw,elev,size,variant] of banks){
-        const a=yaw+Math.sin(t*.0026+variant)*.019,delta=Math.cos(a-cam.yaw);
-        if(delta<.19)continue;
+      const toast=timed?Math.max(0,1-Math.min(Math.abs(minute-360),Math.abs(minute-1095))/122):1;
+      const nightCloud=timed?Math.min(1,Math.max(sceneNight,forced)):dusk;
+      const bank=(yaw,elev,size,variant,shower)=>{
+        const a=yaw+Math.sin(t*(shower ? .009 : .0026)+variant)*(shower ? .09 : .019),delta=Math.cos(a-cam.yaw);
+        if(delta<.19)return;
         const p=view.project(cam.x+Math.sin(a)*750,cam.y+Math.tan(elev)*750,cam.z+Math.cos(a)*750);
-        if(!p)continue;
+        if(!p)return;
         const width=Math.min(w*1.6,h*f*.5*size/Math.max(delta,.32)),height=width*[.24,.17,.19,.21][variant];
         const left=p.x*sx-width*.5,top=p.y*sy-height*.66;
-        if(left>w||left+width<0||top>h||top+height<0)continue;
-        const opacity=variant===2?.47:.73;
-        if(dusk<1){g.globalAlpha=opacity*(1-dusk)/(1-opacity*dusk);g.drawImage(this.sprites[variant],left,top,width,height);}
-        if(dusk>0){g.globalAlpha=opacity*dusk;g.drawImage(this.eveningSprites[variant],left,top,width,height);}
-      }
+        if(left>w||left+width<0||top>h||top+height<0)return;
+        const opacity=(variant===2?.47:.73)*(shower?rain:1);
+        const paint=(mood,alpha)=>{if(alpha>.025){g.globalAlpha=alpha;g.drawImage(this.banksFor(mood)[variant],left,top,width,height);}};
+        if(!timed){
+          paint("day",opacity*(1-dusk)/(1-opacity*dusk));paint("dusk",opacity*dusk);return;
+        }
+        if(shower){
+          const veil=g.createLinearGradient(0,top+height*.67,0,top+height*1.55);
+          veil.addColorStop(0,"rgba(84,105,118,.64)");veil.addColorStop(1,"rgba(119,142,151,0)");
+          g.globalAlpha=rain*(1-night*.65)*.58;g.fillStyle=veil;g.beginPath();
+          g.moveTo(left+width*.12,top+height*.68);g.lineTo(left+width*.67,top+height*.68);
+          g.lineTo(left+width*.59,top+height*1.57);g.lineTo(left,top+height*1.46);g.fill();
+          paint(night>.68?"dark":"rain",opacity);return;
+        }
+        const dayMix=(1-nightCloud)*(1-rain*.68);
+        paint("blue",opacity*dayMix*(1-toast));paint("day",opacity*dayMix*toast);
+        paint(timed&&night>.73?"dark":"dusk",opacity*nightCloud*(1-rain*.58));
+        paint(night>.68?"dark":"rain",opacity*rain*.72);
+      };
+      for(const [yaw,elev,size,variant] of banks)bank(yaw,elev,size,variant,false);
+      if(rain>.05)for(const yaw of [-2.9,-1.55,-.3,1.05,2.36])bank(yaw,.16,1.62,3,true);
       g.globalAlpha=1;
     }
   }

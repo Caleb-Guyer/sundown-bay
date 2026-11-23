@@ -9,6 +9,24 @@
     }
     return rgbCache.get(hex);
   }
+  const builtMaterials=new Map([
+    [0x46515b,1],[0xe7b784,2],[0x5c8790,2],[0x83b8b5,3],
+    [0xffd589,4],[0xfc9390,4],[0xffdfab,4],[0xffe1a4,4],[0xffc487,4],[0xff986f,4]
+  ]);
+  const lampShade=rgb("#e9c99a");
+  for(const shade of [1.07,.91,.85,.8,.98,.71]){
+    const [r,g,b]=lampShade.map(c=>Math.round(c*shade*255));
+    builtMaterials.set((r<<16)|(g<<8)|b,4);
+  }
+  const carMaterials=new Map([[0xffefbd,5],[0xa53a47,6]]);
+  function tagMaterials(data,parts){
+    // Use spare range in the static vertex colour so street lights need no additional draw calls.
+    for(let i=0;i<data.length;i+=6){
+      const key=(Math.round(data[i+3]*255)<<16)|(Math.round(data[i+4]*255)<<8)|Math.round(data[i+5]*255);
+      const kind=parts.get(key);
+      if(kind&&(kind!==1||data[i+1]<.09)&&(kind!==2&&kind!==3||data[i+1]>2.4))data[i+3]+=2*kind;
+    }
+  }
   class Mesh {
     constructor() { this.vertices = []; }
     face(points, color, light = 1) {
@@ -55,7 +73,7 @@
     attribute vec3 pos; attribute vec3 col;
     uniform vec3 origin,eye,rightV,upV,forwardV; uniform vec2 turn,focal; uniform vec2 depth;
     uniform vec4 tilt,waterParams; uniform float castOnly;
-    varying vec3 vColor,lightCoord; varying vec2 surface; varying float haze;
+    varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     void main(){
       vec3 q=vec3(pos.x,pos.y*tilt.x-pos.z*tilt.y,pos.y*tilt.y+pos.z*tilt.x);
       q=vec3(q.x*tilt.z-q.y*tilt.w,q.x*tilt.w+q.y*tilt.z,q.z);
@@ -65,7 +83,9 @@
       gl_Position=vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);
       lightCoord=lightClip(world)*.5+.5;
       surface=waterParams.w>.5?world.xz:vec2(world.x+world.z*.68,world.y+world.z*.44-world.x*.17);
-      vColor=col; haze=smoothstep(62.,390.,z)*.68;
+      float material=floor((col.r+.25)*.5);
+      street=vec4(world.xz,world.y,material);
+      vColor=vec3(col.r-2.*material,col.gb); haze=smoothstep(62.,390.,z)*.68;
     }`;
   const PRECISION=`#ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
@@ -74,15 +94,15 @@
     #endif
   `;
   const FRAGMENT = PRECISION+`
-    varying vec3 vColor,lightCoord; varying vec2 surface; varying float haze;
-    uniform vec4 waterParams;
-    uniform sampler2D sunDepth,paper,lobbyPrint; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow,showPrint;
+    varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
+    uniform vec4 waterParams,airState,driverLamp; uniform vec3 eye,skyTone;
+    uniform sampler2D sunDepth,paper,lobbyPrint,streetLight; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow,showPrint;
     float shadeAt(vec2 uv){
       vec2 rg=texture2D(sunDepth,uv).rg;
       return step(dot(rg,vec2(1.,1./255.))+.00047,lightCoord.z);
     }
     void main(){
-      if(castOnly>.5){gl_FragColor=vec4(.12,.15,.24,.28*(1.-.65*dusk)*(1.-haze));return;}
+      if(castOnly>.5){gl_FragColor=vec4(.12,.15,.24,.28*(1.-.65*dusk)*(1.-.66*airState.x)*(1.-haze));return;}
       if(showPrint>.5){
         vec3 dye=texture2D(lobbyPrint,vColor.rg).rgb*(1.-.14*dusk);
         gl_FragColor=vec4(mix(dye,vec3(.65,.54,.53),haze*.6),1.);return;
@@ -110,6 +130,11 @@
           evening+=vec3(.15,.064,.062)*sunset*crest;
           sea=mix(sea,evening,dusk);seaMist=mix(seaMist,vec3(.54,.39,.46),dusk);
         }
+        if(airState.w>.5){
+          seaMist=mix(skyTone,seaMist,.18);
+          sea=mix(sea,skyTone*.71+.085*crest,airState.x*.47);
+          sea+=vec3(.09,.13,.14)*airState.z*crest*(1.-dusk);
+        }
         gl_FragColor=vec4(mix(sea,seaMist,haze*.83),1.);return;
       }
       float shade=0.;
@@ -133,6 +158,44 @@
         color=mix(color,mix(night,vColor*1.07,glow),dusk);
         mist=mix(mist,vec3(.56,.405,.465),dusk);
       }
+      if(airState.w>.5){
+        float lampTime=max(dusk,.53*airState.x);
+        float lowSurface=1.-smoothstep(.27,4.4,street.z);
+        color*=mix(vec3(1.),vec3(.932,1.015,1.054),airState.z*(1.-dusk));
+        color=mix(color,color*vec3(.81,.88,.94)+skyTone*.036,airState.x);
+        mist=skyTone;
+        if(street.w>.5&&street.w<1.5&&airState.y>.012){
+          vec2 road=street.xy;
+          vec2 axis=abs(mod(road+36.,72.)-36.);
+          vec2 asphalt=axis.x<axis.y?road:road.yx;
+          // Most standing water collects toward the kerb. The crown keeps a continuous dull sheen.
+          float shoulder=smoothstep(1.35,5.6,min(axis.x,axis.y));
+          float depression=smoothstep(.42,.71,texture2D(paper,asphalt*vec2(.024,.006)).r+.13*wash);
+          float grazing=1.-clamp((eye.y-street.z)/max(2.,length(road-eye.xz)),0.,1.);
+          color=mix(color,color*vec3(.54,.66,.77),airState.y*.86);
+          float surfaceFilm=.12+.11*grazing+depression*(.055+.23*shoulder)*grazing;
+          color=mix(color,skyTone*(.51+.22*grazing),airState.y*surfaceFilm);
+        }
+        if(lampTime>.02&&lowSurface>.001){
+          vec3 pool=texture2D(streetLight,street.xy/464.+.5).rgb;
+          color+=pool*lowSurface*lampTime*(.25+.155*airState.y);
+          if(dot(driverLamp.zw,driverLamp.zw)>.5){
+            vec2 gap=street.xy-driverLamp.xy;
+            float ahead=dot(gap,driverLamp.zw),side=abs(dot(gap,vec2(driverLamp.w,-driverLamp.z)));
+            float fan=smoothstep(1.3,3.,ahead)*(1.-smoothstep(12.,29.,ahead));
+            float width=max(.49,.48+.19*ahead),fromLens=abs(side-(.62+.025*ahead));
+            fan*=1.-smoothstep(width*.2,width,fromLens);
+            color+=vec3(.32,.27,.164)*fan*lowSurface*lampTime*(1.+.27*airState.y);
+          }
+        }
+        if(lampTime>.01&&street.w>1.5){
+          if(street.w<2.5)color=mix(color,vec3(.96,.745,.47),dusk*.81);
+          else if(street.w<3.5)color=mix(color,vec3(.60,.79,.78),dusk*.65);
+          else if(street.w<4.5)color=mix(color,min(vec3(1.),vColor*1.18+vec3(.035)),dusk*.96);
+          else if(street.w<5.5)color=mix(color,vec3(1.,.976,.825),lampTime);
+          else color=mix(color,vec3(.91,.27,.245),lampTime*.88);
+        }
+      }
       gl_FragColor=vec4(mix(color,mist,haze),1.);
     }`;
   const SUNVERT=LIGHT+`attribute vec3 pos;void main(){gl_Position=vec4(lightClip(pos),1.);}`;
@@ -155,7 +218,7 @@
         gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;};
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
-      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint"])this.u[key]=gl.getUniformLocation(p,key);
+      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint","streetLight","airState","skyTone","driverLamp"])this.u[key]=gl.getUniformLocation(p,key);
       this.glow=0;
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
@@ -176,12 +239,19 @@
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
-      gl.uniform1i(this.u.sunDepth,0);gl.uniform1i(this.u.paper,1);gl.uniform1i(this.u.lobbyPrint,2);
+      gl.activeTexture(gl.TEXTURE3);this.streetTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.streetTexture);
+      const lamps=window.BayCoastArt?.lightTexture()||{pixels:new Uint8Array(4),size:1};
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,lamps.size,lamps.size,0,gl.RGBA,gl.UNSIGNED_BYTE,lamps.pixels);
+      gl.uniform1i(this.u.sunDepth,0);gl.uniform1i(this.u.paper,1);gl.uniform1i(this.u.lobbyPrint,2);gl.uniform1i(this.u.streetLight,3);
       gl.uniform4f(this.u.tilt,1,0,1,0);gl.activeTexture(gl.TEXTURE0);
     }
     add(name,mesh,animated=false){
       if(!this.gl)return;
       const data=mesh.vertices instanceof Float32Array?mesh.vertices:new Float32Array(mesh.vertices);
+      if(name==="city")tagMaterials(data,builtMaterials);
+      else if(/^(coupe|van|cab|hatch|cruiser)#/.test(name))tagMaterials(data,carMaterials);
       if(animated)this.animated.add(name);
       this.cpu.set(name,data);if(!this.lost)this.upload(name,data);
     }
@@ -213,14 +283,25 @@
       gl.useProgram(this.program);gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
       gl.uniform1f(this.u.hasShadow,ok?1:0);gl.uniform1f(this.u.texel,1/sz);gl.clearColor(0,0,0,0);this.bound=null;
     }
-    begin(camera,dusk=0){
+    begin(camera,dusk=0,weather=null,headlights=null){
       if(!this.gl||this.lost)return;
       const gl=this.gl,c=this.canvas, factor=Math.min(this.maxWidth/innerWidth,this.maxHeight/innerHeight,devicePixelRatio||1)*this.scale;
       const w=Math.max(2,Math.round(innerWidth*factor)), h=Math.max(2,Math.round(innerHeight*factor));
       if(c.width!==w||c.height!==h){c.width=w;c.height=h;}gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
       const sn=Math.sin(camera.yaw),cs=Math.cos(camera.yaw),sp=Math.sin(camera.pitch),cp=Math.cos(camera.pitch);
       const focal=camera.focal||1.5;this.basis={sn,cs,sp,cp,camera,f:focal,aspect:w/h};this.bound=null;this.tiltX=NaN;this.tiltZ=NaN;
-      gl.uniform1f(this.u.dusk,Math.max(0,Math.min(1,dusk||0)));
+      const timed=weather&&Number.isFinite(weather.minute),night=Math.max(0,Math.min(1,Math.max(dusk||0,timed?weather.night||0:0)));
+      const rain=timed?weather.rain||0:0,wet=timed?weather.wet||0:0;
+      const noon=timed?Math.max(0,1-Math.abs(weather.minute-730)/325):0;
+      const dawn=timed?Math.max(0,1-Math.abs(weather.minute-395)/123):0;
+      gl.uniform1f(this.u.dusk,night);gl.uniform4f(this.u.airState,rain,wet,noon,timed?1:0);
+      const dark=1-night,clear=1-rain*.68;
+      gl.uniform3f(this.u.skyTone,
+        (.895-.14*noon-.08*dawn)*dark*clear+.30*night*clear+(.58-.30*night)*(1-clear),
+        (.681+.17*noon+.13*dawn)*dark*clear+.345*night*clear+(.63-.31*night)*(1-clear),
+        (.626+.19*noon+.13*dawn)*dark*clear+.41*night*clear+(.66-.29*night)*(1-clear));
+      if(timed&&headlights)gl.uniform4f(this.u.driverLamp,headlights.x,headlights.z,Math.sin(headlights.yaw),Math.cos(headlights.yaw));
+      else gl.uniform4f(this.u.driverLamp,0,0,0,0);
       gl.uniform3f(this.u.eye,camera.x,camera.y,camera.z);gl.uniform3f(this.u.rightV,cs,0,-sn);
       gl.uniform3f(this.u.upV,-sn*sp,cp,-cs*sp);gl.uniform3f(this.u.forwardV,sn*cp,sp,cs*cp);gl.uniform2f(this.u.focal,focal/(w/h),focal);
     }

@@ -602,6 +602,10 @@
       ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=opt.dusk*.35;
       rect(ctx,0,0,w,h,"#23304f");ctx.restore();
     }
+    if(street&&opt.weather){
+      BayCoastArt.mapSurface(ctx,opt,px,py,visible);
+      if(visible(px(-37.4),py(-132.2),13*s))BayMercadoArt.map(ctx,px,py,s,opt.weather,streetTime);
+    }
     if(radar&&player&&Number.isFinite(opt.cameraYaw)) cameraWedge(ctx,px(player.x),py(player.z),opt.cameraYaw,ui);
     const ferry=opt.ferry,ship=ferry?.ship;
     if(ship){
@@ -681,6 +685,17 @@
           if(player?.flatSide||selected||Math.hypot(marker[0]-x,marker[1]-y)<1)
             garageMark(ctx,marker[0],marker[1],ui*.86,"",selected);
         }
+      }else if(!street&&(place.kind==="room"||place.kind==="counter")&&visible(x,y)){
+        const k=ui*(radar?.84:1);ctx.save();ctx.translate(x,y);ctx.scale(k,k);
+        disc(ctx,0,0,6.2,ink);disc(ctx,0,0,5.1,place.kind==="room"?"#abdbcd":opt.weather?.market==="open"?"#ffbc75":"#aeae9b");
+        if(place.kind==="room"){
+          disc(ctx,-1.55,-1.2,1.9,ink);disc(ctx,-1.55,-1.2,.77,"#abdbcd");
+          line(ctx,-.1,-.1,2.5,2.4,ink,1.25);line(ctx,1.65,1.55,2.65,.65,ink,1.15);
+        }else{
+          rect(ctx,-2.9,.1,5.8,1,ink);path(ctx,[[-2.6,-.2],[-1.8,-1.9],[0,-2.5],[1.8,-1.9],[2.6,-.2]],ink);
+          rect(ctx,-1.8,1.4,3.6,.58,ink);
+        }
+        ctx.restore();
       }else if(place.kind!=="landing"&&!street&&visible(x,y)){
         disc(ctx,x,y,(radar?2.0:2.55)*ui,ink);disc(ctx,x,y,(radar?1:1.38)*ui,"#e1d9b2");
       }
@@ -767,6 +782,9 @@
       if(street) {
         if(player.driving && !playerCar) carSprite(ctx,player,x,y,s,streetTime);
         if(!player.driving&&!player.inCabin&&!opt.aboard) personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+        if(opt.plate&&!player.driving&&!player.inCabin&&!opt.aboard){
+          const bag=BayDriving.world(player,.41,.08);rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
+        }
         if(opt.aboard){const v=opt.marina.player,helm=BayDriving.world(v,-.38,-.35);disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
         if(!opt.photograph){
           const r=Math.max(player.driving?2.7*s:1.1*s,5.2*ui);
@@ -775,6 +793,10 @@
           line(ctx,x+vx*r,y+vy*r,x+vx*(r+3.2*ui),y+vy*(r+3.2*ui),"#f7ffec",2.3*ui);
         }
       } else playerIcon(ctx,x,y,(radar?7.15:6.6)*ui,player.yaw);
+    }
+    if(street&&opt.lastDiner&&t<opt.lastDiner.until){
+      const bag=BayDriving.world(opt.lastDiner.customer,.40,.12);
+      if(visible(px(bag.x),py(bag.z)))rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
     }
     if(street&&opt.story?.progress>=.65){
       const v=opt.story.ride,seat=BayDriving.world(v,bayCarLayout(v.kind).seatX,v.kind==="van"?1.24:.84);
