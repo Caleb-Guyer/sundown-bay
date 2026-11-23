@@ -300,11 +300,15 @@
       gl.useProgram(this.program);gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
       gl.uniform1f(this.u.hasShadow,ok?1:0);gl.uniform1f(this.u.texel,1/sz);gl.clearColor(0,0,0,0);this.bound=null;
     }
-    begin(camera,dusk=0,weather=null,headlights=null,seaTime=null){
+    begin(camera,dusk=0,weather=null,headlights=null,seaTime=null,inset=null){
       if(!this.gl||this.lost)return;
       const gl=this.gl,c=this.canvas, factor=Math.min(this.maxWidth/innerWidth,this.maxHeight/innerHeight,devicePixelRatio||1)*this.scale;
-      const w=Math.max(2,Math.round(innerWidth*factor)), h=Math.max(2,Math.round(innerHeight*factor));
-      if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
+      const w=inset?inset.w:Math.max(2,Math.round(innerWidth*factor)),h=inset?inset.h:Math.max(2,Math.round(innerHeight*factor));
+      if(inset){gl.enable(gl.SCISSOR_TEST);gl.scissor(0,0,w,h);}
+      else{
+        gl.disable(gl.SCISSOR_TEST);
+        if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
+      }
       if(seaTime===null)gl.clearColor(0,0,0,0);
       else{const light=1-.42*dusk;gl.clearColor(.095*light,.365*light,.386*light,1);}
       gl.uniform2f(this.u.immersion,seaTime===null?0:1,(seaTime||0)%2048);

@@ -871,8 +871,9 @@ window.buildBayCity = function buildBayCity(g,water) {
 
   // Palm-lined promenade, street trees, beach parasols and towels.
   for(let z=-182;z<184;z+=15){
-    palm(157.15,z,between(6.6,9.6),between(0,Math.PI*2));
-    if(z%2===0) bench(165.35,z+3,false);
+    const palmZ=z===-92?-84.1:z;
+    palm(157.15,palmZ,between(6.6,9.6),between(0,Math.PI*2));
+    if(z%2===0) bench(165.35,z===-92?-81.5:z+3,false);
   }
   for(const x of [-134.4,-81.4,9.55,62.45,134.5]) {
     for(let z=-177;z<175;z+=26) {

@@ -8,6 +8,12 @@ Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the ra
 
 Use **WASD** or the arrow keys to move and steer. Move the mouse to look around. Press **E** beside a car to get in or out. **Space** is the handbrake while driving and jump on foot. **M** opens the map and **R** toggles sound.
 
+At the wheel, **Z** switches between the chase camera and the driver’s seat. The speedometer, gear indicator and steering wheel follow the car. Look into the rearview mirror for the street behind you, move the mouse or use **Q/C** to look around, and press **X** to face forward. In overhead view, **Z** brings up the live instrument cluster. **I** cycles the wipers through automatic, continuous and off. **Comma** and **period** signal left and right.
+
+**Palma Hand Wash** sits south of the Marlin on the beach side of Ocean Drive. Sand, wet roads and the tracks at Pelican Cut leave different amounts of dirt on each car. Park on the open striped pad and press **F**. Elia Mena gives you the first hand wash on the house, then charges **$12**. You can also take the blue hose and wash your own car for free.
+
+For a paid wash ticket, walk to Elia’s till and press **F**. Wait for the customer to park in the covered bay and step out. Move around the car and hold **Space** or the primary mouse button to rinse the panel nearest you. When all four panels are clean, press **F** beside the driver to get paid. Using less water earns a better tip. Customers also visit Elia between your shifts.
+
 Across the street from the starter car, press **F** at the teal door numbered **14** to enter your room at the Marlin. Walk over to the bed to set the alarm, or read Rosario’s handwritten note on the desk. The city clock carries over between visits. Lamps and headlights come on after dark. Short coastal showers leave the pavement wet for a while.
 
 Under the striped canopy on the motel side of Ocean Drive, press **F** at Tess Vidal’s stand to **take a valet shift**. Meet Ruth, Des and Viv at the loading curb. Press **F** to exchange a key and claim check, **E** to get into that guest’s car, and **E** again after parking between its lettered stripes behind the motel. Hang the key at the stand with **F**. When the guest comes back, take the claim, fetch the matching plate, and hand back the key at the loading curb. Each return pays **$70–85** plus a tip of up to **$45** for parking neatly, prompt retrieval and avoiding damage. The shift book remembers each guest’s best tip. Tess works the same stand before and after your shift.

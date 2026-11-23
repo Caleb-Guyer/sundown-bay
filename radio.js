@@ -34,7 +34,9 @@
   const bedsByName = {
     engine: ['sawtooth', 'lowpass', 0.59], skid: ['noise', 'bandpass', 1.8], tire: ['triangle', 'lowpass', 0.62],
     surf: ['noise', 'lowpass', 0.52], street: ['noise', 'lowpass', 0.8], quay: ['sine', 'lowpass', 0.6],
-    rotor: ['rotor', 'lowpass', 0.70], undertow: ['noise','lowpass',0.58]
+    rotor: ['rotor', 'lowpass', 0.70], undertow: ['noise','lowpass',0.58],
+    washJet: ['noise','bandpass',.74], washPump: ['triangle','lowpass',.61],
+    blade: ['noise','bandpass',1.16], spindle: ['triangle','lowpass',.65]
   };
 
   let context, master, music, instruments, effects, ambience, hats, noise, waves;
@@ -46,6 +48,7 @@
   let swimming = false, waterDepth = 0, strokeEffort = 0, lastImmersion = 0;
   let nextStroke = 0, nextWhistle = 0, nextSplash = 0;
   let broadcast = null, queuedTape = null, shell = null;
+  let washBus, washBearing = 2, bladePhase = NaN, bladeAt = -1;
 
   function random() {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -295,7 +298,7 @@
     if (bar === 31 && tick === 13) tone(instruments, hz(68), at, 0.32, 0.045, 'tine');
   }
 
-  function mixBed(key, bus, now, volume, cutoff, pitch = 0) {
+  function mixBed(key, bus, now, volume, cutoff, pitch = 0, response = .12) {
     let voice = beds.get(key);
     if (volume < 0.001) {
       if (voice) {
@@ -323,9 +326,48 @@
       if (shape === 'noise') source.start(now, random() * 1.7);
       else source.start(now);
     }
-    voice.envelope.gain.setTargetAtTime(volume, now, 0.12);
-    voice.filter.frequency.setTargetAtTime(cutoff, now, 0.14);
-    if (pitch) voice.source.frequency.setTargetAtTime(pitch, now, 0.10);
+    voice.envelope.gain.setTargetAtTime(volume, now, response);
+    voice.filter.frequency.setTargetAtTime(cutoff, now, response + .02);
+    if (pitch) voice.source.frequency.setTargetAtTime(pitch, now, Math.min(.10, response));
+  }
+
+  function mixWasher(now, state) {
+    const amount = unit(state.washSpray);
+    if (amount < .01 && !beds.has('washJet') && !beds.has('washPump')) return;
+    if (!washBus) {
+      washBus = context.createStereoPanner ? context.createStereoPanner() : ambience;
+      if (washBus !== ambience) washBus.connect(ambience);
+    }
+    const bearing = Math.max(-1, Math.min(1, Number(state.washPan) || 0));
+    if (washBus.pan && Math.abs(bearing-washBearing) > .009) {
+      washBus.pan.setTargetAtTime(bearing, now, .065); washBearing = bearing;
+    }
+    const load = .5 + .5*Math.sin(worldTime*16.9+.57*Math.sin(worldTime*5.2));
+    const jet = amount*(state.inCabin ? .052 : .105), motor = amount*(state.inCabin ? .021 : .035);
+    mixBed('washJet', washBus, now, jet*(.91+.09*load), (state.inCabin ? 1440 : 3220)+load*280, 0, .043);
+    mixBed('washPump', washBus, now, motor, state.inCabin ? 245 : 490, 97+5*load, .065);
+  }
+
+  function mixWipers(now, state) {
+    const phase = driving && Number.isFinite(state.wiper) ? state.wiper : 0;
+    if (phase <= 0 && !Number.isFinite(bladePhase)) return;
+    const elapsed = now-bladeAt;
+    if (elapsed < .029) return;
+    const delta = phase-bladePhase;
+    bladePhase = phase > 0 ? phase : NaN; bladeAt = now;
+    // The blade travels fastest halfway across the glass, then reverses at each end.
+    // A parked integer phase or switching vehicles must not initiate another pass.
+    if (!(delta > .00002 && elapsed < .42 && delta < elapsed*2.2+.02)) {
+      if (beds.has('blade')) mixBed('blade', effects, now, 0, 900);
+      if (beds.has('spindle')) mixBed('spindle', effects, now, 0, 230);
+      return;
+    }
+    const turn = phase % 1, movement = Math.abs(Math.sin(2*Math.PI*turn));
+    const forward = turn < .5, pace = Math.min(1.25, delta/elapsed);
+    const glass = (state.inCabin ? 1 : .23) * (.65+.33*pace);
+    const friction = movement*(forward ? .065 : .050);
+    mixBed('blade', effects, now, .0013+glass*friction, (forward ? 990 : 680)+movement*570, 0, .023);
+    mixBed('spindle', effects, now, .0011+glass*(.004+.011*movement), 378, (forward ? 177 : 153)+movement*37, .030);
   }
 
   function fieldBuffer(id) {
@@ -466,7 +508,7 @@
     }
   }
 
-  function mix(now, field, band) {
+  function mix(now, state, band) {
     if (now < nextMix) return;
     nextMix = now + 0.085;
     const velocity = Math.min(1, speed / 38);
@@ -474,7 +516,7 @@
     const swell = (0.5 + 0.5 * Math.sin(worldTime * 0.90 + 0.8 * Math.sin(worldTime * 0.27))) ** 1.7;
     const passing = (0.5 + 0.5 * Math.sin(worldTime * 0.71 + 2 * Math.sin(worldTime * 0.19))) ** 2;
     swimMix(now, swell, passing);
-    const monitoring = mixField(field, now);
+    const monitoring = mixField(state.field, now);
     const radioVolume = broadcast ? 0.10 : monitoring ? 0.13 : driving ? 0.71 : 0.47;
     music.gain.setTargetAtTime(radioVolume * (1 - band), now, broadcast || monitoring || band ? 0.075 : 0.18);
     if (broadcast) broadcast.envelope.gain.setTargetAtTime(.91 * (1 - band), now, .065);
@@ -492,6 +534,7 @@
     mixBed('skid', effects, now, slip * 0.15, 1050 + 900 * slip);
     mixBed('tire', effects, now, slip * 0.037, 1700, 580 + velocity * 206 + 35 * Math.sin(worldTime * 9));
     mixBed('rotor', effects, now, rotor * .10, 215 + 230 * rotor, 14.5 + .35 * Math.sin(worldTime * .8));
+    mixWasher(now, state);
     environmentalSounds(now);
   }
 
@@ -520,7 +563,8 @@
       step++;
       nextStep += stepLength;
     }
-    mix(now, state.field, band);
+    mixWipers(now, state);
+    mix(now, state, band);
   }
 
   function cue(name, source = {}) {
@@ -604,6 +648,7 @@
 
   function sleep() {
     queuedTape = null;
+    bladePhase = NaN; bladeAt = -1; washBearing = 2;
     if (!context) return;
     if (shell) shell.stop(context.currentTime);
     master.gain.cancelScheduledValues(context.currentTime);
