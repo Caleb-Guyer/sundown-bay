@@ -643,6 +643,8 @@
       BayCoastArt.mapSurface(ctx,opt,px,py,visible);
       if(opt.recovery)BayRecoveryArt.groundMap(ctx,opt,px,py,s,visible);
       if(visible(px(-37.4),py(-132.2),13*s))BayMercadoArt.map(ctx,px,py,s,opt.weather,streetTime);
+      const rear=BayMercadoArt.receiving;
+      if(visible(px(rear.x-8),py(rear.z),18*s))BayMercadoArt.receivingMap(ctx,px,py,s,streetTime);
       const bay=BayMotelParking.bay;
       if(visible(px(bay.x),py(bay.z),6*s))BayMotelParking.map(ctx,px,py,s);
     }

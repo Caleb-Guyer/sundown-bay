@@ -1006,7 +1006,9 @@
       persist();lastHud=-10;
       note(won?"Game  ·  +"+cash(prize(g)):g.opponent.short+" takes the game",first?"Your number 14 jersey is on the clothes rail at the Marlin.":won?"First to five. The scorekeeper has your win.":"Press F for another game or E to step away.",4.3);
     }else if(event==="check"&&yours&&detail===g.human&&!g.introduced){
-      g.introduced=true;squareUp(g);note("Your ball","Face the hoop with X. Hold Space, then release in the painted band.",3.6);
+      g.introduced=true;squareUp(g);g.say("Release in the green band",2.3);
+    }else if(event==="release"&&yours&&detail===g.human&&$("speech").children[0].textContent===g.opponent.name){
+      speechTill=elapsed;$("speech").hidden=true;
     }else if(event==="traffic"&&detail===car&&!room&&!active&&!heat&&elapsed>(g.warnAfter||0)){
       g.warnAfter=elapsed+18;
       speak(g.site.id==="sol"?"Dee":"Inés",g.site.id==="sol"?"Easy, driver! Park by the promenade. We’ve got a game on.":"Keep the yard clear, please. You can park out by the crates.");

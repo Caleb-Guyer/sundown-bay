@@ -11,6 +11,7 @@
   ];
   const enamel="#3c7773",deep="#395753",butter="#f6dda3",red="#ae5145",tomato="#d87855";
   const loden="#6d8066",steel="#9eada2",iron="#494d48",paper="#efdbb6";
+  const receiving={x:-36,z:-106},condensers=[[-15.35,-1.75],[-11.93,-1.78]];
   const phaseOf=weather=>weather?.market||"closed";
   const cartWidth=4.65;
 
@@ -20,7 +21,10 @@
     O:[[[.22,.02],[.04,.19],[.06,.80],[.27,.99],[.56,.98],[.75,.80],[.70,.21],[.50,.03],[.22,.02]]],
     S:[[[.78,.86],[.61,.99],[.27,.99],[.05,.81],[.09,.63],[.27,.53],[.57,.46],[.72,.32],[.65,.12],[.48,.01],[.19,.03],[.01,.18]]],
     A:[[[0,0],[.33,1],[.47,1],[.77,0]],[[.15,.42],[.61,.42]]],
-    I:[[[.03,.98],[.59,.98]],[[.32,1],[.32,0]],[[.03,.02],[.60,.02]]]
+    I:[[[.03,.98],[.59,.98]],[[.32,1],[.32,0]],[[.03,.02],[.60,.02]]],
+    H:[[[.04,0],[.04,1]],[[.72,.02],[.72,.98]],[[.04,.49],[.72,.53]]],
+    E:[[[.72,.98],[.04,.98],[.04,.02],[.73,.02]],[[.04,.50],[.60,.50]]],
+    L:[[[.04,1],[.04,.03],[.73,.03]]]
   };
   function brush(g,points,width,project,color){
     for(let i=1;i<points.length;i++){
@@ -229,10 +233,86 @@
     g.pole([.313,1.335,.195],[.359,1.204,.53],.017,steel,4);
     g.quad([.326,1.206,.50],[.390,1.206,.50],[.421,1.179,.646],[.316,1.179,.650],steel);
   }
+  // The north wall faces the pickup court. All protruding fittings sit above the rear curb.
+  function receivingWall(g){
+    const face=(x,y,z,w,h,c)=>g.quad([x-w/2,y-h/2,z],[x+w/2,y-h/2,z],[x+w/2,y+h/2,z],[x-w/2,y+h/2,z],c);
+    const sill="#acae97",blue="#6c8583";
+    // Faded ice-house lettering is painted into the stucco west of the stockroom.
+    face(-15.10,4.58,.034,6.25,1.97,"#ddbd91");
+    for(const [i,letter] of [..."HIELO"].entries()){
+      const project=(u,v)=>[-12.83-(i*.94+u+.055*v)*1.02,4.03+v*1.05,.049];
+      for(const path of strokes[letter])brush(g,path,.105,project,"#738c7c");
+    }
+    for(const [x,y,w] of [[-15.19,4.29,.33],[-14.29,4.69,.18],[-13.19,4.33,.22],[-16.62,4.59,.48]])face(x,y,.056,w,.035,"#d6bb95");
+    face(-14.97,3.72,.044,4.78,.049,"#b88766");
+    // Old corrugated stock door, its half-round roller hood and rub strips.
+    const door=-5.48;
+    g.box(door,1.96,.082,5.86,3.83,.14,"#56695f");
+    face(door,1.99,.159,5.54,3.53,"#91a49a");
+    for(let row=0;row<14;row++)face(door,.38+row*.242,.173,5.50,row%3?.038:.056,"#778c84");
+    for(const side of [-1,1]){
+      g.box(door+side*2.86,1.98,.13,.16,3.79,.23,"#667973");
+      g.box(door+side*3.17,.66,.20,.24,1.12,.34,"#b28e61");
+    }
+    g.box(door,3.97,.201,6.20,.36,.43,blue);face(door,3.90,.426,5.87,.042,"#b4b6a0");
+    face(door,.32,.18,5.43,.105,"#5c6e65");
+    // Clerestory panes share a lintel but have differently angled hopper windows.
+    for(const [i,x] of [-10.22,-6.92,-3.62,-.32,3.0].entries()){
+      g.box(x,5.70,.078,2.87,1.09,.13,"#6c796c");
+      face(x,5.72,.151,2.62,.86,i%2?"#81958a":"#71918d");
+      face(x,5.94,.159,2.61,.16,"#a3b5a3");
+      g.box(x+.04,5.69,.171,.066,.89,.048,sill);
+      g.box(x,5.14,.169,3.04,.10,.33,sill);
+    }
+    for(const x of [-18.25,.96]){
+      g.pole([x,7.45,.135],[x,.43,.135],.070,blue,5);
+      for(const y of [1.17,3.97,6.69])g.box(x,y,.15,.22,.074,.18,"#a2a38c");
+      g.pole([x,.45,.135],[x,.32,.30],.075,blue,5);
+    }
+    // Low rooftop condensers have separate fan rotors, reusing the same two buffers.
+    for(const [x,z] of condensers){
+      g.box(x,7.94,z,2.23,.24,1.81,"#606c65");
+      g.box(x,8.25,z,2.15,.59,1.73,"#aab1a2");
+      g.box(x,8.57,z,2.25,.075,1.81,"#b9bba8");
+      g.cyl(x,8.625,z,.615,.615,.04,12,"#485d5c");
+      for(let j=0;j<5;j++)face(x,8.05+j*.085,z+.875,1.75,.036,"#708580");
+    }
+    // A galvanized return runs from the cold room to the units, clear of the parapet.
+    g.pole([-15.35,8.14,-2.12],[-15.35,8.14,-3.77],.097,sill,6);
+    g.pole([-15.35,8.14,-3.77],[-11.95,8.14,-3.77],.097,sill,6);
+    g.pole([-11.95,8.14,-3.77],[-11.95,8.14,-2.12],.097,sill,6);
+  }
+  function fanBlades(g){
+    for(let i=0;i<4;i++){
+      const a=i*Math.PI/2,P=(r,angle,h)=>[r*Math.cos(a+angle),h,r*Math.sin(a+angle)];
+      g.quad(P(.09,-.32,.006),P(.52,-.40,.011),P(.56,.17,.035),P(.18,.44,.024),"#80938b");
+    }
+    g.cyl(0,.032,0,.102,.117,.055,8,"#abb4a2");
+  }
+  function receivingLights(g){
+    for(const x of [-10.22,-6.92,-3.62,-.32,3.0])for(const dx of [-.66,.69]){
+      const l=x+dx-.58,r=x+dx+.58;
+      g.quad([l,5.33,.177],[r,5.33,.177],[r,5.91,.177],[l,5.91,.177],dx<0?"#d2ae77":"#ba9e70");
+    }
+  }
+  function receivingMap(c,px,py,s,t){
+    c.save();c.translate(px(receiving.x),py(receiving.z));c.scale(s,-s);
+    for(const [x,z] of condensers){
+      c.fillStyle="#77847c";c.fillRect(x-1.05,z-.98,2.31,1.95);
+      c.fillStyle="#b2b7a5";c.fillRect(x-1.125,z-.905,2.25,1.81);
+      c.fillStyle="#536965";c.beginPath();c.arc(x,z,.615,0,Math.PI*2);c.fill();
+      c.save();c.translate(x,z);c.rotate(-t*(x<-14?2.4:2.1));
+      for(let j=0;j<4;j++){c.rotate(Math.PI/2);c.fillStyle="#92a397";c.beginPath();c.moveTo(.07,-.06);c.lineTo(.50,-.20);c.lineTo(.54,.11);c.lineTo(.14,.12);c.closePath();c.fill();}
+      c.restore();
+    }
+    c.strokeStyle="#9ba797";c.lineWidth=.17;c.beginPath();c.moveTo(-15.35,-2.12);c.lineTo(-15.35,-3.77);c.lineTo(-11.95,-3.77);c.lineTo(-11.95,-2.12);c.stroke();
+    c.fillStyle="#748b86";c.fillRect(-8.58,-.03,6.20,.45);c.restore();
+  }
   function install(model){
     model("mercado-counter",board);model("mercado-closed",locked);
     model("mercado-setup",g=>prep(g,true));model("mercado-open",g=>prep(g,false));
     model("mercado-lamps",lamps);model("mercado-light",floorLight);
+    model("mercado-receiving",receivingWall);model("mercado-condenser-fan",fanBlades);model("mercado-stockroom-lights",receivingLights);
     model("mercado-steam",steam);model("mercado-rosario",rosario);
   }
 
@@ -261,6 +341,11 @@
   function world(list,see,weather,t,personSkin){
     if(!see(stand,120))return;
     const phase=phaseOf(weather);
+    if(see(receiving,95)){
+      list.push(["mercado-receiving",receiving.x,0,receiving.z]);
+      if(phase!=="closed")list.push(["mercado-stockroom-lights",receiving.x,0,receiving.z,0,0,0,.77]);
+      if(see(receiving,61))for(const [x,z] of condensers)list.push(["mercado-condenser-fan",receiving.x+x,8.651,receiving.z+z,t*(x<-14?2.4:2.1)]);
+    }
     list.push(["mercado-counter",stand.x,ground,stand.z],["mercado-"+phase,stand.x,ground,stand.z]);
     if(phase==="closed")return;
     if(phase==="open")list.push(["mercado-lamps",stand.x,ground,stand.z,0,0,0,.94]);
@@ -331,5 +416,5 @@
     }
     ctx.restore();
   }
-  window.BayMercadoArt={counter,vendor,blocks,install,world,light,map};
+  window.BayMercadoArt={counter,vendor,blocks,receiving,receivingMap,install,world,light,map};
 })();
