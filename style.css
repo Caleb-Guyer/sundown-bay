@@ -259,3 +259,17 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .field-slip canvas {display:block;width:100%;height:45px}.field-slip span {display:block;margin-top:6px;font:600 .76rem/1.2 Consolas,monospace}
 @media(max-height:520px){#fieldHud{left:10px;bottom:110px;padding:5px 8px}#fieldRadio{right:8px}}
 @media(max-width:500px){.hull-choice {grid-template-columns:1fr}.hull-choice canvas {display:none}.club-entry{align-items:flex-start;flex-direction:column}.club-controls kbd {padding:1px 3px}}
+#diveGauge {position:absolute;right:24px;bottom:94px;width:128px;padding:8px 10px;color:#f4e5c7;background:#183e42ed;border:1px solid #96b4a5;border-radius:4px;font:600 .72rem/1.2 Consolas,monospace}
+#diveGauge small,#watchCall small {display:block;font:700 .61rem/1.3 Consolas,monospace;letter-spacing:.11em;color:#e2c993}
+#swimDepth {display:block;margin:3px 0 6px;font:italic bold 1.22rem Georgia,serif}
+.air-track {height:5px;background:#426769;overflow:hidden;margin-bottom:5px}.air-track i {display:block;height:100%;background:#a4dfcb;transition:width 100ms linear}
+#diveGauge.low .air-track i {background:#ffaf7a}
+#watchCall {position:absolute;left:23px;top:87px;display:flex;align-items:center;gap:9px;padding:7px 11px 8px 9px;max-width:min(270px,42vw);background:#283f3bef;border-left:3px solid #eb9768;color:#f8e8cb}
+#watchCall b {display:block;font:600 .87rem/1.25 "Segoe UI",sans-serif;margin-top:2px}
+.watch-pennant {width:14px;height:20px;flex:none;border-left:2px solid #dfc69e;background:linear-gradient(155deg,#ee946a 33%,transparent 35%) 0 1px / 13px 13px no-repeat}
+.panel[data-screen="surf-watch"] {width:min(505px,94vw);background:#ede2c5}
+.surf-slips {border-top:2px solid #53746a}.surf-slip {background:#f5ebce;border-radius:0;border:0;border-bottom:1px dashed #868b77;padding:10px 8px}
+.surf-slip .claim-tag {display:block;margin-bottom:2px;color:#52685b;text-transform:uppercase;letter-spacing:.07em;font:700 .64rem/1.3 Consolas,monospace}
+.surf-slip.filed {opacity:.76}.surf-slip.filed em {color:#476a58}.surf-slip:disabled {cursor:default}
+@media(max-height:535px){#watchCall{top:59px;left:11px}#diveGauge{right:9px;bottom:78px}}
+@media(max-width:600px){#watchCall{left:10px;max-width:47vw}#diveGauge{right:9px;width:104px}}

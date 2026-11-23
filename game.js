@@ -31,10 +31,11 @@
   Object.assign(clubBoat,{x:298,z:34,yaw:0});
   const cruiseMarks=[{x:298,z:126},{x:372,z:135},{x:387,z:-91},{x:307,z:-81}];
   let skiff=null,deckStep=null,cruiseLeg=0,regattaResult=null,chartMode="city",hullChoice="needle",courseChoice="jetty";
+  let swim=null,surfArtReady=false,reefReady=false;
   let ferryScene=null,ferryReceipt=null,ferryMesh=null,ferryMeshMotion=null;
   const shorePins=bay.docks.map(d=>({...d,x:d.footX+1.4}));
   const cutGate={kind:"county-road",x:144,z:170,name:"Ocean Drive north · To Pelican Cut"};
-  locations.push(...shorePins,{...BayMarlinRoom.outside,kind:"room"},{...BayMercadoArt.counter,kind:"counter"});
+  locations.push(...shorePins,{...BayMarlinRoom.outside,kind:"room"},{...BayMercadoArt.counter,kind:"counter"},BaySurfPatrol.tower);
   const genres=BayDriving.cars;
   const paints=["#de6f62","#42afa5","#e6b77d","#718dac","#f0d8a9","#976e9a"];
   const resprayPrice=75;
@@ -73,7 +74,7 @@
   const meet=new BayNightMeet.Meet(),julesMotion=new BayPlayerMotion(),julesBody={};
   let meetReceipt=null,julesMesh=null,takeArtReady=false;
   const cameraSnap=()=>cameraRig.reset(skiff||car||hero);
-  const blankSave=()=>({wallet:0,paid:0,best:0,tuned:false,tapes:[],rides:0,juneReturned:false,dash:null,resprays:{},upgrades:Object.create(null),edition:"",regatta:{},ferryLine:"",meet:BayNightMeet.read(null),stunt:null,plates:BayPlates.read(null),fieldReels:{}});
+  const blankSave=()=>({wallet:0,paid:0,best:0,tuned:false,tapes:[],rides:0,juneReturned:false,dash:null,resprays:{},upgrades:Object.create(null),edition:"",regatta:{},ferryLine:"",meet:BayNightMeet.read(null),stunt:null,plates:BayPlates.read(null),fieldReels:{},shore:BaySwimming.read(null)});
   const posterKey="sundownBay.cineLunaPoster.v1";
   function storedPoster(){
     try{const record=JSON.parse(localStorage.getItem(posterKey)||"null");return BayTakePoster.valid(record)?record:null;}
@@ -88,6 +89,7 @@
       result.regatta=bay.readRecords(raw.regatta);
       result.meet=BayNightMeet.read(raw.meet);
       result.plates=BayPlates.read(raw.plates);
+      result.shore=BaySwimming.read(raw.shore);
       result.fieldReels=BayMarshLine.archive(raw.fieldReels);
       result.fieldQueue=BayCutTape.read(raw.fieldQueue);
       if(BayFerry.routes.some(r=>r.id===raw.ferryLine))result.ferryLine=raw.ferryLine;
@@ -104,6 +106,7 @@
     }catch{return result;}
   }
   const save=readSave();
+  const watchCrew=new BaySurfPatrol.Watch(save.shore.next);
   BayMarshLine.restore(save.fieldReels);
   const clockKey="sundownBay.clock.v1";
   let clockStart;
@@ -260,6 +263,7 @@
   const formatVehicle=v=>genres[v.kind].name;
   function footLevel(x,z){
     const pier=x>=184.3&&bay.landing(x,z);if(pier)return pier.level;
+    if(x>205&&BaySwimming.wetSand(x,z)&&x>BaySwimming.coast(z)-1.2)return Math.max(-.82,BaySwimming.floor(x,z));
     if(z>181)return BayCut.height(x,z);
     if(x>166.45)return .007;
     if(x>159.5)return .082;
@@ -268,16 +272,63 @@
     if((dx<6.9&&Math.abs(dz-8.3)<1.1)||(dz<6.9&&Math.abs(dx-8.3)<1.1))return .109;
     return Math.min(dx,dz)<7 ? .040 : .077;
   }
-  function resetFeet(){motion.reset();hero.y=footLevel(hero.x,hero.z);}
+  function resetFeet(){swim=null;motion.reset();hero.y=footLevel(hero.x,hero.z);}
   function note(head,line,seconds=3.2){
     $("toast").children[0].textContent=head;$("toast").children[1].textContent=line;$("toast").hidden=false;toastTill=elapsed+seconds;
   }
   function playStart(){
     if(play)return;play=true;$("intro").hidden=true;$("hud").hidden=false;document.activeElement?.blur();cameraSnap();
+    if(save.shore.carried)waypoint={...BaySurfPatrol.tower};
     try{if(localStorage.getItem("sundownBay.audio")==="on"){radio=sound.setEnabled(true);$("audioKey").querySelector("span").textContent=radio?"Sol FM":"Sound off";}}catch{}
     captureMouse();note("Marlin Motel","Room 14 is yours. "+(personalCar?"Your "+formatVehicle(personalCar)+" is marked on the map.":cars[0].color===paints[0]?"Keys are in the coral coupe.":"Your "+formatVehicle(cars[0])+" is out front."),4.3);
   }
-  const onStreetFeet=()=>play&&!room&&!car&&!skiff&&!transfer&&!deckStep&&motion.jumpTime<0;
+  const onStreetFeet=()=>play&&!room&&!car&&!skiff&&!swim&&!transfer&&!deckStep&&motion.jumpTime<0;
+  const atWatchBoard=()=>onStreetFeet()&&!heat&&dist(hero,BaySurfPatrol.tower)<3.2;
+  const siteById=id=>BaySwimming.sites.find(s=>s.id===id);
+  function diveFind(){
+    if(!swim?.underwater||swim.exit||save.shore.carried||active)return null;
+    return BaySwimming.sites.find(s=>!save.shore.returned.includes(s.id)&&dist(hero,s)<2.2&&Math.abs(hero.y-BaySwimming.floor(s.x,s.z)-.18)<1.42);
+  }
+  function nearBeachRegular(){
+    if(!play||car||skiff||room||transfer||deckStep||swim?.exit||swim?.underwater)return null;
+    return watchCrew.actors.find(p=>dist(hero,p)<2.8&&p!==watchCrew.call?.swimmer);
+  }
+  function coastAction(){
+    if(swim?.exit)return true;
+    if(watchCrew.towing){watchCrew.release();speak("Tali Moreno","I’ve got the float. I’ll take it from here.");lastHud=-10;return true;}
+    if(!active&&!heat&&watchCrew.grab(hero,swim)){
+      lastHud=lastMap=-10;speak(watchCrew.call.slip.name,"I'll hold the float. Take me back to the beach.");return true;
+    }
+    const found=diveFind();
+    if(found){
+      save.shore.carried=found.id;persist();sound.cue("found");waypoint={...BaySurfPatrol.tower};
+      note(found.name,"Bring it to the lost-and-found pegs at the lifeguard tower.",3.8);lastHud=lastMap=-10;return true;
+    }
+    if(atWatchBoard()&&!active){openPanel("surf-watch");return true;}
+    if(!active){
+      const person=nearBeachRegular();
+      if(person){
+        const s=BaySurfPatrol.slips[person.index];
+        const line=person===watchCrew.tali?(watchCrew.alert?"Keep an eye on the raised hand beyond the flags.":"Folks pin things they’ve lost to the board at my tower. Take a look.") :
+          save.shore.helps[s.style]?s.thanks:s.line;
+        speak(person.name,line);return true;
+      }
+    }return false;
+  }
+  function stepBeach(dt){
+    const event=watchCrew.step(dt,streetTime,pos(),swim);
+    if(event==="player-home"){
+      const person=watchCrew.last;save.shore.helps[person.style]++;save.shore.next=watchCrew.next;save.wallet+=95;save.paid++;
+      persist();sound.cue("paid");note("Sol Beach patrol","Beach club stipend  ·  +$95",4);speak(person.name,BaySurfPatrol.slips[watchCrew.index].thanks);
+      lastHud=lastMap=-10;
+    }else if(event==="guard-home"){
+      save.shore.next=watchCrew.next;persist();
+      if(!active&&!room&&dist(pos(),watchCrew.tali)<30)note("Sol Beach patrol","Tali brought "+watchCrew.last.name+" back to shore.",3);
+    }else if(event==="whistle"){
+      const d=dist(pos(),watchCrew.call.swimmer);
+      if(!room&&d<87){sound.cue("shore-whistle",{distance:d});lastHud=lastMap=-10;}
+    }
+  }
   const byKit=()=>onStreetFeet()&&!heat&&dist(hero,BayCut.station)<3.15;
   const byListeningSite=()=>active?.field?.phase==="find"&&onStreetFeet()&&dist(hero,active.field.source.site)<8;
   const listening=()=>active?.field?.phase==="listen";
@@ -308,6 +359,7 @@
     lastHud=-10;
   }
   function fieldSignal(){
+    if(swim?.underwater)return null;
     if(listening())return active.field.signal;
     const p=pos();if(room||!BayCut.area(p))return null;
     if(streetTime<ambientAt+.18){if(ambientField)ambientField.phase=streetTime;return ambientField;}
@@ -378,6 +430,7 @@
     else if(action==="bed"||action==="desk")openPanel("room-"+action);
   }
   function clockPin(place){
+    if(watchCrew.towing)return;
     waypoint={...place};closePanel();note("City map",place.name,2.8);
   }
   function dinerIsOut(person){
@@ -411,6 +464,7 @@
     speak(person.name,save.plates.visits[person.id]?person.again:lines[person.id]);
   }
   function enterable(){
+    if(swim)return null;
     let best=null,d=5.1;
     for(const v of cars){const n=dist(hero,v);if(!v.meetCar&&n<d&&(!v.path||v.speed<4)){best=v;d=n;}}
     return best;
@@ -455,6 +509,7 @@
     for(const v of cars){if(v!==car&&v.path&&dist(v,car)<9){v.wait=Math.max(v.wait,.42);}}
   }
   function boardable(){
+    if(swim)return null;
     const dock=bay.landing(hero.x,hero.z);if(!dock||motion.jumpTime>=0)return null;
     return boats.find(v=>v.dock===dock&&dist(v,hero)<5.1)||null;
   }
@@ -471,6 +526,82 @@
       const d=dist(v,bay.berth(dock,side));
       if(d<range){best={dock,side};range=d;}
     }return best;
+  }
+  function openToSwim(x,z,depth){
+    if(!BaySwimming.water(x,z))return false;
+    if(depth<1.18&&bay.landing(x,z,-.13)||Math.hypot(x-bay.beacon.x,z-bay.beacon.z)<4.5)return false;
+    for(const v of civilianFleet)if(BaySwimming.insideHull(v,x,z,depth))return false;
+    for(const v of harbor.units)if(BaySwimming.insideHull(v,x,z,depth))return false;
+    const ferry=ferryScene?.ship;
+    if(ferry&&depth<1.65&&BaySwimming.insideHull(ferry,x,z,0,3.22,9.3))return false;
+    for(const [sx,sz,size,yaw] of bay.sails)if(Math.abs(x-sx)<6&&Math.abs(z-sz)<6&&BaySwimming.insideHull({x:sx,z:sz,yaw},x,z,depth,1.1*size,2.55*size))return false;
+    if(z>292&&Math.abs(x-284)<18&&depth<2.7){
+      const h=BayCutWildlife.trawlerHull(streetTime,hours);
+      if(BaySwimming.insideHull(h,x,z,0,h.halfWidth+.18,h.halfLength+.18))return false;
+    }
+    return true;
+  }
+  function enterSurf(height=0){
+    if(active?.dash)dropJob();
+    swim=new BaySwimming.Swim(hero,height);swim.vx=motion.vx;swim.vz=motion.vz;motion.reset();
+    hero.y=BaySwimming.surfaceY(hero,streetTime);sound.cue("splash");lastHud=lastMap=-10;
+  }
+  function seaExit(){
+    if(!swim||swim.depth>.55||swim.exit)return null;
+    let best=null,range=2.65;
+    for(const l of BaySwimming.ladders){
+      const d=dist(hero,l);
+      if(d<range&&hero.x>l.x-.24){best={type:"ladder",l,end:{x:l.x-.82,z:l.z,y:l.y,yaw:-Math.PI/2}};range=d;}
+    }
+    for(const v of boats){
+      if(Math.abs(v.speed)>2.1||dist(hero,v)>4.9)continue;
+      for(const [sx,sz] of [[-1.25,-.9],[1.25,-.9],[0,-2.8]]){
+        const grab=BayDriving.world(v,sx,sz),d=dist(hero,grab);if(d>=range)continue;
+        best={type:"board",v,grab,end:seatPoint(v)};range=d;
+      }
+    }return best;
+  }
+  function seaTransfer(a){
+    if(watchCrew.towing){note("Sol Beach patrol","Bring the swimmer to the shallows, or press F to let Tali take over.",2.8);return;}
+    a.f=0;a.start={...hero,y:hero.y-1.25};swim.exit=a;keys.clear();lastHud=-10;
+  }
+  function overGunwale(){
+    if(active?.ferry){note("Inez Cruz","Let’s finish the crossing first.",2.4);return false;}
+    const v=skiff;
+    for(const [x,z] of [[1.72,-1],[-1.72,-1],[0,-3.45]]){
+      const water=BayDriving.world(v,x,z);if(!openToSwim(water.x,water.z,0))continue;
+      const seat=seatPoint(v);skiff=null;regattaResult=null;Object.assign(v,{speed:0,vx:0,vz:0,yawRate:0,throttle:0});
+      motion.reset();swim=new BaySwimming.Swim(hero);
+      swim.exit={type:"launch",v,start:{...seat,y:v.y+.12},end:{...water,y:BaySwimming.surfaceY(water,streetTime)-1.25,yaw:Math.atan2(water.x-v.x,water.z-v.z)},f:0};
+      keys.clear();lastHud=-10;return true;
+    }
+    note("At the helm","Move the hull clear of the pier to go over the side.",2.5);return false;
+  }
+  function stepSeaTransfer(dt){
+    const a=swim.exit,duration=a.type==="launch"?.83:a.type==="board"?1.16:1.34;
+    a.f=Math.min(1,a.f+dt/duration);
+    const f=a.f*a.f*(3-2*a.f),end=a.type==="board"?seatPoint(a.v):a.end;
+    hero.x=a.start.x+(end.x-a.start.x)*f;hero.z=a.start.z+(end.z-a.start.z)*f;
+    hero.y=a.start.y+(end.y-a.start.y)*f+Math.sin(a.f*Math.PI)*(a.type==="launch"?.32:.15);
+    hero.yaw=a.start.yaw+angle(a.start.yaw,end.yaw)*f;
+    if(a.f<1)return;
+    if(a.type==="launch"){
+      swim.exit=null;hero.y=BaySwimming.surfaceY(hero,streetTime);sound.cue("splash");note("Over the side","Swim back to the hull and press E to climb aboard.",3);
+    }else if(a.type==="board"){
+      const v=a.v,d=v.dock,side=v.side;swim=null;skiff=v;v.dock=null;hullChoice=v.kind;
+      if(d)active?.ferry?.reserveBoat(v,d,side);
+      pilot(v,1,dt);Object.assign(hero,seatPoint(v));note(bay.hulls[v.kind].name,"Back at the helm.",2);
+    }else{resetFeet();note(a.l.dock.name,"Back on the boards.",2);}
+    lastMap=lastHud=-10;
+  }
+  function swimStep(dt){
+    if(swim.exit){stepSeaTransfer(dt);return;}
+    const f=Number(held("KeyW","ArrowUp"))-Number(held("KeyS","ArrowDown")),r=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
+    const yaw=cameraRig.yaw,control={x:Math.sin(yaw)*f+Math.cos(yaw)*r,z:Math.cos(yaw)*f-Math.sin(yaw)*r,
+      dive:held("Space"),fast:held("ShiftLeft","ShiftRight"),towing:watchCrew.towing};
+    const wasUnder=swim.underwater;
+    if(swim.step(dt,hero,streetTime,control,openToSwim)){resetFeet();lastHud=-10;}
+    else if(wasUnder!==swim.underwater){lastHud=-10;if(!swim.underwater)sound.cue("splash");}
   }
   function pilot(v,f,dt){
     const r=motion.ride||(motion.ride={handle:[0,0,0]});
@@ -490,7 +621,8 @@
       if(crossing&&(crossing.waitingAtDock(skiff)||crossing.phase==="jump")){note("Inez Cruz","Give me a second to get across.",2);return;}
       if(active?.regatta){note("Outboard club","Finish the race or leave it through Jobs to dock.",2.7);return;}
       const berth=nearestMooring(skiff);
-      if(!berth||Math.hypot(skiff.vx,skiff.vz)>2.1){note("At the helm",berth?"Ease below 4 knots to tie up.":"Look for an anchor on the chart and pull up alongside its float.",3);return;}
+      if(Math.hypot(skiff.vx,skiff.vz)>2.1){note("At the helm",berth?"Ease below 4 knots to tie up.":"Ease below 4 knots to go over the side.",3);return;}
+      if(!berth){overGunwale();return;}
       deckStep={v:skiff,entering:false,f:0,start:{...seatPoint(skiff)},origin:{x:skiff.x,z:skiff.z,yaw:skiff.yaw},...berth};
       skiff.speed=skiff.vx=skiff.vz=0;
     }
@@ -516,7 +648,7 @@
     openPanel("marina");
   }
   function castOff(kind,courseId,racing){
-    if(heat||active||transfer||deckStep)return false;
+    if(heat||active||transfer||deckStep||watchCrew.towing)return false;
     const home=skiff?.dock||bay.landing(hero.x,hero.z)||bay.docks[0];
     const v=(skiff?.kind===kind?skiff:null)||boats.find(b=>b.kind===kind&&b.dock===home)||boats.find(b=>b.kind===kind),c=bay.courses.find(b=>b.id===courseId);
     if(!v||!c)return false;
@@ -563,6 +695,7 @@
     }
   }
   function switchCar(){
+    if(swim){const a=seaExit();if(a)seaTransfer(a);return;}
     if(active?.take)return;
     if(transfer||deckStep)return;
     if(!car&&canRideWithJules()){boardJules();return;}
@@ -690,7 +823,7 @@
     return closest;
   }
   function startJob(id){
-    if(active)return;
+    if(active||watchCrew.towing)return;
     const j=jobs.find(v=>v.id===id);if(!j)return;
     if(room)leaveRoom();
     if(id==="regatta"){openRaceSheet();return;}
@@ -759,7 +892,7 @@
     if(job.id==="race"){const record=!save.best||clock<save.best;if(record)save.best=clock;msg=" • "+watch(clock)+(record?"  NEW BEST":"");}
     save.wallet+=amount;save.paid++;persist();active=null;sound.cue("paid");note("Job complete","+"+cash(amount)+msg,5);
   }
-  const currentTarget=()=>active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:waypoint;
+  const currentTarget=()=>watchCrew.towing?watchCrew.target():active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:waypoint;
   let lastGuide=null;
   function roadGuide(target){
     if(active?.meet){
@@ -1030,7 +1163,7 @@
     Object.assign(hero,{x:151,z:-27,yaw:-.18});resetFeet();cameraSnap();
   }
   function beginFerry(hard,replay=false){
-    if(active||transfer||deckStep)return;
+    if(active||transfer||deckStep||watchCrew.towing)return;
     if(replay)replayFromMotel();
     const route=BayFerry.nextRoute(save.ferryLine);
     ferryScene=new BayFerry.Run(route,hard,ferryLanding());active={job:BayFerry.job,ferry:ferryScene};
@@ -1090,7 +1223,7 @@
     if(active?.story){advanceExposure(dt);return;}
     if(transfer){if(active?.running)active.clock+=dt;return;}
     if(!active){
-      if(waypoint&&dist(p,waypoint)<5){
+      if(waypoint&&waypoint.kind!=="dive-site"&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
         if(waypoint.kind!=="garage"||!car?.flatSide)note("City map","Waypoint reached.",1.7);
         waypoint=null;
       }
@@ -1117,7 +1250,8 @@
   }
   const held=(...codes)=>codes.some(k=>keys.has(k));
   function footClear(x,z,r){
-    if(!valid(x,z,r)&&!bay.landing(x,z,r))return false;
+    if(!valid(x,z,r)&&!bay.landing(x,z,r)&&!(x>205&&(BaySwimming.wetSand(x,z)||openToSwim(x,z,0)||
+      bay.landing(hero.x,hero.z,-.18)&&bay.landing(x,z,-.28))))return false;
     for(const v of (patrol.length?cars.concat(patrol):cars)){
       if(Math.abs(v.x-x)>3||Math.abs(v.z-z)>3)continue;
       const gap=BayDriving.clearance(v,{x,z});
@@ -1149,6 +1283,8 @@
     }
     hero.y=ease(hero.y,footLevel(hero.x,hero.z),27,dt);
     motion.step(dt,distance,dt?(hero.yaw-oldYaw)/dt:0);
+    if(hero.x>208&&!bay.landing(hero.x,hero.z,-.15)&&BaySwimming.water(hero.x,hero.z)&&
+      hero.x>BaySwimming.coast(hero.z)+2.65&&motion.lift<.16)enterSurf(Math.max(0,hero.y+motion.lift));
   }
   function fitsCar(v,x,z,yaw){
     const s=bayCarLayout(v.kind),r=s.track-.075,reach=s.halfLength-r-.05,dx=Math.sin(yaw)*reach,dz=Math.cos(yaw)*reach;
@@ -1385,19 +1521,20 @@
   }
   function pursuit(dt){
     if(!heat)return;
-    const p=pos(),vx=skiff?.vx??car?.vx??motion.vx,vz=skiff?.vz??car?.vz??motion.vz;
-    const dock=!car&&(deckStep?.dock||bay.landing(p.x,p.z)),waterside=!!(skiff||dock);
-    if(!chase.lastSeen)chase.report(p,vx,vz,!!skiff);
+    const p=pos(),vx=skiff?.vx??car?.vx??swim?.vx??motion.vx,vz=skiff?.vz??car?.vz??swim?.vz??motion.vz;
+    const dock=!car&&(deckStep?.dock||bay.landing(p.x,p.z)),afloat=!!(skiff||swim),waterside=afloat||!!dock;
+    const submerged=!!swim&&swim.depth>1.2;
+    if(!chase.lastSeen)chase.report(p,vx,vz,afloat);
     const desired=heat>=3?3:2,mobile=patrol.length-(backup.roadblock?.units.length||0);
     if(!waterside&&(!mobile||chase.sighted)&&!chase.searching&&chase.reinforceIn<=0&&mobile<desired)dispatch(mobile);
-    harbor.update(heat,dt,streetTime,p,deckStep?null:skiff,dock,civilianFleet);
+    harbor.update(heat,dt,streetTime,p,deckStep?null:skiff||(swim?hero:null),dock,civilianFleet,submerged);
     if(p.z>277)for(const unit of harbor.units)if(unit.z>289&&Math.abs(unit.x-284)<19)bay.clearWorkingHull(unit,BayCutWildlife.trawlerHull(streetTime,hours));
-    backup.fly(heat,dt,p);
-    chase.observe(patrol,p,vx,vz,heat,dt,harbor.sighted||!!backup.air?.sees,!!skiff);
+    backup.fly(heat,dt,p,submerged);
+    chase.observe(patrol,p,vx,vz,heat,dt,harbor.sighted||!!backup.air?.sees,afloat,submerged);
     backup.updateBlock(heat,dt,p,blockSiteClear,patrol,!waterside);
     // Road units cover the last landing while the launches take the water call.
     const k=chase.lastSeen,roadTarget=k.afloat&&harbor.dock?{x:harbor.dock===BayCut.dock?190:144,z:harbor.dock.z,yaw:0,vx:0,vz:0}:k;
-    let closest=harbor.closest,visibleGap=skiff&&!deckStep?harbor.inContact:Infinity;
+    let closest=harbor.closest,visibleGap=afloat&&!deckStep?harbor.inContact:Infinity;
     for(const v of patrol){
       if(v.role==="roadblock")backup.park(v,dt,clearCruiser);
       else chase.move(v,heat,dt,clearCruiser,roadTarget);
@@ -1481,7 +1618,7 @@
     if(keyOrbit)cameraRig.orbit(keyOrbit*dt*525,0,elapsed);
     if(pointer.edgeX)cameraRig.orbit(pointer.edgeX*dt*445,0,elapsed);
     const subject=cameraSubject();
-    cameraRig.update(cam,subject,deckStep?.v||skiff||transfer?.v||car,dt,elapsed,{rear:held("KeyV"),lift:motion.lift,ground:!skiff&&subject.z>181?footLevel(subject.x,subject.z):0,
+    cameraRig.update(cam,subject,deckStep?.v||skiff||transfer?.v||car,dt,elapsed,{rear:held("KeyV"),swim,lift:motion.lift,ground:!skiff&&subject.z>181?footLevel(subject.x,subject.z):0,
       seat:transfer||deckStep?(motion.ride?.seat||0):undefined});
   }
   function collectMap(modeName,cx,cz,scale){
@@ -1502,6 +1639,7 @@
     return {mode:modeName,cx,cz,scale,solids,player:{x:p.x,z:p.z,yaw:p.yaw,driving,kind:car?.kind,color:displayCar?.color||"#99ebc6",motion,
       steer:car?.steer,brakes:car?.brakes,handbrake:car?.handbrake,reversing:car?.reversing,flatSide:car?.flatSide,passengerDoor:car?.passengerDoor,inCabin:!!transfer&&(motion.ride?.seat||0)>.54},skids,story:active?.story,
       marina:{boats,rival:clubBoat,patrol:harbor.units,player:skiff,race:active?.regatta,bayChart:chartMode==="bay"},aboard:!!skiff&&!deckStep,
+      swim:swim?.actor(hero),submerged:!!swim?.underwater,patrol:play?watchCrew:null,returned:save.shore.returned,found:save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned,
       field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
@@ -1608,6 +1746,69 @@
   function marlinArt(){
     if(!roomArtReady){BayMarlinRoom.install(model);BayMotelParking.install(model);roomArtReady=true;}
   }
+  function surfArt(){
+    if(surfArtReady)return;
+    BaySurfArt.install(model);BaySwimmerArt.install(model,view);surfArtReady=true;
+  }
+  function shorePeople(list,see,t,submerged){
+    if(watchCrew.call&&see(watchCrew.call.swimmer,submerged?28:84))BaySwimmerArt.worldLine(list,watchCrew,swim?.actor(hero),t);
+    for(const p of watchCrew.actors){
+      if(!see(p,submerged?28:84))continue;
+      if(p.wet)BaySwimmerArt.world(list,p,t,hours);
+      else if(!submerged){
+        const frame=p.pace>.12?1+Math.floor((p.phase%(Math.PI*2))*6/(Math.PI*2)):0;
+        const key="shore-person/"+p.style+"/"+frame;
+        model(key,g=>buildBayPerson(g,...BaySwimmerArt.colors[p.style],frame?(frame-1)*Math.PI/3+.25:0,p===watchCrew.tali?"runner":"local",0));
+        list.push([key,p.x,p.y,p.z,p.yaw]);
+      }
+    }
+  }
+  function sailHulls(list,see){
+    for(const [x,z,size,yaw] of bay.sails){
+      if(!see({x,z},48))continue;
+      const name="moored-sail-hull/"+size;
+      model(name,g=>{
+        const ring=[[-.90,-2],[.90,-2],[.79,.75],[.60,1.55],[0,3.15],[-.60,1.55],[-.79,.75]];
+        const at=([u,v],beam,height)=>[u*beam*size,height*size,v*size];
+        for(let i=0;i<ring.length;i++){
+          const a=ring[i],b=ring[(i+1)%ring.length];
+          g.quad(at(a,1,.36),at(b,1,.36),at(b,.91,.07),at(a,.91,.07),"#ded1b2");
+          g.quad(at(a,.91,.07),at(b,.91,.07),at(b,.20,-.40),at(a,.20,-.40),"#4c706c");
+        }
+        g.box(0,-.43*size,-.04*size,.15*size,.44*size,1.58*size,"#435c5b");
+      });
+      list.push([name,x,0,z,yaw]);
+    }
+  }
+  function renderDive(eye,t){
+    surfArt();
+    if(!reefReady){
+      BayReefArt.install(model);
+      model("water-ceiling",g=>g.quad([-92,.23,-92],[-92,.23,92],[92,.23,92],[92,.23,-92],"#93cfba"));
+      reefReady=true;
+    }
+    view.begin(eye,cityDusk(),hours,null,t);view.draw("water-ceiling",eye.x,0,eye.z);
+    const list=[],see=(p,r)=>Math.abs(p.x-eye.x)<r&&Math.abs(p.z-eye.z)<r;
+    const found=save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned;
+    BayReefArt.world(view,list,eye,t,hours,found);BaySurfArt.ladders(list,see);
+    for(const v of [...civilianFleet,...harbor.units])if(see(v,29)){
+      if(!models.has("marina-needle"))BayMarinaArt.install(model);
+      list.push(["marina-"+v.kind,v.x,v.y,v.z,v.yaw,v.pitch,v.lean]);
+    }
+    const ferry=ferryScene?.ship;
+    if(ferry&&see(ferry,36)){
+      if(!models.has("paloma-ferry"))BayFerryArt.install(model);
+      list.push(["paloma-ferry",ferry.x,ferry.y,ferry.z,ferry.yaw,ferry.pitch,ferry.lean]);
+    }
+    if(see({x:284,z:318},43)){
+      const boat=BayCutWildlife.pose("trawler",t,hours);
+      if(!models.has("cut-little-dot"))BayCutWildlife.install(model);
+      list.push(["cut-little-dot",boat.x,boat.y-2.16,boat.z,boat.yaw,boat.pitch,boat.roll]);
+    }
+    sailHulls(list,see);shorePeople(list,see,t,true);BaySwimmerArt.world(list,swim.actor(hero),t,hours);
+    for(const a of list)view.draw(...a);
+    $("targetTag").hidden=true;
+  }
   function paperBag(list,person,t,walking){
     model("rosario-bag",g=>{
       g.box(0,.16,0,.29,.31,.21,"#c6955e");g.box(0,.08,.107,.29,.046,.014,"#945046");
@@ -1623,7 +1824,7 @@
     const run=active?.take,replay=run?.phase==="landed"&&(run.endTime>=.32||!!run.afterPrint);
     const printing=replay&&!run.receipt,film=replay?(run.approach||run.peak):run;
     const top=isTop(),scene=$("world"),map=$("overhead");scene.hidden=top;map.hidden=!top;
-    BayCoastArt.rain($("rain"),play&&!room?hours:null,t,top,cam.yaw);
+    BayCoastArt.rain($("rain"),play&&!room&&!swim?.underwater?hours:null,t,top,cam.yaw);
     if(room){
       if(top){
         const ratio=Math.min(1,1120/innerWidth,740/innerHeight),w=Math.round(innerWidth*ratio),h=Math.round(innerHeight*ratio);
@@ -1640,8 +1841,9 @@
       if(map.width!==w||map.height!==h){map.width=w;map.height=h;}
       const p=play?cameraSubject():{x:65,z:0};
       const photo=shooting(),yaw=photo?meet.jules.yaw:play&&!paintPreview?cameraRig.yaw+cameraRig.lookBack:0;
-      const ahead=play&&!paintPreview?(7+4*cameraRig.carBlend)*(1-cameraRig.elevation):0;
-      let scale=play?clamp(h/((73+25*cameraRig.carBlend)*cameraRig.zoom),2,16):h/237;
+      const ahead=play&&!paintPreview?(swim?2.8:7+4*cameraRig.carBlend)*(1-cameraRig.elevation):0;
+      const span=swim?(swim.underwater?23:34):73+25*cameraRig.carBlend;
+      let scale=play?clamp(h/(span*cameraRig.zoom),2,35):h/237;
       if(paintPreview)scale=h/24;
       const offset=besideTicket?w*.14/scale:0;
       const state=collectMap("street",p.x+Math.sin(yaw)*ahead-offset,p.z+Math.cos(yaw)*ahead,scale);
@@ -1663,6 +1865,7 @@
         return {x:.5+(c*dx+n*dy)/w,y:.5+(-n*dx+c*dy)/h};
       });return;
     }
+    if(swim?.underwater){renderDive(cam,t);return;}
     let eye=replay?(run.cinemaEye??=shotEye(film)):cam;
     if(paintPreview){
       // Look across the open bay from the entrance, leaving the driver's mouse camera intact.
@@ -1684,6 +1887,8 @@
     }
     for(const k of skids)if(elapsed-k.time<20&&see(k,100))view.draw("skid",k.x,k.z>181?footLevel(k.x,k.z)+.04:.079,k.z,k.yaw);
     const visible=[],owned=transfer?.v||car;
+    const atSea=play&&(eye.x>105||swim);
+    if(atSea){surfArt();BaySurfArt.world(view,visible,see,t,hours,watchCrew,save.shore.returned);sailHulls(visible,see);}
     if(see({x:150,z:292},184)){
       if(!cutArtReady){BayCutArt.install(model);BayCutWildlife.install(model);cutArtReady=true;}
       BayCutArt.world(view,see,hours,t);BayCutWildlife.world(visible,see,hours,t);
@@ -1805,7 +2010,7 @@
         ["patrol-rotor",hub.x,hub.y,hub.z,a.yaw+a.rotor,a.pitch,a.lean],
         ["patrol-tail",tail.x,tail.y,tail.z,a.yaw,a.rotor*2.5+a.pitch,a.lean]);
     }
-    if(!hideActor&&playerMesh&&!shooting()&&!film){
+    if(!swim&&!hideActor&&playerMesh&&!shooting()&&!film){
       if(playerMesh.update(motion))view.updateAnimated("player");
       if(skiff&&!deckStep){
         const p=seatPoint(skiff);visible.push(["player",p.x,p.y,p.z,skiff.yaw,skiff.pitch,skiff.lean]);
@@ -1821,9 +2026,10 @@
     }else{
       for(const v of cars)if(see(v,83)&&!(film&&BayTake.onSet(v)))view.draw("shadowCar",v.x,v.z>181?footLevel(v.x,v.z)+.05:.145,v.z,v.yaw);
       for(const v of patrol)if(see(v,83))view.draw("shadowCar",v.x,v.z>181?footLevel(v.x,v.z)+.05:.145,v.z,v.yaw);
-      if(!car&&!skiff&&!film)view.draw("shadowFoot",hero.x,hero.y+.025,hero.z,hero.yaw);
+      if(!car&&!skiff&&!swim&&!film)view.draw("shadowFoot",hero.x,hero.y+.025,hero.z,hero.yaw);
     }
-    if(active?.field&&!listening()&&!car&&!skiff&&!transfer&&!deckStep&&cutArtReady)
+    if(atSea){shorePeople(visible,see,t,false);if(swim)BaySwimmerArt.world(visible,swim.actor(hero),t,hours);}
+    if(active?.field&&!listening()&&!swim&&!car&&!skiff&&!transfer&&!deckStep&&cutArtReady)
       BayCutWildlife.carryRecorder(visible,hero,hero.y+motion.lift,t);
     drawCourse(see);
     for(const a of visible)view.draw(...a);
@@ -1961,7 +2167,7 @@
     const roadblock=backup.roadblock,air=backup.air;
     const cleared=roadblock?.clearedAt;
     const blockNear=roadblock&&dist(p,roadblock)<145&&(cleared===undefined||roadblock.age-cleared<2);
-    const marineNear=harbor.units.length&&(skiff||deckStep||bay.landing(p.x,p.z));
+    const marineNear=harbor.units.length&&(skiff||swim||deckStep||bay.landing(p.x,p.z));
     $("blockCall").hidden=!marineNear&&!blockNear;
     $("blockCall").className=marineNear?"dispatch-call marine":"dispatch-call";
     if(marineNear){
@@ -1978,6 +2184,18 @@
       $("airCall").textContent=air.light<.8?"Air One inbound":air.sees?"Air One · visual contact":"Air One · sweeping";
     }
     $("mode").textContent=deckStep?(deckStep.entering?"Boarding":"Tying up"):skiff?bay.hulls[skiff.kind].name:transfer?(transfer.exiting?"Stepping out":transfer.passenger?"Riding with Jules":"Taking the wheel"):car===meet.jules&&car?"Passenger seat":car?formatVehicle(car):"On foot";
+    const call=watchCrew.call,diving=!!swim?.underwater,swimmer=call?.slip.name.split(" ")[0];
+    if(swim)$("mode").textContent=swim.exit?(swim.exit.type==="launch"?"Over the side":"Climbing aboard"):diving?"Free diving":watchCrew.towing?"On the float":"Swimming";
+    $("diveGauge").hidden=!swim||!!swim.exit||(!diving&&swim.air>.992);
+    if(!$("diveGauge").hidden){
+      const airLeft=Math.round(swim.air*100);
+      $("swimDepth").textContent=swim.depth>.25?swim.depth.toFixed(1)+" m":"Surface";
+      $("swimAir").style.width=airLeft+"%";$("swimAir").parentElement?.setAttribute("aria-valuenow",String(airLeft));
+      $("airLabel").textContent=swim.forced?"Coming up for air":"Air "+airLeft+"%";$("diveGauge").className=airLeft<28?"low":"";
+    }
+    const hearCall=call&&!room&&!heat&&!active&&!watchCrew.towing&&!diving&&p.x>145&&dist(p,call.swimmer)<90;
+    $("watchCall").hidden=!hearCall;
+    if(hearCall)$("watchMessage").textContent=call.phase==="guard"?"Tali is bringing "+swimmer+" ashore":swimmer+" is waving by the "+call.slip.flag.toLowerCase()+" · "+Math.round(dist(p,call.swimmer))+" m";
     $("tireCall").hidden=!car?.flatSide||!!transfer;
     if(!$("tireCall").hidden)$("tireCall").textContent=tireStatus(car);
     $("speed").innerHTML=skiff&&!deckStep?'<em class="gear">'+(skiff.speed<-.6?"ASTERN":skiff.trim>.35?"TRIM UP":"AHEAD")+'</em>'+Math.round(Math.abs(skiff.speed)*1.944)+"<small>KN</small>":
@@ -2004,6 +2222,16 @@
       const meters=Math.round(guide?.meters??dist(p,tar));
       $("objectiveText").textContent=destination+(ferry&&meters<10?"":"  ·  "+meters+" m");
       $("roadTurn").textContent=guide?.turn||(ferry?.phase==="water"?(meters>30?ferry.ship.route.name+"  ·  Port side":"Paloma "+Math.round(ferry.ship.speed*1.944)+" kn  ·  You "+Math.round(Math.abs(skiff?.speed||0)*1.944)+" kn"):"");
+      if(watchCrew.towing){
+        $("objectiveTag").textContent="Sol Beach patrol";$("objectiveText").textContent="Bring "+swimmer+" back to the shallows · "+meters+" m";
+        $("roadTurn").textContent="Swim toward the sand with the float";
+      }else if(tar.kind==="dive-site"){
+        $("objectiveTag").textContent=siteById(tar.id).name;
+        $("objectiveText").textContent=tar.name+" · "+meters+" m";
+        $("roadTurn").textContent="Look on the bottom, about "+Math.round(-BaySwimming.floor(tar.x,tar.z))+" m down";
+      }else if(tar.kind==="surf-tower"&&save.shore.carried){
+        $("objectiveTag").textContent="Sol Beach lost and found";$("objectiveText").textContent="Return the "+siteById(save.shore.carried).name.toLowerCase();
+      }
     }
     if(active?.plate){
       const order=active.plate,c=order.customer,guide=roadGuide(c);
@@ -2054,7 +2282,21 @@
     if(room){
       const use=roomAction();$("objective").hidden=true;$("mode").textContent="Room 14";$("speed").textContent="";
       contextHint(use?"F":"",use==="door"?"Step out to Ocean Drive":use==="bed"?"Set the alarm":use==="desk"?"Read the note on your desk":"Walk to the bed, the desk or the door");
-    }else if(transfer||deckStep||active?.regatta)contextHint("","");
+    }else if(transfer||deckStep||active?.regatta||swim?.exit)contextHint("","");
+    else if(swim){
+      const out=seaExit(),find=diveFind();
+      if(watchCrew.towing)contextHint("F","Let Tali take the float");
+      else if(!active&&!heat&&watchCrew.offer(hero,swim))contextHint("F","Take the float with "+swimmer);
+      else if(find)contextHint("F","Pick up the "+find.name.toLowerCase());
+      else if(out)contextHint("E",out.type==="ladder"?"Climb the ladder · "+out.l.dock.name:"Climb aboard the "+bay.hulls[out.v.kind].name);
+      else if(swim.covered)contextHint("",swim.forced?"Following the edge to open water":"Swim past the edge to surface");
+      else if(swim.forced)contextHint("","Coming up for air");
+      else if(!active&&nearBeachRegular())contextHint("F","Talk to "+nearBeachRegular().name);
+      else if(diving)contextHint("Space","Release to surface · Shift to swim faster");
+      else contextHint("Space","Hold to dive  ·  Shift to swim faster");
+    }
+    else if(!active&&atWatchBoard())contextHint("F",save.shore.carried?"Return the "+siteById(save.shore.carried).name.toLowerCase():"Read the lifeguard’s lost-and-found board");
+    else if(!active&&nearBeachRegular())contextHint("F","Talk to "+nearBeachRegular().name);
     else if(monitor)contextHint("Space","Hold to roll  ·  Mouse or arrows to aim  ·  F lower");
     else if(byListeningSite())contextHint("F","Raise Kit’s field mic");
     else if(byKit()&&(!active||field?.phase==="return"))contextHint("F",field?"Give Kit the tape":"Talk to Kit Bell · Sol FM");
@@ -2079,6 +2321,7 @@
       else if(ferry?.phase==="water"&&skiff===ferry.boat&&dist(skiff,ferry.ship.gate)<30)contextHint("F","Hold to match speed · A / D to steer");
       else if(boxed>1)contextHint("","Patrol alongside · "+Math.ceil(5.3-boxed)+" s");
       else if(mooring)contextHint(Math.abs(skiff.speed)<2.1?"E":"","Tie up at "+mooring.dock.name+(Math.abs(skiff.speed)>=2.1?" · Slow below 4 kn":""));
+      else if(!ferry&&Math.hypot(skiff.vx,skiff.vz)<=2.1)contextHint("E",heat?"Go over the side":"Go over the side · F race desk");
       else if(heat)contextHint("V","Look astern");
       else if(!tar)contextHint("M","Find a landing  ·  F  Race the bay");else contextHint("","");
     }
@@ -2141,6 +2384,24 @@
   function signedNote(body,line,signature){
     const card=document.createElement("div"),text=document.createElement("p"),by=document.createElement("span");
     card.className="room-note";text.textContent=line;by.textContent=signature;card.append(text,by);body.append(card);
+  }
+  function showSurfBoard(body){
+    const board=document.createElement("div");board.className="surf-slips";body.append(board);
+    for(const s of BaySwimming.sites){
+      const filed=save.shore.returned.includes(s.id),holding=save.shore.carried===s.id;
+      const row=makeButton(s.name,holding?s.owner+" left "+cash(s.pay)+" for its return.":s.clue,
+        filed?"On the peg":holding?"Return · "+cash(s.pay):"Mark spot",()=>{
+          if(!atWatchBoard()||active||save.shore.returned.includes(s.id))return;
+          if(save.shore.carried===s.id){
+            save.shore.returned.push(s.id);save.shore.carried="";save.wallet+=s.pay;
+            if(waypoint?.kind==="surf-tower")waypoint=null;
+            persist();sound.cue("paid");closePanel();note("Back on the peg",s.owner+" left you "+cash(s.pay)+" for the "+s.name.toLowerCase()+".",4);
+          }else if(!save.shore.carried)clockPin({id:s.id,x:s.x,z:s.z,name:s.place,kind:"dive-site"});
+        },"row-action surf-slip");
+      const tag=document.createElement("b");tag.className="claim-tag";tag.textContent=s.owner+" · "+s.place;
+      row.children[0].prepend(tag);row.disabled=filed||!!save.shore.carried&&!holding;row.classList.toggle("filed",filed);
+      board.append(row);
+    }
   }
   function showReel(body,record){
     const slip=document.createElement("div"),wave=document.createElement("canvas"),caption=document.createElement("span");
@@ -2335,11 +2596,12 @@
     if(!play)return;if(panel===next&&!redraw){closePanel();return;}
     if((next==="room-bed"||next==="room-desk")&&(!room||"room-"+roomAction()!==next)||next==="market"&&!byCounter())return;
     if(next==="guest-parking"&&!atGuestParking())return;
+    if(next==="surf-watch"&&(!atWatchBoard()||active))return;
     if(next==="field-desk"&&(active||!byKit())||next==="field-proof"&&active?.field?.phase!=="review")return;
     if(panel==="field-proof"&&next!=="field-proof"&&active?.field?.phase==="review"){active.field.phase="return";cameraSnap();}
     if(next==="take-brief"&&!canJoinTake()||next==="take-result"&&!active?.take?.receipt||next==="take-poster"&&!atTakePoster())return;
     if(panel==="take-result"&&next!=="take-result"&&active?.take?.receipt)wrapTake();
-    if(next==="map"&&!redraw)chartMode=BayCut.area(pos())?"cut":skiff?"bay":"city";
+    if(next==="map"&&!redraw)chartMode=BayCut.area(pos())?"cut":skiff||swim?"bay":"city";
     if(next==="regatta-result"&&!regattaResult)return;
     if(next==="ferry-result"&&!ferryReceipt)return;
     if(next==="meet-result"&&!meetReceipt||next==="meet-cover"&&!save.meet.cover)return;
@@ -2364,6 +2626,8 @@
         button.onclick=()=>{if(panel!==button.value){openPanel(button.value);$("panelBody").querySelector(".shop-nav [aria-pressed='true']").focus();}};
       }
       if(next==="respray")showPaintTicket(b,car);else showPartsTicket(b,car);
+    }else if(next==="surf-watch"){
+      title="Lost and found";kicker="Sol Beach patrol  /  Station 03";showSurfBoard(b);
     }else if(next==="field-desk"){
       title="The Marsh Line";kicker="Sol FM  /  Pelican Cut";fieldDesk(b);
     }else if(next==="field-proof"){
@@ -2451,18 +2715,22 @@
       const copy=document.createElement("p");copy.className="edition-copy";copy.textContent=article.edition;b.append(copy,makeButton("Burner phone","Return to your contacts.","Back",()=>openPanel("jobs")));
     }else if(next==="jobs"){
       title="Burner phone";kicker="Contacts  /  Sundown Bay";
-      if(active){
+      if(watchCrew.towing){
+        b.append(makeButton("Sol Beach patrol","Bring "+watchCrew.call.slip.name+" into shallow water.","Keep swimming",closePanel),
+          makeButton("Hand off the float","Tali will swim out and bring them in.","Let go",()=>{watchCrew.release();closePanel();}));
+      }else if(active){
         const line=document.createElement("p");line.textContent=active.take?"One Good Take is shooting behind Cine Luna. Press G on set to switch drivers.":active.job.by+" has you on "+active.job.name+". Your next stop is "+currentTarget().name+".";b.append(line);
         b.append(makeButton("Back to the city","Keep the current job active.","Resume",closePanel),makeButton("Drop this job",active.take?"Leave the closed set at Cine Luna.":"Stay where you are and choose another contact.","Cancel job",()=>{dropJob();openPanel("jobs",true);}));
       }else for(const j of jobs)b.append(makeButton(j.name,j.by+"  ·  "+j.desc,j.id==="ferry"?"$450–900":j.id==="exposure"?"$300–425":j.id==="regatta"?"Race desk":cash(j.pay)+(["fare","dash"].includes(j.id)?"+":""),()=>startJob(j.id),j.id==="exposure"||j.id==="ferry"?"jobcard story-job":"jobcard"));
       if(save.edition)b.append(makeButton("Bay Wire",BayExposure.routes[save.edition].headline,"Read edition",()=>openPanel("edition")));
       if(save.meet.cover)b.append(makeButton("Bay Wire · Night edition","Your photograph from Cine Luna.","Read cover",()=>openPanel("meet-cover")));
-      if(!active)b.append(makeButton("Rosario León","Night counter at El Mercado. Serving from 6 PM to 2 AM.","Set waypoint",()=>clockPin(BayMercadoArt.counter)));
-      if(!active)b.append(makeButton("Kit Bell · Sol FM","Find the field producer at the fish camp, north of Ocean Drive.","Set waypoint",()=>clockPin(BayCut.station)));
+      if(!active&&!watchCrew.towing)b.append(makeButton("Rosario León","Night counter at El Mercado. Serving from 6 PM to 2 AM.","Set waypoint",()=>clockPin(BayMercadoArt.counter)),
+        makeButton("Kit Bell · Sol FM","Find the field producer at the fish camp, north of Ocean Drive.","Set waypoint",()=>clockPin(BayCut.station)),
+        makeButton("Tali Moreno","The striped lifeguard tower across from the Marlin. The lost-and-found board faces the bay.","Set waypoint",()=>clockPin(BaySurfPatrol.tower)));
       if(Object.keys(save.fieldReels).length)b.append(makeButton("Field tape library","Best takes you’ve filed with Sol FM.","Listen",()=>openPanel("field-archive")));
       const personalPin=carPin();
-      if(!active&&personalPin)b.append(makeButton(personalPin.name,"Last parked in "+district(personalPin)+".","Locate car",()=>clockPin(personalPin)));
-      if(!active)b.append(makeButton("Portside After Dark","Find Romy’s stunt shoot and the night races at Portside Tire.","Set waypoint",()=>{waypoint={...meetPin};closePanel();note("Jules","Teal coupe for a ride. Walk up to Romy’s red 27 for the shoot.",3);}));
+      if(!active&&!watchCrew.towing&&personalPin)b.append(makeButton(personalPin.name,"Last parked in "+district(personalPin)+".","Locate car",()=>clockPin(personalPin)));
+      if(!active&&!watchCrew.towing)b.append(makeButton("Portside After Dark","Find Romy’s stunt shoot and the night races at Portside Tire.","Set waypoint",()=>{waypoint={...meetPin};closePanel();note("Jules","Teal coupe for a ride. Walk up to Romy’s red 27 for the shoot.",3);}));
       const stats=document.createElement("div");stats.className="statline";stats.textContent="Jobs done "+save.paid+"  /  Best circuit "+(save.best?watch(save.best):"—")+(save.dash?"  /  Best dash "+raceWatch(save.dash.splits.at(-1)):"");b.append(stats);
     }else if(next==="map"){
       title=chartMode==="bay"?"Offshore chart":chartMode==="cut"?"Pelican Cut":"City map";kicker="Palm Coast  /  Street atlas";
@@ -2479,19 +2747,19 @@
         (jobPins.length?"<span>! Job contact</span>":"");wrap.append(legend);b.append(wrap);
       const garageBounds=paintAtlas();
       const list=document.createElement("select");list.setAttribute("aria-label","Choose a map destination");
-      const initial=document.createElement("option");initial.textContent=active?"Following the current job":"Choose a destination";initial.value="";list.append(initial);
+      const initial=document.createElement("option");initial.textContent=watchCrew.towing?"Returning the swimmer to shore":active?"Following the current job":"Choose a destination";initial.value="";list.append(initial);
       const landings=bay.docks.map(d=>({...bay.berth(d,vacant(skiff,d,1)?1:-1),name:d.name}));
       const ownPin=carPin();
       const countyStops=[BayCut.station,...BayCutWildlife.sources.map(s=>s.site),skiff?landings[2]:shorePins[2],cutGate];
       const places=chartMode==="cut"?countyStops.concat(ownPin&&BayCut.area(ownPin)?[ownPin]:[]):chartMode==="city"?locations.filter(p=>!BayCut.area(p)).concat(jobPins,[BayMotelParking.bay,cutGate],ownPin?[ownPin]:[],save.stunt?[BayTakePoster.place]:[]):[...landings,{x:bay.beacon.x+11,z:bay.beacon.z,name:"Gull Light"}];
-      places.forEach((v,i)=>{const opt=document.createElement("option");opt.value=i;opt.textContent=v.name;list.append(opt);});list.disabled=!!active;
+      places.forEach((v,i)=>{const opt=document.createElement("option");opt.value=i;opt.textContent=v.name;list.append(opt);});list.disabled=!!active||watchCrew.towing;
       list.onchange=()=>{if(list.value!==""){waypoint={...places[Number(list.value)]};closePanel();note("Map pin",waypoint.name,2);}};
-      b.append(list);c.addEventListener("click",ev=>{if(active)return;const rect=c.getBoundingClientRect(),frame=atlasFrame(),scale=c.width/frame.span;
+      b.append(list);c.addEventListener("click",ev=>{if(active||watchCrew.towing)return;const rect=c.getBoundingClientRect(),frame=atlasFrame(),scale=c.width/frame.span;
         const mx=(ev.clientX-rect.left)/rect.width*c.width,my=(ev.clientY-rect.top)/rect.height*c.height;
         const wx=frame.cx+(mx-c.width/2)/scale,wz=frame.cz+(c.height/2-my)/scale;
         const pin={x:clamp(wx,-181,207),z:clamp(wz,-179,179)};
         const nearDock=bay.docks.find(d=>Math.hypot((chartMode==="bay"?d.x:d.footX+1.4)-wx,d.z-wz)<11);
-        const venue=chartMode==="city"&&locations.find(p=>(p.kind==="room"||p.kind==="counter")&&Math.hypot(p.x-wx,p.z-wz)<5);
+        const venue=locations.find(p=>["room","counter","surf-tower"].includes(p.kind)&&Math.hypot(p.x-wx,p.z-wz)<5);
         let jobPin=null,hitRadius=6;
         for(const site of jobPins){const gap=Math.hypot(site.x-wx,site.z-wz);if(gap<hitRadius){jobPin=site;hitRadius=gap;}}
         if(nearDock)waypoint={...(skiff||chartMode==="bay"?landings[bay.docks.indexOf(nearDock)]:shorePins[bay.docks.indexOf(nearDock)])};
@@ -2512,7 +2780,7 @@
         closePanel();note("Map pin",waypoint.name,2);});
     }else{
       title="Paused";kicker="Sundown Bay  /  "+district(pos());const stats=document.createElement("div");stats.className="statline";stats.textContent=cash(save.wallet)+"  /  Jobs "+save.paid+"  /  Tapes "+save.tapes.length+" of 5";b.append(stats);
-      const keysList=document.createElement("div");keysList.className="controls";const allControls=[["WASD / ↑↓←→","Walk or drive"],["Mouse","Look around"],["E","Enter / exit car"],["Shift","Sprint on foot"],["S / ↓","Brake, then reverse"],["Space","Jump / handbrake"],["H / F","Horn / talk"],["J / M","Jobs / map"],["Q / C","Keyboard look"],["V / X","Look back / recenter"],["+ / −","Camera distance"]];
+      const keysList=document.createElement("div");keysList.className="controls";const allControls=[["WASD / ↑↓←→","Move, drive or swim"],["Mouse","Look around"],["E","Enter, exit or climb aboard"],["Shift","Sprint or swim faster"],["S / ↓","Brake, then reverse"],["Space","Jump, handbrake or hold to dive"],["H / F","Horn / interact"],["J / M","Jobs / map"],["Q / C","Keyboard look"],["V / X","Look back / recenter"],["+ / −","Camera distance"]];
       for(const [key,text] of allControls){const span=document.createElement("span"),k=document.createElement("kbd");k.textContent=key;span.append(k,document.createTextNode(text));keysList.append(span);}b.append(keysList);
       b.append(makeButton("Back to the city","Resume free roam or your current job.","Resume",closePanel));
       const gfx=makeButton("Camera view",!view.gl||view.lost?"Lightweight overhead rendering is active.":"Third-person street view or the overhead map.",isTop()?"Overhead":"Street",()=>{manualTop=!manualTop;saveCamera();openPanel("pause",true);});gfx.disabled=!view.gl||view.lost;
@@ -2603,7 +2871,8 @@
       else if(ev.code==="Escape")openPanel("pause");
       return;
     }
-    if(ev.code==="KeyF"&&!transfer&&!deckStep&&fieldAction())return;
+    if(ev.code==="KeyF"&&!transfer&&!deckStep&&(fieldAction()||coastAction()))return;
+    if(swim&&["Space","KeyF","KeyH","KeyT","KeyG"].includes(ev.code))return;
     if(listening()&&["Space","KeyE","KeyH","KeyX","KeyT"].includes(ev.code))return;
     if(active?.take){
       if(ev.code==="KeyG"){swapTake();return;}
@@ -2660,15 +2929,16 @@
       // Small steps keep steering and collision response consistent on slower hardware.
       let left=dt;while(left>.00001&&!panel){
         const d=Math.min(left,car||skiff||active?.take?1/60:1/45);
-        if(room){walkRoom(d);traffic(d);left-=d;continue;}
+        if(room){walkRoom(d);traffic(d);stepBeach(d);left-=d;continue;}
         if(active?.take)stepTake(d);else if(deckStep)stepLanding(d);else if(transfer)stepTransfer(d);
+        else if(swim)swimStep(d);
         else if(car){if(car!==meet.jules&&!(active?.meet&&meet.phase==="countdown"))drive(d);}
         else if(!skiff&&!listening())walk(d);
-        stepWater(d);traffic(d);pursuit(d);stepMeet(d);advanceJob(d);serviceGarage(d);left-=d;
+        stepWater(d);traffic(d);pursuit(d);stepMeet(d);advanceJob(d);serviceGarage(d);stepBeach(d);left-=d;
       }
-      if(!room&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??skiff?.speed??car?.speed??0);
+      if(!room&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??skiff?.speed??car?.speed??0);
       if(!panel)stepField(dt);
-      sound.update({speed,driving:!!active?.take||!!car||!!skiff,boating:!!skiff,field:fieldSignal(),heat,siren:heat?clamp(1-chase.closestUnit/103,0,1):0,time:elapsed,coast:clamp((p.x-100)/93,0,1),
+      sound.update({speed,driving:!!active?.take||!!car||!!skiff,boating:!!skiff,swimming:!!swim,depth:swim?.depth||0,stroke:swim?.pace||0,field:fieldSignal(),heat,siren:heat?clamp(1-chase.closestUnit/103,0,1):0,time:elapsed,coast:clamp((p.x-100)/93,0,1),
         rotor:backup.air?backup.air.light*clamp(1-Math.hypot(backup.air.x-p.x,backup.air.y,backup.air.z-p.z)/110,0,1):0,
         docks:clamp(1-Math.hypot(p.x+142,p.z+76)/94,0,1),skid:car?.slip||0});
       if(elapsed-lastHud>.10){hud();lastHud=elapsed;}if(elapsed-lastMap>.09){drawMini();lastMap=elapsed;}

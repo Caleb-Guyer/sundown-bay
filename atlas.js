@@ -591,6 +591,19 @@
     rect(ctx,0,0,w,h,p.land);
     if(rotation){ctx.translate(w/2,h/2);ctx.rotate(-rotation);ctx.translate(-w/2,-h/2);}
     const pad=Math.hypot(w,h);
+    if(street&&opt.submerged&&opt.swim){
+      rect(ctx,-pad,-pad,w+pad*2,h+pad*2,"#377e80");
+      BayReefArt.map(ctx,opt,px,py,s,visible);
+      BaySurfArt.mapLadders(ctx,opt,px,py,s,visible);
+      for(const boat of opt.marina?.boats||empty)if(visible(px(boat.x),py(boat.z),4*s)){
+        ctx.save();ctx.translate(px(boat.x),py(boat.z));ctx.rotate(boat.yaw||0);
+        ctx.beginPath();ctx.ellipse(0,0,1.1*s,2.7*s,0,0,Math.PI*2);ctx.fillStyle="rgba(38,71,73,.43)";ctx.fill();ctx.restore();
+      }
+      for(const person of opt.patrol?.actors||empty)if(person.wet&&visible(px(person.x),py(person.z),2*s)){
+        ctx.save();ctx.globalAlpha=.54;BaySwimmerArt.map(ctx,px(person.x),py(person.z),s,person,streetTime);ctx.restore();
+      }
+      BaySwimmerArt.map(ctx,px(opt.swim.x),py(opt.swim.z),s,opt.swim,streetTime);ctx.restore();return;
+    }
     rect(ctx,px(213),-pad,Math.max(0,w+pad-px(213)),h+pad*2,p.ocean);
     const base=staticImage(solids,street);
     if(base) ctx.drawImage(base,px(extent.left),py(extent.top),(extent.right-extent.left)*s,(extent.top-extent.bottom)*s);
@@ -663,6 +676,22 @@
       }
     }
     BayMarinaView.map(ctx,opt,px,py,s,ui,visible);
+    if(opt.patrol){
+      if(street){
+        BaySurfArt.map(ctx,opt,px,py,s,visible);
+        if(opt.patrol.call&&visible(px(opt.patrol.call.swimmer.x),py(opt.patrol.call.swimmer.z),5*s))BaySwimmerArt.mapLine(ctx,opt.patrol,opt.swim,streetTime,px,py,s);
+        for(const person of opt.patrol.actors)if(visible(px(person.x),py(person.z),2*s)){
+          if(person.wet)BaySwimmerArt.map(ctx,px(person.x),py(person.z),s,person,streetTime);
+          else{
+            const [skin,shirt]=BaySwimmerArt.colors[person.style];
+            personSprite(ctx,{...person,skin,shirt},px(person.x),py(person.z),Math.max(2.3,s*1.42),false,rotation);
+          }
+        }
+      }else{
+        const caller=opt.patrol.call?.swimmer;
+        if(caller&&visible(px(caller.x),py(caller.z))){disc(ctx,px(caller.x),py(caller.z),3.3*ui,"#713f33");disc(ctx,px(caller.x),py(caller.z),2.1*ui,"#ffb680");}
+      }
+    }
     if(opt.route&&!street){
       const pts=opt.route.points;ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
       ctx.beginPath();ctx.moveTo(px(pts[0].x),py(pts[0].z));
@@ -708,6 +737,13 @@
           const marker=edgePoint(x,y,w,h,true,10*ui);
           if(player?.flatSide||selected||Math.hypot(marker[0]-x,marker[1]-y)<1)
             garageMark(ctx,marker[0],marker[1],ui*.86,"",selected);
+        }
+      }else if(!street&&place.kind==="surf-tower"&&visible(x,y)){
+        disc(ctx,x,y,5.8*ui,"#674b3a");disc(ctx,x,y,4.7*ui,"#e6af6a");
+        line(ctx,x-2.5*ui,y,x+2.5*ui,y,"#f9eed3",1.5*ui);line(ctx,x,y-2.5*ui,x,y+2.5*ui,"#f9eed3",1.5*ui);
+        if(atlas){
+          ctx.save();ctx.textAlign="right";ctx.font="bold "+8*ui+"px system-ui";ctx.fillStyle="#f6eace";ctx.strokeStyle=ink;ctx.lineWidth=2.3*ui;
+          ctx.strokeText("Beach patrol",x-8*ui,y-5*ui);ctx.fillText("Beach patrol",x-8*ui,y-5*ui);ctx.restore();
         }
       }else if(!street&&(place.kind==="room"||place.kind==="counter")&&visible(x,y)){
         const k=ui*(radar?.84:1);ctx.save();ctx.translate(x,y);ctx.scale(k,k);
@@ -821,11 +857,12 @@
       const x=px(player.x),y=py(player.z);
       if(street) {
         if(player.driving && !playerCar) carSprite(ctx,player,x,y,s,streetTime);
-        if(!player.driving&&!player.inCabin&&!opt.aboard){
+        if(opt.swim)BaySwimmerArt.map(ctx,x,y,s,opt.swim,streetTime);
+        else if(!player.driving&&!player.inCabin&&!opt.aboard){
           personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
           if(opt.field?.phase==="listen")BayCutWildlife.mapMic(ctx,x,y,s,opt.field.yaw,streetTime,!!opt.field.slice);
         }
-        if(opt.plate&&!player.driving&&!player.inCabin&&!opt.aboard){
+        if(opt.plate&&!opt.swim&&!player.driving&&!player.inCabin&&!opt.aboard){
           const bag=BayDriving.world(player,.41,.08);rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
         }
         if(opt.aboard){const v=opt.marina.player,helm=BayDriving.world(v,-.38,-.35);disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}

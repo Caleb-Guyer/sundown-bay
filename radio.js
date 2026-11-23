@@ -34,14 +34,17 @@
   const bedsByName = {
     engine: ['sawtooth', 'lowpass', 0.59], skid: ['noise', 'bandpass', 1.8], tire: ['triangle', 'lowpass', 0.62],
     surf: ['noise', 'lowpass', 0.52], street: ['noise', 'lowpass', 0.8], quay: ['sine', 'lowpass', 0.6],
-    rotor: ['rotor', 'lowpass', 0.70]
+    rotor: ['rotor', 'lowpass', 0.70], undertow: ['noise','lowpass',0.58]
   };
 
   let context, master, music, instruments, effects, ambience, hats, noise, waves;
+  let openAir, submergedBus, waterFilter;
   let enabled = false, paused = false;
   let driving = false, boating = false, speed = 0, heat = 0, siren = 0, rotor = 0, coast = 0, docks = 0, skid = 0;
   let nextStep = 0, step = 0, nextMix = 0, skidSince = null, nextGull = 0, nextPortSound = 0;
   let nextHorn = 0, nextTrafficHorn = 0, nextSiren = 0, seed = 87533, portBell = true, worldTime = 0;
+  let swimming = false, waterDepth = 0, strokeEffort = 0, lastImmersion = 0;
+  let nextStroke = 0, nextWhistle = 0, nextSplash = 0;
   let broadcast = null, queuedTape = null;
 
   function random() {
@@ -63,10 +66,19 @@
     try {
       context = new Audio();
       master = gainNode(context.destination, 0);
-      music = gainNode(master, 0.66);
+      openAir = gainNode(master, 1);
+      submergedBus = gainNode(master, 0);
+      waterFilter = context.createBiquadFilter();
+      waterFilter.type = 'lowpass';
+      waterFilter.frequency.value = 690;
+      waterFilter.Q.value = 0.58;
+      waterFilter.connect(submergedBus);
+      const scene = gainNode(openAir, 1);
+      scene.connect(waterFilter);
+      music = gainNode(scene, 0.66);
       instruments = gainNode(music, 1);
-      effects = gainNode(master, 0.88);
-      ambience = gainNode(master, 0.74);
+      effects = gainNode(scene, 0.88);
+      ambience = gainNode(scene, 0.74);
       hats = context.createBiquadFilter();
       hats.type = 'highpass';
       hats.frequency.value = 4100;
@@ -129,6 +141,7 @@
     source.onended = () => release(voice);
     source.start(start);
     source.stop(end + 0.01);
+    return voice;
   }
 
   function oscillator(shape, frequency, start) {
@@ -149,6 +162,55 @@
     const source = context.createBufferSource();
     source.buffer = noise;
     strike(source, hats, start, length, volume, 0.003);
+  }
+  function waterNoise(bus, start, length, volume, high, low) {
+    const source = context.createBufferSource(), filter = context.createBiquadFilter();
+    source.buffer = noise;
+    filter.type = 'bandpass';
+    filter.Q.value = 0.73;
+    filter.frequency.setValueAtTime(high, start);
+    filter.frequency.exponentialRampToValueAtTime(low, start + length * .86);
+    filter.connect(bus);
+    const voice = strike(source, filter, start, length, volume, .012, .38);
+    voice.filter = filter;
+  }
+  function whistlePulse(start, length, volume, pitch) {
+    const reed = oscillator('sine', pitch * .84, start);
+    reed.frequency.exponentialRampToValueAtTime(pitch, start + .034);
+    for (let t = .055; t < length - .043; t += .038) {
+      reed.frequency.linearRampToValueAtTime(pitch * 1.012, start + t);
+      reed.frequency.linearRampToValueAtTime(pitch * .984, start + t + .015);
+    }
+    reed.frequency.exponentialRampToValueAtTime(pitch * .83, start + length);
+    strike(reed, effects, start, length, volume, .023, .78);
+    waterNoise(effects, start, length * .76, volume * .65, 2400, 3400);
+  }
+  function swimMix(now, swell, passing) {
+    const immersion = swimming ? unit((waterDepth - .17) / .92) : 0;
+    if (immersion !== lastImmersion) {
+      openAir.gain.setTargetAtTime(1 - immersion, now, .09);
+      submergedBus.gain.setTargetAtTime(immersion * .83, now, .10);
+      waterFilter.frequency.setTargetAtTime(780 - 420 * immersion, now, .14);
+      lastImmersion = immersion;
+    }
+    if (immersion || beds.has('undertow')) mixBed('undertow', master, now, immersion * (.053 + .021 * swell), 143 + 28 * passing);
+    if (!swimming) return;
+    if (strokeEffort < .09) {
+      nextStroke = now + .08;
+    } else if (now >= nextStroke) {
+      const power = .03 + .052 * strokeEffort;
+      if (waterDepth > .47) {
+        // Bubbles close to the ear rise in pitch as the street falls behind.
+        for (let i = 0; i < 3; i++) {
+          const pitch = 176 + i * 74 + random() * 58;
+          tone(master, pitch, now + i * .069, .067 + i * .012, power * (.43 - i * .08), 'sine', pitch * 1.54, .005);
+        }
+      } else {
+        waterNoise(ambience, now, .24, power * 1.48, 1450 + random() * 660, 365);
+        tone(ambience, 96, now + .012, .14, power * .60, 'sine', 51, .009);
+      }
+      nextStroke = now + .98 - .48 * strokeEffort;
+    }
   }
 
   function stationIdent(start) {
@@ -409,6 +471,7 @@
     const inside = driving && !boating ? 0.57 : 1;
     const swell = (0.5 + 0.5 * Math.sin(worldTime * 0.90 + 0.8 * Math.sin(worldTime * 0.27))) ** 1.7;
     const passing = (0.5 + 0.5 * Math.sin(worldTime * 0.71 + 2 * Math.sin(worldTime * 0.19))) ** 2;
+    swimMix(now, swell, passing);
     const monitoring = mixField(field, now);
     const radioVolume = broadcast ? 0.10 : monitoring ? 0.13 : driving ? 0.71 : 0.47;
     music.gain.setTargetAtTime(radioVolume, now, broadcast || monitoring ? 0.075 : 0.18);
@@ -439,6 +502,9 @@
     coast = unit(state.coast);
     docks = unit(state.docks);
     skid = unit(state.skid);
+    swimming = Boolean(state.swimming);
+    waterDepth = swimming ? Math.max(0, Number(state.depth) || 0) : 0;
+    strokeEffort = swimming ? unit(state.stroke) : 0;
     if (!enabled || paused || !context || context.state !== 'running') return;
     const now = context.currentTime;
     worldTime = Number.isFinite(state.time) ? state.time : now;
@@ -455,6 +521,28 @@
   function cue(name, source = {}) {
     if (!enabled || paused || !context || context.state !== 'running') return;
     const at = context.currentTime + 0.012;
+    if (name === 'splash') {
+      if (at < nextSplash) return;
+      nextSplash = at + .25;
+      const near = 1 / (1 + Math.max(0, source.distance || 0) * .075);
+      tone(effects, 127, at, .21, .116 * near, 'sine', 43, .013);
+      waterNoise(effects, at + .013, .34, .22 * near, 2900, 420);
+      waterNoise(effects, at + .13, .28, .095 * near, 1800, 740);
+      return;
+    }
+    if (name === 'shore-whistle') {
+      if (at < nextWhistle) return;
+      nextWhistle = at + 1.6;
+      const power = .083 / (1 + Math.max(0, source.distance || 0) * .041);
+      whistlePulse(at, .15, power, 1850);
+      whistlePulse(at + .235, .30, power * .92, 1960);
+      return;
+    }
+    if (name === 'found') {
+      tone(effects, 921, at, .14, .085, 'tine', 884, .004);
+      tone(effects, 1423, at + .068, .24, .047, 'sine', 1400, .006);
+      return;
+    }
     if (name === 'horn' || name === 'trafficHorn') {
       const local = name === 'horn';
       if (at < (local ? nextHorn : nextTrafficHorn)) return;
@@ -505,6 +593,7 @@
     nextPortSound = now + 3.1;
     nextSiren = now + 1.1;
     nextHorn = nextTrafficHorn = now;
+    nextWhistle = nextSplash = nextStroke = now;
     master.gain.cancelScheduledValues(now);
     master.gain.setTargetAtTime(0.73, now, 0.035);
     context.resume().catch(() => {});

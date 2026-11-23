@@ -12,6 +12,10 @@ Across the street from the starter car, press **F** at the teal door numbered **
 
 Follow **Ocean Drive** north past the Boardwalk to **Pelican Cut**. The paved causeway and the shell levee meet again at the fish camp. Ada watches the spoonbills from the hide. Nell carries ice down to the east pier, where you can board a skiff and return to town by sea. The **Pelican Cut** tab on the map shows both roads and the landing.
 
+Walk past the striped **Sol Beach lifeguard tower** across from the Marlin and head straight into the surf. Hold **Space** to dive, release it to rise, and hold **Shift** for a faster stroke. Press **E** at the east ladder of any public pier or beside a slow skiff to climb aboard. Offshore, slow the skiff below four knots and press **E** to go over the side.
+
+When a swimmer waves beyond the flags, Tali Moreno leaves the tower to bring them in. You can swim alongside, press **F** to take the float, and tow them into shallow water for **$95**. Press **F** on foot at the tower’s lost-and-found board for clues to three objects on the bay floor. Recover one with **F** and bring it back for the owner’s reward. Filed objects hang on the tower and stay there between visits.
+
 For **The Marsh Line**, find Kit Bell at the camp’s Sol FM field station and press **F** on foot. Pick the spoonbill flock, the wind pump, or the shrimp boat *Little Dot*. At the listening spot, press **F** to raise the recorder. Aim with the mouse or arrows, then hold **Space** for 2.6 seconds. Bring a take back to Kit to earn money. Sol FM plays your recording on your next ride, and the phone keeps your best tape for each subject. The visual meter and captions work with sound off.
 
 Park a car in the space painted **14**, press **F**, and put the Marlin guest permit on its dash. When you step out of that car, the map remembers where you parked it, including after a browser restart. Open the phone or city map to locate it. A permit can move to another car in space 14. The street atlas and driving directions share the same street names.

@@ -41,18 +41,21 @@
       this.yaw=this.wantedYaw=yaw;this.elevation=this.wantedElevation=.255;
       this.distance=4.6*this.zoom;this.safeDistance=this.distance;
       this.lastLook=-20;this.manualAim=false;this.lastCarYaw=null;this.carBlend=0;this.lookBack=0;
-      this.reversing=0;this.behindCar=false;this.hideActor=false;
+      this.reversing=0;this.behindCar=false;this.hideActor=false;this.diving=false;
     }
     orbit(dx,dy,time) {
       if(Math.abs(dx)+Math.abs(dy)<.02)return;
       this.wantedYaw+=clamp(dx,-240,240)*.00325*this.sensitivity;
-      this.wantedElevation=clamp(this.wantedElevation+clamp(dy,-180,180)*.0027*this.sensitivity,-.13,1.03);
+      this.wantedElevation=clamp(this.wantedElevation+clamp(dy,-180,180)*.0027*this.sensitivity,this.diving?-.65:-.13,1.03);
       this.lastLook=time;this.manualAim=true;
     }
     changeZoom(amount){this.zoom=clamp(this.zoom+amount,.68,1.65);}
     recenter(heading,time){this.wantedYaw=this.yaw+wrap(heading-this.yaw);this.wantedElevation=.255;this.lastLook=time-.8;this.manualAim=false;}
     update(out,subject,vehicle,dt,time,options={}) {
       const speed=vehicle?Math.abs(vehicle.speed):0, pace=clamp(speed/31,0,1);
+      const swim=options.swim;
+      this.diving=!!swim?.underwater;
+      if(!this.diving)this.wantedElevation=Math.max(-.13,this.wantedElevation);
       this.carBlend=smooth(this.carBlend,options.seat??(vehicle?1:0),5.2,dt);
       const b=this.carBlend;
       if(vehicle){
@@ -76,26 +79,34 @@
       anchor.x=smooth(anchor.x,subject.x,17,dt);anchor.z=smooth(anchor.z,subject.z,17,dt);
       // Keep a lagged anchor on the subject's side when it rounds a corner.
       this.jumpLift=smooth(this.jumpLift,vehicle?0:(options.lift||0)*.39,12,dt);
-      const ground=options.ground||0,pivotY=ground+1.26+.10*b+this.jumpLift;
+      const ground=options.ground||0,pivotY=swim?subject.y+(swim.exit?1.22:.15):ground+1.26+.10*b+this.jumpLift;
       const realPivot={x:subject.x,y:pivotY,z:subject.z};
       const anchorEye={x:anchor.x,y:pivotY,z:anchor.z};
       const free=safeFraction(realPivot,anchorEye,this.obstacles);
       const pivot={x:subject.x+(anchor.x-subject.x)*free,y:pivotY,z:subject.z+(anchor.z-subject.z)*free};
-      this.distance=smooth(this.distance,(4.55+b*(2.25+pace*1.35))*this.zoom,6.5,dt);
+      this.distance=smooth(this.distance,(swim?(this.diving?3.35:4.25):4.55+b*(2.25+pace*1.35))*this.zoom,6.5,dt);
       const shoulder=.47*(1-b),radius=this.distance,flat=Math.cos(this.elevation)*radius;
       const xOff=-sn*flat+cs*shoulder,zOff=-cs*flat-sn*shoulder;
       const yOff=Math.sin(this.elevation)*radius+.20*b;
-      const ideal={x:pivot.x+xOff,y:Math.max(ground+.51,pivot.y+yOff),z:pivot.z+zOff};
-      const clearance=safeFraction(pivot,ideal,this.obstacles)*radius;
+      const minHeight=swim&&!swim.exit ? .40 : ground+.46;
+      const eyeHeight=(x,z,y)=>this.diving?clamp(y,Math.min(-.17,BaySwimming.floor(x,z)+.29),-.15):Math.max(minHeight,y);
+      const ideal={x:pivot.x+xOff,z:pivot.z+zOff};
+      ideal.y=eyeHeight(ideal.x,ideal.z,pivot.y+yOff);
+      let clearance=safeFraction(pivot,ideal,this.obstacles)*radius;
+      if(this.diving)for(let part=.2;part<=1;part+=.2){
+        if(BaySwimming.floor(pivot.x+xOff*part,pivot.z+zOff*part)>-.54){clearance=Math.min(clearance,radius*(part-.15));break;}
+      }
       this.safeDistance=clearance<this.safeDistance?clearance:smooth(this.safeDistance,clearance,5.6,dt);
       const ratio=clamp(this.safeDistance/radius,0,1);
       const lift=(1-clamp(this.safeDistance/(vehicle?3.8:2.1),0,1))*(vehicle?2.65:.72);
-      const eye={x:pivot.x+xOff*ratio,y:Math.max(ground+.46,pivot.y+yOff*ratio+lift),z:pivot.z+zOff*ratio};
+      const eye={x:pivot.x+xOff*ratio,z:pivot.z+zOff*ratio};
+      eye.y=eyeHeight(eye.x,eye.z,pivot.y+yOff*ratio+lift);
       const safe=safeFraction(pivot,eye,this.obstacles);
       out.x=pivot.x+(eye.x-pivot.x)*safe;out.y=pivot.y+(eye.y-pivot.y)*safe;out.z=pivot.z+(eye.z-pivot.z)*safe;
+      if(swim)out.y=eyeHeight(out.x,out.z,out.y);
       const lead=b*(.70+pace*2.25), ahead=.38+lead;
       const aimX=pivot.x+sn*ahead+cs*shoulder*.75,aimZ=pivot.z+cs*ahead-sn*shoulder*.75;
-      const aimY=pivot.y+.27+b*.24;
+      const aimY=pivot.y+(swim?0:.27+b*.24);
       out.yaw=Math.atan2(aimX-out.x,aimZ-out.z);
       out.pitch=Math.atan2(aimY-out.y,Math.max(.15,Math.hypot(aimX-out.x,aimZ-out.z)));
       out.focal=1.56-b*(.04+.145*pace);

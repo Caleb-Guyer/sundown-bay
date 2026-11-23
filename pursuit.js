@@ -36,13 +36,13 @@
       return BayCamera.safeFraction({x:v.x,y:1.46+(BayCut.area(v)?BayCut.height(v.x,v.z):0),z:v.z},
         {x:p.x,y:1.3+(BayCut.area(p)?BayCut.height(p.x,p.z):0),z:p.z},this.cover)>=1;
     }
-    observe(units,p,vx,vz,heat,dt,radioSight=false,afloat=false){
+    observe(units,p,vx,vz,heat,dt,radioSight=false,afloat=false,submerged=false){
       this.scanIn-=dt;
       if(this.scanIn<=0){
         this.scanIn+=.12;
         this.sighted=radioSight;
         for(const v of units){
-          const visible=this.canSee(v,p,heat);
+          const visible=!submerged&&this.canSee(v,p,heat);
           v.spotTime=visible?(v.spotTime||0)+.12:0;
           v.sees=visible&&(!this.searching||v.spotTime>=.36||distance(v,p)<12);
           if(v.sees)this.sighted=true;

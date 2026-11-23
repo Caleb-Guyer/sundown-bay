@@ -141,7 +141,7 @@
       const lead=v.slot?clamp(distance(v,k)*.023,.4,1.5):.22,beam=side*(v.slot?5.2:3.7);
       return waterPoint(k.x+k.vx*lead+dz*beam,k.z+k.vz*lead-dx*beam);
     }
-    update(heat,dt,t,p,boat,dock,fleet){
+    update(heat,dt,t,p,boat,dock,fleet,submerged=false){
       const waterside=!!(boat||dock),chase=this.chase;
       if(!this.units.length&&!waterside)return;
       if(dock&&(!this.dock||!chase.searching))this.dock=dock;
@@ -157,7 +157,7 @@
       this.closest=this.inContact=Infinity;this.sighted=false;
       for(const v of this.units){
         if(scan){
-          v.spotTime=this.canSee(v,p,heat,waterside)?v.spotTime+.12:0;
+          v.spotTime=!submerged&&this.canSee(v,p,heat,waterside)?v.spotTime+.12:0;
           v.sees=v.spotTime>0&&(!chase.searching||v.spotTime>=.24||distance(v,p)<15);
         }
         if(v.sees)this.sighted=true;

@@ -140,7 +140,7 @@
         radius:7.2,lit:0,sees:false,light:0,rotor:0};
       return this.air;
     }
-    fly(heat,dt,p){
+    fly(heat,dt,p,submerged=false){
       if(heat<5){this.air=null;return;}
       const chase=this.chase,k=chase.lastSeen,a=this.air||this.dispatchAir(k);
       a.age+=dt;a.rotor=(a.rotor+dt*23)%(Math.PI*2);
@@ -172,7 +172,7 @@
         const lamp=this.lamp(a);
         a.beamFraction=BayCamera.safeFraction(lamp,{x:a.spotX,y:.24,z:a.spotZ},this.cover);
         const inLight=a.light>.64&&Math.hypot(p.x-a.spotX,p.z-a.spotZ)<a.radius&&distance(a,p)<79;
-        const visible=inLight&&BayCamera.safeFraction(lamp,{x:p.x,y:1.15,z:p.z},this.cover)>=1;
+        const visible=!submerged&&inLight&&BayCamera.safeFraction(lamp,{x:p.x,y:1.15,z:p.z},this.cover)>=1;
         a.lit=visible?Math.min(.6,a.lit+.10):0;
         a.sees=a.lit>=(searching?.39:.19);
       }

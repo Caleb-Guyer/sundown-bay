@@ -95,7 +95,7 @@
   `;
   const FRAGMENT = PRECISION+`
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
-    uniform vec4 waterParams,airState,driverLamp; uniform vec3 eye,skyTone;
+    uniform vec4 waterParams,airState,driverLamp; uniform vec3 eye,skyTone; uniform vec2 immersion;
     uniform sampler2D sunDepth,paper,lobbyPrint,streetLight; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow,showPrint;
     float shadeAt(vec2 uv){
       vec2 rg=texture2D(sunDepth,uv).rg;
@@ -111,6 +111,19 @@
       if(ghost>.5){
         if(mod(floor(gl_FragCoord.x)+2.*floor(gl_FragCoord.y),4.)<2.)discard;
         gl_FragColor=vec4(mix(vec3(.31,.80,.78),vec3(.87,1.,.92),vColor.g),1.);return;
+      }
+      if(immersion.x>.5){
+        vec3 point=street.xzy;
+        float t=immersion.y,depth=max(0.,-point.y),distanceToEye=length(point-eye);
+        vec3 water=vec3(.095,.365,.386)*(1.-.42*dusk);
+        vec2 bed=point.xz;
+        float rays=abs(sin(.94*bed.x+.38*bed.y+.83*t+.72*sin(.45*bed.y-.41*t))
+                    +.70*sin(.59*bed.x-.86*bed.y+.53*t));
+        float light=(1.-smoothstep(.025,.165,rays))*exp(-.14*depth);
+        vec3 dye=vColor*vec3(.81,.99,.91)*(1.-.34*dusk)*(1.-.015*min(depth,12.));
+        dye+=vec3(.14,.19,.12)*light;
+        if(point.y>.20) dye=mix(vec3(.27,.59,.55),vec3(.56,.78,.65),light)*(1.-.43*dusk);
+        gl_FragColor=vec4(mix(water,dye,exp(-.043*distanceToEye)),1.);return;
       }
       if(waterParams.w>.5){
         vec2 offset=surface-waterParams.xy;float d=length(offset),t=waterParams.z;
@@ -218,7 +231,7 @@
         gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;};
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
-      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint","streetLight","airState","skyTone","driverLamp"])this.u[key]=gl.getUniformLocation(p,key);
+      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint","streetLight","airState","skyTone","driverLamp","immersion"])this.u[key]=gl.getUniformLocation(p,key);
       this.glow=0;
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
@@ -283,11 +296,15 @@
       gl.useProgram(this.program);gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
       gl.uniform1f(this.u.hasShadow,ok?1:0);gl.uniform1f(this.u.texel,1/sz);gl.clearColor(0,0,0,0);this.bound=null;
     }
-    begin(camera,dusk=0,weather=null,headlights=null){
+    begin(camera,dusk=0,weather=null,headlights=null,seaTime=null){
       if(!this.gl||this.lost)return;
       const gl=this.gl,c=this.canvas, factor=Math.min(this.maxWidth/innerWidth,this.maxHeight/innerHeight,devicePixelRatio||1)*this.scale;
       const w=Math.max(2,Math.round(innerWidth*factor)), h=Math.max(2,Math.round(innerHeight*factor));
-      if(c.width!==w||c.height!==h){c.width=w;c.height=h;}gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
+      if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
+      if(seaTime===null)gl.clearColor(0,0,0,0);
+      else{const light=1-.42*dusk;gl.clearColor(.095*light,.365*light,.386*light,1);}
+      gl.uniform2f(this.u.immersion,seaTime===null?0:1,(seaTime||0)%2048);
+      gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
       const sn=Math.sin(camera.yaw),cs=Math.cos(camera.yaw),sp=Math.sin(camera.pitch),cp=Math.cos(camera.pitch);
       const focal=camera.focal||1.5;this.basis={sn,cs,sp,cp,camera,f:focal,aspect:w/h};this.bound=null;this.tiltX=NaN;this.tiltZ=NaN;
       const timed=weather&&Number.isFinite(weather.minute),night=Math.max(0,Math.min(1,Math.max(dusk||0,timed?weather.night||0:0)));
