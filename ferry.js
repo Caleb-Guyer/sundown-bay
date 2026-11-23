@@ -2,7 +2,7 @@
 (() => {
   "use strict";
   const job={id:"ferry",name:"Last Ferry Out",by:"Inez Cruz",desc:"Pick up the Paloma’s relief engineer and catch the ferry with a speedboat.",pay:450};
-  const pickup={x:152.3,z:-25.8,name:"Marlin Motel"};
+  const pickup={x:152.3,z:-29.8,y:.076,yaw:-1.75,name:"Marlin Motel"};
   const routes=[
     {id:"gull",name:"Gull Light Passage",x:330,z:-4,rx:53,rz:118,speed:7.5,direction:1,start:3.64},
     {id:"north",name:"North Channel",x:308,z:61,rx:31,rz:80,speed:7.1,direction:-1,start:3.45},
@@ -64,7 +64,7 @@
   class Run {
     constructor(route,hard,dock){
       this.ship=new Ship(route);this.hard=hard;this.dock=dock;
-      this.rider={...pickup,y:.076,yaw:-1.75};this.motion=new BayPlayerMotion();
+      this.rider={...pickup};this.motion=new BayPlayerMotion();
       this.phase="pickup";this.ride=null;this.boat=null;this.path=[];this.seatBlend=0;
       this.hold=0;this.jumpTime=0;this.waterTime=0;this.remaining=hard?85:105;this.linger=0;
       this.guidance="";this.matched=false;

@@ -27,11 +27,8 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 .intro-inner {margin:0 4.7vw clamp(28px,7.4vh,69px);display:flex;flex-direction:column;align-items:flex-start}
 #title {width:clamp(258px,34vw,505px);line-height:0;margin:0 0 clamp(15px,2.5vh,26px);transform:rotate(-3deg);transform-origin:14% 80%;filter:drop-shadow(0 4px 2px #15283166)}
 #title img {width:100%;height:auto;display:block}
-.primary {background:var(--cream);color:var(--ink);border:2px solid var(--ink);border-radius:4px;box-shadow:3px 3px 0 #122927;display:flex;gap:25px;align-items:center;padding:11px 13px 11px 18px;font:800 1.04rem/1.1 "DM Sans","Segoe UI",sans-serif}
+.primary {background:var(--cream);color:var(--ink);border:2px solid var(--ink);border-radius:4px;box-shadow:3px 3px 0 #122927;min-width:8rem;min-height:44px;padding:10px 22px;font:800 1.04rem/1.1 "DM Sans","Segoe UI",sans-serif}
 .primary:hover {background:#ffe09c;transform:translateY(-1px)}
-.primary kbd {color:#193d39;background:transparent;border-color:#28493c5c}
-.intro-controls {display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:14px 0 0 3px;font:600 .83rem/1.3 "DM Sans","Segoe UI",sans-serif;text-shadow:0 1px 4px #15262e}
-.intro-controls span {display:inline-flex;align-items:center;gap:5px}
 .area-kicker,#objectiveTag,#toast>span,.vehicle>span,.eyebrow,.north,.map-key,#speech strong {font-family:"IBM Plex Mono",Consolas,monospace;font-weight:700;text-transform:uppercase;letter-spacing:.095em}
 .location,.account,.radar,#objective,#context,#speech,.vehicle,.shortcuts,#toast,#targetTag {position:absolute}
 .location {left:24px;top:20px;display:flex;flex-direction:column;align-items:flex-start;filter:drop-shadow(1px 2px 2px #162a31af)}
@@ -176,16 +173,12 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   #objective {bottom:119px}#toast {top:14%;max-width:83%}#speech {bottom:25%;max-width:88vw}
   .panel {padding:14px}.controls {gap:5px}.map-legend {gap:8px}
 }
-.intro-actions {display:flex;align-items:stretch;gap:9px;flex-wrap:wrap}
-.intro-actions .intro-ferry {background:#1c504f;color:#fff0cd;border-color:#e4b475}
 .ferry-ticket {display:block;width:100%;height:auto;background:#e1d5b0;margin:6px 0 12px}
 .ferry-brief {margin:0 2px 10px;color:#304c48;font:500 .95rem/1.45 "DM Sans","Segoe UI",sans-serif}
 .ferry-receipt {display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:2px 0 11px;border-bottom:1px solid #99a58d;color:#294b43}
 .ferry-receipt strong {font:700 1.65rem Georgia,serif}
 #ferryMeter {height:5px;margin:7px 0 1px;background:#64746c;overflow:hidden}
 #ferryMeter i {display:block;height:100%;width:var(--hold,0%);background:#ffd07b}
-.intro-story {align-self:stretch;display:flex;align-items:center;gap:.35em;padding:8px 16px;background:#203431eb;color:#fff0d1;border:1px solid #f2dfb695;border-radius:3px;font:650 .98rem "DM Sans","Segoe UI",sans-serif;box-shadow:0 2px 5px #18262155}
-.intro-story i {font:bold italic 1.12rem Georgia,serif}.intro-story span {margin-left:8px;color:#ffd198}.intro-story:hover {background:#354b43}
 .panel[data-screen="viewfinder"],.panel[data-screen="contact"],.panel[data-screen="edition"] {width:min(640px,94vw)}
 .finder-body {padding:10px 12px 12px;background:#21332f;border-radius:3px;color:#efe7cd}
 .finder-strip,.finder-footer,.contact-proof figcaption {display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -198,8 +191,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .finder-footer {margin-top:10px}.finder-status {font-size:.9rem}.shutter {background:#f5d490;color:#26382e;padding:8px 12px;border:0;border-radius:2px;font-weight:750}.shutter kbd {margin-left:6px;color:#2b4036;border-color:#968b62}
 .panel .finder-help {margin:8px 0 0;font-size:.86rem}.contact-proof {margin:4px 0 10px;background:#273731;padding:7px 8px 5px;color:#f2d597}.contact-proof canvas {max-height:min(29vh,185px);object-fit:cover;object-position:50% 49%}.contact-proof figcaption {padding:5px 2px 0}.panel .edition-copy {font:1.08rem/1.48 Georgia,serif}
 .jobcard.story-job {border-left:4px solid #a04d35;background:#e9d8b2;padding-left:9px}.story-job strong {font:bold italic 1.22rem Georgia,serif}
-@media(max-width:480px){.intro-story {padding:6px 10px}.intro-actions {gap:5px}.finder-body {padding:6px}.finder-footer {gap:5px}.shutter {padding:8px}.shutter kbd {display:none}}
-.intro-water {border-color:#72b4ae;background:#173d42ed;color:#dbf4e6}
+@media(max-width:480px){.finder-body {padding:6px}.finder-footer {gap:5px}.shutter {padding:8px}.shutter kbd {display:none}}
 .panel[data-screen="marina"],.panel[data-screen="regatta-result"] {width:min(600px,94vw);background:#f3e7ca}
 .club-chart {background:#244f55;border:2px solid #204447;overflow:hidden;border-radius:2px}.club-chart canvas {width:100%;height:auto;display:block}
 .club-chart p {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 10px;border-top:1px solid #5c7e77;background:#17383e;color:#f0dfb8;font:600 .76rem/1.2 Consolas,monospace}

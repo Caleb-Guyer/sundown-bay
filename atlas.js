@@ -681,6 +681,12 @@
         disc(ctx,x,y,(radar?2.0:2.55)*ui,ink);disc(ctx,x,y,(radar?1:1.38)*ui,"#e1d9b2");
       }
     }
+    for(const site of opt.jobPins||empty){
+      const x=px(site.x),y=py(site.z);if(!visible(x,y))continue;
+      const r=(radar?4.0:3.55)*ui;
+      disc(ctx,x,y,r+.8*ui,ink);disc(ctx,x,y,r,"#efbc6d");
+      rect(ctx,x-.18*r,y-.68*r,.36*r,.83*r,ink);disc(ctx,x,y+.49*r,.19*r,ink);
+    }
     for(const tape of opt.tapes||empty) {
       const x=px(tape.x),y=py(tape.z);
       if(visible(x,y)) cassette(ctx,x,y,(street?4.6:radar?3.7:4.75)*ui);
@@ -719,14 +725,14 @@
         disc(ctx,x,y,1.18*ui,"#b7bda3");
       }
     }
-    if(street&&ferry){
-      const r=ferry.rider,x=px(r.x),y=py(r.z),colors=BayFerryPassengerArt.palette;
+    if(street&&opt.inez){
+      const r=opt.inez,x=px(r.x),y=py(r.z),colors=BayFerryPassengerArt.palette,lift=ferry?.motion.lift||0;
       if(visible(x,y)){
-        if(ferry.phase==="drive"||ferry.phase==="water"||ferry.phase==="missed"){
+        if(ferry?.phase==="drive"||ferry?.phase==="water"||ferry?.phase==="missed"){
           disc(ctx,x,y,s*.21,colors[1]);disc(ctx,x,y,s*.14,"#344944");
         }else{
-          personSprite(ctx,{...r,shirt:colors[1],skin:colors[0],startle:{lift:ferry.motion.lift}},x,y,Math.max(2.3,s*1.42),false,rotation);
-          const tin=BayDriving.world(r,.34,.02);disc(ctx,px(tin.x),py(tin.z)-ferry.motion.lift*s*.65,s*.12,"#ae4d3c");
+          personSprite(ctx,{...r,shirt:colors[1],skin:colors[0],startle:{lift}},x,y,Math.max(2.3,s*1.42),false,rotation);
+          const tin=BayDriving.world(r,.34,.02);disc(ctx,px(tin.x),py(tin.z)-lift*s*.65,s*.12,"#ae4d3c");
         }
       }
     }
