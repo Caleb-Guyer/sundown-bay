@@ -2028,6 +2028,23 @@
     cam.yaw=Math.atan2(x-cam.x,z-cam.z);cam.pitch=Math.atan2(pivot.y+.23-cam.y,Math.hypot(x-cam.x,z-cam.z));cam.focal=1.45;
   }
   function radioToggle(){radio=sound.setEnabled(!radio);try{localStorage.setItem("sundownBay.audio",radio?"on":"off");}catch{}$("audioKey").querySelector("span").textContent=radio?"Sol FM":"Sound off";if(!panel)note("Bay radio",radio?"Sol FM  •  After Hours":"Sound off",1.7);}
+  const boardwalkFrame={span:73,ahead:7,beside:0};
+  function boardwalkFraming(dt){
+    const b=cycles.riding,f=boardwalkFrame;
+    let span=73+25*cameraRig.carBlend,ahead=7+4*cameraRig.carBlend,beside=0;
+    if(b){
+      span=40+2.1*Math.min(12,b.speed);ahead=4+.55*b.speed;
+      if(cycles.run?.phase==="meet"){
+        const n=clamp((12-dist(b,cycles.javi))/9,0,1);beside=n*n*(3-2*n);
+        span+=(16-span)*beside;ahead+=(.85-ahead)*beside;
+      }
+    }
+    if((b||onStreetFeet())&&(!active||active.relay)){
+      const n=clamp((11-dist(pos(),ticketWindow))/8,0,1),counter=n*n*(3-2*n);
+      span+=(19-span)*counter;ahead+=(1.4-ahead)*counter;
+    }
+    f.span=ease(f.span,span,4.7,dt);f.ahead=ease(f.ahead,ahead,4.7,dt);f.beside=ease(f.beside,beside,5.5,dt);
+  }
   function moveCamera(dt,t){
     if(!play){
       const drift=Math.sin(t*.051);
@@ -2036,6 +2053,7 @@
       return;
     }
     if(panel)return;
+    if(isTop())boardwalkFraming(dt);
     if(boardwalk.player?.phase==="ride"){
       const w=boardwalk,look=Number(held("KeyC"))-Number(held("KeyQ"));
       w.pan+=(look*1.8+pointer.edgeX*1.45)*dt;
@@ -2400,9 +2418,9 @@
       if(map.width!==w||map.height!==h){map.width=w;map.height=h;}
       const p=play?cameraSubject():{x:65,z:0};
       const photo=shooting(),yaw=photo?meet.jules.yaw:play&&!paintPreview?cameraRig.yaw+cameraRig.lookBack:0;
-      const ahead=play&&!paintPreview?(swim?2.8:7+4*cameraRig.carBlend)*(1-cameraRig.elevation):0;
-      const span=swim?(swim.underwater?23:34):73+25*cameraRig.carBlend;
-      let scale=play?clamp(h/(span*cameraRig.zoom),2,35):h/237;
+      const ahead=play&&!paintPreview?(swim?2.8:boardwalkFrame.ahead)*(1-cameraRig.elevation):0;
+      const span=swim?(swim.underwater?23:34):boardwalkFrame.span;
+      let scale=play?clamp(h/(span*cameraRig.zoom),2,60):h/237;
       if(paintPreview)scale=h/24;
       const offset=besideTicket?w*.14/scale:0;
       const state=collectMap("street",p.x+Math.sin(yaw)*ahead-offset,p.z+Math.cos(yaw)*ahead,scale);
@@ -2411,8 +2429,12 @@
         state.cx=r.x+(m.x-r.x)*blend;state.cz=r.z+(m.z-r.z)*blend;state.scale=clamp(h/50,4,17);
       }
       state.rotation=yaw;
+      if(cycles.riding&&boardwalkFrame.beside>.001){
+        const f=boardwalkFrame.beside*.5;
+        state.cx+=clamp(cycles.javi.x-p.x,-3,3)*f;state.cz+=clamp(cycles.javi.z-p.z,-3,3)*f;
+      }
       if(boardwalk.player?.phase==="ride"){
-        const at=BayCoastWheelArt.mapPoint(hero);state.cx=at.x;state.cz=at.z;state.scale=h/((boardwalk.outside?48:30)+hero.y*.68);
+        const at=BayCoastWheelArt.mapPoint(hero);state.cx=at.x;state.cz=at.z;state.scale=h/((boardwalk.outside?39+hero.y*1.25:14+hero.y*.27)*cameraRig.zoom);
         state.rotation=state.cameraYaw=boardwalk.pan;
       }
       if(car===wrecker&&!transfer&&held("KeyV")){
