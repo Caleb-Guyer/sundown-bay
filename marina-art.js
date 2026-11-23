@@ -8,6 +8,8 @@
     mako:{length:6.68,beam:2.19,body:"#529e9b",stripe:"#253f55",shade:"#2d5263",deck:"#91c2ae",seat:"#385b68",trim:"#ead9a9",name:"MAKO",number:"22"},
     rival:{length:6.16,beam:2.05,body:"#e2a743",stripe:"#444351",shade:"#61505a",deck:"#e7b75e",seat:"#504956",trim:"#fff1c8",name:"SOL",number:"07"}
   };
+  const harborPaint={length:6.52,beam:2.32,body:"#293e52",stripe:"#e6e6d8",shade:"#395668",deck:"#82948e",seat:"#475b61",trim:"#e9e5cf"};
+  const harborTeal="#33818b",harborGold="#e3b85f";
   const marks={
     "0":["111","101","101","101","111"],"1":["010","110","010","010","111"],
     "2":["111","001","111","100","111"],"7":["111","001","010","010","010"],
@@ -15,7 +17,8 @@
     D:["110","101","101","101","110"],E:["111","100","110","100","111"],
     K:["101","101","110","101","101"],L:["100","100","100","100","111"],
     M:["10001","11011","10101","10101","10001"],N:["1001","1101","1011","1001","1001"],
-    O:["111","101","101","101","111"],S:["111","100","111","001","111"]
+    O:["111","101","101","101","111"],S:["111","100","111","001","111"],
+    P:["110","101","110","100","100"],I:["111","010","010","010","111"],C:["111","100","100","100","111"]
   };
   function stamp(text,unit,paint){
     const rows=Array.from(text,c=>marks[c]),width=rows.reduce((sum,r)=>sum+r[0].length+1,-1);
@@ -62,7 +65,7 @@
     const stern=rings[0],z=stern.z-.004;
     for(let j=0;j<5;j++)g.quad(side(stern,-1,j),side(stern,1,j),side(stern,1,j+1),side(stern,-1,j+1),slopeColor[j],.94);
     // The transom name is readable from a following boat.
-    inkWord(g,b.name,.038,(u,v)=>[u,.475+v,z],ink);
+    if(kind!=="patrol")inkWord(g,b.name,.038,(u,v)=>[u,.475+v,z],ink);
     const bow=rings[5],aft=rings[2],floor=.245;
     g.quad([-.78,floor,aft.z],[.78,floor,aft.z],[.78,floor,bow.z],[-.78,floor,bow.z],"#697574");
     for(const r of [aft,bow]){
@@ -89,6 +92,14 @@
     }
     hatch(0,hatchZ-.18,.175,.083,rail,.052);
     for(const sign of [-1,1])hatch(sign*.49,hatchZ+.31,.14,.06,rail,.057);
+    // Bow fairlead and side-mounted navigation lights.
+    g.box(0,.976,half*.87,.078,.065,.15,rail);
+    for(const s of [-1,1]){
+      const x=s*(rings[6].w-.12),y=rings[6].h+.046;
+      g.box(x,y,rings[6].z,.12,.081,.19,ink);
+      g.box(x,y+.048,rings[6].z+.009,.10,.041,.144,s<0?"#d76654":"#71bd9a");
+    }
+    if(kind==="patrol")return;
     const cuts=kind==="needle"?[[-.044,.044]]:kind==="mako"?[[-.46,-.35],[-.32,-.29]]:[[-.13,-.015],[.03,.145]];
     for(const [left,right] of cuts)for(let i=6;i<rings.length;i++){
       const a=rings[i-1],c=rings[i],w1=Math.max(0,a.w-.17),w2=Math.max(0,c.w-.17);
@@ -120,13 +131,6 @@
     };
     oval(0,numberZ,.337,.33,b.stripe,.022);oval(0,numberZ,.299,.288,b.trim,.027);
     inkWord(g,b.number,.065,(x,y)=>[x+.14*y,hoodY(numberZ+y,x)+.034,numberZ+y],ink);
-    // Bow fairlead and side-mounted navigation lights.
-    g.box(0,.976,half*.87,.078,.065,.15,rail);
-    for(const s of [-1,1]){
-      const x=s*(rings[6].w-.12),y=rings[6].h+.046;
-      g.box(x,y,rings[6].z,.12,.081,.19,ink);
-      g.box(x,y+.048,rings[6].z+.009,.10,.041,.144,s<0?"#d76654":"#71bd9a");
-    }
   }
   function seat(g,x,z,pad,trim){
     g.box(x,.437,z,.24,.34,.26,ink);
@@ -193,6 +197,83 @@
     for(const x of [-.52,.52])g.box(x,.382,stern-.21,.31,.014,.26,kind==="needle"?"#8e6a51":"#546d72");
     if(kind==="mako"){outboard(g,-.27,stern-.52,true,b.deck);outboard(g,.27,stern-.52,true,b.deck);}
     else outboard(g,0,stern-.50,false,b.stripe);
+  }
+
+  function patrolBoat(g){
+    const navy=harborPaint.body,white=harborPaint.trim,dark="#293e47",glass="#547b86";
+    hull(g,harborPaint,"patrol");
+    g.box(0,.745,-.575,2.05,.09,2.74,"#85978e");
+    // Taper the cabin toward the roof and rake the wheelhouse windscreen forward.
+    const width=v=>.794-.068*v,front=v=>1.15-.41*v,aft=-1.12;
+    const side=(s,u,v,n=0)=>[s*(width(v)+n),.73+1.34*v,mix(aft,front(v),u)];
+    const end=(s,u,v,n=0)=>[(u-.5)*2*width(v),.73+1.34*v,s<0?aft-n:front(v)+n];
+    const panel=(face,l,b,r,t,color,n=.006)=>g.quad(face(l,b,n),face(r,b,n),face(r,t,n),face(l,t,n),color);
+    for(const s of [-1,1]){
+      const face=(u,v,n)=>side(s,u,v,n);
+      panel(face,0,0,1,1,white,0);
+      panel(face,0,0,1,.13,navy);
+      panel(face,0,.13,1,.176,harborTeal);
+      panel(face,.047,.478,.952,.936,dark);
+      panel(face,.073,.501,.457,.911,glass,.014);
+      panel(face,.485,.501,.922,.911,"#5d8790",.014);
+      g.quad(face(.10,.847,.020),face(.24,.847,.020),face(.33,.906,.020),face(.19,.906,.020),"#85a3a5");
+      const word=(x,y)=>face(.51+s*x/1.75,.322+y/1.34,.012);
+      inkWord(g,"POLICE",.042,word,navy);
+      // Harbor launch and land cruiser wear the same gold diamond and teal stripe.
+      const badge=s<0?.135:.866;
+      g.quad(face(badge-.041,.326,.015),face(badge,.405,.015),face(badge+.041,.326,.015),face(badge,.251,.015),harborGold);
+      // A raised, replaceable rubber strake wraps both aft quarters.
+      const line=[[s*.91,.57,-3.245],[s*1.05,.656,-2.83],[s*1.137,.70,-1.99],[s*1.164,.72,-.82],[s*1.164,.74,.33],[s*1.14,.764,.82],[s*.986,.79,1.50]];
+      for(let i=1;i<line.length;i++)g.pole(line[i-1],line[i],.046,"#30454e",5);
+      // Narrow walk-around rail follows the foredeck and leaves the cockpit clear.
+      const stanchions=[[s*.89,.888,1.29],[s*.72,.925,1.84],[s*.49,.95,2.31],[s*.18,.99,2.86]];
+      const raised=a=>[a[0],a[1]+.23,a[2]];
+      for(let i=0;i<stanchions.length;i++){
+        const p=stanchions[i];
+        g.pole(p,raised(p),.017,steel,4);
+        if(i)g.pole(raised(stanchions[i-1]),raised(p),.020,rail,4);
+      }
+    }
+    for(const s of [-1,1]){
+      const face=(u,v,n)=>end(s,u,v,n);
+      panel(face,0,0,1,1,white,0);
+      panel(face,0,0,1,.15,navy);
+      panel(face,0,.15,1,.194,harborTeal);
+      panel(face,.055,.481,.945,.935,dark);
+      panel(face,.083,.51,.485,.907,s<0?"#476a75":"#648791",.016);
+      panel(face,.518,.51,.917,.907,s<0?"#557984":"#7398a0",.016);
+      g.quad(face(.56,.84,.023),face(.73,.84,.023),face(.83,.904,.023),face(.64,.904,.023),"#91aeaf");
+      if(s<0){
+        inkWord(g,"POLICE",.054,(x,y)=>face(.5+x/1.50,.334+y/1.34,.016),navy);
+      }else{
+        g.pole(face(.13,.52,.024),face(.39,.73,.024),.011,dark,4);
+        g.pole(face(.59,.52,.024),face(.84,.73,.024),.011,dark,4);
+      }
+    }
+    g.box(0,2.078,-.12,1.71,.09,2.00,navy);
+    g.box(0,2.132,-.12,1.65,.055,1.95,white);
+    inkWord(g,"12",.105,(x,z)=>[x,2.163,.18+z],navy);
+    // A deck locker and chevron backboard remain visible between the outboards.
+    g.box(0,.875,-1.79,1.31,.40,.37,navy);
+    g.box(0,1.083,-1.79,1.34,.065,.39,white);
+    for(const s of [-1,1])for(let j=0;j<2;j++){
+      const y=.716+j*.138;
+      g.quad([0,y,-1.982],[s*.602,y+.115,-1.982],[s*.602,y+.185,-1.982],[0,y+.067,-1.982],harborGold);
+    }
+    const stern=-harborPaint.length*.5;
+    g.box(0,.318,stern-.19,1.78,.11,.43,"#697e7b");
+    for(const x of [-.48,.48])outboard(g,x,stern-.50,false,white);
+    g.box(0,2.195,-.44,1.35,.07,.29,ink);
+    for(const s of [-1,1])g.box(s*.326,2.268,-.44,.548,.115,.24,s<0?"#a95361":"#477a98");
+    g.pole([.522,2.156,.56],[.572,2.84,.49],.013,steel,5);
+    g.cyl(-.53,2.224,.58,.09,.13,.13,8,navy);
+    g.cyl(-.53,2.302,.58,.073,.088,.052,8,"#f1e0b2");
+  }
+  function patrolLamp(g,red){
+    const x=red?-.326:.326,lit=red?"#ff637a":"#55cbff",core=red?"#ffdeb8":"#dcf7f4";
+    g.box(x,2.272,-.44,.558,.123,.247,lit);
+    for(const z of [-.569,-.311])g.box(x,2.273,z,.385,.049,.015,core);
+    g.box(x,2.339,-.44,.344,.012,.134,core);
   }
 
   function rivalPilot(g){
@@ -370,12 +451,15 @@
   function install(model){
     for(const kind of Object.keys(boats))model("marina-"+kind,g=>boat(g,kind));
     model("marina-rival-pilot",rivalPilot);
+    model("marina-patrol",patrolBoat);
+    model("marina-patrol-red",g=>patrolLamp(g,true));
+    model("marina-patrol-blue",g=>patrolLamp(g,false));
     for(const kind of ["start-buoy","red","green","check-red","check-green"])model("marina-"+kind,g=>buoy(g,kind));
     model("marina-dock",dock);model("marina-gangway",gangway);model("marina-beacon",beacon);
     model("marina-foam",foam);model("marina-swell",swell);
   }
 
-  function drawMap(c,kind,x,y,scale,yaw=0){
+  function drawMap(c,kind,x,y,scale,yaw=0,flash=0){
     if(!(scale>0))return;
     c.save();c.translate(x,y);c.rotate(yaw);c.scale(scale,-scale);
     function rect(color,x,z,w,d){c.fillStyle=color;c.fillRect(x,z,w,d);}
@@ -385,7 +469,7 @@
       c.closePath();c.fill();
     }
     function ellipse(color,x,z,rx,rz,angle=0){c.fillStyle=color;c.beginPath();c.ellipse(x,z,rx,rz,angle,0,tau);c.fill();}
-    const b=boats[kind];
+    const b=kind==="patrol"?harborPaint:boats[kind];
     if(b){
       const l=b.length*.5,w=b.beam*.5;
       const outline=[[0,l],[.30*w,l*.87],[.60*w,l*.68],[.85*w,l*.46],[w,l*.14],[w,-l*.31],[.94*w,-l*.82],[.77*w,-l]];
@@ -393,6 +477,34 @@
       poly(ink,shell);
       poly(b.body,shell.map(([x,z])=>[x*.96,z*.975]));
       poly(b.deck,shell.map(([x,z])=>[x*.82,z*.94]));
+      if(kind==="patrol"){
+        for(const s of [-1,1]){
+          poly(b.trim,[[s*.80,-2.80],[s*1.03,-1.85],[s*1.07,.68],[s*.95,1.32],[s*.91,.72],[s*.87,-1.89]]);
+          poly(steel,[[s*.88,1.24],[s*.69,1.94],[s*.18,2.85],[s*.64,1.92]]);
+          rect(ink,s*.48-.28,-l-.71,.56,.60);
+          ellipse("#4c6169",s*.48,-l-.50,.25,.28);
+          rect(b.trim,s*.48-.17,-l-.66,.34,.052);
+        }
+        rect(ink,-.70,-2.04,1.4,.45);
+        for(let i=0;i<2;i++)for(const s of [-1,1]){
+          const z=-1.993+i*.18;
+          poly(harborGold,[[0,z],[s*.64,z+.073],[s*.64,z+.155],[0,z+.077]]);
+        }
+        poly(b.body,[[-.77,-1.13],[.77,-1.13],[.79,.75],[.73,1.16],[-.73,1.16],[-.79,.75]]);
+        poly("#779ca4",[[-.68,1.11],[.68,1.11],[.71,.78],[-.71,.78]]);
+        rect(b.body,-.027,.76,.054,.35);
+        rect(b.body,-.853,-1.12,1.706,2);
+        rect(b.trim,-.806,-1.075,1.612,1.90);
+        if(scale>=4)stamp("12",.101,(u,v,w,h)=>rect(b.body,u,.18+v-h,w,h));
+        rect(ink,-.695,-.61,1.39,.34);
+        const blue=(flash&1)===1;
+        rect(blue?"#a95361":"#ff637a",-.614,-.56,.555,.24);
+        rect(blue?"#55cbff":"#477a98",.059,-.56,.555,.24);
+        rect(blue?"#dcf7f4":"#ffdeb8",blue?.135:-.515,-.508,.38,.126);
+        ellipse("#5d706f",-.53,.58,.104,.104);
+        ellipse(rail,-.53,.58,.071,.071);
+        c.restore();return;
+      }
       if(kind==="needle"){
         for(const s of [-1,1])poly("#a86d53",[[s*.04,l*.26],[s*.69*w,l*.26],[s*.46*w,l*.58],[s*.04,l*.85]]);
         rect(rail,-.021,l*.25,.042,l*.61);

@@ -16,8 +16,8 @@
       this.lastSeen=null;this.unseen=0;this.searching=false;this.sighted=false;
       this.scanIn=0;this.reinforceIn=0;this.closestUnit=Infinity;
     }
-    report(p,vx,vz){
-      this.lastSeen={x:p.x,z:p.z,yaw:p.yaw,vx,vz};
+    report(p,vx,vz,afloat=false){
+      this.lastSeen={x:p.x,z:p.z,yaw:p.yaw,vx,vz,afloat};
       this.unseen=0;this.searching=false;
     }
     searchTime(heat){return 5.6+heat*1.05;}
@@ -35,18 +35,18 @@
       }
       return BayCamera.safeFraction({x:v.x,y:1.46,z:v.z},{x:p.x,y:1.3,z:p.z},this.cover)>=1;
     }
-    observe(units,p,vx,vz,heat,dt,airSight=false){
+    observe(units,p,vx,vz,heat,dt,radioSight=false,afloat=false){
       this.scanIn-=dt;
       if(this.scanIn<=0){
         this.scanIn+=.12;
-        this.sighted=airSight;
+        this.sighted=radioSight;
         for(const v of units){
           const visible=this.canSee(v,p,heat);
           v.spotTime=visible?(v.spotTime||0)+.12:0;
           v.sees=visible&&(!this.searching||v.spotTime>=.36||distance(v,p)<12);
           if(v.sees)this.sighted=true;
         }
-        if(this.sighted)this.report(p,vx,vz);
+        if(this.sighted)this.report(p,vx,vz,afloat);
       }
       if(!this.sighted)this.unseen+=dt;
       this.searching=this.unseen>=1.05;
@@ -211,8 +211,8 @@
       const lateral=line+v.lane-across;
       return vertical?Math.atan2(lateral,look*sign):Math.atan2(look*sign,lateral);
     }
-    move(v,heat,dt,clear){
-      const k=this.lastSeen,goal=this.target(v,k,this.searching,dt),range=distance(v,goal);
+    move(v,heat,dt,clear,k=this.lastSeen){
+      const goal=this.target(v,k,this.searching,dt),range=distance(v,goal);
       if(v.backing>0){
         const x=v.x-Math.sin(v.yaw)*3.7*dt,z=v.z-Math.cos(v.yaw)*3.7*dt;
         if(clear(v,x,z,v.yaw)){v.x=x;v.z=z;v.backing-=dt;}else v.backing=0;

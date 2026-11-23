@@ -14,6 +14,8 @@ Choose **Play Last Exposure** on the title screen or call Mara Vega through **J*
 
 At three stars, patrol cars set up roadblocks. At four, some crews lay spike strips. Clip one and the car pulls toward the flat tire. At five, Air One joins the chase.
 
+Board a boat at either pier while wanted and Harbor Patrol follows you offshore. One launch responds at one or two stars. At three stars a second launch moves to intercept. At five, the same Air One helicopter follows you over water with its searchlight. Hold **V** to look astern or open the offshore chart with **M** to see the patrol boats. If all units lose sight of you, they search your last reported position.
+
 After you lose the cops, follow the wrench on the map to Portside Tire. Pull into the open bay and take your foot off the pedals. The shop replaces a flat for free.
 
 Park in the same bay and press **F** for parts and paint. An **engine tune** costs **$250** and adds 18% engine power. **Sport tires** cost **$125** and add 25% cornering grip on pavement. Select **Respray** to preview six colors for **$75**. Fitted parts and paint stay on that individual car after you get out and are saved in the browser.

@@ -68,7 +68,7 @@
         yaw:b.yaw,halfWidth:1.68};
       this.nextSpikes=false;
     }
-    updateBlock(heat,dt,p,clear,units){
+    updateBlock(heat,dt,p,clear,units,onRoad=true){
       const old=this.roadblock;
       if(old){
         old.age+=dt;
@@ -83,7 +83,7 @@
       }
       this.blockIn=Math.max(0,this.blockIn-dt);
       if(this.roadblock){this.equipBlock(this.roadblock,heat,p);return;}
-      if(heat<3||this.blockIn>0||this.chase.searching||this.chase.unseen>.42)return;
+      if(!onRoad||heat<3||this.blockIn>0||this.chase.searching||this.chase.unseen>.42)return;
       this.roadblock=this.chooseBlock(this.chase.lastSeen,heat,clear);
       this.blockIn=1.3;
       if(this.roadblock){units.push(...this.roadblock.units);this.equipBlock(this.roadblock,heat,p);}
@@ -127,8 +127,13 @@
       }
       return floor+4.1;
     }
+    flightDirection(k){
+      if(!k.afloat)return this.chase.direction(k);
+      const pace=Math.hypot(k.vx,k.vz);
+      return pace>2?{x:k.vx/pace,z:k.vz/pace}:{x:Math.sin(k.yaw),z:Math.cos(k.yaw)};
+    }
     dispatchAir(k){
-      const dir=this.chase.direction(k),x=k.x+dir.x*71+dir.z*24,z=k.z+dir.z*71-dir.x*24;
+      const dir=this.flightDirection(k),x=k.x+dir.x*71+dir.z*24,z=k.z+dir.z*71-dir.x*24;
       const altitude=Math.max(20,this.floorForAircraft(x,z));
       this.air={x,z,y:altitude,yaw:Math.atan2(k.x-x,k.z-z),vx:0,vz:0,lean:0,pitch:0,
         age:0,scanIn:0,ceiling:altitude,beamFraction:1,spotX:k.x+dir.x*28,spotZ:k.z+dir.z*28,
@@ -139,18 +144,19 @@
       if(heat<5){this.air=null;return;}
       const chase=this.chase,k=chase.lastSeen,a=this.air||this.dispatchAir(k);
       a.age+=dt;a.rotor=(a.rotor+dt*23)%(Math.PI*2);
-      const lost=chase.unseen,searching=chase.searching,dir=chase.direction(k);
+      const lost=chase.unseen,searching=chase.searching,dir=this.flightDirection(k);
       const t=a.age,lead=Math.min(.7,.33+lost),cx=k.x+k.vx*lead,cz=k.z+k.vz*lead;
       const ahead=searching?27*Math.cos(t*.24):41+6*Math.cos(t*.32);
       const side=searching?23*Math.sin(t*.24):12+11*Math.sin(t*.36);
       const goalX=cx+dir.x*ahead+dir.z*side,goalZ=cz+dir.z*ahead-dir.x*side;
       const ox=goalX-a.x,oz=goalZ-a.z,gap=Math.hypot(ox,oz);
-      const speed=Math.min(searching?16:37,gap*1.45),scale=gap>.01?speed/gap:0;
+      const speed=Math.min(searching?16:k.afloat?41:37,gap*1.45),scale=gap>.01?speed/gap:0;
       a.vx=ease(a.vx,ox*scale,2.5,dt);a.vz=ease(a.vz,oz*scale,2.5,dt);
       a.x+=a.vx*dt;a.z+=a.vz*dt;
       const sweep=clamp((lost-.35)/1.6,0,1);
       const targetX=cx+Math.sin(t*1.03)*16*sweep,targetZ=cz+Math.sin(t*.73)*12*sweep;
       a.spotX=ease(a.spotX,targetX,3.1,dt);a.spotZ=ease(a.spotZ,targetZ,3.1,dt);
+      a.radius=ease(a.radius,k.afloat?8.3:7.2,2,dt);
       const desiredYaw=Math.atan2(a.spotX-a.x,a.spotZ-a.z),yawError=turn(a.yaw,desiredYaw);
       a.yaw+=clamp(yawError,-1.6*dt,1.6*dt);
       const lateral=a.vx*Math.cos(a.yaw)-a.vz*Math.sin(a.yaw);

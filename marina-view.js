@@ -2,8 +2,9 @@
 (() => {
   "use strict";
   const bay=BayMarina,ink="#153d42",cream="#f5e7c2",gold="#ffd36c";
-  function drawWorld(view,model,actors,boats,rival,race,see,t){
-    const fleet=[...boats,rival],north=bay.docks[1];
+  const lightPhase=(v,t)=>Math.floor(t*3.6+v.slot*.7)%2;
+  function drawWorld(view,model,actors,boats,rival,patrol,race,see,t){
+    const fleet=[...boats,rival,...patrol],north=bay.docks[1];
     if(!see(north,150)&&!see(bay.docks[0],150)&&!fleet.some(v=>see(v,150))&&!see(bay.beacon,175))return;
     if(!drawWorld.installed){BayMarinaArt.install(model);drawWorld.installed=true;}
     if(see(north,150)){
@@ -23,6 +24,7 @@
       if(see(v,160)){
         actors.push(["marina-"+v.kind,v.x,v.y,v.z,v.yaw,v.pitch,v.lean]);
         if(v===rival)actors.push(["marina-rival-pilot",v.x,v.y,v.z,v.yaw,v.pitch,v.lean]);
+        if(v.kind==="patrol")actors.push([lightPhase(v,t)?"marina-patrol-blue":"marina-patrol-red",v.x,v.y,v.z,v.yaw,v.pitch,v.lean]);
       }
       for(const w of v.wake){
         if(t-w.at>3.25||!see(w,90))continue;
@@ -45,10 +47,18 @@
     c.restore();
   }
   function dot(c,x,y,r,color){c.fillStyle=color;c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.fill();}
+  function patrolBlip(c,v,x,y,s,ui,t){
+    c.save();c.translate(x,y);c.rotate(v.yaw);
+    c.fillStyle=v.sees?"rgba(244,128,114,.26)":"rgba(128,196,238,.24)";
+    c.beginPath();c.moveTo(0,0);c.arc(0,0,15*s,-2.22,-.92);c.closePath();c.fill();
+    c.scale(ui,ui);c.beginPath();c.moveTo(0,-5.4);c.lineTo(3.1,-1);c.lineTo(2.6,4);c.lineTo(-2.6,4);c.lineTo(-3.1,-1);c.closePath();
+    c.fillStyle="#243d51";c.fill();c.strokeStyle="#f1ead8";c.lineWidth=1;c.stroke();
+    c.fillStyle=lightPhase(v,t)?"#8bd9ff":"#ff8473";c.fillRect(-2.8,-.9,5.6,1.8);c.restore();
+  }
   function map(c,opt,px,py,s,ui,visible){
     const water=opt.marina;if(!water)return;
     const street=opt.mode==="street",chart=opt.mode==="atlas",race=water.race;
-    const art=(k,p,yaw=0)=>{if(visible(px(p.x),py(p.z),12*s))BayMarinaArt.drawMap(c,k,px(p.x),py(p.z),s,yaw);};
+    const art=(k,p,yaw=0,flash=0)=>{if(visible(px(p.x),py(p.z),12*s))BayMarinaArt.drawMap(c,k,px(p.x),py(p.z),s,yaw,flash);};
     if(street){art("gangway",{x:215,z:92});art("dock",bay.docks[1]);art("beacon",bay.beacon);}
     else if(visible(px(bay.beacon.x),py(bay.beacon.z)))dot(c,px(bay.beacon.x),py(bay.beacon.z),3.5*ui,cream);
     for(const d of bay.docks){
@@ -89,14 +99,17 @@
       if(!visible(px(x),py(z),4*s))continue;
       c.save();c.translate(px(x),py(z));c.rotate(yaw);c.scale(k*s,k*s);c.fillStyle="#f4dbb8";c.beginPath();c.moveTo(0,-2.8);c.lineTo(.8,.7);c.lineTo(.7,2);c.lineTo(-.7,2);c.lineTo(-.8,.7);c.closePath();c.fill();c.fillStyle="#cc8c7d";c.fillRect(-.2,-1.6,.28,3);c.restore();
     }
-    for(const v of [...water.boats,water.rival]){
+    for(const v of [...water.boats,water.rival,...water.patrol]){
       if(street){
         c.save();c.lineWidth=Math.max(.9,.17*s);c.strokeStyle="#bce0d9";c.beginPath();
         for(const w of v.wake){const age=opt.time-w.at;if(age>3.25||!visible(px(w.x),py(w.z),7*s))continue;
           const span=.7+age*(1.3+w.pace*.66),cs=Math.cos(w.yaw),sn=Math.sin(w.yaw);
           for(const side of [-1,1]){const x=w.x+side*cs*span,z=w.z-side*sn*span;c.moveTo(px(x),py(z));c.lineTo(px(x-sn*1.1+side*.33*cs),py(z-cs*1.1-side*.33*sn));}}
-        c.stroke();c.restore();art(v.kind,v,v.yaw);
-      }else if(v!==water.player&&visible(px(v.x),py(v.z)))dot(c,px(v.x),py(v.z),v===water.rival&&race?3.6*ui:1.7*ui,v===water.rival?gold:cream);
+        c.stroke();c.restore();art(v.kind,v,v.yaw,v.kind==="patrol"?lightPhase(v,opt.time):0);
+      }else if(v!==water.player&&visible(px(v.x),py(v.z))){
+        if(v.kind==="patrol")patrolBlip(c,v,px(v.x),py(v.z),s,ui,opt.time);
+        else dot(c,px(v.x),py(v.z),v===water.rival&&race?3.6*ui:1.7*ui,v===water.rival?gold:cream);
+      }
     }
   }
   function chart(canvas,course){

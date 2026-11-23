@@ -13,7 +13,8 @@
   const hulls={
     needle:{name:"Needle 19",detail:"Light hull · tight turns",top:25,power:8.8,turn:1.31,grip:3.7},
     mako:{name:"Mako 22",detail:"Deep V · higher top speed",top:30,power:7.8,turn:1.03,grip:3.0},
-    rival:{name:"Yellowtail",top:27,power:8.1,turn:1.19,grip:3.5}
+    rival:{name:"Yellowtail",top:27,power:8.1,turn:1.19,grip:3.5},
+    patrol:{name:"Harbor Patrol",top:28,power:8.1,turn:1.22,grip:3.35}
   };
   const sails=[[239,28,1.3,.7],[272,-59,1.5,1.1],[252,147,1.4,-.52],[288,212,1.8,.4]];
   const perimeter=[];for(let z=-180;z<=180;z+=60)perimeter.push({x:429,z});
