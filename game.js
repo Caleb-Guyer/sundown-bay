@@ -2417,7 +2417,24 @@
   addEventListener("keyup",ev=>keys.delete(ev.code));
   addEventListener("blur",()=>{keys.clear();resetPointer();if(play&&!panel)openPanel("pause");});
   document.addEventListener("visibilitychange",()=>{if(document.hidden){keys.clear();if(play)saveTime();if(play&&!panel)openPanel("pause");}});
-  let last=performance.now(),slow=0,lastIntroPaint=0,lastMenuPaint=0;
+  let last=performance.now(),lateSeconds=0,spareSeconds=0,lastIntroPaint=0,lastMenuPaint=0;
+  function tuneStreetResolution(seconds,streetView){
+    if(!streetView||seconds<=0||seconds>.16){lateSeconds=spareSeconds=0;return;}
+    if(seconds>1/29){
+      lateSeconds=Math.min(1,lateSeconds+seconds*(seconds>.048?1.5:1));
+      spareSeconds=0;
+    }else{
+      lateSeconds=Math.max(0,lateSeconds-seconds*.7);
+      spareSeconds=seconds<1/48?Math.min(9,spareSeconds+seconds):0;
+    }
+    if(lateSeconds>=.82&&view.scale>.64){
+      view.scale=Math.max(.64,Math.round((view.scale-.12)*100)/100);
+      lateSeconds=spareSeconds=0;
+    }else if(spareSeconds>=9&&view.scale<1){
+      view.scale=Math.min(1,Math.round((view.scale+.06)*100)/100);
+      lateSeconds=spareSeconds=0;
+    }
+  }
   function tick(now){
     requestAnimationFrame(tick);
     if(document.hidden){last=now;return;}
@@ -2445,8 +2462,7 @@
       if(elapsed-lastHud>.10){hud();lastHud=elapsed;}if(elapsed-lastMap>.09){drawMini();lastMap=elapsed;}
     }
     if(panel&&now-lastMenuPaint<300)return;lastMenuPaint=now;
-    if(play&&!panel&&raw>.032)slow++;else slow=Math.max(0,slow-1);
-    if(slow>54&&view.scale>.65){view.scale=Math.max(.65,view.scale-.12);slow=0;}
+    tuneStreetResolution(raw,play&&!panel&&!isTop());
     renderWorld(dt,streetTime);
   }
   // Show a first frame before the browser schedules its animation loop.
