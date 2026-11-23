@@ -24,7 +24,7 @@
     const offset=v[value]-goal,b=v[velocity]+hz*offset,e=Math.exp(-hz*dt);
     v[value]=goal+(offset+b*dt)*e;v[velocity]=(v[velocity]-hz*b*dt)*e;
   }
-  function step(v,dt,gas,back,steerInput,hand,surface,tuned,parking=false){
+  function step(v,dt,gas,back,steerInput,hand,surface,tuned=v.upgrades?.engine,parking=false){
     if(dt<=0)return;
     const spec=cars[v.kind],shape=bayCarLayout(v.kind),sn=Math.sin(v.yaw),cs=Math.cos(v.yaw);
     const forward=v.vx*sn+v.vz*cs,lateral=v.vx*cs-v.vz*sn,speed=Math.hypot(v.vx,v.vz);
@@ -56,8 +56,9 @@
     const turnSin=Math.sin(v.steer),turnCos=Math.cos(v.steer);
     const frontSlip=(lateral+frontArm*v.yawRate)*turnCos-forward*turnSin;
     const rearSlip=lateral-rearArm*v.yawRate;
-    const frontForce=-frontGrip*Math.tanh(frontSlip*5.2/frontGrip);
-    const rearForce=-rearGrip*Math.tanh(rearSlip*(7.0-3.9*v.handbrake)/rearGrip);
+    const tireGain=v.upgrades?.tires?1+.25*surface*(1-flat):1;
+    const frontForce=-frontGrip*Math.tanh(frontSlip*5.2/frontGrip)*tireGain;
+    const rearForce=-rearGrip*Math.tanh(rearSlip*(7.0-3.9*v.handbrake)/rearGrip)*tireGain;
     const sideForce=frontForce*turnCos+rearForce;
     const inertia=.27*wheelbase*wheelbase;
     const torque=(frontArm*frontForce*turnCos-rearArm*rearForce)/inertia;

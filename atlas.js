@@ -160,6 +160,7 @@
     const roofs = ["#d4ae99","#99b6ac","#d7c5a5","#b5a6a0","#a6b3ae","#c6b298"];
     for(let i=0;i<solids.length;i++) {
       const s=solids[i], x=s.x-s.w/2,z=s.z-s.d/2;
+      if(s.streetProp)continue;
       if(street) {
         const roof=roofs[(i*7+Math.abs(Math.round(s.x)))%roofs.length];
         rect(ctx,x+1.1,z-1.4,s.w,s.d,"#84877c");
@@ -272,10 +273,12 @@
       rect(c,side*(b-.325)-.185,l-.15,.37,.12,lit?"#ff5344":"#a7464b");
       if(car.reversing)rect(c,side*(b-.56)-.055,l-.15,.11,.11,"#fff5c9");
     }
-    if(car.doorAngle>.015){
-      const s=bayCarLayout(car.kind),side=car.doorSide,span=s.hingeZ-s.back;
+    for(const side of [-1,1]){
+      const open=Math.max(side===car.doorSide?car.doorAngle||0:0,side===1?car.passengerDoor||0:0);
+      if(open<=.015)continue;
+      const s=bayCarLayout(car.kind),span=s.hingeZ-s.back;
       rect(c,side*s.hingeX-(side>0?.19:0),-s.hingeZ,.19,span,"#34464b");
-      c.save();c.translate(side*s.hingeX,-s.hingeZ);c.rotate(-side*car.doorAngle);
+      c.save();c.translate(side*s.hingeX,-s.hingeZ);c.rotate(-side*open);
       path(c,[[-.055,0],[.055,0],[.085,span-.04],[-.065,span]],body,"#334f51",.055);
       line(c,0,.13,0,span-.10,"#d4d2ae",.042);c.restore();
     }
@@ -596,6 +599,12 @@
       paintStatic(ctx,solids,street);ctx.restore();
     }
     if(radar&&player&&Number.isFinite(opt.cameraYaw)) cameraWedge(ctx,px(player.x),py(player.z),opt.cameraYaw,ui);
+    if(opt.route&&!street){
+      const pts=opt.route.points;ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
+      ctx.beginPath();ctx.moveTo(px(pts[0].x),py(pts[0].z));
+      for(let i=1;i<pts.length;i++)ctx.lineTo(px(pts[i].x),py(pts[i].z));
+      ctx.strokeStyle="#34574f";ctx.lineWidth=4.4*ui;ctx.stroke();ctx.strokeStyle="#a1f2cd";ctx.lineWidth=2.1*ui;ctx.stroke();ctx.restore();
+    }
     if(!street&&opt.searchPoint){
       const x=px(opt.searchPoint.x),y=py(opt.searchPoint.z),r=12*s;
       ctx.save();disc(ctx,x,y,r,"rgba(244,190,107,.16)");
@@ -648,6 +657,14 @@
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)) personSprite(ctx,person,x,y,Math.max(2.3,s*1.42),false,rotation);
     }
+    if(street)for(const prop of BayExposure.props){
+      if(visible(px(prop.x),py(prop.z),6*s))BayExposureArt.drawMap(ctx,prop.kind,px(prop.x),py(prop.z),s,prop.yaw);
+    }
+    const partner=opt.story?.mara||opt.mara;
+    if(street&&partner&&!(opt.story?.progress>=.65)&&visible(px(partner.x),py(partner.z))){
+      personSprite(ctx,{...partner,shirt:BayExposureArt.palette[1],skin:BayExposureArt.palette[0]},px(partner.x),py(partner.z),Math.max(2.3,s*1.42),false,rotation);
+      BayExposureArt.drawMap(ctx,"mara",px(partner.x),py(partner.z),s,partner.yaw??-1.9);
+    }
     if(street) for(const actor of opt.streetActors||empty) {
       const x=px(actor.x),y=py(actor.z);
       if(visible(x,y,9*s)) streetActor(ctx,actor,x,y,s,streetTime);
@@ -698,6 +715,10 @@
         const vx=Math.sin(player.yaw||0),vy=-Math.cos(player.yaw||0);
         line(ctx,x+vx*r,y+vy*r,x+vx*(r+3.2*ui),y+vy*(r+3.2*ui),"#f7ffec",2.3*ui);
       } else playerIcon(ctx,x,y,(radar?7.15:6.6)*ui,player.yaw);
+    }
+    if(street&&opt.story?.progress>=.65){
+      const v=opt.story.ride,seat=BayDriving.world(v,bayCarLayout(v.kind).seatX,v.kind==="van"?1.24:.84);
+      if(visible(px(seat.x),py(seat.z)))disc(ctx,px(seat.x),py(seat.z),s*.126,"#ad8366");
     }
     if(opt.air){
       const a=opt.air,x=px(a.x),y=py(a.z);

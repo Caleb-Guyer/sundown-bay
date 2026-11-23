@@ -246,7 +246,8 @@
         if(ride){
           const hand=side===ride.side?ride.pull:ride.reach;
           const grip=ride.seat*(1-hand),turn=ride.steer*.85;
-          reachFor(limb,side*.105*Math.cos(turn),ride.seatY+.41-side*.105*Math.sin(turn),.32,grip);
+          if(ride.passenger)reachFor(limb,side*.12,ride.seatY+.18,.19,grip);
+          else reachFor(limb,side*.105*Math.cos(turn),ride.seatY+.41-side*.105*Math.sin(turn),.32,grip);
           if(hand>0)reachFor(limb,...ride.handle,hand);
         }
       }

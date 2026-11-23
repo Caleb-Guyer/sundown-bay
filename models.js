@@ -524,5 +524,6 @@
       g.pole(grip,join,.012,"#92745a",4);
       g.pole(join,tip,.007,"#637777",4);
     }
+    if(role==="photographer")BayExposureArt.dress(g,markPart);
   };
 })();

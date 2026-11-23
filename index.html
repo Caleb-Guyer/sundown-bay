@@ -21,7 +21,7 @@
         <span id="blockCall" class="dispatch-call" hidden></span><span id="airCall" class="dispatch-call" hidden></span>
       </div>
       <button id="miniButton" class="radar" title="Open city map (M)" aria-label="Open city map"><canvas id="mini" width="200" height="200"></canvas><span class="north">N</span><span class="map-key">M</span></button>
-      <div id="objective" hidden><span id="objectiveTag"></span><b id="objectiveText"></b></div>
+      <div id="objective" hidden><span id="objectiveTag"></span><b id="objectiveText"></b><small id="roadTurn"></small></div>
       <div id="dashHud" aria-label="Low Tide Dash timing" hidden>
         <div class="dash-heading">Low Tide Dash <span id="dashCount"></span></div>
         <div class="dash-clock"><strong id="dashTime">0:00.00</strong><span id="dashBest"></span></div>
@@ -38,15 +38,33 @@
     <section id="intro" class="intro" aria-labelledby="title">
       <div class="intro-inner">
         <h1 id="title"><img src="wordmark.svg" alt="Sundown Bay"></h1>
-        <button id="play" class="primary" autofocus>Enter the city <kbd>Enter</kbd></button>
+        <div class="intro-actions"><button id="play" class="primary" autofocus>Enter the city <kbd>Enter</kbd></button>
+          <button id="playStory" class="intro-story">Play <i>Last Exposure</i><span aria-hidden="true">↗</span></button></div>
         <div class="intro-controls"><span><kbd>WASD</kbd> Move</span><span>Mouse to look</span><span><kbd>Space</kbd> Jump</span><span><kbd>E</kbd> Take a car</span></div>
       </div>
     </section>
+    <template id="exposureCamera">
+      <div class="finder-body">
+        <div class="finder-strip"><strong>VEGA / 35</strong><span>COLOR NEG. &nbsp; 24 EXP.</span></div>
+        <div class="finder-frame"><canvas width="960" height="540" tabindex="0" aria-label="Viewfinder. Aim at the red Lot 14 sign by clicking it or using the arrow keys. Press Space to take the photo."></canvas><i class="finder-cross" aria-hidden="true"></i></div>
+        <div class="finder-footer"><span class="finder-status" role="status">Frame the red Lot 14 sign.</span><button class="shutter">Take photo <kbd>Space</kbd></button></div>
+      </div><p class="finder-help">Click the sign to focus, or use the arrow keys.</p>
+    </template>
+    <template id="exposureProof">
+      <figure class="contact-proof"><canvas width="768" height="432" aria-label="Mara Vega’s photograph of the Lot 14 sale notice at Port Sol"></canvas><figcaption>M. VEGA &nbsp; / &nbsp; PORT SOL <span>14A ▸</span></figcaption></figure>
+    </template>
     <div id="shade" hidden></div>
     <section id="panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle" hidden>
       <div class="panel-head"><div><div id="panelKicker" class="eyebrow"></div><h2 id="panelTitle"></h2></div><button id="closePanel" aria-label="Close panel">Close <kbd>Esc</kbd></button></div>
       <div id="panelBody"></div>
     </section>
+    <template id="shopNav">
+      <nav class="shop-nav" aria-label="Garage services"><button type="button" value="upgrades">Upgrades</button><button type="button" value="respray">Respray</button></nav>
+    </template>
+    <template id="partsTicket">
+      <div class="parts-car"><strong class="parts-model"></strong><span>Wallet <b class="parts-wallet"></b></span></div>
+      <div class="parts-list"></div><p class="parts-receipt" role="status" tabindex="-1"></p>
+    </template>
     <template id="paintTicket">
       <div class="paint-proof">
         <div class="paint-details"><strong class="paint-model"></strong><span class="paint-caption" aria-live="polite"></span></div>
@@ -78,6 +96,8 @@
   <script src="locals.js"></script>
   <script src="atlas.js"></script>
   <script src="radio.js"></script>
+  <script src="exposure-art.js"></script>
+  <script src="exposure.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

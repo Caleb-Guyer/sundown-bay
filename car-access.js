@@ -35,10 +35,11 @@
     }
     return length;
   }
-  function plan(v,hero,exiting,clear){
+  function plan(v,hero,exiting,clear,requiredSide=0){
     const s=bayCarLayout(v.kind),start=local(v,hero.x,hero.z);
     let best=null,cost=Infinity;
     for(const side of [-1,1]){
+      if(requiredSide&&side!==requiredSide)continue;
       if(!canOpen(v,s,side,clear))continue;
       const curb=outside(s,side);
       if(exiting)return {side,points:[]};
@@ -56,10 +57,10 @@
     }
     return best;
   }
-  function pose(v,side,p,hero,m,ground,dt){
+  function pose(v,side,p,hero,m,ground,dt,passenger=false){
     const s=bayCarLayout(v.kind),curb=outside(s,side);
     const open=smooth(.13,.37,p)*(1-smooth(.585,.935,p)),door=1.13*open;
-    const seat=smooth(.33,.79,p),across=side>0?smooth(.85,1,p):0;
+    const seat=smooth(.33,.79,p),across=side>0&&!passenger?smooth(.85,1,p):0;
     const latch=smooth(0,.10,p)*(1-smooth(.205,.35,p));
     const pull=smooth(.48,.635,p)*(1-smooth(.855,.955,p));
     const stepAside=Math.sin(door)*(1-.35*open)*(1-smooth(.35,.63,p));
@@ -74,9 +75,10 @@
     z=mix(z,insideHandle.z-.27,pull);
     const pt=world(v,x,z),twist=-side*.63*(1-smooth(.26,.75,p))+side*.64*smooth(.27,.48,p)*(1-smooth(.53,.82,p));
     hero.x=pt.x;hero.z=pt.z;hero.y=mix(ground(pt.x,pt.z),ground(v.x,v.z)+.008,seat);
-    hero.yaw=v.yaw+twist;v.doorAngle=door;v.doorSide=side;
+    hero.yaw=v.yaw+twist;
+    if(passenger)v.passengerDoor=door;else{v.doorAngle=door;v.doorSide=side;}
     const r=m.ride||(m.ride={handle:[0,0,0]});
-    r.side=side;r.seat=seat;r.seatY=s.seatY;r.floor=s.floorY;r.steer=v.steer;
+    r.side=side;r.seat=seat;r.seatY=s.seatY;r.floor=s.floorY;r.steer=v.steer;r.passenger=passenger;
     r.latchDip=latch*Math.max(.06,.97-s.handleY);
     r.duck=latch*.84+
       smooth(.20,.46,p)*(1-smooth(.56,.86,p));

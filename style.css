@@ -74,6 +74,7 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 #objective {left:23px;bottom:calc(clamp(103px,16.3vmin,151px) + 37px);max-width:min(350px,45vw);padding:7px 12px;border-left:3px solid var(--amber);background:linear-gradient(90deg,#152d30f4 72%,#152d3070)}
 #objectiveTag {display:block;font-size:.68rem;color:#ffc883;margin-bottom:3px}
 #objectiveText {font-size:.91rem;font-weight:640}
+#roadTurn {display:block;margin-top:2px;color:#adebd4;font:650 .81rem/1.15 "DM Sans","Segoe UI",sans-serif}#roadTurn:empty {display:none}
 #dashHud {position:absolute;top:83px;left:23px;width:min(256px,45vw);padding:9px 12px 10px;background:linear-gradient(104deg,#153334fa 70%,#183839e8);border-left:3px solid #ef9c75;box-shadow:0 3px 9px #162b2d38}
 .dash-heading {display:flex;justify-content:space-between;align-items:baseline;gap:8px;color:#ffce9e;font:italic 700 1.12rem Georgia,serif}
 #dashCount,#dashBest {font:650 .70rem/1.25 Consolas,monospace;color:#c2e3d3}
@@ -120,7 +121,17 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 .map-legend em {color:#975b2a;font-style:normal}
 .map-legend b {color:#246963}
 #panelBody select {width:100%;margin-top:9px;border:1px solid #80907f;background:#ebe1c6;color:#263e39;padding:7px 9px}
-.panel[data-screen="respray"] {width:min(482px,94vw)}
+.panel[data-screen="garage"] {width:min(482px,94vw)}
+.shop-nav {display:flex;border-bottom:2px solid #325a52;margin:0 0 12px}
+.shop-nav button {flex:1;padding:7px;color:#34524b;background:transparent;border:0;font-weight:700}
+.shop-nav button[aria-pressed="true"] {background:#28524e;color:#fff1d3}
+.parts-car {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:#285253;border-left:5px solid #c86e54;color:#fff1d3}
+.parts-model {font:italic 700 1.38rem/1.14 Georgia,serif}.parts-car span {font-size:.87rem;white-space:nowrap}.parts-wallet {font:700 1.05rem Consolas,monospace}
+.part-order {display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:15px 3px;text-align:left;border:0;border-bottom:1px solid #a8a78f;background:transparent;color:#263f39}
+.part-order strong,.part-order small {display:block}.part-order strong {font-size:1rem}.part-order small {margin-top:3px;font-size:.85rem;line-height:1.38;color:#466159}
+.part-order em {flex:none;padding:7px 9px;border-radius:2px;font:700 .85rem Consolas,monospace;background:#27574e;color:#fff1d3}
+.part-order:not(:disabled):hover {background:#e6dfc3}.part-order:disabled {opacity:1}.part-order:disabled em {background:#d5d2b9;color:#53635b}
+.part-order.fitted em {background:#d0dfc2;color:#2d5842}.parts-receipt {margin:8px 0 0;min-height:1.25em;font-size:.87rem;font-weight:650}
 .paint-proof {display:grid;grid-template-columns:minmax(0,.96fr) minmax(0,1.05fr);align-items:center;min-height:92px;overflow:hidden;border:1px solid #254c4c;border-left:5px solid #c86e54;background:#285253;color:#fff1d3}
 .paint-details {padding:12px 0 13px 14px}
 .paint-model {display:block;font:italic 700 clamp(1.24rem,2.3vw,1.52rem)/1.12 Georgia,serif}
@@ -140,7 +151,7 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 .paint-buy:not(:disabled):hover {background:#326858}
 .panel .paint-balance {margin:5px 0 0;text-align:right;font-size:.86rem;color:#3d5852}
 @media(min-width:900px) and (min-height:490px) {
-  .panel[data-screen="respray"] {left:clamp(16px,3vw,60px);width:min(35vw,420px);transform:translateY(-50%)}
+  .panel[data-screen="garage"] {left:clamp(16px,3vw,60px);width:min(35vw,420px);transform:translateY(-50%)}
   #shade.paint-shade {background:linear-gradient(90deg,#10242977 0%,#10242940 33%,transparent 58%)}
 }
 @media(max-width:370px) {.paint-options{grid-template-columns:repeat(2,minmax(0,1fr))}.paint-details{padding-left:9px}}
@@ -164,3 +175,19 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   #objective {bottom:119px}#toast {top:14%;max-width:83%}#speech {bottom:25%;max-width:88vw}
   .panel {padding:14px}.controls {gap:5px}.map-legend {gap:8px}
 }
+.intro-actions {display:flex;align-items:stretch;gap:9px;flex-wrap:wrap}
+.intro-story {align-self:stretch;display:flex;align-items:center;gap:.35em;padding:8px 16px;background:#203431eb;color:#fff0d1;border:1px solid #f2dfb695;border-radius:3px;font:650 .98rem "DM Sans","Segoe UI",sans-serif;box-shadow:0 2px 5px #18262155}
+.intro-story i {font:bold italic 1.12rem Georgia,serif}.intro-story span {margin-left:8px;color:#ffd198}.intro-story:hover {background:#354b43}
+.panel[data-screen="viewfinder"],.panel[data-screen="contact"],.panel[data-screen="edition"] {width:min(640px,94vw)}
+.finder-body {padding:10px 12px 12px;background:#21332f;border-radius:3px;color:#efe7cd}
+.finder-strip,.finder-footer,.contact-proof figcaption {display:flex;align-items:center;justify-content:space-between;gap:10px}
+.finder-strip,.contact-proof figcaption {font:650 .72rem "IBM Plex Mono",Consolas,monospace;letter-spacing:.12em}
+.finder-strip {padding:1px 0 9px;color:#e4d8ad}.finder-strip strong {font-size:.85rem}
+.finder-frame {position:relative;background:#354643}.finder-frame canvas,.contact-proof canvas {display:block;width:100%;height:auto}
+.finder-frame canvas {cursor:crosshair}.finder-frame canvas:focus-visible {outline:2px solid #ffda91;outline-offset:3px}
+.finder-cross {position:absolute;left:43%;top:58%;transform:translate(-50%,-50%);width:11%;height:16%;pointer-events:none;color:white;filter:drop-shadow(0 1px 1px #222);background:linear-gradient(currentColor,currentColor) left top/28% 2px,linear-gradient(currentColor,currentColor) left top/2px 30%,linear-gradient(currentColor,currentColor) right top/28% 2px,linear-gradient(currentColor,currentColor) right top/2px 30%,linear-gradient(currentColor,currentColor) left bottom/28% 2px,linear-gradient(currentColor,currentColor) left bottom/2px 30%,linear-gradient(currentColor,currentColor) right bottom/28% 2px,linear-gradient(currentColor,currentColor) right bottom/2px 30%;background-repeat:no-repeat}
+.finder-cross::after {content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;background:currentColor}.finder-cross.locked {color:#a9ffd0}
+.finder-footer {margin-top:10px}.finder-status {font-size:.9rem}.shutter {background:#f5d490;color:#26382e;padding:8px 12px;border:0;border-radius:2px;font-weight:750}.shutter kbd {margin-left:6px;color:#2b4036;border-color:#968b62}
+.panel .finder-help {margin:8px 0 0;font-size:.86rem}.contact-proof {margin:4px 0 10px;background:#273731;padding:7px 8px 5px;color:#f2d597}.contact-proof canvas {max-height:min(29vh,185px);object-fit:cover;object-position:50% 49%}.contact-proof figcaption {padding:5px 2px 0}.panel .edition-copy {font:1.08rem/1.48 Georgia,serif}
+.jobcard.story-job {border-left:4px solid #a04d35;background:#e9d8b2;padding-left:9px}.story-job strong {font:bold italic 1.22rem Georgia,serif}
+@media(max-width:480px){.intro-story {padding:6px 10px}.intro-actions {gap:5px}.finder-body {padding:6px}.finder-footer {gap:5px}.shutter {padding:8px}.shutter kbd {display:none}}
