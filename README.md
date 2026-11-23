@@ -16,6 +16,10 @@ For a paid wash ticket, walk to Elia’s till and press **F**. Wait for the cust
 
 Across the street from the starter car, press **F** at the teal door numbered **14** to enter your room at the Marlin. Walk over to the bed to set the alarm, or read Rosario’s handwritten note on the desk. The city clock carries over between visits. Lamps and headlights come on after dark. Short coastal showers leave the pavement wet for a while.
 
+Take the stairs at the south end of the Marlin and follow the guest gallery to the ladder. **F** grips it, **W/S** climb either way, and **E** lets go. The pool-side linen roof has a second way up. Face a low ledge and press **Space** to pull yourself onto it. The same key vaults across a stopped car’s hood when you face it from the side.
+
+At the foot of the stairs, **Vera Cordero** gives out work orders for **Vacancy in Lights**. Pick a pattern, then find the rooftop board beside the MOTEL letters. Slide the tester with **A/D** or the arrows and hold **Space** on each requested contact. **V** changes your view and **E** pockets the tester. Walk back to Vera at the curb to collect **$105–$165**. Both signs keep running your design. Vera’s bench lets you switch between patterns you’ve signed off.
+
 Under the striped canopy on the motel side of Ocean Drive, press **F** at Tess Vidal’s stand to **take a valet shift**. Meet Ruth, Des and Viv at the loading curb. Press **F** to exchange a key and claim check, **E** to get into that guest’s car, and **E** again after parking between its lettered stripes behind the motel. Hang the key at the stand with **F**. When the guest comes back, take the claim, fetch the matching plate, and hand back the key at the loading curb. Each return pays **$70–85** plus a tip of up to **$45** for parking neatly, prompt retrieval and avoiding damage. The shift book remembers each guest’s best tip. Tess works the same stand before and after your shift.
 
 Traffic signals its turns. A driver gives up the seat, steps to the curb and reports the car’s plate when you take a slow or stopped car. Leave it nearby with room around the door and the owner can walk back, get in and rejoin traffic.

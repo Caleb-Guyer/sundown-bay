@@ -7,8 +7,9 @@
   const turn=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
 
   class BayBackup {
-    constructor(chase,overhangs){
+    constructor(chase,overhangs,lightFloor=()=>0){
       this.chase=chase;
+      this.lightFloor=lightFloor;
       this.cover=chase.cover.concat(overhangs.filter(o=>o.w>1.2&&o.d>1.2&&o.top>2));
       this.reset();
     }
@@ -170,9 +171,10 @@
         a.ceiling=Math.max(floor,nextFloor,15.9+Math.sin(t*.63)*1.2);
         a.y=Math.max(a.y,floor);
         const lamp=this.lamp(a);
-        a.beamFraction=BayCamera.safeFraction(lamp,{x:a.spotX,y:.24,z:a.spotZ},this.cover);
+        a.spotY=this.lightFloor(a.spotX,a.spotZ)+.20;
+        a.beamFraction=BayCamera.safeFraction(lamp,{x:a.spotX,y:a.spotY+.16,z:a.spotZ},this.cover);
         const inLight=a.light>.64&&Math.hypot(p.x-a.spotX,p.z-a.spotZ)<a.radius&&distance(a,p)<79;
-        const visible=!submerged&&inLight&&BayCamera.safeFraction(lamp,{x:p.x,y:1.15,z:p.z},this.cover)>=1;
+        const visible=!submerged&&inLight&&BayCamera.safeFraction(lamp,{x:p.x,y:1.15+(p.y||0),z:p.z},this.cover)>=1;
         a.lit=visible?Math.min(.6,a.lit+.10):0;
         a.sees=a.lit>=(searching?.39:.19);
       }

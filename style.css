@@ -292,3 +292,14 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 #bandRoll {display:block;width:100%;height:auto;margin:5px 0 3px}.band-readout span:last-child {color:#a6d7c6}
 .onstage .radar,.onstage .vehicle,.onstage .shortcuts {display:none}.onstage #context {bottom:16px}.onstage #speech {top:13%;bottom:auto}
 @media(max-height:560px){#bandHud{width:min(358px,75vw);bottom:37px;padding:5px 9px}.band-track b{font-size:15px}.onstage #context{bottom:7px}}
+#neonTester{position:absolute;right:clamp(10px,2vw,28px);bottom:clamp(72px,14vh,116px);width:min(265px,37vw);padding:10px 13px 11px;border:2px solid #80776b;border-radius:4px;box-shadow:inset 0 0 0 2px #e3c5a0,0 3px 12px #17282a88;background:linear-gradient(112deg,#c7b28e,#e3ccab 50%,#bda786);color:#283b3c;text-shadow:none;pointer-events:none;box-sizing:border-box}
+#neonTester[hidden]{display:none}
+.neon-ticket{display:flex;align-items:baseline;justify-content:space-between;gap:4px;border-bottom:1px solid #857962;padding-bottom:5px}
+.neon-ticket b{font:italic 700 clamp(13px,1.8vw,20px)/1 Georgia,serif}.neon-ticket span{font:700 11px/1 monospace}
+.neon-strip{display:flex;position:relative;align-items:center;margin:8px 1px 7px;padding:2px 0 5px;background:#253e3f;border-radius:2px}
+.neon-strip i{width:20%;text-align:center;font:700 clamp(13px,2.4vw,22px)/1.15 monospace;color:#99988b}
+.neon-strip i.done{color:#8ec9b1}.neon-strip i.target{color:#fff1b3;text-decoration:underline;text-underline-offset:2px}
+#neonShoe{position:absolute;width:2px;height:calc(100% + 6px);top:-3px;background:#ffaf6a;border:1px solid #683c2c;transform:translateX(-50%);box-sizing:content-box}
+.neon-meter{height:4px;background:#aa9578}.neon-meter i{display:block;height:100%;background:#2a716b}
+#neonTask{display:block;margin-top:5px;font:600 11px/1.2 system-ui}
+@media(max-height:480px){#neonTester{bottom:50px;padding:7px 9px}.neon-strip{margin:5px 0}}

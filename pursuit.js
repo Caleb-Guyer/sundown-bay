@@ -34,7 +34,7 @@
         }
       }
       return BayCamera.safeFraction({x:v.x,y:1.46+(BayCut.area(v)?BayCut.height(v.x,v.z):0),z:v.z},
-        {x:p.x,y:1.3+(BayCut.area(p)?BayCut.height(p.x,p.z):0),z:p.z},this.cover)>=1;
+        {x:p.x,y:1.3+(Number.isFinite(p.y)?p.y:BayCut.area(p)?BayCut.height(p.x,p.z):0),z:p.z},this.cover)>=1;
     }
     observe(units,p,vx,vz,heat,dt,radioSight=false,afloat=false,submerged=false){
       this.scanIn-=dt;

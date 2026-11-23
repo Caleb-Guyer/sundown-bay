@@ -107,7 +107,7 @@
     constructor(){this.vertices=new Float32Array(segments*12*6);}
     update(a,lamp){
       const f=a.beamFraction,r=a.radius*f,light=a.light,pool=f>.993?light:0;
-      const x=lamp.x+(a.spotX-lamp.x)*f,z=lamp.z+(a.spotZ-lamp.z)*f,y=lamp.y+(.20-lamp.y)*f;
+      const x=lamp.x+(a.spotX-lamp.x)*f,z=lamp.z+(a.spotZ-lamp.z)*f,y=lamp.y+((a.spotY??.20)-lamp.y)*f;
       let cursor=0;
       const put=(px,py,pz,alpha)=>{
         this.vertices[cursor]=px;this.vertices[cursor+1]=py;this.vertices[cursor+2]=pz;

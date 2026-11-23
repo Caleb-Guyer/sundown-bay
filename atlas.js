@@ -663,6 +663,9 @@
       const bay=BayMotelParking.bay;
       if(visible(px(bay.x),py(bay.z),6*s))BayMotelParking.map(ctx,px,py,s);
     }
+    if(opt.neon&&visible(px(117),py(-36),54*s)){
+      BayMarlinRoofArt.map(ctx,opt,px,py,s,visible);BayMarlinNeonArt.map(ctx,opt,px,py,s,visible);
+    }
     if(opt.courts)BayCourtPlaces.map(ctx,opt,px,py,s,visible);
     if(atlas&&!opt.marina?.bayChart)BayStreetNames.atlas(ctx,px,py,s);
     if(atlas&&opt.countyChart){
@@ -957,7 +960,8 @@
         }
         if(opt.swim)BaySwimmerArt.map(ctx,x,y,s,opt.swim,streetTime);
         else if(!opt.pickup&&!player.driving&&!player.inCabin&&!opt.aboard&&(!opt.cycles?.riding||opt.cycles.transfer?.approach)){
-          if(opt.band?.player){const p=opt.band.player;p.kit=player.kit;BayBandPlayers.mapActor(ctx,p,x,y,s,streetTime,opt.band);}
+          if(opt.roofs?.action)BayTraversalPose.map(ctx,px,py,s,player,opt.roofs.action,streetTime);
+          else if(opt.band?.player){const p=opt.band.player;p.kit=player.kit;BayBandPlayers.mapActor(ctx,p,x,y,s,streetTime,opt.band);}
           else if(opt.keyMapActor)BayMotorists.mapActor(ctx,opt.keyMapActor,x,y,s,streetTime,opt.valet.focus);
           else personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
           if(opt.boardwalk?.run?.phase==="deliver"){const hand=BayDriving.world(player,.28,.08);rect(ctx,px(hand.x)-.12*s,py(hand.z)-.08*s,.24*s,.16*s,"#bd5347");}
