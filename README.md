@@ -10,6 +10,8 @@ Use **WASD** or the arrow keys to move and steer. Move the mouse to look around.
 
 Choose **Free cruise** to explore the bay and Gull Light. You can also walk out to a moored boat and board with **E**. Follow the anchors on the **M** offshore chart to Marlin Pier or North Float. Slow below four knots alongside an open berth and press **E** to tie up and step ashore.
 
+Choose **Play Last Ferry Out** on the title screen or find Inez Cruz under **J**. Pick her up at the Marlin Motel, park at the marked pier, and board a speedboat with **E**. Inez follows you aboard. Catch the **M/V Paloma**, steer alongside the amber gate on her left side, and hold a steady course for two seconds so Inez can jump. Hold **F** near the gate to match the ferry’s throttle. Standard sailing gives you 105 seconds at sea and pays **$450**. Five-star sailing gives you 85 seconds and pays **$900** for a transfer under Air One’s searchlight. Replays rotate through Gull Light Passage, North Channel and Outer Sound Crossing.
+
 Choose **Play Last Exposure** on the title screen or call Mara Vega through **J**. Pick her up outside the Marlin Motel and follow the street route to Port Sol. Park and press **F** to frame the Lot 14 notice. Click to focus or use the arrow keys, then press **Space** for the shutter. Deliver the photo to the Sol FM van in 55 seconds for **$425**, or take it to Cine Luna for **$300**. The evening edition of Bay Wire remembers which outlet ran your picture.
 
 At three stars, patrol cars set up roadblocks. At four, some crews lay spike strips. Clip one and the car pulls toward the flat tire. At five, Air One joins the chase.

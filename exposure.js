@@ -18,7 +18,6 @@
   const liveTime=55;
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   const stopped=v=>Math.hypot(v.vx,v.vz)<.85&&Math.abs(v.speed)<.85;
-  const turn=(from,to,dt)=>from+Math.atan2(Math.sin(to-from),Math.cos(to-from))*-Math.expm1(-15*dt);
   class Run {
     constructor(){
       this.mara={...pickup,yaw:-1.9,y:.076};this.motion=new BayPlayerMotion();
@@ -50,13 +49,7 @@
       this.route=route;this.remaining=route==="live"?liveTime:0;this.phase="delivery";return true;}
     dispose(){if(this.ride)this.ride.passengerDoor=0;}
     walk(dt,ground){
-      const p=this.mara,q=this.path[0];if(!q)return true;
-      const dx=q.x-p.x,dz=q.z-p.z,len=Math.hypot(dx,dz),step=Math.min(len,dt*2.85);
-      const old=p.yaw;
-      if(len>.001){p.x+=dx*step/len;p.z+=dz*step/len;p.yaw=turn(old,Math.atan2(dx,dz),dt);}
-      p.y=ground(p.x,p.z);this.motion.step(dt,step,(p.yaw-old)/dt);
-      if(len<=step+.001)this.path.shift();
-      return !this.path.length;
+      return BayCarAccess.walkPath(this.mara,this.motion,this.path,dt,ground);
     }
     pose(dt,ground){BayCarAccess.pose(this.ride,1,this.progress,this.mara,this.motion,ground,dt,true);}
     step(dt,car,transfer,doorPlan,ground){

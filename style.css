@@ -177,6 +177,13 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   .panel {padding:14px}.controls {gap:5px}.map-legend {gap:8px}
 }
 .intro-actions {display:flex;align-items:stretch;gap:9px;flex-wrap:wrap}
+.intro-actions .intro-ferry {background:#1c504f;color:#fff0cd;border-color:#e4b475}
+.ferry-ticket {display:block;width:100%;height:auto;background:#e1d5b0;margin:6px 0 12px}
+.ferry-brief {margin:0 2px 10px;color:#304c48;font:500 .95rem/1.45 "DM Sans","Segoe UI",sans-serif}
+.ferry-receipt {display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:2px 0 11px;border-bottom:1px solid #99a58d;color:#294b43}
+.ferry-receipt strong {font:700 1.65rem Georgia,serif}
+#ferryMeter {height:5px;margin:7px 0 1px;background:#64746c;overflow:hidden}
+#ferryMeter i {display:block;height:100%;width:var(--hold,0%);background:#ffd07b}
 .intro-story {align-self:stretch;display:flex;align-items:center;gap:.35em;padding:8px 16px;background:#203431eb;color:#fff0d1;border:1px solid #f2dfb695;border-radius:3px;font:650 .98rem "DM Sans","Segoe UI",sans-serif;box-shadow:0 2px 5px #18262155}
 .intro-story i {font:bold italic 1.12rem Georgia,serif}.intro-story span {margin-left:8px;color:#ffd198}.intro-story:hover {background:#354b43}
 .panel[data-screen="viewfinder"],.panel[data-screen="contact"],.panel[data-screen="edition"] {width:min(640px,94vw)}

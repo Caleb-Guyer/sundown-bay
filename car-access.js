@@ -92,5 +92,17 @@
     r.handle[2]=(handle.x-x)*n+(handle.z-z)*c;
     m.step(dt,0,0);
   }
-  window.BayCarAccess={plan,pose,outside};
+  function walkPath(actor,motion,path,dt,ground,speed=2.85){
+    const q=path[0];if(!q)return true;
+    const dx=q.x-actor.x,dz=q.z-actor.z,len=Math.hypot(dx,dz),step=Math.min(len,dt*speed);
+    const old=actor.yaw;
+    if(len>.001){
+      actor.x+=dx*step/len;actor.z+=dz*step/len;
+      const turn=Math.atan2(dx,dz)-old;
+      actor.yaw=old+Math.atan2(Math.sin(turn),Math.cos(turn))*-Math.expm1(-15*dt);
+    }
+    actor.y=ground(actor.x,actor.z);motion.step(dt,step,dt?(actor.yaw-old)/dt:0);
+    if(len<=step+.001)path.shift();return !path.length;
+  }
+  window.BayCarAccess={plan,pose,outside,walkPath};
 })();

@@ -599,6 +599,37 @@
       paintStatic(ctx,solids,street);ctx.restore();
     }
     if(radar&&player&&Number.isFinite(opt.cameraYaw)) cameraWedge(ctx,px(player.x),py(player.z),opt.cameraYaw,ui);
+    const ferry=opt.ferry,ship=ferry?.ship;
+    if(ship){
+      if(opt.ferryActive&&(radar||atlas&&opt.marina?.bayChart)){
+        ctx.save();ctx.beginPath();
+        ship.chart.forEach((v,i)=>{if(i)ctx.lineTo(px(v.x),py(v.z));else ctx.moveTo(px(v.x),py(v.z));});
+        ctx.setLineDash([3.5*ui,3.5*ui]);ctx.lineWidth=1.2*ui;ctx.strokeStyle="#edd0a2";ctx.stroke();ctx.restore();
+      }
+      if(visible(px(ship.x),py(ship.z),12*s)){
+        if(street){
+          for(const w of ship.wake){
+            const age=streetTime-w.at,gap=1.7+age*1.65;
+            for(const sign of [-1,1]){
+              const x=w.x+sign*Math.cos(w.yaw)*gap,z=w.z-sign*Math.sin(w.yaw)*gap;
+              line(ctx,px(x),py(z),px(x-.85*Math.sin(w.yaw-sign*.31)),py(z-.85*Math.cos(w.yaw-sign*.31)),"rgba(223,237,219,.65)",Math.max(.6,s*.13));
+            }
+          }
+          BayFerryArt.drawMap(ctx,px(ship.x),py(ship.z),s,ship.yaw,streetTime);
+          if(opt.ferryActive&&ferry.phase==="water"){
+            ctx.save();ctx.translate(px(ship.gate.x),py(ship.gate.z));ctx.rotate(ship.yaw);ctx.scale(s,s);
+            for(const side of [-1,1])for(const end of [-1,1]){
+              line(ctx,side*1.3,end*3.1,side*.74,end*3.1,"#ffd184",.14);
+              line(ctx,side*1.3,end*3.1,side*1.3,end*2.24,"#ffd184",.14);
+            }ctx.restore();
+          }
+        }else{
+          ctx.save();ctx.translate(px(ship.x),py(ship.z));ctx.rotate(ship.yaw);const k=Math.max(.58*ui,s);
+          ctx.scale(k,k);path(ctx,[[-2.9,8.4],[2.9,8.4],[3,-4.6],[0,-9],[-3,-4.6]],"#f0deaf",ink,.8);
+          rect(ctx,-1.7,-3.2,3.4,6,"#31736e");disc(ctx,-3,3,.95,"#ffbe65");ctx.restore();
+        }
+      }
+    }
     BayMarinaView.map(ctx,opt,px,py,s,ui,visible);
     if(opt.route&&!street){
       const pts=opt.route.points;ctx.save();ctx.lineJoin="round";ctx.lineCap="round";
@@ -688,11 +719,22 @@
         disc(ctx,x,y,1.18*ui,"#b7bda3");
       }
     }
+    if(street&&ferry){
+      const r=ferry.rider,x=px(r.x),y=py(r.z),colors=BayFerryPassengerArt.palette;
+      if(visible(x,y)){
+        if(ferry.phase==="drive"||ferry.phase==="water"||ferry.phase==="missed"){
+          disc(ctx,x,y,s*.21,colors[1]);disc(ctx,x,y,s*.14,"#344944");
+        }else{
+          personSprite(ctx,{...r,shirt:colors[1],skin:colors[0],startle:{lift:ferry.motion.lift}},x,y,Math.max(2.3,s*1.42),false,rotation);
+          const tin=BayDriving.world(r,.34,.02);disc(ctx,px(tin.x),py(tin.z)-ferry.motion.lift*s*.65,s*.12,"#ae4d3c");
+        }
+      }
+    }
     if(street) for(const sig of opt.signals||empty) {
       const x=px(sig.x),y=py(sig.z);
       if(visible(x,y,9*s)) intersectionLights(ctx,x,y,s,((streetTime+sig.offset)%14+14)%14<7);
     }
-    if(opt.target&&(street||opt.target.kind!=="garage")&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {
+    if(opt.target&&(street||opt.target.kind!=="garage")&&!(street&&opt.target.kind==="ferry-gate"&&visible(px(opt.target.x),py(opt.target.z),-12))&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {
       const x=px(opt.target.x),y=py(opt.target.z);
       const pt=edgePoint(screenX(x,y),screenY(x,y),w,h,radar,(radar?11:15)*ui);
       ctx.save();ctx.setTransform(1,0,0,1,0,0);

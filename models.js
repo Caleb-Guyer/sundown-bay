@@ -525,5 +525,6 @@
       g.pole(join,tip,.007,"#637777",4);
     }
     if(role==="photographer")BayExposureArt.dress(g,markPart);
+    if(role==="ferry-engineer")BayFerryPassengerArt.dress(g,markPart);
   };
 })();
