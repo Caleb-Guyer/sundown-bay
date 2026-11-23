@@ -10,6 +10,10 @@ Use **WASD** or the arrow keys to move and steer. Move the mouse to look around.
 
 Across the street from the starter car, press **F** at the teal door numbered **14** to enter your room at the Marlin. Walk over to the bed to set the alarm, or read Rosario’s handwritten note on the desk. The city clock carries over between visits. Lamps and headlights come on after dark. Short coastal showers leave the pavement wet for a while.
 
+Follow **Ocean Drive** north past the Boardwalk to **Pelican Cut**. The paved causeway and the shell levee meet again at the fish camp. Ada watches the spoonbills from the hide. Nell carries ice down to the east pier, where you can board a skiff and return to town by sea. The **Pelican Cut** tab on the map shows both roads and the landing.
+
+For **The Marsh Line**, find Kit Bell at the camp’s Sol FM field station and press **F** on foot. Pick the spoonbill flock, the wind pump, or the shrimp boat *Little Dot*. At the listening spot, press **F** to raise the recorder. Aim with the mouse or arrows, then hold **Space** for 2.6 seconds. Bring a take back to Kit to earn money. Sol FM plays your recording on your next ride, and the phone keeps your best tape for each subject. The visual meter and captions work with sound off.
+
 Park a car in the space painted **14**, press **F**, and put the Marlin guest permit on its dash. When you step out of that car, the map remembers where you parked it, including after a browser restart. Open the phone or city map to locate it. A permit can move to another car in space 14. The street atlas and driving directions share the same street names.
 
 **An Extra Plate** starts at Rosario’s night counter on the south frontage of **El Mercado**, serving **6 PM–2 AM**. Walk up, press **F**, and choose one of two orders. Hot food earns a tip for quick delivery, and the thermos and flan travel best with a smooth ride. Park at the customer’s workplace, step out and press **F** to hand over the bag. Rosario rotates the slips, the regulars remember you, and their receipts accumulate on the motel desk.

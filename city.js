@@ -301,9 +301,10 @@ window.buildBayCity = function buildBayCity(g,water) {
 
   // Keep the water in its own batch so the animated surface costs one draw call.
   rect(-148,0,608,566,.005,"#aeb49b");
-  water.quad([207,-.15,-690],[207,-.15,690],[1187,-.15,690],[1187,-.15,-690],"#338c94");
+  water.quad([207,-.15,-690],[207,-.15,208],[1187,-.15,208],[1187,-.15,-690],"#338c94");
+  water.quad([196,-.15,208],[196,-.15,690],[1187,-.15,690],[1187,-.15,208],"#338c94");
   const coast=[];
-  for(let i=-12;i<=12;i++) {
+  for(let i=-12;i<=8;i++) {
     const z=i*26;
     coast.push({z, x:213+Math.sin(i*.82)*1.65+.8*Math.cos(i*1.91)});
   }
@@ -1002,7 +1003,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   for(let i=0;i<14;i++){
     const x=between(-202,129),z=(i%2?1:-1)*between(233,267),h=between(8,27);
-    g.box(x,h/2,z,between(12,23),h,between(11,21),pick(["#aba8a0","#a8a29f","#92a0a1"]));
+    g.box(z>228&&x>52?x-190:x,h/2,z,between(12,23),h,between(11,21),pick(["#aba8a0","#a8a29f","#92a0a1"]));
   }
   return {solids,cameraObstacles,garage};
 };

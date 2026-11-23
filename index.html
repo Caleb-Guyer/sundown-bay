@@ -31,6 +31,13 @@
       </div>
       <div id="raceStart" role="status" aria-live="polite" hidden></div>
       <div id="meetFinder" aria-hidden="true" hidden><span id="filmRoll"></span><i></i></div>
+      <div id="micSight" aria-hidden="true" hidden></div>
+      <div id="fieldHud" hidden aria-label="Directional field recorder">
+        <div class="recorder-head"><small>SOL FM · FIELD UNIT 2</small><b id="fieldRoll">STBY</b></div>
+        <strong id="fieldName"></strong><div class="recorder-scale"><i id="fieldNeedle"></i></div>
+        <span id="fieldAim"></span><div class="tape-motion"><i id="fieldLength"></i></div>
+      </div>
+      <div id="fieldRadio" hidden><small>SOL FM · THE MARSH LINE</small><strong id="fieldCredit"></strong><canvas id="airWave" width="156" height="25"></canvas></div>
       <div id="takeHud" aria-label="One Good Take" hidden>
         <div class="take-slate"><strong id="takeName"></strong><span id="takeNumber"></span></div>
         <b id="takeAction"></b><span id="takeCue"></span>
@@ -101,6 +108,9 @@
   <script src="camera.js"></script>
   <script src="sky.js"></script>
   <script src="bay-hours.js"></script>
+  <script src="pelican-cut.js"></script>
+  <script src="cut-art.js"></script>
+  <script src="cut-wildlife.js"></script>
   <script src="coast-art.js"></script>
   <script src="city.js"></script>
   <script src="models.js"></script>
@@ -115,7 +125,9 @@
   <script src="patrol-art.js"></script>
   <script src="locals.js"></script>
   <script src="atlas.js"></script>
+  <script src="cut-tape.js"></script>
   <script src="radio.js"></script>
+  <script src="marsh-line.js"></script>
   <script src="exposure-art.js"></script>
   <script src="exposure.js"></script>
   <script src="marina-art.js"></script>

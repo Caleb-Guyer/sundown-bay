@@ -13,7 +13,8 @@
   function read(fleet){
     try{
       const raw=JSON.parse(localStorage.getItem(key)||"null"),v=fleet.find(v=>v.garageKey===raw?.id);
-      if(!v||![raw.x,raw.z,raw.yaw].every(Number.isFinite)||Math.abs(raw.x)>230||Math.abs(raw.z)>190)return null;
+      if(!v||![raw.x,raw.z,raw.yaw].every(Number.isFinite)||
+        (Math.abs(raw.x)>230||Math.abs(raw.z)>190)&&!BayCut.land(raw.x,raw.z))return null;
       const flatSide=[-1,1].includes(raw.flatSide)?raw.flatSide:0;
       const flatAxle=flatSide?bayCarLayout(v.kind).axles.find(axle=>(axle>0)===(raw.flatAxle>0)):null;
       return {v,x:raw.x,z:raw.z,yaw:Math.atan2(Math.sin(raw.yaw),Math.cos(raw.yaw)),flatSide,flatAxle};

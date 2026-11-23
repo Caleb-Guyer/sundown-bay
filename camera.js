@@ -76,7 +76,7 @@
       anchor.x=smooth(anchor.x,subject.x,17,dt);anchor.z=smooth(anchor.z,subject.z,17,dt);
       // Keep a lagged anchor on the subject's side when it rounds a corner.
       this.jumpLift=smooth(this.jumpLift,vehicle?0:(options.lift||0)*.39,12,dt);
-      const pivotY=1.26+.10*b+this.jumpLift;
+      const ground=options.ground||0,pivotY=ground+1.26+.10*b+this.jumpLift;
       const realPivot={x:subject.x,y:pivotY,z:subject.z};
       const anchorEye={x:anchor.x,y:pivotY,z:anchor.z};
       const free=safeFraction(realPivot,anchorEye,this.obstacles);
@@ -85,12 +85,12 @@
       const shoulder=.47*(1-b),radius=this.distance,flat=Math.cos(this.elevation)*radius;
       const xOff=-sn*flat+cs*shoulder,zOff=-cs*flat-sn*shoulder;
       const yOff=Math.sin(this.elevation)*radius+.20*b;
-      const ideal={x:pivot.x+xOff,y:Math.max(.51,pivot.y+yOff),z:pivot.z+zOff};
+      const ideal={x:pivot.x+xOff,y:Math.max(ground+.51,pivot.y+yOff),z:pivot.z+zOff};
       const clearance=safeFraction(pivot,ideal,this.obstacles)*radius;
       this.safeDistance=clearance<this.safeDistance?clearance:smooth(this.safeDistance,clearance,5.6,dt);
       const ratio=clamp(this.safeDistance/radius,0,1);
       const lift=(1-clamp(this.safeDistance/(vehicle?3.8:2.1),0,1))*(vehicle?2.65:.72);
-      const eye={x:pivot.x+xOff*ratio,y:Math.max(.46,pivot.y+yOff*ratio+lift),z:pivot.z+zOff*ratio};
+      const eye={x:pivot.x+xOff*ratio,y:Math.max(ground+.46,pivot.y+yOff*ratio+lift),z:pivot.z+zOff*ratio};
       const safe=safeFraction(pivot,eye,this.obstacles);
       out.x=pivot.x+(eye.x-pivot.x)*safe;out.y=pivot.y+(eye.y-pivot.y)*safe;out.z=pivot.z+(eye.z-pivot.z)*safe;
       const lead=b*(.70+pace*2.25), ahead=.38+lead;
@@ -99,8 +99,8 @@
       out.yaw=Math.atan2(aimX-out.x,aimZ-out.z);
       out.pitch=Math.atan2(aimY-out.y,Math.max(.15,Math.hypot(aimX-out.x,aimZ-out.z)));
       out.focal=1.56-b*(.04+.145*pace);
-      this.hideActor=vehicle ? Math.hypot(out.x-subject.x,out.z-subject.z)<1.55&&out.y<(vehicle.kind==="van"?2.9:1.85)
-                             : Math.hypot(out.x-subject.x,out.z-subject.z)<.53&&out.y<2.18;
+      this.hideActor=vehicle ? Math.hypot(out.x-subject.x,out.z-subject.z)<1.55&&out.y-ground<(vehicle.kind==="van"?2.9:1.85)
+                             : Math.hypot(out.x-subject.x,out.z-subject.z)<.53&&out.y-ground<2.18;
     }
   }
   BayCamera.safeFraction=safeFraction;

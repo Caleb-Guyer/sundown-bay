@@ -3,7 +3,7 @@
   "use strict";
   const bay=BayMarina,clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   const distance=(a,b)=>Math.hypot(b.x-a.x,b.z-a.z);
-  const shoals=[{...bay.beacon,r:9.3},...bay.sails.filter(s=>Math.abs(s[1])<186).map(([x,z,size])=>({x,z,r:3*size+2.3}))];
+  const shoals=[{...bay.beacon,r:9.3},...bay.sails.map(([x,z,size])=>({x,z,r:3*size+2.3}))];
   const sightCover=[
     {x:bay.beacon.x,z:bay.beacon.z,w:6.8,d:6.2,bottom:0,top:1.55},
     {x:bay.beacon.x,z:bay.beacon.z,w:2.5,d:2.5,bottom:1.4,top:10.9}
@@ -11,7 +11,9 @@
   // A launch can pass the head of a pier, but cannot cross the gangway or the shoreward side.
   const piers=bay.docks.map(d=>({end:d.x+d.headW/2+2.5,z:d.z,half:d.headD/2+2.5}));
   function waterPoint(x,z){
-    x=clamp(x,220,426);z=clamp(z,-180,180);
+    z=clamp(z,-180,354);
+    const north=Math.min(1,Math.max(0,(z-186)/24));
+    x=clamp(x,z>180?BayCut.coast(z)+6:220,426-95*north);
     for(const p of piers)if(x<p.end+1&&Math.abs(z-p.z)<p.half+1)x=p.end+1;
     for(const o of shoals){
       const dx=x-o.x,dz=z-o.z,d=Math.hypot(dx,dz);

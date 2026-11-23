@@ -598,6 +598,12 @@
       ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);
       paintStatic(ctx,solids,street);ctx.restore();
     }
+    if(visible(px(226),py(327),143*s)){
+      const shore=[];for(let z=208;z<=478;z+=5)shore.push([px(BayCut.coast(z)-.28),py(z)]);
+      shore.push([px(480),py(478)],[px(480),py(208)]);path(ctx,shore,p.ocean);
+    }
+    BayCutArt.map(ctx,px,py,s,street);
+    if(street&&visible(px(193),py(305),105*s))BayCutWildlife.map(ctx,px,py,s,opt.weather,streetTime,visible);
     if(street&&opt.dusk>.01){
       ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=opt.dusk*.35;
       rect(ctx,0,0,w,h,"#23304f");ctx.restore();
@@ -609,6 +615,21 @@
       if(visible(px(bay.x),py(bay.z),6*s))BayMotelParking.map(ctx,px,py,s);
     }
     if(atlas&&!opt.marina?.bayChart)BayStreetNames.atlas(ctx,px,py,s);
+    if(atlas&&opt.countyChart){
+      ctx.save();ctx.font="600 "+(7.6*ui)+"px system-ui";ctx.fillStyle="#ede6c5";ctx.strokeStyle="#435f55";ctx.lineWidth=2.7*ui;
+      for(const [label,x,z] of [["SHELL LEVEE",94,277],["PELICAN CAUSEWAY",160,253],["FISH CAMP",172,342],["PELICAN SOUND",279,282]]){
+        ctx.textAlign="center";ctx.strokeText(label,px(x),py(z));ctx.fillText(label,px(x),py(z));
+      }
+      for(const source of BayCutWildlife.sources){
+        const x=px(source.site.x),y=py(source.site.z),r=3.25*ui;
+        ctx.strokeStyle="#efe1ae";ctx.lineWidth=1.3*ui;disc(ctx,x,y,r,"#36564f");
+        ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();
+      }ctx.restore();
+    }else if(atlas&&!opt.marina?.bayChart&&visible(px(144),py(170))){
+      ctx.save();ctx.textAlign="right";ctx.fillStyle="#304e49";ctx.strokeStyle="#c5ceb1";ctx.lineWidth=2.3*ui;
+      ctx.font="bold "+7.5*ui+"px system-ui";const label="↑ Pelican Cut",x=px(143),y=py(170);
+      ctx.strokeText(label,x,y);ctx.fillText(label,x,y);ctx.restore();
+    }
     if(radar&&player&&Number.isFinite(opt.cameraYaw)) cameraWedge(ctx,px(player.x),py(player.z),opt.cameraYaw,ui);
     const ferry=opt.ferry,ship=ferry?.ship;
     if(ship){
@@ -724,7 +745,14 @@
     }
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
-      if(visible(x,y)) personSprite(ctx,person,x,y,Math.max(2.3,s*1.42),false,rotation);
+      if(visible(x,y)){
+        personSprite(ctx,person,x,y,Math.max(2.3,s*1.42),false,rotation);
+        if(person.iceBox){
+          ctx.save();ctx.translate(x,y);ctx.rotate(person.yaw);ctx.fillStyle="#5d8781";
+          ctx.fillRect(.25*s,-.26*s,.47*s,.33*s);ctx.fillStyle="#e5d5ab";ctx.fillRect(.25*s,-.28*s,.47*s,.11*s);ctx.restore();
+        }
+        if(person.id==="marsh-line")BayCutWildlife.mapKit(ctx,x,y,s,streetTime);
+      }
     }
     if(street)for(const prop of BayExposure.props){
       if(visible(px(prop.x),py(prop.z),6*s))BayExposureArt.drawMap(ctx,prop.kind,px(prop.x),py(prop.z),s,prop.yaw);
@@ -793,7 +821,10 @@
       const x=px(player.x),y=py(player.z);
       if(street) {
         if(player.driving && !playerCar) carSprite(ctx,player,x,y,s,streetTime);
-        if(!player.driving&&!player.inCabin&&!opt.aboard) personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+        if(!player.driving&&!player.inCabin&&!opt.aboard){
+          personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+          if(opt.field?.phase==="listen")BayCutWildlife.mapMic(ctx,x,y,s,opt.field.yaw,streetTime,!!opt.field.slice);
+        }
         if(opt.plate&&!player.driving&&!player.inCabin&&!opt.aboard){
           const bag=BayDriving.world(player,.41,.08);rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
         }

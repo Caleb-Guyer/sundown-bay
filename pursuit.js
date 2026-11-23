@@ -25,7 +25,7 @@
       const dx=p.x-v.x,dz=p.z-v.z,d=Math.hypot(dx,dz);
       if(d>(this.searching?38+heat*3:76+heat*4))return false;
       if(d>15&&dx*Math.sin(v.yaw)+dz*Math.cos(v.yaw)<d*(this.searching?.63:-.18))return false;
-      if(d>27){
+      if(d>27&&!BayCut.area(v)&&!BayCut.area(p)){
         const a=this.road(v),b=this.road(p);
         if(a.vertical!==b.vertical&&distance(p,b)<10){
           const approach=a.vertical?Math.abs(v.z-b.z):Math.abs(v.x-b.x);
@@ -33,7 +33,8 @@
           if(approach>11&&depth>14)return false;
         }
       }
-      return BayCamera.safeFraction({x:v.x,y:1.46,z:v.z},{x:p.x,y:1.3,z:p.z},this.cover)>=1;
+      return BayCamera.safeFraction({x:v.x,y:1.46+(BayCut.area(v)?BayCut.height(v.x,v.z):0),z:v.z},
+        {x:p.x,y:1.3+(BayCut.area(p)?BayCut.height(p.x,p.z):0),z:p.z},this.cover)>=1;
     }
     observe(units,p,vx,vz,heat,dt,radioSight=false,afloat=false){
       this.scanIn-=dt;
@@ -56,6 +57,9 @@
       return this.roads.reduce((best,n)=>Math.abs(n-value)<Math.abs(best-value)?n:best);
     }
     road(p){
+      if(BayCut.area(p)){
+        const n=BayCut.nearest(p.x,p.z);return {x:n.x,z:n.z,vertical:Math.abs(n.segment.dz)>Math.abs(n.segment.dx),county:true};
+      }
       const x=this.nearest(p.x),z=this.nearest(p.z);
       return Math.abs(p.x-x)<Math.abs(p.z-z)?{x,z:clamp(p.z,-178,178),vertical:true}:
         {x:clamp(p.x,-179,148),z,vertical:false};
@@ -66,6 +70,14 @@
       return (a===b?[a]:[a,b]).map(v=>r.vertical?point(r.x,v):point(v,r.z));
     }
     route(unit,target){
+      const leaving=BayCut.area(unit),arriving=BayCut.area(target);
+      if(!leaving&&!arriving)return this.cityRoute(unit,target);
+      if(leaving&&arriving)return BayCut.route(unit,target);
+      const gate=BayCut.gate;
+      return leaving?BayCut.route(unit,gate).concat(this.cityRoute({...gate,yaw:Math.PI},target)):
+        this.cityRoute(unit,gate).concat(BayCut.route(gate,target));
+    }
+    cityRoute(unit,target){
       const start=this.road(unit),end=this.road(target);
       let best=[],cost=Infinity;
       const consider=points=>{
@@ -95,6 +107,7 @@
       return Math.abs(dz)>=Math.abs(dx)?point(0,Math.sign(dz)||1):point(Math.sign(dx)||1,0);
     }
     crossing(k,unit){
+      if(BayCut.area(k))return null;
       const pace=Math.hypot(k.vx,k.vz);
       if(pace<4.2)return null;
       const dir=this.direction(k),vertical=!!dir.z,along=vertical?k.z:k.x,sign=dir.z||dir.x;
@@ -122,6 +135,10 @@
     spawn(k,slot,clear){
       const dir=this.direction(k),road=this.road(k),crossing=slot===1?this.crossing(k):null;
       const options=[];
+      if(BayCut.area(k)){
+        const county=BayCut.routes.flatMap(r=>r.points).map(p=>({...p,face:road,gap:distance(k,p)}));
+        options.push(...county.filter(p=>p.gap>37&&p.gap<120).sort((a,b)=>Math.abs(a.gap-53-slot*13)-Math.abs(b.gap-53-slot*13)));
+      }
       if(crossing){
         const side=(dir.z?crossing.x:crossing.z)>0?-1:1;
         for(const s of [side,-side])for(const d of [31,43,56]){
@@ -148,6 +165,11 @@
     }
     searchGoal(v,k){
       if(v.searchGoal&&distance(v,v.searchGoal)>4)return v.searchGoal;
+      if(BayCut.area(k)){
+        const nearest=BayCut.nearest(k.x,k.z),points=nearest.route.points,index=points.indexOf(nearest.segment.a);
+        const delta=[1,-1,2,-2][(v.searchStep+++(v.role==="cutoff"?1:0))%4];
+        return v.searchGoal=points[clamp(index+delta,0,points.length-1)];
+      }
       const dir=this.direction(k);
       if(!v.searchStep){
         v.searchStep=1;
@@ -186,6 +208,7 @@
     }
     trafficBearing(v,aim,dt,clear){
       const dx=aim.x-v.x,dz=aim.z-v.z,gap=Math.hypot(dx,dz),bearing=Math.atan2(dx,dz);
+      if(BayCut.area(v)||BayCut.area(aim))return bearing;
       if(gap<7||v.block&&!v.block.entering||Math.abs(wrap(bearing-v.yaw))>.66)return bearing;
       const vertical=Math.abs(dz)>Math.abs(dx),line=this.nearest(vertical?v.x:v.z);
       const sign=Math.sign(vertical?dz:dx),across=vertical?v.x:v.z,along=vertical?v.z:v.x;

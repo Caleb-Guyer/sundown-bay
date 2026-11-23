@@ -30,6 +30,7 @@
   const badge = [[0,76],[0.17,73],[0.36,81],[0.62,78]];
   const cueNotes = { job: [61, 66, 69], paid: [66, 69, 73, 78], heat: [67, 60] };
   const beds = new Map();
+  const fieldBuffers = new Map(), fieldVoices = new Map();
   const bedsByName = {
     engine: ['sawtooth', 'lowpass', 0.59], skid: ['noise', 'bandpass', 1.8], tire: ['triangle', 'lowpass', 0.62],
     surf: ['noise', 'lowpass', 0.52], street: ['noise', 'lowpass', 0.8], quay: ['sine', 'lowpass', 0.6],
@@ -41,6 +42,7 @@
   let driving = false, boating = false, speed = 0, heat = 0, siren = 0, rotor = 0, coast = 0, docks = 0, skid = 0;
   let nextStep = 0, step = 0, nextMix = 0, skidSince = null, nextGull = 0, nextPortSound = 0;
   let nextHorn = 0, nextTrafficHorn = 0, nextSiren = 0, seed = 87533, portBell = true, worldTime = 0;
+  let broadcast = null, queuedTape = null;
 
   function random() {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -102,7 +104,10 @@
     voice.source.disconnect();
     voice.envelope.disconnect();
     if (voice.filter) voice.filter.disconnect();
+    if (voice.panner) voice.panner.disconnect();
     if (voice.key && beds.get(voice.key) === voice) beds.delete(voice.key);
+    if (voice.slot && fieldVoices.get(voice.slot) === voice) fieldVoices.delete(voice.slot);
+    if (broadcast === voice) broadcast = null;
     voices.delete(voice);
   }
 
@@ -259,6 +264,102 @@
     if (pitch) voice.source.frequency.setTargetAtTime(pitch, now, 0.10);
   }
 
+  function fieldBuffer(id) {
+    if (!fieldBuffers.has(id)) {
+      const reel = window.BayCutTape.signal(id);
+      const buffer = context.createBuffer(1, reel.length, window.BayCutTape.sampleRate);
+      buffer.getChannelData(0).set(reel);
+      fieldBuffers.set(id, buffer);
+    }
+    return fieldBuffers.get(id);
+  }
+
+  function mixFieldVoice(slot, id, volume, pan, phase, now) {
+    let voice = fieldVoices.get(slot);
+    const audible = id && volume > 0.002;
+    if (voice) {
+      // Pauses and slow frames can put a looping Web Audio source ahead of the world clock.
+      const elapsed = now - voice.started;
+      const duration = voice.source.buffer.duration;
+      const drift = (phase - voice.phase - elapsed) % duration;
+      if (!audible || voice.id !== id || Math.min(Math.abs(drift), duration - Math.abs(drift)) > 0.18) {
+        fieldVoices.delete(slot);
+        voice.envelope.gain.setTargetAtTime(0, now, 0.018);
+        voice.source.stop(now + 0.085);
+        voice = null;
+      }
+    }
+    if (!audible) return;
+    if (!voice) {
+      const source = context.createBufferSource();
+      source.buffer = fieldBuffer(id);
+      source.loop = true;
+      const envelope = gainNode(ambience, 0);
+      const panner = context.createStereoPanner ? context.createStereoPanner() : null;
+      if (panner) {
+        panner.pan.value = pan;
+        source.connect(panner);
+        panner.connect(envelope);
+      } else source.connect(envelope);
+      voice = { source, envelope, panner, slot, id, phase, started: now };
+      fieldVoices.set(slot, voice);
+      voices.add(voice);
+      source.onended = () => release(voice);
+      const duration = source.buffer.duration;
+      source.start(now, ((phase % duration) + duration) % duration);
+    }
+    voice.envelope.gain.setTargetAtTime(volume, now, 0.045);
+    if (voice.panner) voice.panner.pan.setTargetAtTime(pan, now, 0.045);
+  }
+
+  function mixField(field, now) {
+    const id = window.BayCutTape?.hasSource(field?.id) ? field.id : null;
+    const monitoring = Boolean(id && field.monitor);
+    const volume = monitoring ? 0.91 : (driving ? 0.35 : 0.55);
+    const phase = Number.isFinite(field?.phase) ? field.phase : worldTime;
+    const pan = Math.max(-1, Math.min(1, Number(field?.pan) || 0));
+    mixFieldVoice('subject', id, volume * unit(field?.level), pan, phase, now);
+    mixFieldVoice('wind', id && 'wind', volume * unit(field?.noise) * 0.56 * Math.SQRT2, 0, phase, now);
+    return monitoring;
+  }
+
+  function startBroadcast(now) {
+    const samples = window.BayCutTape.render(queuedTape);
+    queuedTape = null;
+    if (!samples) return;
+    if (broadcast) {
+      broadcast.envelope.gain.setTargetAtTime(0, now, 0.008);
+      broadcast.source.stop(now + 0.040);
+    }
+    const source = context.createBufferSource();
+    source.buffer = context.createBuffer(2, samples.left.length, window.BayCutTape.sampleRate);
+    source.buffer.getChannelData(0).set(samples.left);
+    source.buffer.getChannelData(1).set(samples.right);
+    const filter = context.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 3900;
+    filter.Q.value = 0.58;
+    const envelope = gainNode(effects, 0.91);
+    source.connect(filter);
+    filter.connect(envelope);
+    const voice = { source, envelope, filter };
+    broadcast = voice;
+    voices.add(voice);
+    source.onended = () => release(voice);
+    source.start(now + 0.015);
+    nextMix = now;
+  }
+
+  function playField(raw) {
+    if (!enabled || paused || !context || !window.BayCutTape) return false;
+    const tape = window.BayCutTape.read(raw);
+    if (!tape) return false;
+    // Closing the listening-booth panel can leave resume() pending for one frame.
+    queuedTape = tape;
+    if (context.state === 'running') startBroadcast(context.currentTime);
+    return true;
+  }
+
   function gull(at, pitch, power) {
     const length = 0.44;
     const bird = oscillator('reed', pitch * 0.77, at);
@@ -301,14 +402,16 @@
     }
   }
 
-  function mix(now) {
+  function mix(now, field) {
     if (now < nextMix) return;
     nextMix = now + 0.085;
     const velocity = Math.min(1, speed / 38);
     const inside = driving && !boating ? 0.57 : 1;
     const swell = (0.5 + 0.5 * Math.sin(worldTime * 0.90 + 0.8 * Math.sin(worldTime * 0.27))) ** 1.7;
     const passing = (0.5 + 0.5 * Math.sin(worldTime * 0.71 + 2 * Math.sin(worldTime * 0.19))) ** 2;
-    music.gain.setTargetAtTime(driving ? 0.71 : 0.47, now, 0.18);
+    const monitoring = mixField(field, now);
+    const radioVolume = broadcast ? 0.10 : monitoring ? 0.13 : driving ? 0.71 : 0.47;
+    music.gain.setTargetAtTime(radioVolume, now, broadcast || monitoring ? 0.075 : 0.18);
     mixBed('surf', ambience, now, coast * inside * (0.033 + 0.096 * swell), 540 + 1650 * swell);
     mixBed('street', ambience, now, (1 - coast * 0.8) * inside * (0.029 + 0.042 * passing), 175 + 450 * passing);
     mixBed('quay', ambience, now, docks * inside * 0.019, 205, 100 + passing * 5);
@@ -339,13 +442,14 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     const now = context.currentTime;
     worldTime = Number.isFinite(state.time) ? state.time : now;
+    if (queuedTape) startBroadcast(now);
     // A backgrounded tab should resume on one beat, never play a backlog.
     if (nextStep < now - 0.12) nextStep = now + 0.02;
     while (nextStep < now + 0.11) {
       radioStep(step++, nextStep);
       nextStep += stepLength;
     }
-    mix(now);
+    mix(now, state.field);
   }
 
   function cue(name, source = {}) {
@@ -384,6 +488,7 @@
   }
 
   function sleep() {
+    queuedTape = null;
     if (!context) return;
     master.gain.cancelScheduledValues(context.currentTime);
     master.gain.setValueAtTime(0, context.currentTime);
@@ -426,5 +531,5 @@
     else wake();
   }
 
-  window.BaySound = Object.freeze({ setEnabled, update, cue, pause });
+  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField });
 })();

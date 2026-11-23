@@ -5,6 +5,7 @@
   const streets=["Mercado Street","Gantry Street","Tideway","Marquee Street","Pier Road"];
   function grid(v){const i=Math.max(0,Math.min(4,Math.round((v+144)/72)));return {i,offset:Math.abs(v-(i*72-144))};}
   function through(p,yaw){
+    if(p&&p.z>155&&p.x>68){const n=BayCut.nearest(p.x,p.z);if(n.d<n.route.halfWidth+2)return n.route.name;}
     if(!p||p.x< -158||p.x>156||p.z< -157||p.z>157)return "";
     const x=grid(p.x),z=grid(p.z);if(Math.min(x.offset,z.offset)>10.5)return "";
     const ns=x.offset<z.offset;
@@ -12,6 +13,7 @@
     return ns?avenues[x.i]:streets[z.i];
   }
   function segment(a,b){
+    if(Math.max(a.z,b.z)>165)return BayCut.nearest((a.x+b.x)*.5,(a.z+b.z)*.5).route.name;
     return Math.abs(b.x-a.x)>Math.abs(b.z-a.z)?streets[grid((a.z+b.z)*.5).i]:avenues[grid((a.x+b.x)*.5).i];
   }
   function atlas(ctx,px,py,scale){

@@ -13,7 +13,10 @@
     downtown:[[-8.8,60,2],[-8.6,28,0],[-8.6,9,0],[-23,9.3,4],[-8.6,9,0]],
     beach:[[176,47,5],[171,60,2],[170,83,0],[171.5,62,1]],
     west:[[-81,112,2],[-81,83,1],[-94,81.4,5],[-81,83,0]],
-    north:[[81,110,2],[81,133,0],[105,135,3],[81,133,1]]
+    north:[[81,110,2],[81,133,0],[105,135,3],[81,133,1]],
+    iceRun:[[181.8,330.6,7],[184.7,326.7,0],[200,325.5,0],[206.6,322,0],[209.7,319.9,0],[224,319.9,0],
+      [238.5,320,7],[224,320.35,0],[209.7,320.35,0],[200,325.7,0],[185.2,326.8,0]],
+    birdHide:[[105,268.5,10],[107.4,268.6,3],[105.3,265.4,5],[102.4,266.1,4]]
   };
   const cast=[
     ["June","tourist","motel",2,["Lost my demo on the beach side of the Marlin. Try the south end. Blue dot on the label.","Room twelve has the good shower. Don't tell the other guests."]],
@@ -43,6 +46,12 @@
       ["dock","dockhand",1,2,-.35],["dock","courier",2,1,.4],["mercado","local",3,2,.28],["mercado","tourist",2,3,-.4],
       ["west","local",1,0,0],["west","runner",4,2,.35],["north","tourist",3,2,0],["north","local",5,1,.27]];
     for(const [rt,role,style,start,offset] of busy)add(rt,style,role,start,offset,null,null);
+    add("iceRun",1,"dockhand",0,0,"Nell Soto",["If Dot asks, this is the second box of ice. First one went in my iced tea.",
+      "Granddad named that boat after my mother. Even the bill collector calls her Little Dot."]);
+    people.at(-1).fieldSource="trawler";
+    add("birdHide",5,"fisher",0,0,"Ada Pike",["Watch the pink one on the end. She always takes three steps before she lifts.",
+      "I used to count this flock from my kitchen window. The knees still get me out here."]);
+    people.at(-1).fieldSource="spoonbills";
     return people;
   }
   const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));

@@ -1,4 +1,4 @@
-/* The two working landings, outboard handling, and the club's marked-water courses. */
+/* Public landings, outboard handling, and the club's marked-water courses. */
 (() => {
   "use strict";
   const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
@@ -8,7 +8,8 @@
   const coast=z=>213+Math.sin(z/26*.82)*1.65+Math.cos(z/26*1.91)*.8;
   const docks=[
     {kind:"landing",id:"south",name:"Marlin Pier",x:241,z:-119,headW:7.5,headD:13,footX:184.5,walkW:4.5,level:.37},
-    {kind:"landing",id:"north",name:"North Float",x:234,z:92,headW:7,headD:10,footX:200,walkW:3,level:.46}
+    {kind:"landing",id:"north",name:"North Float",x:234,z:92,headW:7,headD:10,footX:200,walkW:3,level:.46},
+    BayCut.dock
   ];
   const hulls={
     needle:{name:"Needle 19",detail:"Light hull · tight turns",top:25,power:8.8,turn:1.31,grip:3.7},
@@ -18,7 +19,9 @@
   };
   const sails=[[239,28,1.3,.7],[272,-59,1.5,1.1],[252,147,1.4,-.52],[288,212,1.8,.4]];
   const perimeter=[];for(let z=-180;z<=180;z+=60)perimeter.push({x:429,z});
-  for(let x=236;x<429;x+=48)for(const z of [-183,183])perimeter.push({x,z});
+  for(let x=236;x<429;x+=48){perimeter.push({x,z:-183});if(x>325)perimeter.push({x,z:183});}
+  for(const z of [210,258,306,350])perimeter.push({x:336,z});
+  for(const x of [238,285])perimeter.push({x,z:356});
   function deck(d,x,z,r=0){
     return Math.abs(x-d.x)<=d.headW/2-r&&Math.abs(z-d.z)<=d.headD/2-r||
       x>=d.footX+r&&x<=d.x&&Math.abs(z-d.z)<=d.walkW/2-r;
@@ -35,7 +38,9 @@
     v.lean=ease(v.lean,-v.yawRate*pace*.26+.017*Math.sin(b),5,dt);
   }
   function navigable(x,z){
-    if(x<coast(z)+2.0||x>431||Math.abs(z)>186||Math.hypot(x-beacon.x,z-beacon.z)<6.7)return false;
+    const north=z>180,edge=north?BayCut.coast(z):coast(z);
+    const outer=north?431-95*Math.min(1,Math.max(0,(z-186)/24)):431;
+    if(x<edge+2||x>outer||z< -186||z>360||Math.hypot(x-beacon.x,z-beacon.z)<6.7)return false;
     if(docks.some(d=>deck(d,x,z,-.75)))return false;
     return !sails.some(([bx,bz,s,yaw])=>{
       const dx=x-bx,dz=z-bz,across=dx*Math.cos(yaw)-dz*Math.sin(yaw),along=dx*Math.sin(yaw)+dz*Math.cos(yaw);
@@ -169,11 +174,23 @@
       return dist(this.player,this.target())<=dist(this.rival,this.target());
     }
   }
+  function clearWorkingHull(v,h){
+    const dx=v.x-h.x,dz=v.z-h.z,c=Math.cos(h.yaw),s=Math.sin(h.yaw);
+    const across=dx*c-dz*s,along=dx*s+dz*c,relative=v.yaw-h.yaw;
+    const side=h.halfWidth+.86+1.65*Math.abs(Math.sin(relative))-Math.abs(across);
+    const end=h.halfLength+.86+1.65*Math.abs(Math.cos(relative))-Math.abs(along);
+    if(side<=0||end<=0)return false;
+    const edge=side<end,sign=(edge?across:along)<0?-1:1,nx=(edge?c:s)*sign,nz=(edge?-s:c)*sign;
+    const push=Math.min(side,end)+.02;
+    v.x+=nx*push;v.z+=nz*push;
+    const inward=Math.min(0,v.vx*nx+v.vz*nz);v.vx-=1.07*inward*nx;v.vz-=1.07*inward*nz;
+    v.speed=v.vx*Math.sin(v.yaw)+v.vz*Math.cos(v.yaw);return true;
+  }
   function readRecords(raw){
     const result={};for(const c of courses)for(const id of ["needle","mako"]){
       const key=c.id+"/"+id,value=raw?.[key];
       if(Number.isFinite(value)&&value>0&&value<86400)result[key]=value;
     }return result;
   }
-  window.BayMarina={docks,beacon,hulls,courses,perimeter,sails,start,deck,landing,berth,moor,vessel,pose,helm,disturb,separate,navigable,fits,follow,crossing,Race,readRecords};
+  window.BayMarina={docks,beacon,hulls,courses,perimeter,sails,start,deck,landing,berth,moor,vessel,pose,helm,disturb,separate,clearWorkingHull,navigable,fits,follow,crossing,Race,readRecords};
 })();
