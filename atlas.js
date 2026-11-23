@@ -605,7 +605,10 @@
     if(street&&opt.weather){
       BayCoastArt.mapSurface(ctx,opt,px,py,visible);
       if(visible(px(-37.4),py(-132.2),13*s))BayMercadoArt.map(ctx,px,py,s,opt.weather,streetTime);
+      const bay=BayMotelParking.bay;
+      if(visible(px(bay.x),py(bay.z),6*s))BayMotelParking.map(ctx,px,py,s);
     }
+    if(atlas&&!opt.marina?.bayChart)BayStreetNames.atlas(ctx,px,py,s);
     if(radar&&player&&Number.isFinite(opt.cameraYaw)) cameraWedge(ctx,px(player.x),py(player.z),opt.cameraYaw,ui);
     const ferry=opt.ferry,ship=ferry?.ship;
     if(ship){
@@ -705,6 +708,15 @@
       const r=(radar?4.0:3.55)*ui;
       disc(ctx,x,y,r+.8*ui,ink);disc(ctx,x,y,r,"#efbc6d");
       rect(ctx,x-.18*r,y-.68*r,.36*r,.83*r,ink);disc(ctx,x,y+.49*r,.19*r,ink);
+    }
+    if(!street&&opt.personal&&!opt.marina?.bayChart){
+      const x=px(opt.personal.x),y=py(opt.personal.z);
+      if(radar||visible(x,y)){
+        const [a,b]=radar?edgePoint(x,y,w,h,true,9*ui):[x,y],k=ui*(radar?.83:1.02);
+        ctx.save();ctx.translate(a,b);ctx.scale(k,k);disc(ctx,0,0,6.2,ink);disc(ctx,0,0,5.2,"#8cddc8");
+        path(ctx,[[-3.4,1.6],[-3.4,-.60],[-2.35,-.95],[-1.4,-2.15],[1.25,-2.15],[2.45,-.85],[3.3,-.45],[3.3,1.6]],ink);
+        disc(ctx,-2,1.7,.78,ink);disc(ctx,2,1.7,.78,ink);ctx.restore();
+      }
     }
     for(const tape of opt.tapes||empty) {
       const x=px(tape.x),y=py(tape.z);

@@ -18,6 +18,7 @@
   const solids=city.solids, sound=window.BaySound,garage=city.garage;
   for(const prop of BayExposure.props)solids.push({...prop,bottom:0,streetProp:true});
   for(const prop of BayMercadoArt.blocks)solids.push({...prop,bottom:0,top:prop.h,streetProp:true});
+  solids.push(BayMotelParking.stop);
   const locations=[
     {x:151,z:-13,name:"Marlin Motel"}, {x:6,z:66,name:"Cine Luna"},
     {x:-138,z:-73,name:"Port Sol"}, {x:-66,z:-137,name:"El Mercado"},
@@ -217,6 +218,18 @@
     [0,1,2,2,false,2,.30,"coupe"],[1,1,1,2,true,0,.45,"hatch"],[2,0,1,2,false,1,.65,"cab"]];
   rushHour.forEach(([ix,iz,w,d,rev,j,f,kind],i)=>{const path=laneLoop(ix,iz,w,d,rev),k=(j+1)%4,a=path[j],b=path[k];
     const v=addCar(kind,kind==="cab"?"#e4ad4a":paints[(i+2)%6],a.x+(b.x-a.x)*f,a.z+(b.z-a.z)*f,Math.atan2(b.x-a.x,b.z-a.z),path,6.0+i*.44);v.corner=k;v.speed=v.pace;});
+  let personalCar=null;
+  function restoreParking(){
+    const entry=BayMotelParking.read(cars);if(!entry)return;
+    const v=entry.v;
+    for(const spot of [entry,BayMotelParking.bay,v]){
+      const pose={kind:v.kind,x:spot.x,z:spot.z,yaw:spot.yaw};
+      if(!fitsCar(v,pose.x,pose.z,pose.yaw)||cars.some(other=>other!==v&&dist(other,pose)<6&&BayDriving.contact(pose,other)))continue;
+      Object.assign(v,pose,{path:null,used:true,flatSide:entry.flatSide,flatAxle:entry.flatSide?entry.flatAxle:null,flatLoad:entry.flatSide?1:0});
+      BayDriving.settle(v);personalCar=v;break;
+    }
+  }
+  restoreParking();
   // The retired $250 tune covered every car in this fleet. Carry that purchase into each car's record once.
   if(save.tuned){
     for(const v of cars){v.upgrades.engine=true;save.upgrades[v.garageKey]=v.upgrades;}
@@ -247,11 +260,16 @@
   function playStart(){
     if(play)return;play=true;$("intro").hidden=true;$("hud").hidden=false;document.activeElement?.blur();cameraSnap();
     try{if(localStorage.getItem("sundownBay.audio")==="on"){radio=sound.setEnabled(true);$("audioKey").querySelector("span").textContent=radio?"Sol FM":"Sound off";}}catch{}
-    captureMouse();note("Marlin Motel","Room 14 is yours. "+(cars[0].color===paints[0]?"Keys are in the coral coupe.":"Your "+formatVehicle(cars[0])+" is out front."),4.3);
+    captureMouse();note("Marlin Motel","Room 14 is yours. "+(personalCar?"Your "+formatVehicle(personalCar)+" is marked on the map.":cars[0].color===paints[0]?"Keys are in the coral coupe.":"Your "+formatVehicle(cars[0])+" is out front."),4.3);
   }
   const onStreetFeet=()=>play&&!room&&!car&&!skiff&&!transfer&&!deckStep&&motion.jumpTime<0;
   const byRoomDoor=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayMarlinRoom.outside)<2.45;
   const byCounter=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayMercadoArt.counter)<2.85;
+  const atGuestParking=()=>play&&!active&&!heat&&!transfer&&!room&&car&&!car.meetCar&&Math.hypot(car.vx,car.vz)<.55&&BayMotelParking.inside(car);
+  function carPin(){
+    if(!personalCar||car===personalCar)return null;
+    return {kind:"your-car",x:personalCar.x,z:personalCar.z,name:"Your "+formatVehicle(personalCar)};
+  }
   function roomAction(){
     let nearest=null,best=1.35;
     for(const [name,point] of Object.entries(BayMarlinRoom.points)){
@@ -527,7 +545,7 @@
     if(a.exiting?a.p>0:a.p<1)return;
     if(a.passenger)v.passengerDoor=0;else v.doorAngle=0;
     transfer=null;lastHud=-10;lastMap=-10;skidLast=null;
-    if(a.exiting){car=null;resetFeet();BayDriving.settle(v);return;}
+      if(a.exiting){car=null;resetFeet();BayDriving.settle(v);if(v===personalCar)BayMotelParking.write(v);return;}
     const borrowed=!!v.path;v.path=null;v.used=true;car=v;
     if(a.passenger){beginMeet("photo");return;}
     if(borrowed){addHeat(1);note("Dispatch","A driver called in the switch.",2.3);}
@@ -679,7 +697,7 @@
     if(road.length>=3){
       const [a,b,c]=road;
       const side=(b.z-a.z)*(c.x-b.x)-(b.x-a.x)*(c.z-b.z);
-      if(side)turn=(side>0?"↱ Right":"↰ Left")+" in "+Math.max(1,Math.round(dist(a,b)))+" m";
+      if(side)turn=(side>0?"↱ Right":"↰ Left")+" on "+BayStreetNames.segment(b,c)+" in "+Math.max(1,Math.round(dist(a,b)))+" m";
     }
     return lastGuide={x:car.x,z:car.z,tx:target.x,tz:target.z,points,meters,turn};
   }
@@ -1108,6 +1126,7 @@
     const fixed=tirePosition(v);
     v.flatSide=0;v.flatAxle=null;v.flatLoad=0;BayDriving.settle(v);
     serviceVehicle=null;serviceTime=0;lastHud=lastMap=-10;
+      if(v===personalCar)BayMotelParking.write(v);
     note(garage.name,fixed+" tire replaced.",3);
   }
   function serviceLift(v){
@@ -1380,6 +1399,7 @@
       cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode==="city"?availableJobPins():[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&shooting()?null:currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
+      personal:carPin(),
       photograph:shooting(),take,stuntRecord:save.stunt,
       searchPoint:heat&&chase.searching?chase.lastSeen:null,
       roadblock:skiff?null:backup.roadblock,air:backup.air,ferry:ferryScene,ferryActive:!!active?.ferry,inez:play?ferryScene?.rider||BayFerry.pickup:null,
@@ -1476,7 +1496,7 @@
     return Math.max(hours.night,setLight);
   }
   function marlinArt(){
-    if(!roomArtReady){BayMarlinRoom.install(model);roomArtReady=true;}
+    if(!roomArtReady){BayMarlinRoom.install(model);BayMotelParking.install(model);roomArtReady=true;}
   }
   function paperBag(list,person,t,walking){
     model("rosario-bag",g=>{
@@ -1551,6 +1571,7 @@
     const visible=[],owned=transfer?.v||car;
     if(see(BayMarlinRoom.outside,105)){
       marlinArt();BayMarlinRoom.outsideWorld(visible,see,hours);
+      const bay=BayMotelParking.bay;view.draw("marlin-parking",bay.x,0,bay.z);
     }
     if(see(BayMercadoArt.counter,110)){
       if(!marketArtReady){BayMercadoArt.install(model);marketArtReady=true;}
@@ -1792,6 +1813,8 @@
   function hud(){
     const p=pos(),tar=currentTarget(),area=room?"Marlin Motel · 14":district(p);$("district").textContent=area;$("money").textContent=cash(save.wallet);
     $("cityTime").textContent=BayHours.time(hours.minute);$("miniButton").hidden=!!room;
+    const road=car&&!active?.take?BayStreetNames.through(car,car.yaw):"";
+    $("streetName").hidden=!road||road===area;$("streetName").textContent=road;
     $("stars").innerHTML='<span class="on">'+"★".repeat(heat)+'</span>'+"☆".repeat(5-heat);
     $("stars").setAttribute("aria-label",heat?heat+" of 5 heat":"No heat");
     const status=$("pursuitStatus");status.hidden=!heat;
@@ -1880,6 +1903,7 @@
     else if(shooting())contextHint("Space","Take photo  ·  Click also works");
     else if(active?.meet)contextHint("","");
     else if(car&&car===meet.jules)contextHint("E","Leave the passenger seat");
+    else if(atGuestParking())contextHint("F",car===personalCar?"Room 14 parking permit":"Keep this car · Room 14 guest parking");
     else if(byRoomDoor())contextHint("F","Unlock Room 14");
     else if(byCounter())contextHint("F",hours.market==="open"?"See Rosario’s orders":hours.market==="setup"?"Talk to Rosario":"Read the counter hours");
     else if(diner)contextHint("F",active?.plate?"Hand "+diner.name+" the bag":"Talk to "+diner.name);
@@ -1956,6 +1980,9 @@
   function showDesk(body){
     signedNote(body,"If you're headed across town tonight, stop by the counter. Somebody on late shift always needs a plate. South side of El Mercado, under the striped awnings. I start serving at six.","Rosario");
     body.append(makeButton("Rosario’s night counter","Pin the counter on your city map.","Set waypoint",()=>clockPin(BayMercadoArt.counter)));
+    const pin=carPin();
+    body.append(pin?makeButton(pin.name,"Your guest permit. Parked in "+district(pin)+".","Locate",()=>clockPin(pin)):
+      makeButton("Guest parking","Stop in the space painted 14 outside your door to keep a personal car.","Find the space",()=>clockPin(BayMotelParking.bay)));
     if(save.plates.served){
       const list=document.createElement("ul");list.className="order-history";list.setAttribute("aria-label","Rosario’s delivery slips");
       for(const c of BayPlates.regulars)if(save.plates.visits[c.id]){
@@ -2129,6 +2156,7 @@
   function openPanel(next,redraw=false){
     if(!play)return;if(panel===next&&!redraw){closePanel();return;}
     if((next==="room-bed"||next==="room-desk")&&(!room||"room-"+roomAction()!==next)||next==="market"&&!byCounter())return;
+    if(next==="guest-parking"&&!atGuestParking())return;
     if(next==="take-brief"&&!canJoinTake()||next==="take-result"&&!active?.take?.receipt||next==="take-poster"&&!atTakePoster())return;
     if(panel==="take-result"&&next!=="take-result"&&active?.take?.receipt)wrapTake();
     if(next==="map"&&!redraw)chartMode=skiff?"bay":"city";
@@ -2155,6 +2183,15 @@
         button.onclick=()=>{if(panel!==button.value){openPanel(button.value);$("panelBody").querySelector(".shop-nav [aria-pressed='true']").focus();}};
       }
       if(next==="respray")showPaintTicket(b,car);else showPartsTicket(b,car);
+    }else if(next==="guest-parking"){
+      title="Guest parking";kicker="Marlin Motel  /  Room 14";
+      const v=car,tag=document.createElement("p");tag.className="market-hours";
+      tag.textContent=personalCar?"The permit is in your "+formatVehicle(personalCar)+".":"The desk has one parking permit in your name.";b.append(tag);
+      b.append(makeButton(v===personalCar?"Update parking spot":"Keep the "+formatVehicle(v),
+        "The map remembers where you leave this car, even after you close the game.",personalCar&&v!==personalCar?"Transfer permit":"Room 14",()=>{
+          if(!atGuestParking()||car!==v)return;
+          personalCar=v;BayMotelParking.write(v,true);closePanel();note("Room 14 parking",formatVehicle(v)+"  ·  Guest permit on the dash.",3.4);
+        }));
     }else if(next==="room-bed"){
       title="Set the alarm";kicker="Marlin Motel  /  Room 14";showAlarm(b);
     }else if(next==="room-desk"){
@@ -2228,6 +2265,8 @@
       if(save.edition)b.append(makeButton("Bay Wire",BayExposure.routes[save.edition].headline,"Read edition",()=>openPanel("edition")));
       if(save.meet.cover)b.append(makeButton("Bay Wire · Night edition","Your photograph from Cine Luna.","Read cover",()=>openPanel("meet-cover")));
       if(!active)b.append(makeButton("Rosario León","Night counter at El Mercado. Serving from 6 PM to 2 AM.","Set waypoint",()=>clockPin(BayMercadoArt.counter)));
+      const personalPin=carPin();
+      if(!active&&personalPin)b.append(makeButton(personalPin.name,"Last parked in "+district(personalPin)+".","Locate car",()=>clockPin(personalPin)));
       if(!active)b.append(makeButton("Portside After Dark","Find Romy’s stunt shoot and the night races at Portside Tire.","Set waypoint",()=>{waypoint={...meetPin};closePanel();note("Jules","Teal coupe for a ride. Walk up to Romy’s red 27 for the shoot.",3);}));
       const stats=document.createElement("div");stats.className="statline";stats.textContent="Jobs done "+save.paid+"  /  Best circuit "+(save.best?watch(save.best):"—")+(save.dash?"  /  Best dash "+raceWatch(save.dash.splits.at(-1)):"");b.append(stats);
     }else if(next==="map"){
@@ -2244,7 +2283,8 @@
       const list=document.createElement("select");list.setAttribute("aria-label","Choose a map destination");
       const initial=document.createElement("option");initial.textContent=active?"Following the current job":"Choose a destination";initial.value="";list.append(initial);
       const landings=bay.docks.map(d=>({...bay.berth(d,vacant(skiff,d,1)?1:-1),name:d.name}));
-      const places=chartMode==="city"?locations.concat(jobPins,save.stunt?[BayTakePoster.place]:[]):[...landings,{x:bay.beacon.x+11,z:bay.beacon.z,name:"Gull Light"}];
+      const ownPin=carPin();
+      const places=chartMode==="city"?locations.concat(jobPins,[BayMotelParking.bay],ownPin?[ownPin]:[],save.stunt?[BayTakePoster.place]:[]):[...landings,{x:bay.beacon.x+11,z:bay.beacon.z,name:"Gull Light"}];
       places.forEach((v,i)=>{const opt=document.createElement("option");opt.value=i;opt.textContent=v.name;list.append(opt);});list.disabled=!!active;
       list.onchange=()=>{if(list.value!==""){waypoint={...places[Number(list.value)]};closePanel();note("Map pin",waypoint.name,2);}};
       b.append(list);c.addEventListener("click",ev=>{if(active)return;const rect=c.getBoundingClientRect(),frame=atlasFrame(),scale=c.width/frame.span;
@@ -2256,6 +2296,7 @@
         let jobPin=null,hitRadius=6;
         for(const site of jobPins){const gap=Math.hypot(site.x-wx,site.z-wz);if(gap<hitRadius){jobPin=site;hitRadius=gap;}}
         if(nearDock)waypoint={...(skiff||chartMode==="bay"?landings[bay.docks.indexOf(nearDock)]:shorePins[bay.docks.indexOf(nearDock)])};
+        else if(chartMode==="city"&&ownPin&&Math.hypot(ownPin.x-wx,ownPin.z-wz)<4)waypoint={...ownPin};
         else if(venue)waypoint={...venue};
         else if(jobPin)waypoint={...jobPin};
         else if(chartMode==="bay"&&wx>215){let x=clamp(wx,219,424);const z=clamp(wz,-179,179);while(!bay.navigable(x,z)&&x<425)x++;
@@ -2367,7 +2408,7 @@
     else if(ev.code==="Space"&&!car&&!skiff&&!transfer&&!deckStep)motion.jump();
     else if(ev.code==="KeyT"&&!transfer&&!deckStep){if(skiff&&regattaResult&&!active)castOff(regattaResult.kind,regattaResult.c.id,true);else retryDash();}
     else if(ev.code==="KeyF"&&!transfer&&!deckStep){
-      if(car)openPanel(active?.story?.interaction(car)||"upgrades");
+      if(car)openPanel(atGuestParking()?"guest-parking":active?.story?.interaction(car)||"upgrades");
       else if(skiff||bay.landing(hero.x,hero.z)){if(!active?.regatta&&!active?.ferry)openRaceSheet();}
       else talk();
     }

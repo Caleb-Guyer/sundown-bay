@@ -10,6 +10,8 @@ Use **WASD** or the arrow keys to move and steer. Move the mouse to look around.
 
 Across the street from the starter car, press **F** at the teal door numbered **14** to enter your room at the Marlin. Walk over to the bed to set the alarm, or read Rosario’s handwritten note on the desk. The city clock carries over between visits. Lamps and headlights come on after dark. Short coastal showers leave the pavement wet for a while.
 
+Park a car in the space painted **14**, press **F**, and put the Marlin guest permit on its dash. When you step out of that car, the map remembers where you parked it, including after a browser restart. Open the phone or city map to locate it. A permit can move to another car in space 14. The street atlas and driving directions share the same street names.
+
 **An Extra Plate** starts at Rosario’s night counter on the south frontage of **El Mercado**, serving **6 PM–2 AM**. Walk up, press **F**, and choose one of two orders. Hot food earns a tip for quick delivery, and the thermos and flan travel best with a smooth ride. Park at the customer’s workplace, step out and press **F** to hand over the bag. Rosario rotates the slips, the regulars remember you, and their receipts accumulate on the motel desk.
 
 For **Portside After Dark**, drive to Portside Tire and look for three cars under the work lights. Slow down beside Romy’s red coupe and honk with **H**. Follow the marked turns and cross the Cine Luna finish northbound within 90 seconds. Foundry Run and Mercado Loop alternate. A win pays **$260**, and Romy remembers the result. Drive on past and you can watch Jules take the challenge.
