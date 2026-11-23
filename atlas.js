@@ -598,6 +598,10 @@
       ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);
       paintStatic(ctx,solids,street);ctx.restore();
     }
+    if(street&&opt.dusk>.01){
+      ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=opt.dusk*.35;
+      rect(ctx,0,0,w,h,"#23304f");ctx.restore();
+    }
     if(radar&&player&&Number.isFinite(opt.cameraYaw)) cameraWedge(ctx,px(player.x),py(player.z),opt.cameraYaw,ui);
     const ferry=opt.ferry,ship=ferry?.ship;
     if(ship){
@@ -725,6 +729,7 @@
         disc(ctx,x,y,1.18*ui,"#b7bda3");
       }
     }
+    if(street&&opt.meet)BayMeetArt.drawMap(ctx,opt,px,py,s,ui,visible);
     if(street&&opt.inez){
       const r=opt.inez,x=px(r.x),y=py(r.z),colors=BayFerryPassengerArt.palette,lift=ferry?.motion.lift||0;
       if(visible(x,y)){
@@ -760,10 +765,12 @@
         if(player.driving && !playerCar) carSprite(ctx,player,x,y,s,streetTime);
         if(!player.driving&&!player.inCabin&&!opt.aboard) personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
         if(opt.aboard){const v=opt.marina.player,helm=BayDriving.world(v,-.38,-.35);disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
-        const r=Math.max(player.driving?2.7*s:1.1*s,5.2*ui);
-        ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.lineWidth=1.5*ui;ctx.strokeStyle=mint;ctx.stroke();
-        const vx=Math.sin(player.yaw||0),vy=-Math.cos(player.yaw||0);
-        line(ctx,x+vx*r,y+vy*r,x+vx*(r+3.2*ui),y+vy*(r+3.2*ui),"#f7ffec",2.3*ui);
+        if(!opt.photograph){
+          const r=Math.max(player.driving?2.7*s:1.1*s,5.2*ui);
+          ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.lineWidth=1.5*ui;ctx.strokeStyle=mint;ctx.stroke();
+          const vx=Math.sin(player.yaw||0),vy=-Math.cos(player.yaw||0);
+          line(ctx,x+vx*r,y+vy*r,x+vx*(r+3.2*ui),y+vy*(r+3.2*ui),"#f7ffec",2.3*ui);
+        }
       } else playerIcon(ctx,x,y,(radar?7.15:6.6)*ui,player.yaw);
     }
     if(street&&opt.story?.progress>=.65){

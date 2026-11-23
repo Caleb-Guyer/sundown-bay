@@ -8,6 +8,10 @@ Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the ra
 
 Use **WASD** or the arrow keys to move and steer. Move the mouse to look around. Press **E** beside a car to get in or out. **Space** is the handbrake while driving and jump on foot. **M** opens the map and **R** toggles sound.
 
+For **Portside After Dark**, drive to Portside Tire and look for three cars under the work lights. Slow down beside Romy’s red coupe and honk with **H**. Follow the marked turns and cross the Cine Luna finish northbound within 90 seconds. Foundry Run and Mercado Loop alternate. A win pays **$260**, and Romy remembers the result. Drive on past and you can watch Jules take the challenge.
+
+On foot, press **F** beside Jules’s teal coupe to ride shotgun. Use the mouse or arrows to frame Romy beneath the Cine Luna marquee. Press **Space** or click to take a photo, or **X** to recenter. Your best shot of the run becomes the next **Bay Wire** night cover. Reopen it with **J**.
+
 Visit either pier and press **F** at the race desk to enter **Breakwater Run**. Pick the tight-turning **Needle 19** or the faster **Mako 22** and race Paz Ríos on three courses. Cross each gate between the red and green buoys in order. **W/S** work the throttle and reverse, **A/D** steer, and holding **Space** trims the bow up for faster straights and wider turns. First place earns **$220**, **$310** or **$400** depending on the course. Second place earns **$90**. Each course keeps a time record for each boat.
 
 Choose **Free cruise** to explore the bay and Gull Light. You can also walk out to a moored boat and board with **E**. Follow the anchors on the **M** offshore chart to Marlin Pier or North Float. Slow below four knots alongside an open berth and press **E** to tie up and step ashore.

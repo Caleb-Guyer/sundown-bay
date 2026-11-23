@@ -76,13 +76,13 @@
   const FRAGMENT = PRECISION+`
     varying vec3 vColor,lightCoord; varying vec2 surface; varying float haze;
     uniform vec4 waterParams;
-    uniform sampler2D sunDepth,paper; uniform float texel,hasShadow,castOnly,ghost,beam;
+    uniform sampler2D sunDepth,paper; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow;
     float shadeAt(vec2 uv){
       vec2 rg=texture2D(sunDepth,uv).rg;
       return step(dot(rg,vec2(1.,1./255.))+.00047,lightCoord.z);
     }
     void main(){
-      if(castOnly>.5){gl_FragColor=vec4(.12,.15,.24,.28*(1.-haze));return;}
+      if(castOnly>.5){gl_FragColor=vec4(.12,.15,.24,.28*(1.-.65*dusk)*(1.-haze));return;}
       if(beam>.5){gl_FragColor=vec4(1.,.946,.736,vColor.r*(1.-haze));return;}
       if(ghost>.5){
         if(mod(floor(gl_FragCoord.x)+2.*floor(gl_FragCoord.y),4.)<2.)discard;
@@ -100,7 +100,13 @@
         vec3 sea=vColor*(.94+.085*swell*local+.045*ripple*local);
         sea=mix(sea,vec3(.58,.80,.75),(.11+.32*local)*crest);
         sea=mix(sea,vec3(1.,.77,.57),sunset*(.065+.40*crest)*(1.-haze*.65));
-        gl_FragColor=vec4(mix(sea,vec3(.84,.69,.68),haze*.83),1.);return;
+        vec3 seaMist=vec3(.84,.69,.68);
+        if(dusk>0.){
+          vec3 evening=sea*vec3(.39,.48,.65)+vec3(.035,.037,.058);
+          evening+=vec3(.15,.064,.062)*sunset*crest;
+          sea=mix(sea,evening,dusk);seaMist=mix(seaMist,vec3(.54,.39,.46),dusk);
+        }
+        gl_FragColor=vec4(mix(sea,seaMist,haze*.83),1.);return;
       }
       float shade=0.;
       if(hasShadow>.5&&all(greaterThan(lightCoord.xy,vec2(.001)))&&all(lessThan(lightCoord.xy,vec2(.999)))){
@@ -115,7 +121,15 @@
       vec3 ink=mix(vec3(dot(vColor,vec3(.25,.58,.17))),vColor,1.08);
       vec3 light=mix(vec3(1.055,1.018,.957),vec3(.63,.72,.88),shade);
       vec3 color=ink*light*(1.+fleck*.056+wash*.030);
-      gl_FragColor=vec4(mix(color,vec3(.87,.691,.651),haze),1.);
+      vec3 mist=vec3(.87,.691,.651);
+      if(dusk>0.){
+        // Cool skylight keeps lane paint legible. The last sunlight still has a direction.
+        vec3 evening=mix(vec3(.57,.62,.77),vec3(.43,.52,.68),shade);
+        vec3 night=ink*evening*(1.+fleck*.044+wash*.022)+vec3(.020,.026,.036);
+        color=mix(color,mix(night,vColor*1.07,glow),dusk);
+        mist=mix(mist,vec3(.56,.405,.465),dusk);
+      }
+      gl_FragColor=vec4(mix(color,mist,haze),1.);
     }`;
   const SUNVERT=LIGHT+`attribute vec3 pos;void main(){gl_Position=vec4(lightClip(pos),1.);}`;
   const SUNFRAG=PRECISION+`void main(){vec2 rg=fract(gl_FragCoord.z*vec2(1.,255.));rg.x-=rg.y/255.;gl_FragColor=vec4(rg,0.,1.);}`;
@@ -137,7 +151,8 @@
         gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;};
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
-      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow"])this.u[key]=gl.getUniformLocation(p,key);
+      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow"])this.u[key]=gl.getUniformLocation(p,key);
+      this.glow=0;
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0); const n=.13,f=1100;gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -187,13 +202,14 @@
       gl.useProgram(this.program);gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
       gl.uniform1f(this.u.hasShadow,ok?1:0);gl.uniform1f(this.u.texel,1/sz);gl.clearColor(0,0,0,0);this.bound=null;
     }
-    begin(camera){
+    begin(camera,dusk=0){
       if(!this.gl||this.lost)return;
       const gl=this.gl,c=this.canvas, factor=Math.min(this.maxWidth/innerWidth,this.maxHeight/innerHeight,devicePixelRatio||1)*this.scale;
       const w=Math.max(2,Math.round(innerWidth*factor)), h=Math.max(2,Math.round(innerHeight*factor));
       if(c.width!==w||c.height!==h){c.width=w;c.height=h;}gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
       const sn=Math.sin(camera.yaw),cs=Math.cos(camera.yaw),sp=Math.sin(camera.pitch),cp=Math.cos(camera.pitch);
       const focal=camera.focal||1.5;this.basis={sn,cs,sp,cp,camera,f:focal,aspect:w/h};this.bound=null;this.tiltX=NaN;this.tiltZ=NaN;
+      gl.uniform1f(this.u.dusk,Math.max(0,Math.min(1,dusk||0)));
       gl.uniform3f(this.u.eye,camera.x,camera.y,camera.z);gl.uniform3f(this.u.rightV,cs,0,-sn);
       gl.uniform3f(this.u.upV,-sn*sp,cp,-cs*sp);gl.uniform3f(this.u.forwardV,sn*cp,sp,cs*cp);gl.uniform2f(this.u.focal,focal/(w/h),focal);
     }
@@ -221,8 +237,9 @@
       gl.uniform1f(this.u.beam,1);this.draw(name);gl.uniform1f(this.u.beam,0);
       gl.disable(gl.BLEND);gl.depthMask(true);
     }
-    draw(name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0){
+    draw(name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0){
       const model=this.models.get(name);if(!model)return;const gl=this.gl;
+      if(this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}
       if(tiltX!==this.tiltX||tiltZ!==this.tiltZ){gl.uniform4f(this.u.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));this.tiltX=tiltX;this.tiltZ=tiltZ;}
       gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));gl.drawArrays(gl.TRIANGLES,0,model.count);

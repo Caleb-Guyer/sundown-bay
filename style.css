@@ -211,5 +211,17 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .race-course-line {display:flex;align-items:center;gap:6px;color:#ace9cf}.race-course-line i {font:700 1.2rem/1 Consolas,monospace;display:inline-block;color:#fada88}
 #raceStart {position:absolute;top:25%;left:50%;transform:translateX(-50%);min-width:1.5em;text-align:center;color:#ffe5a2;font:italic 800 clamp(3.1rem,8vw,7rem)/1 Georgia,serif;-webkit-text-stroke:1px #304538;text-shadow:3px 4px #274439}
 .result-slip {padding:10px 12px;border-top:3px double #788a79;border-bottom:3px double #788a79;display:flex;justify-content:space-between;align-items:center}.result-slip strong {font:bold 1.8rem Consolas,monospace}.result-slip span {font:bold 1.4rem Georgia,serif;color:#286555}.panel .finish-detail {margin:9px 0}
+#meetFinder {position:absolute;pointer-events:none;border:1px solid #f6e3c366;color:#f8dfae;box-shadow:0 0 0 100vmax #1c242622}
+#meetFinder::before,#meetFinder::after,#meetFinder i::before,#meetFinder i::after {content:"";position:absolute;width:5%;height:7%;border:0 solid currentColor;filter:drop-shadow(0 1px 1px #17252b)}
+#meetFinder::before {left:-1px;top:-1px;border-width:2px 0 0 2px}
+#meetFinder::after {right:-1px;top:-1px;border-width:2px 2px 0 0}
+#meetFinder i::before {bottom:-1px;left:-1px;border-width:0 0 2px 2px}
+#meetFinder i::after {bottom:-1px;right:-1px;border-width:0 2px 2px 0}
+#meetFinder.in-frame {color:#adf5c8}
+#filmRoll {position:absolute;bottom:.55rem;left:.65rem;background:#202e2bdc;color:inherit;padding:.25em .5em;font:600 clamp(.61rem,1.3vw,.80rem)/1.35 Consolas,monospace}
+#meetFinder.release {animation:shutter-release .17s ease-out}
+@keyframes shutter-release {from{background:#f4e8cbbd}to{background:transparent}}
+.night-edition {width:100%;height:auto;display:block;border:1px solid #7e816e}
+.panel[data-screen="meet-result"],.panel[data-screen="meet-cover"] {width:min(660px,94vw);background:#f0e4c9}
 .atlas-views {display:flex;gap:7px;margin-bottom:7px}.atlas-views button {border:1px solid #738a77;color:#335349;background:transparent;padding:4px 10px;border-radius:2px;font-weight:700}.atlas-views [aria-pressed="true"] {background:#29514c;color:#f7eacc}
 @media(max-width:500px){.hull-choice {grid-template-columns:1fr}.hull-choice canvas {display:none}.club-entry{align-items:flex-start;flex-direction:column}.club-controls kbd {padding:1px 3px}}
