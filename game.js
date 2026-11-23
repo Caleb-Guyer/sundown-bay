@@ -538,6 +538,7 @@
   function cabRank(){
     if(!onStreetFeet()||active||heat||cabs.booking||watchCrew.towing)return null;
     const stand=cabs.nearRank(hero);if(stand)return stand;
+    if(dist(taxi,hero)>14)return null;
     const rank=cabs.curbHail(hero,chase.road(hero));
     return rank&&valid(rank.stand.x,rank.stand.z,.32)?rank:null;
   }
@@ -813,7 +814,11 @@
   }
   function switchCar(){
     if(cabs.booking){
-      if(cabs.booking.stage==="ready"&&dist(hero,taxi)<8.8){if(cabs.board(hero,doorPlan(taxi,false,hero,1))){keys.clear();lastHud=-10;}return;}
+      if(cabs.booking.stage==="ready"){
+        if(dist(hero,taxi)<8.8&&cabs.board(hero,doorPlan(taxi,false,hero,1))){keys.clear();lastHud=-10;}
+        else note("Cab 17","Walk around to Mina’s passenger door.",2);
+        return;
+      }
       if(cabs.playerHeld){if(cabs.askOut())speak("Mina Ortiz","Sure. I’ll pull into the next clear curb.");return;}
     }
     if(swim){const a=seaExit();if(a)seaTransfer(a);return;}
@@ -831,6 +836,7 @@
     const passenger=!!car&&v===meet.jules;
     const approach=doorPlan(v,!!car,hero,passenger?1:0);
     if(!approach){note("Driver's seat",car?"Both doors need more room.":"Walk around to a clear door.",2);return;}
+    if(cabs.booking)cabs.cancelBooking();
     if(active?.dash){active=null;note("Low Tide Dash","You left the course.",2);}
     dashResult=null;skidLast=null;
     transfer={v,passenger,exiting:!!car,side:approach.side,points:approach.points,next:0,
@@ -2460,9 +2466,9 @@
       const use=roomAction();$("objective").hidden=true;$("mode").textContent="Room 14";$("speed").textContent="";
       contextHint(use?"F":"",use==="door"?"Step out to Ocean Drive":use==="bed"?"Set the alarm":use==="desk"?"Read the note on your desk":"Walk to the bed, the desk or the door");
     }else if(b){
-      const riding=b.stage==="ride";
-      contextHint(b.stage==="ready"||riding&&!b.early?"E":b.stage==="waiting"?"J":"",
-        b.stage==="ready"?"Get into Cab 17":riding?(b.early?"Stopping at the next curb":"Ask Mina to pull over")+(isTop()?"":cabWindow()?"  ·  F  Outside view":"  ·  F  Passenger view"):b.stage==="waiting"?"Booking details":"Passenger door");
+      const riding=b.stage==="ride",nearDoor=dist(hero,taxi)<8.8;
+      contextHint(b.stage==="ready"&&nearDoor||riding&&!b.early?"E":b.stage==="waiting"?"J":"",
+        b.stage==="ready"?(nearDoor?"Get into Cab 17":"Walk to Cab 17’s passenger door"):riding?(b.early?"Stopping at the next curb":"Ask Mina to pull over")+(isTop()?"":cabWindow()?"  ·  F  Outside view":"  ·  F  Passenger view"):b.stage==="waiting"?"Booking details":"Passenger door");
     }else if(transfer||deckStep||active?.regatta||swim?.exit)contextHint("","");
     else if(swim){
       const out=seaExit(),find=diveFind();
