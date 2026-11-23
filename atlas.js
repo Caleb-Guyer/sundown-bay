@@ -803,6 +803,10 @@
       if(visible(x,y,9*s)) streetActor(ctx,actor,x,y,s,streetTime);
     }
     if(street&&player?.inCabin)personSprite(ctx,player,px(player.x),py(player.z),Math.max(3,s*1.8),true,rotation);
+    if(street&&opt.cabService)for(const p of opt.cabService.people){
+      if(p.phase==="booth"||p.seat>.55||!visible(px(p.x),py(p.z)))continue;
+      const [skin,shirt]=BayCabArt.colors[p.id];personSprite(ctx,{...p,skin,shirt},px(p.x),py(p.z),Math.max(2.3,s*1.42),false,rotation);
+    }
     let playerCar;
     for(const car of cars) {
       const x=px(car.x),y=py(car.z);
@@ -818,6 +822,18 @@
         disc(ctx,x,y,3.4*ui,ink);disc(ctx,x,y,2.35*ui,t%1<.5?"#ff8c87":"#a4eaff");
       } else if(radar) {
         disc(ctx,x,y,1.18*ui,"#b7bda3");
+      }
+    }
+    if(opt.cabService){
+      BayCabArt.map(ctx,opt,px,py,s,visible);
+      if(street){
+        const cab=opt.cabService.vehicle,seat=bayCarLayout(cab.kind);
+        if(visible(px(cab.x),py(cab.z))){
+          const mina=BayDriving.world(cab,-seat.seatX,.36);disc(ctx,px(mina.x),py(mina.z),Math.max(1,s*.14),BayCabArt.colors.mina[0]);
+          if(opt.cabService.booking?.seat>.55){
+            const rider=BayDriving.world(cab,seat.seatX,.36);disc(ctx,px(rider.x),py(rider.z),Math.max(1,s*.14),"#af7353");
+          }
+        }
       }
     }
     if(street&&opt.meet)BayMeetArt.drawMap(ctx,opt,px,py,s,ui,visible);
@@ -857,6 +873,11 @@
       const x=px(player.x),y=py(player.z);
       if(street) {
         if(player.driving && !playerCar) carSprite(ctx,player,x,y,s,streetTime);
+        if(opt.cabService)for(const p of opt.cabService.people){
+          if(!p.ride||p.seat<=.55||!visible(px(p.x),py(p.z)))continue;
+          const rider=BayDriving.world(p.ride,bayCarLayout(p.ride.kind).seatX,.36);
+          disc(ctx,px(rider.x),py(rider.z),Math.max(1,s*.14),BayCabArt.colors[p.id][0]);
+        }
         if(opt.swim)BaySwimmerArt.map(ctx,x,y,s,opt.swim,streetTime);
         else if(!player.driving&&!player.inCabin&&!opt.aboard){
           personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);

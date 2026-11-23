@@ -137,7 +137,7 @@
     }
   }
 
-  function cabinMesh(g, shape, kind, paint, doors) {
+  function cabinMesh(g, shape, kind, paint, doors, windshield) {
     const [rear,roofRear,roofFront,front,sill,roof,baseHalf,roofHalf] = shape.glass;
     const van = kind === "van";
     const roofPaint = kind === "cruiser" ? "#dce4db" : tint(paint,"#ffead9",.16);
@@ -175,13 +175,16 @@
       const [,,z] = at(1,end,v);
       return [mix(-1,1,u)*mix(baseHalf,roofHalf,v),mix(sill,roof,v),z+(end?1:-1)*offset];
     }
-    function endPanel(end,u0,u1,v0,v1,color,offset=0) {
-      g.quad(endPoint(end,u0,v0,offset),endPoint(end,u1,v0,offset),
+    function endPanel(end,u0,u1,v0,v1,color,offset=0,mesh=g) {
+      mesh.quad(endPoint(end,u0,v0,offset),endPoint(end,u1,v0,offset),
         endPoint(end,u1,v1,offset),endPoint(end,u0,v1,offset),color);
     }
-    endPanel(1,0,1,0,1,paint);
-    endPanel(1,.035,.965,.06,.93,brightGlass,.009);
-    endPanel(1,.04,.96,.065,.23,"#385d71",.016);
+    if(windshield){
+      endPanel(1,0,.035,0,1,paint);endPanel(1,.965,1,0,1,paint);
+      endPanel(1,.035,.965,0,.06,paint);endPanel(1,.035,.965,.93,1,paint);
+    }else endPanel(1,0,1,0,1,paint);
+    endPanel(1,.035,.965,.06,.93,brightGlass,.009,windshield||g);
+    endPanel(1,.04,.96,.065,.23,"#385d71",.016,windshield||g);
     endPanel(0,0,1,0,1,van ? tint(paint,"#344e60",.15) : paint);
     if (van) {
       endPanel(0,.065,.465,.46,.89,darkGlass,.011);
@@ -294,7 +297,7 @@
       if(parts)wheel(parts.wheels[side],side,.085,0,shape.wheel,kind==="cab");
       else for (const axle of shape.axles) wheel(g,side,shape.track,axle,shape.wheel,kind === "cab");
     }
-    cabinMesh(g,shape,kind,color,doors);interior(g,shape);
+    cabinMesh(g,shape,kind,color,doors,parts?.windshield);interior(g,shape);
     sideDetails(g,shape,kind,color,doors);
     endTrim(g,shape,kind);
     if(parts){

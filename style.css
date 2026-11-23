@@ -119,6 +119,10 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 .controls span {display:flex;align-items:center;gap:7px}
 .controls kbd {min-width:30px;color:var(--ink);background:#e4dbc0;border:1px solid #a4ae94}
 .panel[data-screen="pause"] {width:min(630px,94vw)}
+.panel[data-screen="cine-program"] {width:min(430px,94vw);background:#f1e3c7;border-top:5px solid #854c45}
+.panel[data-screen="cine-program"] .cine-listing {padding:8px 0 10px;margin:0;border-bottom:1px solid #b6a17e;color:#4c4e46}
+.cine-listing strong {display:block;font:italic 1.23rem Georgia,serif;color:#603b38;margin-bottom:4px}
+.panel[data-screen="cab-rank"] {width:min(450px,94vw);border-top:5px solid #bc8438}
 .panel[data-screen="pause"] .row-action {padding:7px 5px}
 .panel[data-screen="pause"] .row-action small {font-size:.79rem}
 .map-wrap {text-align:center}

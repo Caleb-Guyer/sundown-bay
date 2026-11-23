@@ -10,6 +10,12 @@ Use **WASD** or the arrow keys to move and steer. Move the mouse to look around.
 
 Across the street from the starter car, press **F** at the teal door numbered **14** to enter your room at the Marlin. Walk over to the bed to set the alarm, or read Rosario’s handwritten note on the desk. The city clock carries over between visits. Lamps and headlights come on after dark. Short coastal showers leave the pavement wet for a while.
 
+The yellow **Bay Cab** phone is on the beach side of Ocean Drive, a short walk south from the starter coupe. Press **F** at a phone, or flag down empty **Cab 17** from the curb. Pick a destination, then press **E** by the cab to ride with Mina Ortiz. Your first trip is free. In street view, press **F** to sit up front and move the mouse to look around. Press **E** during the ride to ask for the next curb. The four ranks are marked on the city map.
+
+To earn a fare yourself, stop near a waving local in your own car and press **H**. Walt Dunn is carrying a film tin, Bea Salas a bouquet, and Otis Reed a snare. Leave room at the passenger door when you drop them off. A smooth ride earns up to **$30** extra. Mina also picks up the regulars while you’re doing other things.
+
+The box office at **Cine Luna** is beside its cab stand on Neon Mile. Press **F** at the doors, walk to the program case or an aisle seat and press **F** again. *The Last Pelican* plays on a loop. Once Walt brings his tin, *After the Last Tram* joins the program. Look back at the booth after he walks in. Land a jump in *One Good Take* to put your best still on the screen. Deliver Mara’s Lot 14 photograph to the theater to add her print to the pre-show.
+
 Follow **Ocean Drive** north past the Boardwalk to **Pelican Cut**. The paved causeway and the shell levee meet again at the fish camp. Ada watches the spoonbills from the hide. Nell carries ice down to the east pier, where you can board a skiff and return to town by sea. The **Pelican Cut** tab on the map shows both roads and the landing.
 
 Walk past the striped **Sol Beach lifeguard tower** across from the Marlin and head straight into the surf. Hold **Space** to dive, release it to rise, and hold **Shift** for a faster stroke. Press **E** at the east ladder of any public pier or beside a slow skiff to climb aboard. Offshore, slow the skiff below four knots and press **E** to go over the side.
