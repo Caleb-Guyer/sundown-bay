@@ -44,6 +44,10 @@ The box office at **Cine Luna** is beside its cab stand on Neon Mile. Press **F*
 
 Follow **Ocean Drive** north past the Boardwalk to **Pelican Cut**. The paved causeway and the shell levee meet again at the fish camp. Ada watches the spoonbills from the hide. Nell carries ice down to the east pier, where you can board a skiff and return to town by sea. The **Pelican Cut** tab on the map shows both roads and the landing.
 
+At **Salt Creek Drawbridge**, traffic stops while the supply boat *June Bug* runs ice up the creek and takes the empty totes back to the bay. Follow Shell Levee at the fork to drive around an opening. From a skiff, follow the channel marks and press **F** near the fenders to call for passage. At the head of the creek, slow at the ladder and press **E** to tie up. Leda Vale unloads the ice at the pier, and the boardwalk leads back to Shell Levee.
+
+Meet **Inez Soria** on the keeper’s platform on the south bank to take **The Salt Creek Watch**. Press **F** when the boat calls, wait for the road to clear, and hold **Space** to raise the leaves. Release the lever as the vessel passes. Once the stern clears, hold **Space** to lower, then press **F** to open the gates. Hold **V** for a view down the channel. A signed watch pays **$95–$125** and stays in Inez’s log.
+
 Walk past the striped **Sol Beach lifeguard tower** across from the Marlin and head straight into the surf. Hold **Space** to dive, release it to rise, and hold **Shift** for a faster stroke. Press **E** at the east ladder of any public pier or beside a slow skiff to climb aboard. Offshore, slow the skiff below four knots and press **E** to go over the side.
 
 When a swimmer waves beyond the flags, Tali Moreno leaves the tower to bring them in. You can swim alongside, press **F** to take the float, and tow them into shallow water for **$95**. Press **F** on foot at the tower’s lost-and-found board for clues to three objects on the bay floor. Recover one with **F** and bring it back for the owner’s reward. Filed objects hang on the tower and stay there between visits.

@@ -26,8 +26,11 @@
     return Math.abs(x-d.x)<=d.headW/2-r&&Math.abs(z-d.z)<=d.headD/2-r||
       x>=d.footX+r&&x<=d.x&&Math.abs(z-d.z)<=d.walkW/2-r;
   }
-  function landing(x,z,r=0){return docks.find(d=>deck(d,x,z,r));}
-  function berth(d,side){return {x:d.x+.7,z:d.z+side*(d.headD/2+1.65),yaw:Math.PI/2};}
+  function landing(x,z,r=0){return docks.find(d=>deck(d,x,z,r))||(z>280&&BayDrawbridge.landingLevel(x,z,r)!=null?BayDrawbridge.iceDock:undefined);}
+  function berth(d,side){
+    if(d===BayDrawbridge.iceDock)return {...BayDrawbridge.iceBerth,yaw:BayDrawbridge.heading+side*Math.PI/2};
+    return {x:d.x+.7,z:d.z+side*(d.headD/2+1.65),yaw:Math.PI/2};
+  }
   function moor(v,d,side){Object.assign(v,berth(d,side),{dock:d,side,speed:0,vx:0,vz:0,steer:0,yawRate:0,trim:0,lean:0,pitch:0,lift:0,throttle:0});v.wake.length=0;}
   function vessel(kind){return {kind,x:start.x,z:start.z,yaw:Math.PI/2,speed:0,vx:0,vz:0,steer:0,yawRate:0,lean:0,pitch:0,y:.13,trim:0,throttle:0,lift:0,splashAt:-10,wakeAt:-10,wake:[],dock:null};}
   function pose(v,t,dt){
@@ -37,8 +40,11 @@
     v.pitch=ease(v.pitch,.016*Math.cos(a)+.012*Math.cos(b)-.055*pace-.047*v.trim-v.lift*.12,8,dt);
     v.lean=ease(v.lean,-v.yawRate*pace*.26+.017*Math.sin(b),5,dt);
   }
+  let gateOpen=()=>false;
   function navigable(x,z){
     const north=z>180,edge=north?BayCut.coast(z):coast(z);
+    if(north&&BayDrawbridge.scow(x,z,.7))return false;
+    if(north&&x<edge+3&&BayDrawbridge.channel(x,z))return gateOpen(x,z)&&BayDrawbridge.landingLevel(x,z,-.55)==null;
     const outer=north?431-95*Math.min(1,Math.max(0,(z-186)/24)):431;
     if(x<edge+2||x>outer||z< -186||z>360||Math.hypot(x-beacon.x,z-beacon.z)<6.7)return false;
     if(docks.some(d=>deck(d,x,z,-.75)))return false;
@@ -192,5 +198,5 @@
       if(Number.isFinite(value)&&value>0&&value<86400)result[key]=value;
     }return result;
   }
-  window.BayMarina={docks,beacon,hulls,courses,perimeter,sails,start,deck,landing,berth,moor,vessel,pose,helm,disturb,separate,clearWorkingHull,navigable,fits,follow,crossing,Race,readRecords};
+  window.BayMarina={docks,beacon,hulls,courses,perimeter,sails,start,deck,landing,berth,moor,vessel,pose,helm,disturb,separate,clearWorkingHull,navigable,fits,follow,crossing,Race,readRecords,setChannelGate(fn){gateOpen=fn;}};
 })();

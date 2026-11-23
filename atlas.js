@@ -613,6 +613,17 @@
       rect(ctx,-pad,-pad,w+pad*2,h+pad*2,"#377e80");
       BayReefArt.map(ctx,opt,px,py,s,visible);
       BaySurfArt.mapLadders(ctx,opt,px,py,s,visible);
+      if(opt.bridge){
+        const packet=opt.bridge.packet,ladder=BayDrawbridge.ladder;
+        if(visible(px(packet.x),py(packet.z),6*s)){
+          ctx.save();ctx.translate(px(packet.x),py(packet.z));ctx.rotate(packet.yaw);
+          ctx.beginPath();ctx.ellipse(0,0,1.3*s,3.6*s,0,0,Math.PI*2);ctx.fillStyle="rgba(32,64,66,.55)";ctx.fill();ctx.restore();
+        }
+        if(visible(px(ladder.x),py(ladder.z),5*s)){
+          ctx.save();ctx.translate(px(ladder.x),py(ladder.z));ctx.rotate(BayDrawbridge.heading);ctx.strokeStyle="#add4bd";ctx.lineWidth=Math.max(1,s*.07);
+          ctx.strokeRect(-.26*s,-.46*s,.52*s,.92*s);ctx.beginPath();ctx.moveTo(-.26*s,0);ctx.lineTo(.26*s,0);ctx.stroke();ctx.restore();
+        }
+      }
       for(const boat of opt.marina?.boats||empty)if(visible(px(boat.x),py(boat.z),4*s)){
         ctx.save();ctx.translate(px(boat.x),py(boat.z));ctx.rotate(boat.yaw||0);
         ctx.beginPath();ctx.ellipse(0,0,1.1*s,2.7*s,0,0,Math.PI*2);ctx.fillStyle="rgba(38,71,73,.43)";ctx.fill();ctx.restore();
@@ -634,6 +645,10 @@
       shore.push([px(480),py(478)],[px(480),py(208)]);path(ctx,shore,p.ocean);
     }
     BayCutArt.map(ctx,px,py,s,street);
+    if(opt.bridge&&visible(px(179),py(265),85*s)){
+      BayDrawbridgeArt.map(ctx,px,py,s,opt.bridge,streetTime,street,visible);
+      BayBridgePacketArt.map(ctx,opt,px,py,s,visible);
+    }
     if(street&&visible(px(193),py(305),105*s))BayCutWildlife.map(ctx,px,py,s,opt.weather,streetTime,visible);
     if(street&&opt.dusk>.01){
       ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=opt.dusk*.35;

@@ -42,6 +42,9 @@
   const smooth=v=>{const t=Math.max(0,Math.min(1,v));return t*t*(3-2*t);};
   function height(x,z){
     if(z<182)return .041;
+    if(x>164&&x<187&&z>238&&z<259){
+      const platform=window.BayDrawbridgeArt?.platformY(x,z);if(platform!=null)return platform;
+    }
     let deck=.041+.119*smooth((z-182)/20)+.08*smooth((z-293)/18);
     if(z>236&&z<295&&x>143)deck+=1.98*smooth((z-238)/15)*(1-smooth((z-276)/18));
     if(z>313&&Math.abs(z-320)<3&&x>207)deck+=(.46-deck)*smooth((x-207)/4);
@@ -49,6 +52,7 @@
   }
   function land(x,z,r=0){
     if(z<176||z>347||x<86||x>227)return false;
+    if(x>164&&x<187&&z>238&&z<259&&window.BayDrawbridgeArt?.platformY(x,z)!=null)return true;
     if(ellipse(camp,x,z,r)||pads.some(p=>ellipse(p,x,z,r)))return true;
     const n=nearest(x,z),raised=n.route.id==="causeway"&&z>250&&z<278;
     return n.d<n.route.halfWidth+(raised?.13:2.1)-r;
@@ -59,6 +63,7 @@
     if(n.d<=n.route.halfWidth)return n.route.id==="shell"?.73:1;
     return ellipse(camp,x,z,0)?.84:.62;
   }
+  let closedSpan=()=>false;
   function route(from,to){
     const a=nearest(from.x,from.z),b=nearest(to.x,to.z);
     if(a.segment===b.segment)return [a,b];
@@ -68,7 +73,9 @@
       let current=null,cost=Infinity;
       for(const [p,value] of costs)if(!done.has(p)&&value<cost){current=p;cost=value;}
       if(!current)break;done.add(current);
-      for(const edge of links.get(current)){const next=cost+edge.length;
+      for(const edge of links.get(current)){
+        if((current===routes[1].points[2]&&edge.to===routes[1].points[3]||current===routes[1].points[3]&&edge.to===routes[1].points[2])&&closedSpan())continue;
+        const next=cost+edge.length;
         if(next<(costs.get(edge.to)??Infinity)){costs.set(edge.to,next);back.set(edge.to,current);}}
     }
     const left=b.segment.a,right=b.segment.b;
@@ -77,13 +84,14 @@
     const result=[a];for(const v of [...chain,b])if(distance(result.at(-1),v)>.02)result.push(v);
     return result;
   }
-  function circuit(){
+  function circuit(reverse=false){
     const spine=routes[1].points.slice(0,-1).concat([...routes[2].points].reverse().slice(0,-1));
+    if(reverse)spine.reverse();
     return spine.map((p,i)=>{
       const before=spine[(i+spine.length-1)%spine.length],after=spine[(i+1)%spine.length];
       const dx=after.x-before.x,dz=after.z-before.z,length=Math.hypot(dx,dz)||1;
       return point(p.x+1.20*dz/length,p.z-1.20*dx/length);
     });
   }
-  window.BayCut={gate,camp,pads,station,dock,routes,coast,nearest,area,height,grade,land,surface,route,circuit};
+  window.BayCut={gate,camp,pads,station,dock,routes,coast,nearest,area,height,grade,land,surface,route,circuit,setSpanSignal(fn){closedSpan=fn;}};
 })();

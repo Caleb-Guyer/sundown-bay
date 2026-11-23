@@ -15,6 +15,16 @@
   ];
   const tower={x:201.4,z:338.8,h:16.7};
   const gate={x:154.5,z:199.5};
+  const crossing=BayDrawbridge,length=site().routes[1].segments[2].length;
+  const alongX=Math.sin(crossing.heading),alongZ=Math.cos(crossing.heading);
+  const span={
+    ...crossing.center,yaw:crossing.heading,half:length/2,local:crossing.local,
+    at(u,s){return crossing.at(s,u);}
+  };
+  function inChannel(x,z,margin){
+    const {u,s}=span.local(x,z);
+    return u>-41-margin&&u<63+margin&&Math.abs(s)<6.6+margin;
+  }
   const cache=new Map();
   let land=null;
   function random(seed){
@@ -40,6 +50,7 @@
       unit.push({x:(b.z-a.z)/d,z:(a.x-b.x)/d,d});
     }
     const joins=nodes.map((_,i)=>{
+      if(route.id==="causeway"&&(nodes[i].z===258||nodes[i].z===272))return {x:alongZ,z:-alongX};
       const a=unit[Math.max(0,i-1)],b=unit[Math.min(i,unit.length-1)];
       const dot=1+a.x*b.x+a.z*b.z;
       return {x:(a.x+b.x)/dot,z:(a.z+b.z)/dot};
@@ -97,6 +108,28 @@
     for(const p of cut.pads)if(((x-p.x)/(p.rx+margin))**2+((z-p.z)/(p.rz+margin))**2<1)return false;
     return x<cut.coast(z)-margin;
   }
+  // Keep each island's irregular outline where it meets the dredged channel.
+  function cutShore(points){
+    if(points.every(([x,z])=>!inChannel(x,z,15)))return [points];
+    function plane(poly,key,edge,sign){
+      const out=[];
+      for(let i=0;i<poly.length;i++){
+        const a=poly[i],b=poly[(i+1)%poly.length];
+        const da=(span.local(...a)[key]-edge)*sign,db=(span.local(...b)[key]-edge)*sign;
+        if(da>=0)out.push(a);
+        if((da<0)!==(db<0)){const t=da/(da-db);out.push([lerp(a[0],b[0],t),lerp(a[1],b[1],t)]);}
+      }return out;
+    }
+    const ends=plane(plane(points,"s",-6.6,1),"s",6.6,-1);
+    return [plane(points,"s",6.6,1),plane(points,"s",-6.6,-1),plane(ends,"u",-41,-1),plane(ends,"u",63,1)].filter(p=>p.length>2);
+  }
+  const dredge=[[-43,1.3],[-40,4.9],[-35,6.5],[-27,6.1],[-13,6.3],[0,6.4],[15,6.35],[25,6.5],[31,6.7],[35,5.5],[39,1.8]];
+  function channelSurface(paint,street){
+    for(const [k,color] of [[1,street?"#527e77":"#4d7972"],[.64,street?"#497870":"#49736e"]]){
+      const bank=sign=>dredge.map(([u,w])=>{const p=span.at(u,w*k*sign);return [p.x,p.z];});
+      paint(bank(1).concat(bank(-1).reverse()),color,k===1?.007:.008);
+    }
+  }
   function landscape(){
     if(land)return land;
     const r=random(10443),islands=[],trees=[],grass=[],ripples=[],routes=site().routes.map(roadSamples);
@@ -112,9 +145,9 @@
     }
     for(let i=0;i<shoals.length;i++){
       const [x,z,rx,rz,ang]=shoals[i],seed=705+i*337,n=14;
-      islands.push({x,z,outer:ellipse(x,z,rx+2.4,rz+1,ang,n,seed,.30),
-        shore:ellipse(x,z,rx+.85,rz+.4,ang,n,seed,.28),top:ellipse(x,z,rx,rz,ang,n,seed,.26),
-        inner:ellipse(x-.6,z+.25,rx*.77,rz*.65,ang,11,seed+1,.34),shade:i%3});
+      islands.push({x,z,outer:cutShore(ellipse(x,z,rx+2.4,rz+1,ang,n,seed,.30)),
+        shore:cutShore(ellipse(x,z,rx+.85,rz+.4,ang,n,seed,.28)),top:cutShore(ellipse(x,z,rx,rz,ang,n,seed,.26)),
+        inner:cutShore(ellipse(x-.6,z+.25,rx*.77,rz*.65,ang,11,seed+1,.34)),shade:i%3});
       const desired=rx>16?4:2;
       for(let j=0;j<desired;j++){
         const u=(r()-.5)*rx*1.3,v=(r()-.5)*rz*.65,tx=x+u*Math.cos(ang)-v*Math.sin(ang),tz=z+u*Math.sin(ang)+v*Math.cos(ang);
@@ -139,7 +172,8 @@
       const x=50+r()*179,z=216+r()*150;
       if(safePlant(x,z,2)&&x<site().coast(z)-1)ripples.push({x,z,w:.45+r()*2.5,tilt:(r()-.5)*.21});
     }
-    land={floorSections,islands,trees,grass,ripples,routes,creases};
+    land={floorSections,islands,trees:trees.filter(p=>!inChannel(p.x,p.z,p.willow?3.6:3.2)),
+      grass:grass.filter(p=>!inChannel(p.x,p.z,1.5)),ripples,routes,creases};
     return land;
   }
   const waterY=z=>.025+.101*clamp((240-z)/12,0,1);
@@ -172,11 +206,12 @@
       g.quad(v(a,a.right-2.3,.005),v(a,a.right+.25,.005),v(b,b.right+.25,.005),v(b,b.right-2.3,.005),"#527c73");
     }
     for(const c of creases){wetChannel(g,c.samples,c.w,"#517e77",.004);wetChannel(g,c.samples,c.w*.62,"#497971",.006);}
+    channelSurface((points,color,lift)=>face(g,points,color,(_,z)=>waterY(z)+lift),true);
     for(const i of islands){
-      face(g,i.outer,"#68867b",(_,z)=>waterY(z)+.009);
-      face(g,i.shore,"#8c947a",(_,z)=>waterY(z)+.026);
-      face(g,i.top,[silt,"#8f9971","#96a071"][i.shade],(_,z)=>waterY(z)+.051);
-      face(g,i.inner,["#959d6e",cordgrass,"#929c69"][i.shade],(_,z)=>waterY(z)+.066);
+      for(const p of i.outer)face(g,p,"#68867b",(_,z)=>waterY(z)+.009);
+      for(const p of i.shore)face(g,p,"#8c947a",(_,z)=>waterY(z)+.026);
+      for(const p of i.top)face(g,p,[silt,"#8f9971","#96a071"][i.shade],(_,z)=>waterY(z)+.051);
+      for(const p of i.inner)face(g,p,["#959d6e",cordgrass,"#929c69"][i.shade],(_,z)=>waterY(z)+.066);
     }
     for(const p of ripples){
       const y=waterY(p.z)+.012;
@@ -222,6 +257,7 @@
       for(let i=1;i<arr.length;i++){
         const a=arr[i-1],b=arr[i],z=(a.z+b.z)*.5;
         if(route.id==="approach"&&z<181)continue;
+        if(route.id==="causeway"&&z>258&&z<272)continue;
         const bridge=route.id==="causeway"&&z>=247&&z<=282;
         const feather=bridge?.44:unpaved?1.25:1.55;
         const verge=bridge?"#797e72":unpaved?"#a59771":"#a59b7e";
@@ -267,29 +303,41 @@
       }
       if(route.id==="causeway"){
         const start=arr.find(p=>p.z>=245).s,end=arr.find(p=>p.z>=282).s,total=end-start,bays=Math.ceil(total/3.35);
-        for(let j=0;j<=bays;j++){
-          const p=atStation(arr,start+total*j/bays);
-          for(const l of [-1,1]){
-            if(l===1&&p.z>=280)continue;
-            const n=l*(w+.16),[x,y,z]=pointOn(p,n);
+        const stops=Array.from({length:bays+1},(_,i)=>start+total*i/bays);
+        const south=arr.find(p=>p.z===258).s,north=arr.find(p=>p.z===272).s;
+        const gaps=[[south,north]],eastGaps=[...gaps];
+        function stationFor(localS){
+          const longitudinal=p=>span.local(...side(p,w+.16)).s;
+          const i=arr.findIndex(p=>longitudinal(p)>=localS),a=arr[i-1],b=arr[i];
+          return lerp(a.s,b.s,(localS-longitudinal(a))/(longitudinal(b)-longitudinal(a)));
+        }
+        eastGaps.push([stationFor(-20.2),stationFor(-11.95)],[arr.find(p=>p.z>=280).s,end]);
+        for(const l of [-1,1]){
+          const cuts=l===1?eastGaps:gaps,n=l*(w+.16);
+          const absent=s=>cuts.some(([a,b])=>s>a+1e-5&&s<b-1e-5);
+          const edges=cuts.flat(),placed=stops.filter(s=>!absent(s)&&edges.every(e=>Math.abs(s-e)>.54)).concat(edges).sort((a,b)=>a-b);
+          for(let j=0;j<placed.length;j++){
+            const p=atStation(arr,placed[j]),[x,y,z]=pointOn(p,n);
+            if(l===1&&p.s===end)continue;
             g.box(x,y+.48,z,.37,.96,.37,"#b3ad96");
             g.box(x,y+.99,z,.45,.10,.45,rail);
-            if(j===0||j===bays||j%4===0){
+            if(j%4===0||j===placed.length-1){
               const label=pointOn(p,n-l*.19,.67);
               g.box(label[0],label[1],label[2],.12,.14,.13,l===1?"#cf934f":"#e9cf91");
             }
-            if(j<bays){
-              const next=atStation(arr,start+total*(j+1)/bays);
-              if(l===1&&next.z>=280)continue;
+            if(j+1<placed.length&&!absent((placed[j]+placed[j+1])/2)){
+              const next=atStation(arr,placed[j+1]);
               const u=pointOn(next,n,.83),v=pointOn(p,n,.83),u2=pointOn(next,n,.39),v2=pointOn(p,n,.39);
               g.pole(v,u,.105,rail,4);g.pole(v2,u2,.064,"#818477",4);
             }
           }
-          if(j%3===1){
-            const a=pointOn(p,-w+.95,-.43),b=pointOn(p,w-.95,-.43);
-            g.pole(a,b,.32,"#838879",4);
-            for(const e of [a,b])g.box(e[0],(e[1]-.22)*.5,e[2],.62,e[1]+.22,.78,"#858773");
-          }
+        }
+        for(let j=1;j<stops.length;j+=3){
+          const p=atStation(arr,stops[j]);
+          if(p.z>=256.8&&p.z<=273.2)continue;
+          const a=pointOn(p,-w+.95,-.43),b=pointOn(p,w-.95,-.43);
+          g.pole(a,b,.32,"#838879",4);
+          for(const e of [a,b])g.box(e[0],(e[1]-.22)*.5,e[2],.62,e[1]+.22,.78,"#858773");
         }
       }
       if(route.id!=="approach"){
@@ -396,12 +444,15 @@
     A:["0110","1001","1111","1001","1001"],B:["1110","1001","1110","1001","1110"],
     C:["0111","1000","1000","1000","0111"],D:["1110","1001","1001","1001","1110"],
     E:["111","100","110","100","111"],F:["111","100","110","100","100"],
+    G:["0111","1000","1011","1001","0111"],H:["1001","1001","1111","1001","1001"],
+    K:["1001","1010","1100","1010","1001"],
     I:["111","010","010","010","111"],L:["100","100","100","100","111"],
     M:["10001","11011","10101","10001","10001"],N:["1001","1101","1011","1001","1001"],
     O:["0110","1001","1001","1001","0110"],P:["1110","1001","1110","1000","1000"],
     R:["1110","1001","1110","1010","1001"],S:["0111","1000","0110","0001","1110"],
     T:["11111","00100","00100","00100","00100"],U:["1001","1001","1001","1001","0110"],
-    V:["10001","10001","01010","01010","00100"],
+    V:["10001","10001","01010","01010","00100"],W:["10001","10001","10101","10101","01010"],
+    "1":["010","110","010","010","111"],"7":["1111","0001","0010","0100","0100"],
     " ":["0","0","0","0","0"]
   };
   // Signs face arriving players. The text and the bird are physical paint with no network fonts.
@@ -447,6 +498,22 @@
     const p=(u,v)=>[x+u,y+1.76+v,z-.071];
     signText(g,"LEVEE",.067,pale,(u,v)=>p(u+.16,v));
     g.tri(p(-.99,0),p(-.77,.14),p(-.77,-.14),pale);
+    // County maintenance sign at the approach. The drawing of raised leaves
+    // reads at driving speed; the detour plate points toward Shell Levee.
+    const sx=155.25,sz=222.6,base=floor(sx,sz),front=(a,b)=>[sx+a,base+b,sz-.09];
+    g.cyl(sx,base+1.58,sz,.068,.071,3.16,5,"#86968a");
+    const diamond=[front(0,3.51),front(1.00,2.51),front(0,1.51),front(-1.00,2.51)];
+    g.quad(...diamond,"#374e4d");
+    const p2=(u,h)=>[sx+u,base+h,sz-.098];
+    g.quad(p2(0,3.43),p2(.92,2.51),p2(0,1.59),p2(-.92,2.51),"#d7aa61");
+    const p3=(u,h)=>[sx+u,base+h,sz-.106];
+    for(const d of [-1,1]){
+      g.quad(p3(d*.54,2.24),p3(d*.54,2.35),p3(d*.18,2.83),p3(d*.11,2.76),"#394a46");
+      g.quad(p3(d*.56,2.18),p3(d*.42,2.18),p3(d*.42,2.38),p3(d*.56,2.38),"#394a46");
+    }
+    g.box(sx,base+1.20,sz,2.22,.48,.13,"#c28f53");
+    signText(g,"DETOUR",.047,"#394c46",(u,v)=>[sx+u+.18,base+1.20+v,sz-.074]);
+    g.tri([sx-.96,base+1.2,sz-.075],[sx-.70,base+1.34,sz-.075],[sx-.70,base+1.06,sz-.075],"#394c46");
   }
   function hut(g,h){
     const {x,z,w,d}=h,y=floor(x,z),front=z-d*.5,back=z+d*.5,left=x-w*.5,right=x+w*.5;
@@ -726,11 +793,13 @@
       poly(shape(1).concat(shape(-1).reverse()),street?"#558278":"#4b7770");
       poly(shape(.62).concat(shape(-.62).reverse()),street?"#4b7e75":"#47726c");
     }
+    channelSurface(poly,street);
     if(street)for(const p of ripples)line([[p.x-p.w,p.z-p.tilt],[p.x+p.w,p.z+p.tilt]],"#518178",.15);
     for(const i of islands){
-      poly(i.outer,street?"#748f7d":"#638675");poly(i.shore,street?"#939b78":"#849679");
-      poly(i.top,street?["#9ba174","#a2a779","#98a174"][i.shade]:"#8c9c78");
-      if(street)poly(i.inner,["#929c6f","#a8aa77","#969f71"][i.shade]);
+      for(const p of i.outer)poly(p,street?"#748f7d":"#638675");
+      for(const p of i.shore)poly(p,street?"#939b78":"#849679");
+      for(const p of i.top)poly(p,street?["#9ba174","#a2a779","#98a174"][i.shade]:"#8c9c78");
+      if(street)for(const p of i.inner)poly(p,["#929c6f","#a8aa77","#969f71"][i.shade]);
     }
     for(const p of [site().camp,...site().pads]){
       poly(ellipse(p.x,p.z,p.rx,p.rz,0,44),street?"#929a73":"#849577");
@@ -742,24 +811,27 @@
     }
     for(const route of routes){
       const paved=route.id!=="shell",w=route.halfWidth;
-      const arr=route.id==="approach"?route.samples.filter(p=>p.z>=181):route.samples;
-      const ink=arr.map(p=>[p.x,p.z]);
-      line(ink,street?(paved?"#aa9e7f":"#a09572"):"#8c977d",w*2+(paved?2.4:2.1));
-      line(ink,paved?street?"#535d5b":"#3b5553":street?"#c8b286":"#aeaa82",w*2);
-      if(paved&&street){
-        for(const k of [-1,1])line(arr.map(p=>side(p,k*(w-.57))),"#cec9a9",.16);
-        line(ink,"#dac28c",.22);
-      }
-      if(!paved&&street)for(const k of [-1.26,1.26])line(arr.map(p=>side(p,k)),"#b8a781",.65);
-      if(route.id==="causeway"){
-        const deck=arr.filter(p=>p.z>246&&p.z<282),road=deck.map(p=>[p.x,p.z]);
-        line(road,street?"#828677":"#6f8176",w*2+.93);line(road,street?"#a0a395":"#85978b",w*2);
-        for(const k of [-1,1])line(deck.map(p=>side(p,k*(w+.12))),street?"#d9cfad":"#b1b79b",street?.31:.62);
-        if(street){
-          for(const k of [-1,1])line(deck.map(p=>side(p,k*(w-.63))),"#d6d0b4",.17);
-          for(const [i,p] of deck.entries())if(i%3===1)line([side(p,-w+.2),side(p,w-.2)],"#838b7e",.12);
+      const runs=route.id==="causeway"?[route.samples.filter(p=>p.z<=258),route.samples.filter(p=>p.z>=272)]:
+        [route.id==="approach"?route.samples.filter(p=>p.z>=181):route.samples];
+      for(const arr of runs){
+        const ink=arr.map(p=>[p.x,p.z]);
+        line(ink,street?(paved?"#aa9e7f":"#a09572"):"#8c977d",w*2+(paved?2.4:2.1));
+        line(ink,paved?street?"#535d5b":"#3b5553":street?"#c8b286":"#aeaa82",w*2);
+        if(paved&&street){
+          for(const k of [-1,1])line(arr.map(p=>side(p,k*(w-.57))),"#cec9a9",.16);
+          line(ink,"#dac28c",.22);
         }
-        line(road,street?"#cfb77f":"#b4b08c",street?.24:.49);
+        if(!paved&&street)for(const k of [-1.26,1.26])line(arr.map(p=>side(p,k)),"#b8a781",.65);
+        if(route.id==="causeway"){
+          const deck=arr.filter(p=>p.z>246&&p.z<282),road=deck.map(p=>[p.x,p.z]);
+          line(road,street?"#828677":"#6f8176",w*2+.93);line(road,street?"#a0a395":"#85978b",w*2);
+          for(const k of [-1,1])line(deck.map(p=>side(p,k*(w+.12))),street?"#d9cfad":"#b1b79b",street?.31:.62);
+          if(street){
+            for(const k of [-1,1])line(deck.map(p=>side(p,k*(w-.63))),"#d6d0b4",.17);
+            for(const [i,p] of deck.entries())if(i%3===1)line([side(p,-w+.2),side(p,w-.2)],"#838b7e",.12);
+          }
+          line(road,street?"#cfb77f":"#b4b08c",street?.24:.49);
+        }
       }
     }
     const end=site().routes[1].points.at(-1);
@@ -829,5 +901,5 @@
   for(const l of [-1,1])blocks.push(box(gate.x+l*2.25*.976,gate.z+l*2.25*.218,.34,.37,3.53));
   const camera=[box(tower.x,tower.z,.55,.55,tower.h+.8,4.4),
     box(gate.x,gate.z,5.75,.77,3.66,1.54),box(213.1,316.36,4.52,.24,1.94,1.04)];
-  window.BayCutArt={install,world,map,blocks,camera};
+  window.BayCutArt={install,world,map,blocks,camera,span,signText};
 })();

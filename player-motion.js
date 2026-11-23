@@ -17,7 +17,7 @@
     reset(){
       this.vx=0;this.vz=0;this.phase=.20;this.weight=0;this.run=0;
       this.jumpTime=-1;this.jumpBuffer=0;this.lift=0;this.airPose=0;this.crouch=0;this.lead=1;
-      this.stumble=0;this.stumblePose=0;this.ride=null;
+      this.stumble=0;this.stumblePose=0;this.ride=null;this.handTarget=null;
       this.turn=0;this.time=0;this.step(0,0,0);
     }
     jump(){
@@ -249,6 +249,8 @@
           if(ride.passenger)reachFor(limb,side*.12,ride.seatY+.18,.19,grip);
           else reachFor(limb,side*.105*Math.cos(turn),ride.seatY+.41-side*.105*Math.sin(turn),.32,grip);
           if(hand>0)reachFor(limb,...ride.handle,hand);
+        }else if(side===1&&motion.handTarget){
+          const h=motion.handTarget;reachFor(limb,h.x,h.y,h.z,h.weight);
         }
       }
       this.skin();return true;

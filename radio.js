@@ -36,7 +36,8 @@
     surf: ['noise', 'lowpass', 0.52], street: ['noise', 'lowpass', 0.8], quay: ['sine', 'lowpass', 0.6],
     rotor: ['rotor', 'lowpass', 0.70], undertow: ['noise','lowpass',0.58],
     washJet: ['noise','bandpass',.74], washPump: ['triangle','lowpass',.61],
-    blade: ['noise','bandpass',1.16], spindle: ['triangle','lowpass',.65]
+    blade: ['noise','bandpass',1.16], spindle: ['triangle','lowpass',.65],
+    spanDrive: ['sawtooth','lowpass',.60], spanChain: ['noise','bandpass',1.08]
   };
 
   let context, master, music, instruments, effects, ambience, hats, noise, waves;
@@ -49,6 +50,7 @@
   let nextStroke = 0, nextWhistle = 0, nextSplash = 0;
   let broadcast = null, queuedTape = null, shell = null;
   let washBus, washBearing = 2, bladePhase = NaN, bladeAt = -1;
+  let nextDrawBell = 0, nextPacketWhistle = 0;
 
   function random() {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -348,6 +350,34 @@
     mixBed('washPump', washBus, now, motor, state.inCabin ? 245 : 490, 97+5*load, .065);
   }
 
+  function bridgeFalloff(distance, reach) {
+    return Number.isFinite(distance) ? unit(1 - Math.max(0, distance) / reach) ** 1.5 : 0;
+  }
+
+  function mixDrawbridge(now, state) {
+    const draw = state.bridge, phase = draw?.phase;
+    const moving = phase === 'raising' || phase === 'lowering';
+    const warning = phase === 'warning' && draw.gates < .999 || phase === 'release' && draw.gates > .001;
+    const cabin = driving && !boating ? (state.inCabin ? .54 : .73) : 1;
+    const bell = warning ? cabin * bridgeFalloff(draw.distance, 99) : 0;
+    if (bell < .012) nextDrawBell = 0;
+    else if (now >= nextDrawBell) {
+      // A solenoid strikes one side of the same iron bell on every return.
+      const at = now + .008;
+      tone(ambience, 731, at, .55, bell * .11, 'sine', 726, .003);
+      tone(ambience, 1263, at, .25, bell * .049, 'sine', 1250, .002);
+      tone(ambience, 2031, at, .09, bell * .023, 'sine', 2000, .002);
+      nextDrawBell = (nextDrawBell > now - .17 ? nextDrawBell : at) + .74;
+    }
+    if (!moving && !beds.has('spanDrive') && !beds.has('spanChain')) return;
+    const near = moving ? cabin * bridgeFalloff(draw.distance, 60) : 0;
+    const travel = Math.sin(Math.PI * unit(draw?.lift));
+    const teeth = .5 + .5 * Math.sin(worldTime * 19);
+    const load = near * (.54 + .46 * travel);
+    mixBed('spanDrive', ambience, now, load * .044, 270 + travel * 130, (phase === 'raising' ? 66 : 59) + travel * 11, .12);
+    mixBed('spanChain', ambience, now, load * (.012 + .017 * teeth), 620 + 350 * teeth, 0, .044);
+  }
+
   function mixWipers(now, state) {
     const phase = driving && Number.isFinite(state.wiper) ? state.wiper : 0;
     if (phase <= 0 && !Number.isFinite(bladePhase)) return;
@@ -535,6 +565,7 @@
     mixBed('tire', effects, now, slip * 0.037, 1700, 580 + velocity * 206 + 35 * Math.sin(worldTime * 9));
     mixBed('rotor', effects, now, rotor * .10, 215 + 230 * rotor, 14.5 + .35 * Math.sin(worldTime * .8));
     mixWasher(now, state);
+    mixDrawbridge(now, state);
     environmentalSounds(now);
   }
 
@@ -571,6 +602,18 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if (name === 'packet-whistle') {
+      const near = bridgeFalloff(source.distance, 130) * (driving && !boating ? .68 : 1);
+      if (at < nextPacketWhistle || near < .012) return;
+      nextPacketWhistle = at + 3;
+      for (const [delay, length] of [[0,.30],[.50,.44]]) {
+        const start = at + delay;
+        tone(ambience, 164, start, length, .133 * near, 'horn', 170, .052, .81);
+        tone(ambience, 221, start + .022, length - .03, .056 * near, 'reed', 228, .058, .77);
+        waterNoise(ambience, start, .15, .045 * near, 1150, 510);
+      }
+      return;
+    }
     if (name.startsWith('court-')) {
       const near = Math.max(0, 1 - (source.distance || 0) / 34) ** 1.5;
       if (name === 'court-rim') {
@@ -667,6 +710,7 @@
     nextSiren = now + 1.1;
     nextHorn = nextTrafficHorn = now;
     nextWhistle = nextSplash = nextStroke = now;
+    nextDrawBell = nextPacketWhistle = 0;
     master.gain.cancelScheduledValues(now);
     master.gain.setTargetAtTime(0.73, now, 0.035);
     context.resume().catch(() => {});

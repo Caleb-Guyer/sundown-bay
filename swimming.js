@@ -14,11 +14,14 @@
   function floor(x,z){
     const shore=x-coast(z),d=Math.max(0,shore+1.3);
     const texture=Math.min(1,d/13)*(.19*Math.sin(z*.094+x*.075)+.12*Math.cos(z*.133-x*.14));
-    return -.035-Math.max(0,Math.min(d,20)*.205+10.6*(1-Math.exp(-Math.max(0,d-20)/45))+texture);
+    const sea=-.035-Math.max(0,Math.min(d,20)*.205+10.6*(1-Math.exp(-Math.max(0,d-20)/45))+texture);
+    if(z>208&&BayDrawbridge.channel(x,z))return Math.min(sea,-1.15-1.55*(1-Math.abs(BayDrawbridge.local(x,z).s)/6.6));
+    return sea;
   }
   const beach=z=>z>=-181.5&&z<=181.5||z>=311&&z<=332;
   function water(x,z){
     if(z< -187||z>361)return false;
+    if(z>208&&BayDrawbridge.channel(x,z))return true;
     const width=432-95*clamp((z-186)/24,0,1);
     return x>=coast(z)+(beach(z)?-.95:1.65)&&x<=width;
   }
