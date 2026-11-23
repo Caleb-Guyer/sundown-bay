@@ -904,29 +904,22 @@ window.buildBayCity = function buildBayCity(g,water) {
   block(183,-26,5.15,6.2,5.32);
   guard.camera(-1.85,3.83,1.52,2.65,.18,2.46);
 
-  // The observation wheel rises above the north boardwalk.
-  const wx=181.5,wz=112.5,wy=13.55,radius=10.15,n=16;
-  rect(wx,wz,12.4,25,.115,"#cfad96");
-  for(const side of [-1,1]){
-    const xx=wx+side*2.15;
-    for(const dir of [-1,1]) g.pole([xx+side*1.75,.2,wz+dir*6.6],[xx,wy,wz],.32,"#7caaa4",5);
-    for(let i=0;i<n;i++) {
-      const a=2*Math.PI*i/n, b=2*Math.PI*(i+1)/n;
-      const p=[xx,wy+radius*Math.sin(a),wz+radius*Math.cos(a)];
-      const q=[xx,wy+radius*Math.sin(b),wz+radius*Math.cos(b)];
-      g.pole(p,q,.17,"#e59588",4);
-      if(i%2===0) {
-        g.pole([xx,wy,wz],p,.08,"#efd2ad",4);
-        if(side===1) {
-          g.box(wx,p[1]-.75,p[2],3.9,1.08,1.48,i%4?"#e0b878":"#cd8a88");
-          g.box(wx,p[1]-.19,p[2],3.85,.12,1.55,"#f2d2a5");
-        }
-      }
+  // Fixed A-frames cast a permanent shadow. The rim, lamps and eight cars move on this axle.
+  const wx=181.5,wz=112.5,wy=13.55;
+  rect(wx,wz,9.7,24.2,.109,"#bdaf90");
+  for(const side of [-1,1])for(const end of [-1,1]){
+    const foot=[wx+side*3.81,.49,wz+end*6.98],bearing=[wx+side*2.48,wy,wz];
+    g.box(foot[0],.28,foot[2],1.56,.43,1.76,"#b6b29e");
+    g.box(foot[0],.506,foot[2],1.03,.097,1.21,"#5d7168");
+    g.pole(foot,bearing,.273,"#507d75",6);
+    g.pole([foot[0]+side*.22,.57,foot[2]],[bearing[0]+side*.12,wy-.31,wz],.082,"#96b1a1",4);
+    for(const u of [-.41,.41])for(const v of [-.47,.47])g.cyl(foot[0]+u,.572,foot[2]+v,.055,.061,.048,6,"#a7a798");
+    for(let i=0;i<4;i++){
+      const f=(i+.5)/4;
+      cameraBlock(foot[0]+(bearing[0]-foot[0])*f,foot[2]+(wz-foot[2])*f,.65,2.08,wy*i/4,wy*(i+1)/4+.2);
     }
   }
-  g.pole([wx-2.65,wy,wz],[wx+2.65,wy,wz],.56,"#d5a486",6);
-  block(wx,wz,6.1,15.2,13.68);
-  cameraBlock(wx,wz,4.75,21.0,3.03,23.97);
+  g.pole([wx-2.88,wy,wz],[wx+2.88,wy,wz],.355,"#697a71",10);
   building(174,133,9,6,3.8,W,"shop","#b3c9b6","#dfa387","PIER");
 
   // Timber fishing pier, watercraft and a western harbour crane.

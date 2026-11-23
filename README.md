@@ -12,6 +12,12 @@ Across the street from the starter car, press **F** at the teal door numbered **
 
 The yellow **Bay Cab** phone is on the beach side of Ocean Drive, a short walk south from the starter coupe. Press **F** at a phone, or flag down empty **Cab 17** from the curb. Pick a destination, then press **E** by the cab to ride with Mina Ortiz. Your first trip is free. In street view, press **F** to sit up front and move the mouse to look around. Press **E** during the ride to ask for the next curb. The four ranks are marked on the city map.
 
+Just south of the Marlin, take a **beach cruiser** from the bicycle rack with **E**. **W** pedals, **Shift** sprints, **S** brakes, **Space** hops and **H** rings the bell. Stop and press **E** to park. Each cruiser stays where you left it between visits. The phone can locate the nearest one.
+
+For **Last Bell Run**, speak to Javi Reyes on the promenade or Mags Duran at the **Coast Wheel** ticket window. Ride alongside Javi in the same direction and **hold F** to match his speed and take the red pouch. Brake and step off at the window, then press **F** to hand Mags the roll. The job pays **$115**, with another **$40** for beating the bell. Miri and Len take their tickets up the ramp together.
+
+Walk up the wooden ramp and press **E** at the Coast Wheel turnstile. The first ride and rides earned on ticket runs are free. Another lap costs **$8**. Move the mouse or use **Q/C** to look across the bay, and press **V** to switch between the cabin and an outside view. Mags lets you off at the platform after one full turn.
+
 To earn a fare yourself, stop near a waving local in your own car and press **H**. Walt Dunn is carrying a film tin, Bea Salas a bouquet, and Otis Reed a snare. Leave room at the passenger door when you drop them off. A smooth ride earns up to **$30** extra. Mina also picks up the regulars while you’re doing other things.
 
 The box office at **Cine Luna** is beside its cab stand on Neon Mile. Press **F** at the doors, walk to the program case or an aisle seat and press **F** again. *The Last Pelican* plays on a loop. Once Walt brings his tin, *After the Last Tram* joins the program. Look back at the booth after he walks in. Land a jump in *One Good Take* to put your best still on the screen. Deliver Mara’s Lot 14 photograph to the theater to add her print to the pre-show.

@@ -521,6 +521,13 @@
   function cue(name, source = {}) {
     if (!enabled || paused || !context || context.state !== 'running') return;
     const at = context.currentTime + 0.012;
+    if (name === 'cycle-bell') {
+      for (const [delay, power] of [[0,.095],[.106,.055]]) {
+        tone(effects, 1376, at + delay, .29, power, 'sine', 1362, .002);
+        tone(effects, 3440, at + delay, .12, power * .34, 'sine', 3425, .002);
+      }
+      return;
+    }
     if (name === 'splash') {
       if (at < nextSplash) return;
       nextSplash = at + .25;

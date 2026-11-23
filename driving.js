@@ -116,7 +116,7 @@
     return hit;
   }
   function clearance(v,p){
-    const s=bayCarLayout(v.kind),q=local(v,p.x,p.z),x=Math.abs(q.x)-s.track,z=Math.abs(q.z)-s.halfLength;
+    const s=v.footprint||bayCarLayout(v.kind),q=local(v,p.x,p.z),x=Math.abs(q.x)-s.track,z=Math.abs(q.z)-s.halfLength;
     return Math.hypot(Math.max(0,x),Math.max(0,z))+Math.min(0,Math.max(x,z));
   }
   function contact(a,b){

@@ -10,7 +10,7 @@
     if(Math.abs(dx)>44||Math.abs(dz)>44)return Infinity;
     const vx=driver.vx-speed*ux,vz=driver.vz-speed*uz;
     if(dx*vx+dz*vz>=-.12)return Infinity;
-    const cs=Math.cos(driver.yaw),sn=Math.sin(driver.yaw),a=bayCarLayout(driver.kind);
+    const cs=Math.cos(driver.yaw),sn=Math.sin(driver.yaw),a=driver.footprint||bayCarLayout(driver.kind);
     const b=other.path&&other.kind?bayCarLayout(other.kind):null;
     let enter=0,leave=horizon;
     function axis(x,z){

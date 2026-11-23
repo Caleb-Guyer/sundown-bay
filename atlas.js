@@ -460,8 +460,9 @@
       c.beginPath();for(let i=first;i<gates.length;i++){const g=gates[i];if(i===first)c.moveTo(px(g.x),py(g.z));else c.lineTo(px(g.x),py(g.z));}
       c.stroke();c.setLineDash([]);
     }
-    for(let i=0;i<(active||opt.dashRun?gates.length:1);i++){
+    for(let i=0;i<(active||opt.dashRun||street?gates.length:1);i++){
       const g=gates[i],x=px(g.x),y=py(g.z);
+      if(i&&!active&&!opt.dashRun&&g.type!=="rail")continue;
       if(!visible(x,y,4*s+5))continue;
       c.save();c.translate(x,y);c.rotate(g.yaw);
       if(street){
@@ -773,7 +774,7 @@
           rect(ctx,-1.8,1.4,3.6,.58,ink);
         }
         ctx.restore();
-      }else if(place.kind!=="landing"&&place.kind!=="recovery-desk"&&!street&&visible(x,y)){
+      }else if(!["landing","recovery-desk","wheel-window","bike-rack"].includes(place.kind)&&!street&&visible(x,y)){
         disc(ctx,x,y,(radar?2.0:2.55)*ui,ink);disc(ctx,x,y,(radar?1:1.38)*ui,"#e1d9b2");
       }
     }
@@ -849,6 +850,17 @@
       }
     }
     if(opt.recovery&&!street)BayRecoveryArt.map(ctx,opt,px,py,s,visible);
+    if(opt.wheel)BayCoastWheelArt.map(ctx,opt,px,py,s,visible);
+    if(opt.boardwalk)BayBoardwalkArt.map(ctx,opt,px,py,s,visible);
+    if(opt.cycles)for(const b of [...opt.cycles.bikes,opt.cycles.javi]){
+      const x=px(b.x),y=py(b.z);if(!visible(x,y,2*s+5*ui))continue;
+      if(street){BayPedalArt.mapBike(ctx,b,x,y,s,streetTime);continue;}
+      if(opt.marina?.bayChart||b.rider)continue;
+      ctx.save();ctx.translate(x,y);ctx.rotate(-rotation);ctx.scale(ui,ui);
+      ctx.fillStyle="#345452";ctx.fillRect(-5.5,-3.7,11,7.4);ctx.lineWidth=.9;ctx.strokeStyle="#f4d69f";
+      for(const k of [-2.65,2.65]){ctx.beginPath();ctx.arc(k,.9,1.6,0,Math.PI*2);ctx.stroke();}
+      ctx.beginPath();ctx.moveTo(-2.65,.9);ctx.lineTo(-.85,-1.2);ctx.lineTo(.4,.9);ctx.lineTo(2,-1.65);ctx.lineTo(2.65,.9);ctx.stroke();ctx.restore();
+    }
     if(opt.cabService){
       BayCabArt.map(ctx,opt,px,py,s,visible);
       if(street){
@@ -895,7 +907,8 @@
       }
     }
     if(player) {
-      const x=px(player.x),y=py(player.z);
+      const rider=opt.boardwalk?.player;
+      const projected=street&&rider?BayCoastWheelArt.mapPoint(rider):player,x=px(projected.x),y=py(projected.z);
       if(street) {
         if(player.driving && !playerCar) carSprite(ctx,player,x,y,s,streetTime);
         if(opt.cabService)for(const p of opt.cabService.people){
@@ -904,8 +917,9 @@
           disc(ctx,px(rider.x),py(rider.z),Math.max(1,s*.14),BayCabArt.colors[p.id][0]);
         }
         if(opt.swim)BaySwimmerArt.map(ctx,x,y,s,opt.swim,streetTime);
-        else if(!player.driving&&!player.inCabin&&!opt.aboard){
+        else if(!player.driving&&!player.inCabin&&!opt.aboard&&(!opt.cycles?.riding||opt.cycles.transfer?.approach)){
           personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+          if(opt.boardwalk?.run?.phase==="deliver"){const hand=BayDriving.world(player,.28,.08);rect(ctx,px(hand.x)-.12*s,py(hand.z)-.08*s,.24*s,.16*s,"#bd5347");}
           if(opt.field?.phase==="listen")BayCutWildlife.mapMic(ctx,x,y,s,opt.field.yaw,streetTime,!!opt.field.slice);
         }
         if(opt.plate&&!opt.swim&&!player.driving&&!player.inCabin&&!opt.aboard){
