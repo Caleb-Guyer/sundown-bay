@@ -14,6 +14,12 @@ Under the striped canopy on the motel side of Ocean Drive, press **F** at Tess V
 
 Traffic signals its turns. A driver gives up the seat, steps to the curb and reports the car’s plate when you take a slow or stopped car. Leave it nearby with room around the door and the owner can walk back, get in and rejoin traffic.
 
+Find **June Mora** by the Marlin and press **F** to head to **Sol Sound Shell** together. She keeps up on foot or takes the passenger seat in your car. Stop at the beach-side curb on Ocean Drive near North Boardwalk and she’ll get out and walk to the microphone. In the evening she makes the trip herself, and an audience gathers in front of the stage.
+
+For **Saltwater Sessions**, press **F** at Ben’s set list by the ramp. Sit down at the real kit for *Out on the Jetty*. When the colored diamonds reach the white line, tap **A** for kick, **S** for snare and **D** for hi-hat. The visual count-in works with sound off. **V** changes cameras, **T** starts another take after the last bar and **E** gets you off the stool. A score of **55%** earns a cut of the door and saves your best recorded drum part, including fills and missed beats. A first good take or the return of June’s motel demo opens the faster *Neon After Rain*.
+
+Press **B** in your car to play your saved takes and cycle back to Sol FM. **R** still controls sound. Your cassettes are also on your desk in Room 14. After a good take you can ask June to go for a drive past her favorite places.
+
 The yellow **Bay Cab** phone is on the beach side of Ocean Drive, a short walk south from the starter coupe. Press **F** at a phone, or flag down empty **Cab 17** from the curb. Pick a destination, then press **E** by the cab to ride with Mina Ortiz. Your first trip is free. In street view, press **F** to sit up front and move the mouse to look around. Press **E** during the ride to ask for the next curb. The four ranks are marked on the city map.
 
 Just south of the Marlin, take a **beach cruiser** from the bicycle rack with **E**. **W** pedals, **Shift** sprints, **S** brakes, **Space** hops and **H** rings the bell. Stop and press **E** to park. Each cruiser stays where you left it between visits. The phone can locate the nearest one.

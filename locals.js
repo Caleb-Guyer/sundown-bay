@@ -57,6 +57,7 @@
   const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
   function animatePeople(people,dt,driver,cars,signals,time,valid){
     for(const p of people){
+      if(p.onTour)continue;
       if(BayStreetReactions.startlePerson(p,dt,driver,cars,people,valid,time))continue;
       p.moving=false;
       const target=p.path[p.index],dx=target[0]+p.offset-p.x,dz=target[1]+p.offset-p.z,d=Math.hypot(dx,dz);

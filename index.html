@@ -56,6 +56,11 @@
         <div class="dash-guide"><i id="dashBearing" aria-hidden="true" hidden></i><span id="dashLine"></span></div><div id="dashSplit" aria-live="polite"></div>
         <button id="dashRetry" hidden><kbd>T</kbd> <span>Run again</span></button>
       </div>
+      <section id="bandHud" aria-label="Drum part" hidden>
+        <div class="band-track"><b id="bandName"></b><span id="bandBar"></span></div>
+        <canvas id="bandRoll" width="620" height="104" aria-label="Drum cues move toward the white line. A is kick, S is snare and D is hi-hat."></canvas>
+        <div class="band-readout"><span id="bandPhrase"></span><span id="bandChain"></span></div>
+      </section>
       <div id="context" role="status"></div>
       <div id="speech" role="status" aria-live="polite" hidden><strong></strong><span></span></div>
       <div class="vehicle"><span id="tireCall" hidden></span><span id="mode"></span><strong id="speed"></strong></div>
@@ -184,6 +189,10 @@
   <script src="valet-places-art.js"></script>
   <script src="motor-court.js"></script>
   <script src="road-owners.js"></script>
+  <script src="shell-score.js"></script>
+  <script src="sound-shell-art.js"></script>
+  <script src="band-players-art.js"></script>
+  <script src="saltwater-sessions.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

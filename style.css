@@ -286,3 +286,9 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .surf-slip.filed {opacity:.76}.surf-slip.filed em {color:#476a58}.surf-slip:disabled {cursor:default}
 @media(max-height:535px){#watchCall{top:59px;left:11px}#diveGauge{right:9px;bottom:78px}}
 @media(max-width:600px){#watchCall{left:10px;max-width:47vw}#diveGauge{right:9px;width:104px}}
+#bandHud {position:absolute;left:50%;bottom:51px;transform:translateX(-50%);width:min(460px,74vw);padding:9px 12px 7px;border:1px solid #91ad9673;border-bottom:3px solid #bd9472;background:#152c2df5;box-shadow:0 3px 14px #101c274a;color:#f2e5c6}
+.band-track,.band-readout {display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.band-track b {font:italic 700 18px/1.2 Georgia,serif}.band-track span,.band-readout {font:600 11px/1.4 Consolas,monospace}
+#bandRoll {display:block;width:100%;height:auto;margin:5px 0 3px}.band-readout span:last-child {color:#a6d7c6}
+.onstage .radar,.onstage .vehicle,.onstage .shortcuts {display:none}.onstage #context {bottom:16px}.onstage #speech {top:13%;bottom:auto}
+@media(max-height:560px){#bandHud{width:min(358px,75vw);bottom:37px;padding:5px 9px}.band-track b{font-size:15px}.onstage #context{bottom:7px}}

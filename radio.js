@@ -45,7 +45,7 @@
   let nextHorn = 0, nextTrafficHorn = 0, nextSiren = 0, seed = 87533, portBell = true, worldTime = 0;
   let swimming = false, waterDepth = 0, strokeEffort = 0, lastImmersion = 0;
   let nextStroke = 0, nextWhistle = 0, nextSplash = 0;
-  let broadcast = null, queuedTape = null;
+  let broadcast = null, queuedTape = null, shell = null;
 
   function random() {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -103,6 +103,7 @@
         horn: shape([0, 0.68, 1, 0.57, 0.39, 0.21, 0.13, 0.07]),
         rotor: shape([0, .15, .30, .56, .87, 1, .86, .63, .42, .23, .11])
       };
+      shell = window.BayShellScore?.createPlayer(context, scene, strike) || null;
       return true;
     } catch {
       if (context) context.close().catch(() => {});
@@ -119,6 +120,7 @@
     if (voice.panner) voice.panner.disconnect();
     if (voice.key && beds.get(voice.key) === voice) beds.delete(voice.key);
     if (voice.slot && fieldVoices.get(voice.slot) === voice) fieldVoices.delete(voice.slot);
+    if (voice.group) voice.group.delete(voice);
     if (broadcast === voice) broadcast = null;
     voices.delete(voice);
   }
@@ -464,7 +466,7 @@
     }
   }
 
-  function mix(now, field) {
+  function mix(now, field, band) {
     if (now < nextMix) return;
     nextMix = now + 0.085;
     const velocity = Math.min(1, speed / 38);
@@ -474,7 +476,8 @@
     swimMix(now, swell, passing);
     const monitoring = mixField(field, now);
     const radioVolume = broadcast ? 0.10 : monitoring ? 0.13 : driving ? 0.71 : 0.47;
-    music.gain.setTargetAtTime(radioVolume, now, broadcast || monitoring ? 0.075 : 0.18);
+    music.gain.setTargetAtTime(radioVolume * (1 - band), now, broadcast || monitoring || band ? 0.075 : 0.18);
+    if (broadcast) broadcast.envelope.gain.setTargetAtTime(.91 * (1 - band), now, .065);
     mixBed('surf', ambience, now, coast * inside * (0.033 + 0.096 * swell), 540 + 1650 * swell);
     mixBed('street', ambience, now, (1 - coast * 0.8) * inside * (0.029 + 0.042 * passing), 175 + 450 * passing);
     mixBed('quay', ambience, now, docks * inside * 0.019, 205, 100 + passing * 5);
@@ -509,17 +512,20 @@
     const now = context.currentTime;
     worldTime = Number.isFinite(state.time) ? state.time : now;
     if (queuedTape) startBroadcast(now);
+    const band = shell ? shell.update(state.shell, now) : 0;
     // A backgrounded tab should resume on one beat, never play a backlog.
     if (nextStep < now - 0.12) nextStep = now + 0.02;
     while (nextStep < now + 0.11) {
-      radioStep(step++, nextStep);
+      if (band < .999) radioStep(step, nextStep);
+      step++;
       nextStep += stepLength;
     }
-    mix(now, state.field);
+    mix(now, state.field, band);
   }
 
   function cue(name, source = {}) {
     if (!enabled || paused || !context || context.state !== 'running') return;
+    if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
     if (name.startsWith('court-')) {
       const near = Math.max(0, 1 - (source.distance || 0) / 34) ** 1.5;
@@ -599,6 +605,7 @@
   function sleep() {
     queuedTape = null;
     if (!context) return;
+    if (shell) shell.stop(context.currentTime);
     master.gain.cancelScheduledValues(context.currentTime);
     master.gain.setValueAtTime(0, context.currentTime);
     for (const voice of voices) { voice.source.stop(); release(voice); }

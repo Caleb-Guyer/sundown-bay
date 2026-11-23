@@ -779,7 +779,7 @@
           rect(ctx,-1.8,1.4,3.6,.58,ink);
         }
         ctx.restore();
-      }else if(!["landing","recovery-desk","wheel-window","bike-rack","valet-stand"].includes(place.kind)&&!street&&visible(x,y)){
+      }else if(!["landing","recovery-desk","wheel-window","bike-rack","valet-stand","sound-shell"].includes(place.kind)&&!street&&visible(x,y)){
         disc(ctx,x,y,(radar?2.0:2.55)*ui,ink);disc(ctx,x,y,(radar?1:1.38)*ui,"#e1d9b2");
       }
     }
@@ -799,6 +799,7 @@
       }
     }
     for(const tape of opt.tapes||empty) {
+      if(street&&tape.name==="Saltwater sessions"&&opt.band)continue;
       const x=px(tape.x),y=py(tape.z);
       if(visible(x,y)) cassette(ctx,x,y,(street?4.6:radar?3.7:4.75)*ui);
     }
@@ -832,6 +833,7 @@
     }
     let playerCar;
     if(opt.valet)BayValetPlaces.map(ctx,opt,px,py,s,visible);
+    if(opt.band)BaySoundShell.map(ctx,opt,px,py,s,visible);
     for(const car of cars) {
       const x=px(car.x),y=py(car.z);
       if(!visible(x,y,4*s+10)) continue;
@@ -930,6 +932,7 @@
       if(street) {
         if(player.driving && !playerCar){carSprite(ctx,player,x,y,s,streetTime);if(opt.streetCar)BayStreetCars.map(ctx,opt.streetCar,x,y,s,streetTime);}
         for(const a of opt.motorists||empty)if(visible(px(a.x),py(a.z),4*s))BayMotorists.mapActor(ctx,a,px(a.x),py(a.z),s,streetTime,a===opt.valet?.staff?opt.valet.staffJob:null);
+        if(opt.band)for(const p of opt.band.performers)if(visible(px(p.x),py(p.z),3*s))BayBandPlayers.mapActor(ctx,p,px(p.x),py(p.z),s,streetTime,opt.band);
         if(opt.cabService)for(const p of opt.cabService.people){
           if(!p.ride||p.seat<=.55||!visible(px(p.x),py(p.z)))continue;
           const rider=BayDriving.world(p.ride,bayCarLayout(p.ride.kind).seatX,.36);
@@ -937,7 +940,8 @@
         }
         if(opt.swim)BaySwimmerArt.map(ctx,x,y,s,opt.swim,streetTime);
         else if(!opt.pickup&&!player.driving&&!player.inCabin&&!opt.aboard&&(!opt.cycles?.riding||opt.cycles.transfer?.approach)){
-          if(opt.keyMapActor)BayMotorists.mapActor(ctx,opt.keyMapActor,x,y,s,streetTime,opt.valet.focus);
+          if(opt.band?.player){const p=opt.band.player;p.kit=player.kit;BayBandPlayers.mapActor(ctx,p,x,y,s,streetTime,opt.band);}
+          else if(opt.keyMapActor)BayMotorists.mapActor(ctx,opt.keyMapActor,x,y,s,streetTime,opt.valet.focus);
           else personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
           if(opt.boardwalk?.run?.phase==="deliver"){const hand=BayDriving.world(player,.28,.08);rect(ctx,px(hand.x)-.12*s,py(hand.z)-.08*s,.24*s,.16*s,"#bd5347");}
           if(opt.field?.phase==="listen")BayCutWildlife.mapMic(ctx,x,y,s,opt.field.yaw,streetTime,!!opt.field.slice);
@@ -946,7 +950,7 @@
           const bag=BayDriving.world(player,.41,.08);rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
         }
         if(opt.aboard){const v=opt.marina.player,helm=BayDriving.world(v,-.38,-.35);disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
-        if(!opt.photograph&&!opt.keyMapActor){
+        if(!opt.photograph&&!opt.keyMapActor&&!opt.band?.take){
           const r=Math.max(player.driving?2.7*s:opt.pickup ? .52*s : 1.1*s,5.2*ui);
           ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.lineWidth=1.5*ui;ctx.strokeStyle=mint;ctx.stroke();
           const vx=Math.sin(player.yaw||0),vy=-Math.cos(player.yaw||0);
