@@ -71,6 +71,36 @@
     }
     return waterPoint(start.x+7,start.z);
   }
+  // Use the length of both hulls so a launch can ride alongside or touch a stern without crossing it.
+  function separateHulls(a,b){
+    if(distance(a,b)>6.5)return;
+    const ax=Math.sin(a.yaw),az=Math.cos(a.yaw),bx=Math.sin(b.yaw),bz=Math.cos(b.yaw);
+    const reach=1.98,width=2.15;
+    let gap=width,nx=0,nz=0;
+    const closest=(dx,dz)=>{
+      const d=Math.hypot(dx,dz);
+      if(d>=gap)return;
+      gap=d;
+      if(d>.0001){nx=dx/d;nz=dz/d;}
+      else{const side=(a.x-b.x)*bz-(a.z-b.z)*bx<0?-1:1;nx=side*bz;nz=-side*bx;}
+    };
+    for(const end of [-reach,reach]){
+      const dx=a.x+end*ax-b.x,dz=a.z+end*az-b.z;
+      const alongB=clamp(dx*bx+dz*bz,-reach,reach);
+      closest(dx-bx*alongB,dz-bz*alongB);
+      const ex=b.x+end*bx-a.x,ez=b.z+end*bz-a.z;
+      const alongA=clamp(ex*ax+ez*az,-reach,reach);
+      closest(ax*alongA-ex,az*alongA-ez);
+    }
+    if(gap>=width)return;
+    const x=a.x+nx*(width-gap),z=a.z+nz*(width-gap);
+    if(bay.fits(x,z,a.yaw)){a.x=x;a.z=z;}
+    const closing=(a.vx-b.vx)*nx+(a.vz-b.vz)*nz;
+    if(closing<0){
+      a.vx-=closing*nx;a.vz-=closing*nz;a.speed=a.vx*ax+a.vz*az;
+      if(closing< -2.8)a.lift=Math.max(a.lift,Math.min(.18,-closing*.013));
+    }
+  }
   class HarborPatrol {
     constructor(chase){this.chase=chase;this.reset();}
     reset(){
@@ -150,10 +180,10 @@
           if(v.stuck>.85){v.backing=1.35;v.stuck=0;v.planIn=0;}
         }
         for(const other of fleet){
-          bay.separate(v,other);
-          if(other===boat){bay.disturb(boat,v,t);bay.disturb(v,boat,t);bay.separate(boat,v);}
+          separateHulls(v,other);
+          if(other===boat){bay.disturb(boat,v,t);bay.disturb(v,boat,t);separateHulls(boat,v);}
         }
-        if(v.slot)bay.separate(v,this.units[0]);
+        if(v.slot)separateHulls(v,this.units[0]);
         const gap=distance(v,p);
         this.closest=Math.min(this.closest,gap);
         if(v.sees)this.inContact=Math.min(this.inContact,gap);
