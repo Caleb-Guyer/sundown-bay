@@ -48,6 +48,12 @@ Board a boat at either pier while wanted and Harbor Patrol follows you offshore.
 
 After you lose the cops, follow the wrench on the map to Portside Tire. Pull into the open bay and take your foot off the pedals. The shop replaces a flat for free.
 
+Hard impacts crease individual panels, crack glass and can leave the radiator steaming. A damaged front end costs acceleration. A badly hit traffic car will look for space to pull over, flash its hazards and let its driver out. Portside quotes bodywork by the damage on that car.
+
+For **Portside Recovery**, walk up to **Della Moss** beside the green wrecker at Portside Tire, or talk to a stranded driver. Take Iona, Rafa or Liv’s call, get into the wrecker with **E** and stop alongside to let them board. Face the same way as their car, stop and press **G** to extend the wheel lift. Hold **V** for a close view of the crossbar, reverse it under the front tires and press **G** again to lift. Tow the car into the striped lane at Portside and press **G** at a stop to set it down. Della works on it, the driver takes the keys and the radio logs your pay. A smooth recovery earns up to **$30** extra.
+
+You can take the wrecker between calls to tow your own car. Della repairs the bodywork and a flat free of charge when you bring it in on the lift. **J → Della Moss** marks the workbench.
+
 Park in the same bay and press **F** for parts and paint. An **engine tune** costs **$250** and adds 18% engine power. **Sport tires** cost **$125** and add 25% cornering grip on pavement. Select **Respray** to preview six colors for **$75**. Fitted parts and paint stay on that individual car after you get out and are saved in the browser.
 
 The game runs in the browser. To play locally, open `index.html` or serve this directory with `python -m http.server`. The overhead view is available when WebGL is unavailable.

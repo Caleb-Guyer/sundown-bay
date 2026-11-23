@@ -23,6 +23,7 @@
 
   // Each body section sets its longitudinal position, half-width, and deck height.
   const shapes = {
+    wrecker:BayWreckerArt.shape,
     coupe: {
       paint: "#ef746b", wheel: .324, axles: [-1.27, 1.23], track: .95,
       sections: [[-2.13,.76,.79],[-1.82,.91,.87],[-.87,.92,.85],[.84,.91,.79],[1.78,.87,.67],[2.10,.74,.63]],
@@ -62,6 +63,7 @@
     s.floorY=van?.41:Math.min(.265,s.seatY-.175);s.halfLength=Math.max(-s.sections[0][0],s.sections.at(-1)[0]);
   }
   window.bayCarLayout=kind=>shapes[kind]||shapes.coupe;
+  BayWreckerArt.fit(shapes.wrecker);
 
   function bodyMesh(g, shape, paint, doors) {
     const lower = tint(paint, "#273242", .27);
@@ -291,6 +293,7 @@
   window.buildBayCar = function buildBayCar(g, kind, paint, parts) {
     const shape = shapes[kind] || shapes.coupe;
     const color = typeof paint === "string" && /^#[\da-f]{6}$/i.test(paint) ? paint : shape.paint;
+    if(kind==="wrecker"){BayWreckerArt.build(g,shape,color,parts,interior);return;}
     const doors=parts?parts.doors:{[-1]:g,1:g};
     bodyMesh(g,shape,color,doors);
     for (const side of [-1,1]) {

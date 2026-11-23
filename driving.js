@@ -4,6 +4,7 @@
   const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const damp=(a,b,k,dt)=>a+(b-a)*-Math.expm1(-k*dt);
   const cars={
+    wrecker:{name:"Portside Wrecker",top:24,power:8.6,brake:17.3,grip:13.1,balance:.47,steer:.69,response:6.0,roll:.115},
     coupe:{name:"Marlin GT",top:38,power:13.8,brake:18.6,grip:14.6,balance:.49,steer:.65,response:8.3,roll:.073},
     hatch:{name:"Riva Hatch",top:30,power:11.5,brake:17.6,grip:14,balance:.47,steer:.69,response:10,roll:.086},
     cab:{name:"Bay Cab",top:28,power:10.3,brake:17,grip:13,balance:.46,steer:.66,response:7.1,roll:.102},
@@ -28,7 +29,8 @@
     if(dt<=0)return;
     const spec=cars[v.kind],shape=bayCarLayout(v.kind),sn=Math.sin(v.yaw),cs=Math.cos(v.yaw);
     const forward=v.vx*sn+v.vz*cs,lateral=v.vx*cs-v.vz*sn,speed=Math.hypot(v.vx,v.vz);
-    const gain=tuned?1.18:1,top=spec.top*gain*(.55+.45*surface),ratio=Math.max(0,forward)/top;
+    const d=v.damage,engine=Math.max(0,((d?.front||0)-.19)/.81)*.49,load=v.towLoad?1:0;
+    const gain=(tuned?1.18:1)*(1-engine)*(1-load*.30),top=spec.top*(tuned?1.18:1)*(1-engine*.87)*(1-load*.24)*(.55+.45*surface),ratio=Math.max(0,forward)/top;
     // A sideways slide can cross zero longitudinal speed while the car is still moving fast.
     // Only select reverse after the whole car has stopped under the brake pedal.
     if(parking||(gas&&forward>=-.18))v.reversing=false;
@@ -51,6 +53,7 @@
     const target=clamp(steerInput+flatSide*.105,-1,1)*maxWheel*(1+.22*v.handbrake);
     v.steer=damp(v.steer,target,steerInput?(Math.sign(target*v.steer)<0?spec.response*1.65:spec.response):10.5,dt);
     const rearArm=-shape.axles[0],frontArm=shape.axles[1],wheelbase=rearArm+frontArm;
+    const rearDamage=Math.max(0,(d?.rear||0)-.25);
     const dryGrip=spec.grip*surface*(1-.12*flat),weightShift=.045*v.brakes-.02*v.throttle;
     const frontGrip=dryGrip*(spec.balance+weightShift),rearGrip=dryGrip*(1-spec.balance-weightShift)*(1-.76*v.handbrake);
     const turnSin=Math.sin(v.steer),turnCos=Math.cos(v.steer);
@@ -58,7 +61,7 @@
     const rearSlip=lateral-rearArm*v.yawRate;
     const tireGain=v.upgrades?.tires?1+.25*surface*(1-flat):1;
     const frontForce=-frontGrip*Math.tanh(frontSlip*5.2/frontGrip)*tireGain;
-    const rearForce=-rearGrip*Math.tanh(rearSlip*(7.0-3.9*v.handbrake)/rearGrip)*tireGain;
+    const rearForce=-rearGrip*Math.tanh(rearSlip*(7.0-3.9*v.handbrake)/rearGrip)*tireGain*(1-rearDamage*.15);
     const sideForce=frontForce*turnCos+rearForce;
     const inertia=.27*wheelbase*wheelbase;
     const torque=(frontArm*frontForce*turnCos-rearArm*rearForce)/inertia;
@@ -69,7 +72,7 @@
     const shove=v.reversing?-6.4*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*
       (v.shift>0?.39:1)*clamp((1.06-ratio)*5,0,1);
     const drag=.36+.00092*forward*forward+(gas||reverse?0:.63)+
-      (1-surface)*2.5+v.handbrake*4.3+v.brakes*spec.brake+flat*(.7+.045*speed);
+      (1-surface)*2.5+v.handbrake*4.3+v.brakes*spec.brake*(1-.23*load)+flat*(.7+.045*speed);
     let along=forward+(brake?0:shove*v.throttle)*dt-frontForce*turnSin*dt;
     along=Math.sign(along)*Math.max(0,Math.abs(along)-drag*dt);
     const sideways=lateral+sideForce*dt;
@@ -117,7 +120,7 @@
     return Math.hypot(Math.max(0,x),Math.max(0,z))+Math.min(0,Math.max(x,z));
   }
   function contact(a,b){
-    const dx=a.x-b.x,dz=a.z-b.z;if(Math.abs(dx)>5.6||Math.abs(dz)>5.6)return null;
+    const dx=a.x-b.x,dz=a.z-b.z,reach=a.kind==="wrecker"||b.kind==="wrecker"?6.5:5.6;if(Math.abs(dx)>reach||Math.abs(dz)>reach)return null;
     const sa=bayCarLayout(a.kind),sb=bayCarLayout(b.kind),ca=Math.cos(a.yaw),aa=Math.sin(a.yaw),cb=Math.cos(b.yaw),ab=Math.sin(b.yaw);
     let depth=Infinity,nx=0,nz=0;
     for(const [x,z] of [[ca,-aa],[aa,ca],[cb,-ab],[ab,cb]]){

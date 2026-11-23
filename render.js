@@ -107,7 +107,11 @@
         vec3 dye=texture2D(lobbyPrint,vColor.rg).rgb*(1.-.14*dusk);
         gl_FragColor=vec4(mix(dye,vec3(.65,.54,.53),haze*.6),1.);return;
       }
-      if(beam>.5){gl_FragColor=vec4(1.,.946,.736,vColor.r*(1.-haze));return;}
+      if(beam>.5){
+        if(beam<1.5)gl_FragColor=vec4(1.,.946,.736,vColor.r*(1.-haze));
+        else gl_FragColor=vec4(mix(vec3(.87,.87,.80),vec3(.63,.67,.71),dusk),vColor.r*(beam-2.)*(1.-haze));
+        return;
+      }
       if(ghost>.5){
         if(mod(floor(gl_FragCoord.x)+2.*floor(gl_FragCoord.y),4.)<2.)discard;
         gl_FragColor=vec4(mix(vec3(.31,.80,.78),vec3(.87,1.,.92),vColor.g),1.);return;
@@ -264,7 +268,7 @@
       if(!this.gl)return;
       const data=mesh.vertices instanceof Float32Array?mesh.vertices:new Float32Array(mesh.vertices);
       if(name==="city")tagMaterials(data,builtMaterials);
-      else if(/^(coupe|van|cab|hatch|cruiser)#/.test(name))tagMaterials(data,carMaterials);
+      else if(/^(coupe|van|cab|hatch|cruiser|wrecker)#/.test(name))tagMaterials(data,carMaterials);
       if(animated)this.animated.add(name);
       this.cpu.set(name,data);if(!this.lost)this.upload(name,data);
     }
@@ -329,10 +333,10 @@
       return {x:(.5+(dx*cs-dz*sn)*f/(aspect*depth)*.5)*innerWidth,y:(.5-(dy*cp-along*sp)*f/depth*.5)*innerHeight,depth};
     }
     beginShadow(){
-      if(!this.stencil)return false;const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ZERO,gl.ONE);
+      if(!this.stencil)return false;this.casting=true;const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ZERO,gl.ONE);
       gl.enable(gl.STENCIL_TEST);gl.stencilFunc(gl.EQUAL,0,255);gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);gl.uniform1f(this.u.castOnly,1);return true;
     }
-    endShadow(){const gl=this.gl;gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.uniform1f(this.u.castOnly,0);}
+    endShadow(){this.casting=false;const gl=this.gl;gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.uniform1f(this.u.castOnly,0);}
     drawGhost(name,x,y,z,yaw){
       this.gl.uniform1f(this.u.ghost,1);this.draw(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
     }
@@ -357,12 +361,16 @@
       gl.uniform1f(this.u.beam,1);this.draw(name);gl.uniform1f(this.u.beam,0);
       gl.disable(gl.BLEND);gl.depthMask(true);
     }
-    draw(name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0){
-      const model=this.models.get(name);if(!model)return;const gl=this.gl;
+    draw(name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0,vehicle=null,doorSide=0,vapor=0){
+      if(vapor&&this.casting)return;
+      const model=vehicle?.damage?BayBodyworkArt.buffer(this,name,vehicle,doorSide):this.models.get(name);
+      if(!model)return;const gl=this.gl;
       if(this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}
       if(tiltX!==this.tiltX||tiltZ!==this.tiltZ){gl.uniform4f(this.u.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));this.tiltX=tiltX;this.tiltZ=tiltZ;}
+      if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
       gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));gl.drawArrays(gl.TRIANGLES,0,model.count);
+      if(vapor){gl.uniform1f(this.u.beam,0);gl.disable(gl.BLEND);gl.depthMask(true);}
     }
   }
   window.BayMesh=Mesh;window.BayView=View;
