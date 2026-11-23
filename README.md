@@ -12,6 +12,8 @@ For **Portside After Dark**, drive to Portside Tire and look for three cars unde
 
 On foot, press **F** beside Jules’s teal coupe to ride shotgun. Use the mouse or arrows to frame Romy beneath the Cine Luna marquee. Press **Space** or click to take a photo, or **X** to recenter. Your best shot of the run becomes the next **Bay Wire** night cover. Reopen it with **J**.
 
+For **One Good Take**, walk up to Romy beside the red No. 27 at Portside Tire and press **F**. Choose **Roll cameras**. As Jules, hold **W** to roll the flatbed. Keep **W** down and tap **G** on the green cue to switch to Romy and drive up the ramp. **A/D** steer, **S** brakes, and **G** can switch back to Jules in midair. All four wheels must land on the moving bed. Press **T** for a retake or wrap to see the actual still from your longest clean landing in the Cine Luna poster case. A clean landing unlocks a longer run-up.
+
 Visit either pier and press **F** at the race desk to enter **Breakwater Run**. Pick the tight-turning **Needle 19** or the faster **Mako 22** and race Paz Ríos on three courses. Cross each gate between the red and green buoys in order. **W/S** work the throttle and reverse, **A/D** steer, and holding **Space** trims the bow up for faster straights and wider turns. First place earns **$220**, **$310** or **$400** depending on the course. Second place earns **$90**. Each course keeps a time record for each boat.
 
 Choose **Free cruise** to explore the bay and Gull Light. You can also walk out to a moored boat and board with **E**. Follow the anchors on the **M** offshore chart to Marlin Pier or North Float. Slow below four knots alongside an open berth and press **E** to tie up and step ashore.

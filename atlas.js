@@ -730,6 +730,9 @@
       }
     }
     if(street&&opt.meet)BayMeetArt.drawMap(ctx,opt,px,py,s,ui,visible);
+    if(street&&opt.meet?.phase==="idle")BayTakeArt.inviteMap(ctx,opt.meet.rival,px,py,s,visible);
+    if(opt.take)BayTakeArt.map(ctx,opt,px,py,s,ui,visible,carSprite);
+    if(street)BayTakePoster.map(ctx,opt,px,py,s,ui,visible);
     if(street&&opt.inez){
       const r=opt.inez,x=px(r.x),y=py(r.z),colors=BayFerryPassengerArt.palette,lift=ferry?.motion.lift||0;
       if(visible(x,y)){

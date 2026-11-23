@@ -6,10 +6,10 @@
   const prints=new WeakMap();
   const clamp=(value,low,high)=>Math.min(high,Math.max(low,value));
 
-  function crop(width,height,aimX=.5,aimY=.5,aspect=filmAspect){
+  function crop(width,height,aimX=.5,aimY=.5,aspect=filmAspect,fullFrame=false){
     const viewport=width>0&&height>0?width/height:filmAspect;
     const ratio=Number.isFinite(aspect)&&aspect>=.5&&aspect<=2.5?aspect:filmAspect;
-    const w=Math.min(.55,.73*ratio/viewport),h=w*viewport/ratio;
+    const w=fullFrame?Math.min(1,ratio/viewport):Math.min(.55,.73*ratio/viewport),h=w*viewport/ratio;
     const x=clamp(Number.isFinite(aimX)?aimX:.5,w/2,1-w/2)-w/2;
     const y=clamp(Number.isFinite(aimY)?aimY:.5,h/2,1-h/2)-h/2;
     return {x,y,w,h};
@@ -28,9 +28,9 @@
     return Math.round(10+43*proximity+28*subject+12*margin+7*separation);
   }
 
-  function capture(source,sky,aimX=.5,aimY=.5,aspect=filmAspect){
+  function capture(source,sky,aimX=.5,aimY=.5,aspect=filmAspect,fullFrame=false){
     if(!source||source.width<2||source.height<2)return null;
-    const f=crop(source.width,source.height,aimX,aimY,aspect);
+    const f=crop(source.width,source.height,aimX,aimY,aspect,fullFrame);
     const sw=f.w*source.width,sh=f.h*source.height;
     try{
       const canvas=document.createElement("canvas");

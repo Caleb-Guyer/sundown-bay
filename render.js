@@ -76,13 +76,17 @@
   const FRAGMENT = PRECISION+`
     varying vec3 vColor,lightCoord; varying vec2 surface; varying float haze;
     uniform vec4 waterParams;
-    uniform sampler2D sunDepth,paper; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow;
+    uniform sampler2D sunDepth,paper,lobbyPrint; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow,showPrint;
     float shadeAt(vec2 uv){
       vec2 rg=texture2D(sunDepth,uv).rg;
       return step(dot(rg,vec2(1.,1./255.))+.00047,lightCoord.z);
     }
     void main(){
       if(castOnly>.5){gl_FragColor=vec4(.12,.15,.24,.28*(1.-.65*dusk)*(1.-haze));return;}
+      if(showPrint>.5){
+        vec3 dye=texture2D(lobbyPrint,vColor.rg).rgb*(1.-.14*dusk);
+        gl_FragColor=vec4(mix(dye,vec3(.65,.54,.53),haze*.6),1.);return;
+      }
       if(beam>.5){gl_FragColor=vec4(1.,.946,.736,vColor.r*(1.-haze));return;}
       if(ghost>.5){
         if(mod(floor(gl_FragCoord.x)+2.*floor(gl_FragCoord.y),4.)<2.)discard;
@@ -151,7 +155,7 @@
         gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;};
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
-      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow"])this.u[key]=gl.getUniformLocation(p,key);
+      this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint"])this.u[key]=gl.getUniformLocation(p,key);
       this.glow=0;
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
@@ -166,7 +170,14 @@
       for(let i=0;i<grain.length;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;grain[i]=seed>>>24;}
       gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,64,64,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,grain);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.generateMipmap(gl.TEXTURE_2D);
-      gl.uniform1i(this.u.sunDepth,0);gl.uniform1i(this.u.paper,1);gl.uniform4f(this.u.tilt,1,0,1,0);gl.activeTexture(gl.TEXTURE0);
+      gl.activeTexture(gl.TEXTURE2);
+      this.printTexture=gl.createTexture();this.printSource=null;this.printRevision=-1;
+      gl.bindTexture(gl.TEXTURE_2D,this.printTexture);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
+      gl.uniform1i(this.u.sunDepth,0);gl.uniform1i(this.u.paper,1);gl.uniform1i(this.u.lobbyPrint,2);
+      gl.uniform4f(this.u.tilt,1,0,1,0);gl.activeTexture(gl.TEXTURE0);
     }
     add(name,mesh,animated=false){
       if(!this.gl)return;
@@ -230,6 +241,17 @@
     drawWater(t){
       const gl=this.gl,eye=this.basis.camera;gl.uniform4f(this.u.waterParams,eye.x,eye.z,t,1);
       this.draw("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
+    }
+    drawPrint(name,canvas,revision,x,y,z,yaw){
+      if(!this.gl||this.lost||!this.models.has(name))return;
+      const gl=this.gl;
+      if(this.printSource!==canvas||this.printRevision!==revision){
+        gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,this.printTexture);
+        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
+        gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
+        gl.activeTexture(gl.TEXTURE0);this.printSource=canvas;this.printRevision=revision;
+      }
+      gl.uniform1f(this.u.showPrint,1);this.draw(name,x,y,z,yaw);gl.uniform1f(this.u.showPrint,0);
     }
     drawSearchlight(name){
       const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);
