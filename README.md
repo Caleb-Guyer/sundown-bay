@@ -10,6 +10,10 @@ Use **WASD** or the arrow keys to move and steer. Move the mouse to look around.
 
 Across the street from the starter car, press **F** at the teal door numbered **14** to enter your room at the Marlin. Walk over to the bed to set the alarm, or read Rosario’s handwritten note on the desk. The city clock carries over between visits. Lamps and headlights come on after dark. Short coastal showers leave the pavement wet for a while.
 
+Under the striped canopy on the motel side of Ocean Drive, press **F** at Tess Vidal’s stand to **take a valet shift**. Meet Ruth, Des and Viv at the loading curb. Press **F** to exchange a key and claim check, **E** to get into that guest’s car, and **E** again after parking between its lettered stripes behind the motel. Hang the key at the stand with **F**. When the guest comes back, take the claim, fetch the matching plate, and hand back the key at the loading curb. Each return pays **$70–85** plus a tip of up to **$45** for parking neatly, prompt retrieval and avoiding damage. The shift book remembers each guest’s best tip. Tess works the same stand before and after your shift.
+
+Traffic signals its turns. A driver gives up the seat, steps to the curb and reports the car’s plate when you take a slow or stopped car. Leave it nearby with room around the door and the owner can walk back, get in and rejoin traffic.
+
 The yellow **Bay Cab** phone is on the beach side of Ocean Drive, a short walk south from the starter coupe. Press **F** at a phone, or flag down empty **Cab 17** from the curb. Pick a destination, then press **E** by the cab to ride with Mina Ortiz. Your first trip is free. In street view, press **F** to sit up front and move the mouse to look around. Press **E** during the ride to ask for the next curb. The four ranks are marked on the city map.
 
 Just south of the Marlin, take a **beach cruiser** from the bicycle rack with **E**. **W** pedals, **Shift** sprints, **S** brakes, **Space** hops and **H** rings the bell. Stop and press **E** to park. Each cruiser stays where you left it between visits. The phone can locate the nearest one.
