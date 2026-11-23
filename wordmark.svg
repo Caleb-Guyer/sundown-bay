@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="514" height="216" viewBox="1 0 514 216" role="img" aria-labelledby="name">
+  <title id="name">Sundown Bay</title>
+  <defs>
+    <!-- Hand-cut, forward-raked capitals; the counters share the sign's silhouette. -->
+    <g id="capitals" transform="translate(27 34) rotate(-3) skewX(-11)" fill-rule="evenodd">
+      <path d="M58 7C48 1 38-1 26 0C10 1 2 10 2 23C2 33 9 39 22 44L32 48C38 50 40 52 39 56C38 60 34 62 28 61C19 61 11 57 5 52L0 66C8 73 19 77 32 76C48 75 58 66 59 53C60 42 53 36 40 31L28 26C22 24 20 22 21 19C22 15 25 14 30 14C39 14 46 17 52 21Z"/>
+      <path transform="translate(64)" d="M3 1H22L21 48C21 57 23 61 31 61C38 61 42 57 42 48L43 1H61L60 48C60 68 49 77 30 77C10 77 2 67 2 50Z"/>
+      <path transform="translate(130)" d="M2 75L3 1H20L44 43L44 1H61L60 75H44L20 34L19 75Z"/>
+      <path transform="translate(195)" d="M3 1H29C52 1 64 13 64 36C64 61 51 75 29 75H2ZM22 16L21 60H27C39 60 45 52 45 37C45 22 40 16 29 16Z"/>
+      <path transform="translate(263)" d="M34 0C54 0 66 13 65 37C65 62 52 77 31 77C10 77 0 63 1 40C1 16 13 1 34 0ZM33 16C25 16 21 22 20 37C19 53 23 61 32 61C40 61 46 53 46 38C47 23 42 16 33 16Z"/>
+      <path transform="translate(332)" d="M0 1H19L20 49L32 17H46L50 49L59 1H77L60 75H43L36 41L23 75H7Z"/>
+      <path transform="translate(411)" d="M2 75L3 1H20L44 43L44 1H63L60 75H44L20 34L19 75Z"/>
+    </g>
+    <!-- A single line of speed-shop script. The last downstroke loops below the a. -->
+    <g id="script" transform="translate(213 80) rotate(-5) scale(1.12 .98)" fill-rule="evenodd">
+      <path d="M3 31C8 13 26 2 51 1C77-1 93 8 92 23C91 36 80 44 66 49C79 51 88 59 84 70C79 85 59 94 38 91C26 90 15 84 9 78C15 61 21 40 32 18C21 20 12 26 7 33ZM49 15C44 22 39 32 34 45C49 44 65 38 70 29C77 17 64 12 49 15ZM30 56L22 77C29 82 47 83 58 76C66 71 68 65 63 61C57 56 43 54 30 56Z"/>
+      <path transform="translate(88 22)" d="M42 23C39 19 36 18 31 18C15 18 2 31-1 49C-4 61 2 71 12 71C20 71 28 65 34 58C33 67 38 71 45 70C53 69 60 64 67 57L65 49C58 55 53 59 50 57C47 55 50 47 59 23L44 24ZM34 31C38 31 37 35 34 42C30 50 23 59 18 57C13 56 16 47 21 40C25 34 31 30 34 31Z"/>
+      <path transform="translate(151 21)" d="M1 26L18 22C13 36 8 51 11 55C15 59 25 47 32 31L35 23L52 20L33 66C48 60 62 50 76 38L81 42C69 57 48 70 28 78C18 98 7 110-7 113C-21 117-33 111-31 100C-28 87-12 77 15 69L18 61C11 68 5 71-2 70C-13 68-10 53-5 39ZM9 81C-2 85-13 90-17 97C-19 101-16 104-12 102C-4 100 3 92 9 81Z"/>
+    </g>
+    <g id="wake">
+      <path d="M15 130C65 136 120 118 168 110C192 106 213 105 236 108L231 116C202 114 183 117 157 123C100 137 60 147 25 141L40 138Z"/>
+      <path d="M52 147C92 148 132 132 168 127C150 135 122 147 88 151C74 153 61 151 52 147Z"/>
+    </g>
+  </defs>
+  <g stroke-linejoin="round" stroke-linecap="round">
+    <g fill="#173a3d" stroke="#173a3d" stroke-width="7" transform="translate(0 4)">
+      <use href="#wake"/><use href="#capitals"/>
+    </g>
+    <g fill="#be816c" stroke="#173a3d" stroke-width="6">
+      <use href="#wake"/><use href="#capitals"/>
+    </g>
+    <use href="#wake" fill="#ffae80"/>
+    <use href="#capitals" transform="translate(0 2)" fill="#dfaa87"/>
+    <use href="#capitals" fill="#fff0ce"/>
+    <use href="#script" transform="translate(0 3)" fill="#173a3d" stroke="#173a3d" stroke-width="6.5"/>
+    <use href="#script" fill="#f5a575" stroke="#173a3d" stroke-width="5"/>
+    <use href="#script" fill="#ffae7c"/>
+  </g>
+</svg>

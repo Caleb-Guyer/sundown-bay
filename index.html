@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#122d32">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2318323c'/%3E%3Ccircle cx='19' cy='13' r='8' fill='%23ffad79'/%3E%3Cpath d='M0 22 Q8 17 16 22 T32 22 V32 H0Z' fill='%238fdccb'/%3E%3C/svg%3E">
+  <title>Sundown Bay</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="game" aria-label="Sundown Bay open-city game">
+    <canvas id="sky" aria-hidden="true"></canvas>
+    <canvas id="world" aria-label="Third-person street view"></canvas>
+    <canvas id="overhead" aria-label="Overhead city view" hidden></canvas>
+    <div id="vignette" aria-hidden="true"></div>
+    <section id="hud" aria-label="Game dashboard" hidden>
+      <div class="location"><span class="area-kicker">SUNDOWN BAY</span><strong id="district">Ocean Drive</strong></div>
+      <div class="account"><strong id="money">$0</strong><span id="stars" aria-label="No heat"></span>
+        <div id="pursuitStatus" hidden><span id="pursuitLabel"></span><i aria-hidden="true"></i></div>
+        <span id="blockCall" class="dispatch-call" hidden></span><span id="airCall" class="dispatch-call" hidden></span>
+      </div>
+      <button id="miniButton" class="radar" title="Open city map (M)" aria-label="Open city map"><canvas id="mini" width="200" height="200"></canvas><span class="north">N</span><span class="map-key">M</span></button>
+      <div id="objective" hidden><span id="objectiveTag"></span><b id="objectiveText"></b></div>
+      <div id="dashHud" aria-label="Low Tide Dash timing" hidden>
+        <div class="dash-heading">Low Tide Dash <span id="dashCount"></span></div>
+        <div class="dash-clock"><strong id="dashTime">0:00.00</strong><span id="dashBest"></span></div>
+        <div class="dash-guide"><i id="dashBearing" aria-hidden="true" hidden></i><span id="dashLine"></span></div><div id="dashSplit" aria-live="polite"></div>
+        <button id="dashRetry" hidden><kbd>T</kbd> <span>Run again</span></button>
+      </div>
+      <div id="context" role="status"></div>
+      <div id="speech" role="status" aria-live="polite" hidden><strong></strong><span></span></div>
+      <div class="vehicle"><span id="tireCall" hidden></span><span id="mode"></span><strong id="speed"></strong></div>
+      <div class="shortcuts"><button id="jobKey"><kbd>J</kbd> Jobs</button><button id="audioKey"><kbd>R</kbd> <span>Sound off</span></button><button id="pauseKey" aria-label="Pause and controls"><kbd>Esc</kbd> Pause</button></div>
+      <div id="targetTag" hidden></div>
+      <div id="toast" role="status" aria-live="polite" hidden><span></span><b></b></div>
+    </section>
+    <section id="intro" class="intro" aria-labelledby="title">
+      <div class="intro-inner">
+        <h1 id="title"><img src="wordmark.svg" alt="Sundown Bay"></h1>
+        <button id="play" class="primary" autofocus>Enter the city <kbd>Enter</kbd></button>
+        <div class="intro-controls"><span><kbd>WASD</kbd> Move</span><span>Mouse to look</span><span><kbd>Space</kbd> Jump</span><span><kbd>E</kbd> Take a car</span></div>
+      </div>
+    </section>
+    <div id="shade" hidden></div>
+    <section id="panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle" hidden>
+      <div class="panel-head"><div><div id="panelKicker" class="eyebrow"></div><h2 id="panelTitle"></h2></div><button id="closePanel" aria-label="Close panel">Close <kbd>Esc</kbd></button></div>
+      <div id="panelBody"></div>
+    </section>
+    <noscript>This game needs JavaScript turned on in your browser.</noscript>
+  </main>
+  <script src="render.js"></script>
+  <script src="camera.js"></script>
+  <script src="sky.js"></script>
+  <script src="city.js"></script>
+  <script src="models.js"></script>
+  <script src="driving.js"></script>
+  <script src="car-access.js"></script>
+  <script src="player-motion.js"></script>
+  <script src="beach-dash.js"></script>
+  <script src="street-art.js"></script>
+  <script src="street-reactions.js"></script>
+  <script src="pursuit.js"></script>
+  <script src="patrol-backup.js"></script>
+  <script src="patrol-art.js"></script>
+  <script src="locals.js"></script>
+  <script src="atlas.js"></script>
+  <script src="radio.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
