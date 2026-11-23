@@ -882,7 +882,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   for(let z=-165;z<175;z+=24) {
     if(z>74 && z<154) continue;
-    const x=between(176,199), rad=between(1.75,2.25);
+    const shadeX=between(176,199),x=z>=-69&&z<=-45?Math.max(198.2,shadeX):shadeX,rad=between(1.75,2.25);
     umbrella(x,z,rad,pick(["#dc857a","#699fa0","#cfab58"]));
     rect(x+.9,z+1.42,.93,1.85,.076,pick(["#a1c4ad","#ca9292","#f5d7a3"]));
     if(z<60 && random()>.4) palm(x-3,z+7,between(5,7),between(0,6.28));

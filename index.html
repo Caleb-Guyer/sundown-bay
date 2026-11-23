@@ -40,6 +40,12 @@
       <div id="fieldRadio" hidden><small>SOL FM · THE MARSH LINE</small><strong id="fieldCredit"></strong><canvas id="airWave" width="156" height="25"></canvas></div>
       <div id="diveGauge" hidden><small>BREAKWATER BAY</small><span id="swimDepth"></span><div class="air-track" role="meter" aria-label="Air remaining" aria-valuemin="0" aria-valuemax="100"><i id="swimAir"></i></div><b id="airLabel"></b></div>
       <div id="watchCall" hidden><span class="watch-pennant" aria-hidden="true"></span><div><small>SOL BEACH PATROL</small><b id="watchMessage"></b></div></div>
+      <section id="courtHud" aria-label="Pickup basketball" hidden>
+        <strong id="courtRules"></strong>
+        <div class="court-score"><span id="courtLeft"></span><b id="courtDigits"></b><span id="courtRight"></span></div>
+        <p id="courtCall"></p>
+        <div id="shotMeter" aria-label="Shot release timing" hidden><i></i><b></b></div>
+      </section>
       <div id="takeHud" aria-label="One Good Take" hidden>
         <div class="take-slate"><strong id="takeName"></strong><span id="takeNumber"></span></div>
         <b id="takeAction"></b><span id="takeCue"></span>
@@ -151,6 +157,11 @@
   <script src="one-good-take.js"></script>
   <script src="take-art.js"></script>
   <script src="take-poster.js"></script>
+  <script src="court-places-art.js"></script>
+  <script src="court-players-art.js"></script>
+  <script src="court-bench-art.js"></script>
+  <script src="court-ball.js"></script>
+  <script src="pickup.js"></script>
   <script src="marlin-room.js"></script>
   <script src="motel-parking.js"></script>
   <script src="street-names.js"></script>

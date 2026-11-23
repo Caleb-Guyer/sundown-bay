@@ -521,6 +521,20 @@
   function cue(name, source = {}) {
     if (!enabled || paused || !context || context.state !== 'running') return;
     const at = context.currentTime + 0.012;
+    if (name.startsWith('court-')) {
+      const near = Math.max(0, 1 - (source.distance || 0) / 34) ** 1.5;
+      if (name === 'court-rim') {
+        tone(effects, 683, at, .19, .053 * near, 'triangle', 639, .002);
+        tone(effects, 1011, at + .012, .095, .028 * near, 'sine', 981, .002);
+      } else if (name === 'court-basket') {
+        waterNoise(effects, at, .135, .053 * near, 2050, 730);
+      } else {
+        const board = name === 'court-glass';
+        tone(effects, board ? 213 : 135, at, board ? .16 : .11, .10 * near, 'sine', board ? 103 : 60, .003);
+        waterNoise(effects, at, .041, .036 * near, 960, 270);
+      }
+      return;
+    }
     if (name === 'cycle-bell') {
       for (const [delay, power] of [[0,.095],[.106,.055]]) {
         tone(effects, 1376, at + delay, .29, power, 'sine', 1362, .002);

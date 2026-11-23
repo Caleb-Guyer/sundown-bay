@@ -14,6 +14,10 @@ The yellow **Bay Cab** phone is on the beach side of Ocean Drive, a short walk s
 
 Just south of the Marlin, take a **beach cruiser** from the bicycle rack with **E**. **W** pedals, **Shift** sprints, **S** brakes, **Space** hops and **H** rings the bell. Stop and press **E** to park. Each cruiser stays where you left it between visits. The phone can locate the nearest one.
 
+At **Sol Beach Courts** or **Mercado Yard**, walk up to the score table and press **F**. Shoot around with a local rebounder, or call next for a game to five. **X** squares you to the basket. Hold **Space** and let go in the green band. **G** switches between the rim and the backboard. On offense, **F** crosses over. On defense, **F** reaches for a steal and **Space** jumps for a block or rebound. Clear the arc after a defensive rebound or steal. Shots from beyond it count for two. Press **E** to step off.
+
+Dee pays **$85** for a win at the beach. Inés pays **$135** behind El Mercado. A first win at either court also puts its **No. 14 jersey** on the clothes rail in your motel room. Both scorekeepers remember your record and longest make. Locals play when you drive by. Pull onto the court and they step aside, then check the ball back in after you move the car.
+
 For **Last Bell Run**, speak to Javi Reyes on the promenade or Mags Duran at the **Coast Wheel** ticket window. Ride alongside Javi in the same direction and **hold F** to match his speed and take the red pouch. Brake and step off at the window, then press **F** to hand Mags the roll. The job pays **$115**, with another **$40** for beating the bell. Miri and Len take their tickets up the ramp together.
 
 Walk up the wooden ramp and press **E** at the Coast Wheel turnstile. The first ride and rides earned on ticket runs are free. Another lap costs **$8**. Move the mouse or use **Q/C** to look across the bay, and press **V** to switch between the cabin and an outside view. Mags lets you off at the platform after one full turn.

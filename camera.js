@@ -79,12 +79,12 @@
       anchor.x=smooth(anchor.x,subject.x,17,dt);anchor.z=smooth(anchor.z,subject.z,17,dt);
       // Keep a lagged anchor on the subject's side when it rounds a corner.
       this.jumpLift=smooth(this.jumpLift,vehicle?0:(options.lift||0)*.39,12,dt);
-      const ground=options.ground||0,pivotY=swim?subject.y+(swim.exit?1.22:.15):ground+1.26+.10*b+this.jumpLift;
+      const ground=options.ground||0,pivotY=swim?subject.y+(swim.exit?1.22:.15):ground+(options.court?1.59:1.26)+.10*b+this.jumpLift;
       const realPivot={x:subject.x,y:pivotY,z:subject.z};
       const anchorEye={x:anchor.x,y:pivotY,z:anchor.z};
       const free=safeFraction(realPivot,anchorEye,this.obstacles);
       const pivot={x:subject.x+(anchor.x-subject.x)*free,y:pivotY,z:subject.z+(anchor.z-subject.z)*free};
-      this.distance=smooth(this.distance,(swim?(this.diving?3.35:4.25):4.55+b*(2.25+pace*1.35))*this.zoom,6.5,dt);
+      this.distance=smooth(this.distance,(swim?(this.diving?3.35:4.25):options.court?5.35:4.55+b*(2.25+pace*1.35))*this.zoom,6.5,dt);
       const shoulder=.47*(1-b),radius=this.distance,flat=Math.cos(this.elevation)*radius;
       const xOff=-sn*flat+cs*shoulder,zOff=-cs*flat-sn*shoulder;
       const yOff=Math.sin(this.elevation)*radius+.20*b;
@@ -109,7 +109,7 @@
       const aimY=pivot.y+(swim?0:.27+b*.24);
       out.yaw=Math.atan2(aimX-out.x,aimZ-out.z);
       out.pitch=Math.atan2(aimY-out.y,Math.max(.15,Math.hypot(aimX-out.x,aimZ-out.z)));
-      out.focal=1.56-b*(.04+.145*pace);
+      out.focal=options.court?1.19:1.56-b*(.04+.145*pace);
       this.hideActor=vehicle ? Math.hypot(out.x-subject.x,out.z-subject.z)<1.55&&out.y-ground<(vehicle.kind==="van"?2.9:1.85)
                              : Math.hypot(out.x-subject.x,out.z-subject.z)<.53&&out.y-ground<2.18;
     }

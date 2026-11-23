@@ -23,7 +23,7 @@
     if(pixels)return {pixels,size:textureSize};
     pixels=new Uint8Array(textureSize*textureSize*4);
     const scale=textureSize/extent;
-    for(const lamp of lights){
+    for(const lamp of lights.concat(window.BayCourtPlaces?.lightPools||[])){
       const cx=(lamp.x+extent/2)*scale-.5,cy=(lamp.z+extent/2)*scale-.5;
       const rx=lamp.rx*scale,ry=lamp.rz*scale;
       for(let iy=Math.max(0,Math.floor(cy-ry));iy<=Math.min(textureSize-1,Math.ceil(cy+ry));iy++){

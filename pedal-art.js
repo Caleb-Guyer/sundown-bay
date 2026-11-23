@@ -499,7 +499,7 @@
     }
     if(b.pouch&&Math.abs(b.reach||0)<.10)satchel();
     if(showRider){
-      const isJavi=b.rider==="javi",shirt=isJavi?colors.javi[1]:"#398e86",pants=isJavi?colors.javi[2]:"#556d80",skin=isJavi?colors.javi[0]:"#b77f62";
+      const isJavi=b.rider==="javi",shirt=isJavi?colors.javi[1]:window.BayCourtPlayers?.kitColors[b.kit]||"#398e86",pants=isJavi?colors.javi[2]:"#556d80",skin=isJavi?colors.javi[0]:"#b77f62";
       const o=rootOffset(sta,side),seat=smooth(.20,.94,sta),r=clamp(b.reach||0,-1,1);
       const torso=[o[0]+.035*r*seat,o[2]-.183*seat+.131*(b.effort||0)*seat+.118+.19*pickup(b)*seat],head=[torso[0]+.035*r,torso[1]+.075+.054*seat];
       for(const k of [-1,1]){
