@@ -257,7 +257,7 @@
       rect(c,-b+.16,-.98,2*b-.32,2.93,body);
       for(const k of [-.5,.01,.52]) line(c,k,-.76,k,1.71,"#bdd0ba",.045);
     } else {
-      const roof=police?"#e9e3c9":cab?"#eac178":body;
+      const roof=police?"#e9e3c9":body;
       path(c,[[-b+.24,-.59],[b-.24,-.59],[b-.22,.69],[-b+.22,.69]],roof);
       path(c,[[-b+.22,.72],[b-.22,.72],[b-.12,1.32],[-b+.12,1.32]],"#385561");
       if(cab) {rect(c,-.31,-.07,.62,.29,"#34474c");rect(c,-.24,-.035,.48,.20,"#ffe3a0");}
@@ -290,6 +290,11 @@
     }
     c.restore();
   }
+  window.drawBayPaintSample=function(canvas,kind,color){
+    const c=canvas.getContext("2d"),w=canvas.width,h=canvas.height;
+    c.clearRect(0,0,w,h);
+    carSprite(c,{kind,color,yaw:Math.PI*.46},w*.50,h*.50,Math.min(w/5.25,h/2.90),0);
+  };
   function personSprite(c,p,x,y,s,hero,bearing=0,ghost=false) {
     c.save();c.translate(x,y);
     const recoil=p.startle,lift=hero?p.motion.lift:recoil?.lift||0;

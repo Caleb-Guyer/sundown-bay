@@ -782,6 +782,9 @@ window.buildBayCity = function buildBayCity(g) {
     shop.face(10.68,2.13,d+.14,7.4,3.92,"#80938c");
     for(let h=.42;h<4;h+=.37)shop.face(10.68,h,d+.16,7.3,.053,"#bbbdab");
     shop.face(10.68,2.22,d+.18,7.3,.22,red);
+    shop.face(10.68,3.10,d+.20,5.20,1.04,cream);
+    shop.face(10.68,3.10,d+.22,5.04,.91,blue);
+    sign(shop,"RESPRAYS",10.68,3.10,d+.24,.138,"#fff0cf");
     // A concrete apron, two lift runways and a painted stop bar lead into the shop.
     rect(x,z+2.3,2*w-.10,d*2+4.25,.114,"#b4b2a0");
     for(const side of [-1,1]){

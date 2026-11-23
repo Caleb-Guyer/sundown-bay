@@ -10,4 +10,6 @@ At three stars, patrol cars set up roadblocks. At four, some crews lay spike str
 
 After you lose the cops, follow the wrench on the map to Portside Tire. Pull into the open bay and take your foot off the pedals. The shop replaces a flat for free.
 
+Park in the same bay and press **F** to preview six paint colors. A respray costs **$75** from your job earnings. The finish stays on that individual car when you get out and is saved in the browser.
+
 The game runs in the browser. To play locally, open `index.html` or serve this directory with `python -m http.server`. The overhead view is available when WebGL is unavailable.

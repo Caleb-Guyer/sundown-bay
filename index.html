@@ -47,6 +47,18 @@
       <div class="panel-head"><div><div id="panelKicker" class="eyebrow"></div><h2 id="panelTitle"></h2></div><button id="closePanel" aria-label="Close panel">Close <kbd>Esc</kbd></button></div>
       <div id="panelBody"></div>
     </section>
+    <template id="paintTicket">
+      <div class="paint-proof">
+        <div class="paint-details"><strong class="paint-model"></strong><span class="paint-caption" aria-live="polite"></span></div>
+        <canvas width="480" height="216" aria-hidden="true"></canvas>
+      </div>
+      <fieldset class="paint-deck"><legend>Choose a color</legend><div class="paint-options"></div></fieldset>
+      <div class="paint-checkout">
+        <div>Wallet <strong class="paint-wallet"></strong></div>
+        <button type="button" class="paint-buy"></button>
+      </div>
+      <p class="paint-balance" role="status"></p>
+    </template>
     <noscript>This game needs JavaScript turned on in your browser.</noscript>
   </main>
   <script src="render.js"></script>
