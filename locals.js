@@ -36,6 +36,7 @@
       const person={x:a[0]+offset,z:a[1]+offset,index:(start+1)%path.length,path,offset,style,role,name,lines,spoken:0,
         yaw:Math.atan2(b[0]-a[0],b[1]-a[1]),phase:people.length*1.42,pace:role==="runner"?2.65:.93+style*.077,
         wait:a[2]||0,alert:0,stuck:0,moving:false,gesture:0,side:people.length%2?1:-1,reactionBeat:(people.length*7%11)/10};
+      if(!name&&role!=="runner"&&people.length%4!==1)person.canopyStyle=people.length%4;
       people.push(person);
     }
     for(const [name,role,route,style,lines] of cast)add(route,style,role,0,0,name,lines);
@@ -55,10 +56,11 @@
     return people;
   }
   const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
-  function animatePeople(people,dt,driver,cars,signals,time,valid){
+  function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0){
     for(const p of people){
       if(p.onTour)continue;
       if(BayStreetReactions.startlePerson(p,dt,driver,cars,people,valid,time))continue;
+      if((rain>.12||p.porch)&&BayRainWalk.porchStep(p,dt,rain,time,people,cars,valid))continue;
       p.moving=false;
       const target=p.path[p.index],dx=target[0]+p.offset-p.x,dz=target[1]+p.offset-p.z,d=Math.hypot(dx,dz);
       if(p.alert>0){p.alert-=dt;p.gesture=1;continue;}

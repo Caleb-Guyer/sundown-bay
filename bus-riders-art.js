@@ -6,6 +6,7 @@
   const light="#e0dfc8",deep="#586665",cane="#b7804f",straw="#d2a269";
   const capAt=[0,1.70,0],chestAt=[0,1.32,0],eyesAt=[0,1.65,0];
   const specs={
+    tickets:{piece:"ticket-bundle",wear:"cinema-pass",bone:"chest",at:chestAt,side:-1},
     basket:{piece:"produce-basket",wear:"market-kerchief",bone:"head",at:capAt,side:1},
     tin:{piece:"lunch-pail",wear:"work-braces",bone:"chest",at:chestAt,side:-1},
     film:{piece:"film-carrier",wear:"cinema-pass",bone:"chest",at:chestAt,side:1},
@@ -142,6 +143,18 @@
       g.box(k*.124,-.048,.125,.032,.033,.009,"#8b8e7e");g.box(k*.124,-.045,.131,.019,.017,.004,"#74634a");
     }
   }
+  function tickets(g){
+    g.box(0,-.125,0,.21,.147,.127,"#9a715d");
+    g.box(0,-.050,0,.211,.009,.128,"#d2a684");
+    for(const [i,col] of ["#e1af88","#9cbab5","#c88070"].entries()){
+      const x=(i-1)*.064;
+      g.box(x,-.031,0,.056,.031,.103,col);
+      for(const edge of [-1,1])g.box(x,-.019,.028*edge,.053,.004,.006,"#6e6261");
+    }
+    g.box(0,-.126,.066,.155,.068,.004,linen);
+    for(const x of [-.047,-.034,-.011,.006,.014,.039])g.box(x,-.125,.070,.006,.038,.004,"#5e716b");
+    line(g,[[-.086,-.052,0],[-.067,.032,0],[.043,.032,0],[.083,-.052,0]],.009,"#685b4e");
+  }
   function filmPass(g){
     for(const k of [-1,1])strap(g,k*.071,.103,.021,-.038,.010,.125,"#9e5a55");
     g.box(.021,-.038,.126,.013,.025,.008,aluminum);g.box(.025,-.091,.130,.069,.094,.01,"#b4b8a5",-.04);
@@ -174,7 +187,7 @@
   function install(model){
     const meshes={"produce-basket":basket,"lunch-pail":lunchPail,"film-carrier":filmCarrier,"indigo-shopper":g=>tote(g,false),
       "striped-shopper":g=>tote(g,true),"operator-cap":operatorCap,"operator-badge":badge,"market-kerchief":kerchief,
-      "work-braces":braces,"cinema-pass":filmPass,"round-frames":glasses,"knit-shirt":knitShirt};
+      "ticket-bundle":tickets,"work-braces":braces,"cinema-pass":filmPass,"round-frames":glasses,"knit-shirt":knitShirt};
     for(const [key,build] of Object.entries(meshes))model("route6-"+key,build);
   }
   function seated(p){
@@ -237,7 +250,10 @@
       const item=grip(p,bus,spec,sit),side=spec.side;
       // Street-scale symbol can be read beside the figure and remains inside its own seat.
       c.save();c.translate(item.at[0]+side*.080*(1-sit),item.at[2]);c.rotate(-item.yaw);
-      if(id==="basket"){
+      if(id==="tickets"){
+        rect(c,0,0,.194,.155,"#926b56");for(let i=0;i<3;i++)rect(c,(i-1)*.061,0,.055,.128,["#e1af88","#9bbab4","#c88070"][i]);
+        rect(c,0,0,.184,.014,"#635d50");
+      }else if(id==="basket"){
         disc(c,0,0,.132,.163,cane);disc(c,0,.004,.117,.143,straw);
         for(const [x,z,col] of [[-.057,-.064,"#97a761"],[.026,-.082,"#b9af62"],[.063,.025,"#a0aa63"],[-.044,.038,"#b9ba65"],[.004,.095,"#a4a963"]])disc(c,x,z,.046,.047,col);
         rect(c,0,0,.019,.277,"#9f8157");

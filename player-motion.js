@@ -253,6 +253,8 @@
         }else if(motion.console){
           const hand=side<0?motion.console.left:motion.console.right;
           reachFor(limb,hand.x,hand.y,hand.z,hand.weight);
+        }else if(side===1&&motion.canopy>0&&!motion.handTarget){
+          reachFor(limb,.24,1.26,.19,motion.canopy);
         }else if(side===1&&motion.handTarget){
           const h=motion.handTarget;reachFor(limb,h.x,h.y,h.z,h.weight);
         }

@@ -22,7 +22,8 @@
     {id:"lon",name:"Lon Bell",style:5,home:0,to:2,prop:"tin",hello:"Port Sol, please. The dock clock’s been six minutes fast since June.",thanks:"Right outside the gate. See you on the way home."},
     {id:"miki",name:"Miki Sáenz",style:3,home:1,to:3,prop:"film",hello:"That little tin is the trailer. The feature went over yesterday.",thanks:"I can still make the first reel."},
     {id:"noor",name:"Noor Vale",style:4,home:2,to:0,prop:"bag",hello:"Folded sheets going out, saltwater towels coming back. Same run every day.",thanks:"The Marlin can have its good pillowcases back."},
-    {id:"ruben",name:"Rubén Díaz",style:1,home:3,to:1,prop:"bag",hello:"Rosario saves me the last roll. Nobody at the theater bakes bread like that.",thanks:"Right on the corner. I’ll bring Marta one."}
+    {id:"ruben",name:"Rubén Díaz",style:1,home:3,to:1,prop:"bag",hello:"Rosario saves me the last roll. Nobody at the theater bakes bread like that.",thanks:"Right on the corner. I’ll bring Marta one."},
+    {id:"alba",name:"Alba Font",style:2,home:0,to:3,prop:"tickets",hello:"Dad printed the balcony tickets on the backs of the blue ones. Both sides count.",thanks:"The box office has its roll for tonight."}
   ];
   function read(raw){
     const n=k=>Number.isSafeInteger(raw?.[k])?clamp(raw[k],0,1000000):0;
@@ -118,7 +119,9 @@
       BayDriving.settle(this.bus);this.bus.brake=1;this.bus.wheel=0;
       this.driver=actor({id:"marta",name:"Marta Leal",style:1},0,0);Object.assign(this.driver,{seat:driverSeat,sit:1,stage:"ride",yaw:this.bus.yaw});
       this.people=cast.map((c,i)=>{const q=queue(stops[c.home],i);return {...actor(c,q.x,q.z),from:c.home,destination:c.to,order:i,yaw:stops[c.home].yaw-Math.PI/2};});
-      for(const p of this.people)if(p.order%2===1){
+      for(const p of this.people)if(p.id==="alba"){
+        const [x,z]=workPaths[p.from].at(-1);Object.assign(p,{x,z,stage:"work",clock:-65,yaw:Math.PI/2});
+      }else if(p.order%2===1){
         p.bench=BayBusStopArt.seats(stops[p.from])[p.order%3];p.sit=1;benchPose(p,0);
       }
       this.player=null;this.flag=null;this.shift=null;this.inside=false;this.pan=0;this.tilt=0;this.scan=0;this.space=Infinity;this.block=0;
@@ -223,6 +226,12 @@
       const path=nodes.map(q=>({...q,y:env.ground(q.x,q.z)}));p.from=this.current;p.destination=this.current===p.home?p.to:p.home;
       setPath(p,"street",path);p.seat=null;
     }
+    workName(index){return ["Marlin arcade","market counter","port office","Cine Luna doors"][index];}
+    returnToStop(p,ground){
+      const s=stops[p.from],via=workPaths[p.from].slice(0,-1).reverse().map(([x,z])=>({x,z}));
+      via.push(world(s.berth,2.35,doors.rear),world(s.berth,2.36,1.15),queue(s,p.order));
+      setPath(p,"back",via.map(q=>({...q,y:ground(q.x,q.z)})));
+    }
     peopleStep(dt,env){
       const b=this.bus,travellers=this.player?[this.driver,...this.people,this.player]:[this.driver,...this.people];
       for(const p of travellers){
@@ -234,9 +243,7 @@
         if(p.stage==="wait"||p.stage==="queue"||p.stage==="work"){
           p.motion.step(dt,0,0);
           if(p.stage==="work"&&(p.clock+=dt)>24+p.order*4){
-            const s=stops[p.from],q=queue(s,p.order),via=workPaths[p.from].slice(0,-1).reverse().map(([x,z])=>({x,z}));
-            via.push(world(s.berth,2.35,doors.rear),world(s.berth,2.36,1.15));
-            setPath(p,"back",[...via,q].map(q=>({...q,y:env.ground(q.x,q.z)})));
+            this.returnToStop(p,env.ground);
           }
           continue;
         }
@@ -252,7 +259,9 @@
           continue;
         }
         const stage=p.stage;
-        if(!approach(p,dt,stage==="board"||stage==="alight"||stage==="trade"?2.05:1.42))continue;
+        const walking=stage==="back"||stage==="street";
+        const rate=stage==="board"||stage==="alight"||stage==="trade"?2.05:1.42;
+        if(!approach(p,dt,walking?rate*(env.walkPace?.(p)??1):rate))continue;
         if(stage==="board"||stage==="trade"){p.stage="sitting";p.sit=0;}
         else if(stage==="street"){p.stage="work";p.clock=0;p.yaw=stops[p.from].yaw+Math.PI/2;}
         else if(stage==="back"){p.stage="wait";p.yaw=stops[p.from].yaw-Math.PI/2;}

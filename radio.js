@@ -32,6 +32,7 @@
   const beds = new Map();
   const fieldBuffers = new Map(), fieldVoices = new Map();
   const bedsByName = {
+    shower: ["noise","lowpass",.53],
     engine: ['sawtooth', 'lowpass', 0.59], exhaust: ['triangle','lowpass',.65], skid: ['noise', 'bandpass', 1.8], tire: ['triangle', 'lowpass', 0.62],
     surf: ['noise', 'lowpass', 0.52], street: ['noise', 'lowpass', 0.8], quay: ['sine', 'lowpass', 0.6],
     piston: ['sawtooth','lowpass',0.62], rotor: ['rotor', 'lowpass', 0.70], undertow: ['noise','lowpass',0.58],
@@ -47,6 +48,7 @@
   let floatEngine=0,floatThrottle=0,rescueLevel=0,nextRescue=0;
   let driving = false, boating = false, speed = 0, heat = 0, siren = 0, rotor = 0, coast = 0, docks = 0, skid = 0;
   let nextStep = 0, step = 0, nextMix = 0, skidSince = null, nextGull = 0, nextPortSound = 0;
+  let nextCanopyDrop=0;
   let nextHorn = 0, nextTrafficHorn = 0, nextSiren = 0, seed = 87533, portBell = true, worldTime = 0;
   let swimming = false, waterDepth = 0, strokeEffort = 0, lastImmersion = 0;
   let nextStroke = 0, nextWhistle = 0, nextSplash = 0;
@@ -600,6 +602,14 @@
     const radioVolume = broadcast ? 0.10 : monitoring ? 0.13 : (state.radioProgram?.booth||driving) ? 0.71 : 0.47;
     music.gain.setTargetAtTime(radioVolume * (1 - band), now, broadcast || monitoring || band ? 0.075 : 0.18);
     if (broadcast) broadcast.envelope.gain.setTargetAtTime(.91 * (1 - band), now, .065);
+    const shower=unit(state.rain),canopy=unit(state.canopy);
+    mixBed('shower',ambience,now,shower*(state.inCabin?.019:.058)*(1-.35*canopy),state.inCabin?1200:3200);
+    if(canopy*shower>.05&&now>=nextCanopyDrop){
+      const size=random(),at=now+.009;
+      waterNoise(ambience,at,.038+size*.021,.041*canopy*shower,2200-size*470,670);
+      tone(ambience,530-size*160,at,.052+size*.020,.015*canopy*shower,'triangle',240+size*64,.003);
+      nextCanopyDrop=now+.084+random()*.18/Math.max(.24,shower);
+    }
     mixBed('surf', ambience, now, coast * inside * (0.033 + 0.096 * swell), 540 + 1650 * swell);
     mixBed('street', ambience, now, (1 - coast * 0.8) * inside * (0.029 + 0.042 * passing), 175 + 450 * passing);
     mixBed('quay', ambience, now, docks * inside * 0.019, 205, 100 + passing * 5);

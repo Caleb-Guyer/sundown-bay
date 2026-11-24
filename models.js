@@ -399,7 +399,9 @@
       markPart?.("arm",side);
       const shoulder=[side*.204,1.410+bob,-.004], sleeveEnd=[side*.237,1.268+bob,-swing*.065];
       let elbow=[side*.249,1.185+bob,-swing*.089],hand=[side*.235,1.004+bob,.039-swing*.155];
-      if(talking&&side===1) {
+      if(gesture===3&&side===1){
+        elbow=[.306,1.17,.063];hand=[.24,1.26,.19];
+      } else if(talking&&side===1) {
         elbow=[.279,1.203+bob,.069];hand=[.310,1.340+bob,.19];
       } else if(reading) {
         elbow=[side*.226,1.177+bob,.062];hand=[side*.080,1.196+bob,.219];

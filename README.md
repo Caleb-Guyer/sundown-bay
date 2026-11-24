@@ -6,6 +6,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.
 
+Outside **Room 14** at the Marlin and at all four **Route 6** shelters, press **U** at the umbrella stand to borrow a Marlin stripe. Away from a stand, **U** opens or folds it. During showers, locals open their own canopies or wait under a nearby shelter until the rain lets up.
+
+Look for **Alba Font** with her bundle of Cine Luna tickets under the Marlin arcade. With your umbrella open, press **G** beside her to share it. Walk next to her using the usual controls, or hold **G** to match her pace. The same invitation works when other Route 6 regulars are at work or walking between the bus and their workplace. Keep them under the canopy for at least **65%** of the walk to get their signed note and unlock the guava print. Every stand keeps your loan card, even after a reload.
+
 In a car, use **[** and **]** or the **FM dial** button to tune **88.3 Sol FM**, **94.7 Marea**, **103.9 Breaker**, or turn the receiver off. Each car remembers its station. Tune back in and the record will have moved on. The receiver displays local reports and song credits with sound off. **R** toggles all sound.
 
 Follow Ocean Drive north to the **Sol FM broadcast van** on the Boardwalk. Talk to **Ivo Vidal** beside the turntables with **F** and take a pair of record sleeves. **W/S** adjusts the second record’s tempo. Tap **Space** on the first beat of deck A to start B, then hold **D** to move the crossfader across. **A** brings it back. **V** changes the view and **E** steps away. Beat lights and BPM readouts let you play the whole set muted.

@@ -849,10 +849,12 @@
       const x=px(tape.x),y=py(tape.z);
       if(visible(x,y)) cassette(ctx,x,y,(street?4.6:radar?3.7:4.75)*ui);
     }
+    if(street&&opt.rainWalk)for(const r of BayRainWalk.racks)if(visible(px(r.x),py(r.z),2*s))BayRainCanopies.mapRack(ctx,px,py,s,r,opt.rainWalk.book.borrowed===r.id);
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){
         personSprite(ctx,person,x,y,Math.max(2.3,s*1.42),false,rotation);
+        if(person.canopy>.01&&!person.startle)BayRainCanopies.map(ctx,px,py,s,person,person.canopy,person.canopyStyle,streetTime);
         if(person.iceBox){
           ctx.save();ctx.translate(x,y);ctx.rotate(person.yaw);ctx.fillStyle="#5d8781";
           ctx.fillRect(.25*s,-.26*s,.47*s,.33*s);ctx.fillStyle="#e5d5ab";ctx.fillRect(.25*s,-.28*s,.47*s,.11*s);ctx.restore();
@@ -1015,6 +1017,10 @@
           else if(opt.keyMapActor)BayMotorists.mapActor(ctx,opt.keyMapActor,x,y,s,streetTime,opt.valet.focus);
           else if(opt.airwaves?.mixing)BayAirwavesBooth.mapOperator(ctx,px,py,s,player,streetTime,opt.airwaves);
           else personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+          if(opt.rainWalk?.amount>.01){
+            ctx.save();if(opt.rainWalk.trip)ctx.globalAlpha*=.65;
+            BayRainCanopies.map(ctx,px,py,s,player,opt.rainWalk.amount,opt.rainWalk.book.style,streetTime);ctx.restore();
+          }
           if(opt.airCarried)BayAirmailArt.carryMap(ctx,opt,px,py,s,opt.airCarried,streetTime,BayAirPost.tagFor(opt.airLine.saved.bag));
           if(opt.deckHand)BaySkateArt.carryMap(ctx,opt,px,py,s,opt.deckHand,streetTime,opt.skate.saved.deck);
           if(opt.boardwalk?.run?.phase==="deliver"){const hand=BayDriving.world(player,.28,.08);rect(ctx,px(hand.x)-.12*s,py(hand.z)-.08*s,.24*s,.16*s,"#bd5347");}
@@ -1027,7 +1033,7 @@
           if(opt.airLine?.saved.bag){const q=BayDriving.world(v,.48,-.94);BayAirmailArt.bagMap(ctx,opt,px,py,s,q,v.yaw+.28,BayAirPost.tagFor(opt.airLine.saved.bag));}
           disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
         if(opt.wash)BayPalmaWash.mapActivity(ctx,opt,px,py,s,visible);
-        if(!opt.airwaves?.mixing&&!opt.airLine?.aboard&&!opt.photograph&&!opt.keyMapActor&&!opt.band?.take&&!opt.skate?.rider){
+        if(!opt.rainWalk?.trip&&!opt.airwaves?.mixing&&!opt.airLine?.aboard&&!opt.photograph&&!opt.keyMapActor&&!opt.band?.take&&!opt.skate?.rider){
           const r=Math.max(player.driving?2.7*s:opt.pickup ? .52*s : 1.1*s,5.2*ui);
           ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.lineWidth=1.5*ui;ctx.strokeStyle=mint;ctx.stroke();
           const vx=Math.sin(player.yaw||0),vy=-Math.cos(player.yaw||0);
