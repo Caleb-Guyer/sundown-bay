@@ -475,7 +475,7 @@
     else if(save.airmail.island){Object.assign(hero,airStops[1].desk);resetFeet();cameraSnap();}
     if(save.shore.carried&&!active)waypoint={...BaySurfPatrol.tower};
     try{if(localStorage.getItem("sundownBay.audio")==="on"){radio=sound.setEnabled(true);$("audioKey").querySelector("span").textContent=radio?"Sol FM":"Sound off";}}catch{}
-    captureMouse();if(active?.airmail){note("Mail in hand",airLine.leaflet()[0]+" · "+airLine.mailTo.name,4);return;}
+    if(active?.airmail){note("Mail in hand",airLine.leaflet()[0]+" · "+airLine.mailTo.name,4);return;}
     if(save.airmail.island){note("Gull Key","Liv is at the post office. Fern 3 calls at the south float.",3.5);return;}
     note("Marlin Motel","Room 14 is yours. "+(personalCar?"Your "+formatVehicle(personalCar)+" is marked on the map.":cars[0].color===paints[0]?"Keys are in the coral coupe.":"Your "+formatVehicle(cars[0])+" is out front."),4.3);
   }
@@ -1382,7 +1382,7 @@
   function palmPointer(ev,press=false){
     const m=palm.match;if(!m)return false;
     const g=m.rack;if(m.stage!=="play"||g.turn||m.queue||m.swing)return true;
-    if((pointer.locked||!isTop()&&m.camera===1)&&!press&&g.phase==="aim"){palm.aim(m.angle+(ev.movementX||0)*(held("ShiftLeft","ShiftRight") ? .00065 : .0030));return true;}
+    if(!isTop()&&m.camera===1&&!press&&g.phase==="aim"){palm.aim(m.angle+(ev.movementX||0)*(held("ShiftLeft","ShiftRight") ? .00065 : .0030));return true;}
     const q=BayPalmRoom.fromScreen(ev.clientX,ev.clientY,palmSite.table,cam,isTop(),innerWidth,innerHeight,!!m.camera);
     if(!q)return true;
     if(g.phase==="hand"){
@@ -5641,7 +5641,7 @@
     if(panel==="field-proof"&&active?.field?.phase==="review"){active.field.phase="return";cameraSnap();}
     if(panel==="take-result"&&active?.take?.receipt)wrapTake();
     paintPreview=null;
-    panel="";$("panel").hidden=true;$("shade").hidden=true;$("hud").hidden=!play;keys.clear();resetPointer();sound.pause(false);document.activeElement?.blur();lastHud=-10;lastMap=-10;captureMouse();
+    panel="";$("panel").hidden=true;$("shade").hidden=true;$("hud").hidden=!play;keys.clear();resetPointer();sound.pause(false);document.activeElement?.blur();lastHud=-10;lastMap=-10;
   }
   function makeButton(title,detail,right,fn,className="row-action"){
     const b=document.createElement("button"),block=document.createElement("span"),strong=document.createElement("strong"),small=document.createElement("small"),end=document.createElement("em");
@@ -5957,7 +5957,7 @@
     if(listening()){active.field.slice=null;active.field.armed=true;}
     if(pickup?.human.shot?.stage==="wind"){const p=pickup.human;p.shot=null;p.wind=0;p.action="dribble";courtMeter();}
     onAir=null;paintPreview=null;$("shade").className=shop?"paint-shade":"";
-    panel=next;keys.clear();releaseMouse();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
+    panel=next;keys.clear();resetPointer();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
     const b=$("panelBody");b.replaceChildren();$("closePanel").focus({preventScroll:true});
     let title="",kicker="";
     if(skate.rider){skate.rider.charging=false;skate.rider.charge=0;}
@@ -6364,41 +6364,16 @@
   $("jobKey").onclick=()=>openPanel("jobs");$("miniButton").onclick=()=>openPanel("map");$("pauseKey").onclick=()=>openPanel("pause");
   $("audioKey").onclick=()=>{radioToggle();document.activeElement?.blur();};
   $("dashRetry").onclick=()=>{retryDash();document.activeElement?.blur();};
-  const pointer={locked:false,requesting:false,x:null,y:null,edgeX:0,nativeEscape:-10000};
+  const pointer={x:null,y:null,edgeX:0};
   const lookSurface=()=>isTop()?$("overhead"):$("world");
   function resetPointer(){pointer.x=null;pointer.y=null;pointer.edgeX=0;}
-  function captureMouse(){
-    if(palm.match)return;
-    const c=lookSurface();
-    if(!play||panel||document.hidden||document.pointerLockElement===c||pointer.requesting||!c.requestPointerLock)return;
-    if(window.navigator?.userActivation&&!navigator.userActivation.isActive)return;
-    try{
-      pointer.requesting=true;
-      const request=c.requestPointerLock();
-      if(request?.catch)request.catch(()=>{pointer.requesting=false;});
-    }catch{pointer.requesting=false;}
-  }
-  function releaseMouse(){resetPointer();if(document.pointerLockElement===$("world")||document.pointerLockElement===$("overhead"))document.exitPointerLock?.();}
-  document.addEventListener("pointerlockerror",()=>{pointer.requesting=false;});
-  document.addEventListener("pointerlockchange",()=>{
-    const previous=pointer.locked;pointer.locked=document.pointerLockElement===$("world")||document.pointerLockElement===$("overhead");pointer.requesting=false;resetPointer();
-    if(pointer.locked&&(panel||document.pointerLockElement!==lookSurface()))releaseMouse();
-    else if(previous&&!pointer.locked&&play&&!panel){
-      pointer.nativeEscape=performance.now();openPanel("pause");
-    }
-  });
   document.addEventListener("mousemove",e=>{
     if(!play||panel||document.hidden)return;
-    const canvas=lookSurface(),locked=document.pointerLockElement===canvas;
-    if(!locked&&e.target!==canvas){resetPointer();return;}
-    let dx=e.movementX||0,dy=e.movementY||0;
-    if(!locked){
-      if(pointer.x!==null){dx=e.clientX-pointer.x;dy=e.clientY-pointer.y;}
-      else{dx=0;dy=0;}
-      pointer.x=e.clientX;pointer.y=e.clientY;
-      // An embedded browser may decline pointer lock. The outer 18 pixels allow a full turn.
-      const edge=18;pointer.edgeX=e.clientX<edge?-(1-e.clientX/edge):e.clientX>innerWidth-edge?1-(innerWidth-e.clientX)/edge:0;
-    }
+    if(e.target!==lookSurface()){resetPointer();return;}
+    const dx=pointer.x===null?0:e.clientX-pointer.x,dy=pointer.y===null?0:e.clientY-pointer.y;
+    pointer.x=e.clientX;pointer.y=e.clientY;
+    // Edge turning allows a full orbit with the pointer free to leave the window.
+    const edge=18;pointer.edgeX=e.clientX<edge?-(1-e.clientX/edge):e.clientX>innerWidth-edge?1-(innerWidth-e.clientX)/edge:0;
     if(palmPointer(e))return;
     if(motos.finder||motos.cockpit){motos.look(clamp(dx,-220,220)*.0028*cameraRig.sensitivity,-clamp(dy,-150,150)*.0024*cameraRig.sensitivity);}
     else if(airCockpit()){
@@ -6434,11 +6409,11 @@
     const units=e.deltaY*(e.deltaMode===1?15:e.deltaMode===2?innerHeight:1);cameraRig.changeZoom(clamp(units*.0015,-.17,.17));saveCamera();
   }
   for(const canvas of [$("world"),$("overhead")]){
-    canvas.addEventListener("mouseleave",()=>{if(!pointer.locked)resetPointer();});
-    canvas.addEventListener("click",()=>{if(palm.match)return;captureMouse();if(motos.finder)motos.captureRequest=true;else shutter();});
+    canvas.addEventListener("mouseleave",resetPointer);
+    canvas.addEventListener("click",()=>{if(palm.match)return;if(motos.finder)motos.captureRequest=true;else shutter();});
     canvas.addEventListener("wheel",zoomWheel,{passive:false});
   }
-  $("world").addEventListener("webglcontextlost",()=>releaseMouse());
+  $("world").addEventListener("webglcontextlost",resetPointer);
   const handled=new Set(["KeyK","KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowLeft","ArrowDown","ArrowRight","Space","KeyE","KeyF","KeyG","KeyH","KeyT","KeyV","KeyX","KeyQ","KeyC","KeyM","KeyJ","KeyR","KeyB","Equal","Minus","NumpadAdd","NumpadSubtract","Escape","Enter","ShiftLeft","ShiftRight"]);
   for(const code of ["KeyZ","KeyI","Comma","Period"])handled.add(code);
   document.addEventListener("mousedown",e=>{if(e.button===0&&!panel&&e.target===lookSurface()&&palmPointer(e,true))return;if(e.button===0&&!panel&&e.target===lookSurface()&&wash.hasWand()&&onStreetFeet())hoseButton=true;});
@@ -6448,7 +6423,7 @@
     if(!play){if(ev.code==="Enter"&&!ev.repeat){ev.preventDefault();playStart();}return;}
     if(panel){
       if(panel==="take-result"&&ev.code==="KeyT"&&!ev.repeat){ev.preventDefault();startTake();return;}
-      if((ev.code==="Escape"||ev.code==="KeyM"||ev.code==="KeyJ")&&!ev.repeat){ev.preventDefault();if(ev.code==="Escape"){if(performance.now()-pointer.nativeEscape>210)closePanel();}else openPanel(ev.code==="KeyM"?"map":"jobs");return;}
+      if((ev.code==="Escape"||ev.code==="KeyM"||ev.code==="KeyJ")&&!ev.repeat){ev.preventDefault();if(ev.code==="Escape"){closePanel();}else openPanel(ev.code==="KeyM"?"map":"jobs");return;}
       if(ev.code==="Tab"){const controls=[...$("panel").querySelectorAll("button:not(:disabled),select:not(:disabled),[tabindex='0']")];if(!controls.length)return;
         if((ev.shiftKey&&document.activeElement===controls[0])||(!ev.shiftKey&&document.activeElement===controls.at(-1))){ev.preventDefault();controls[ev.shiftKey?controls.length-1:0].focus();}}
       return;

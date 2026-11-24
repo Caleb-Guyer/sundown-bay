@@ -34,7 +34,7 @@ button:focus-visible,select:focus-visible,canvas:focus-visible {outline:3px soli
 .room-note span {display:block;margin-top:10px;font:700 .87rem/1.25 Georgia,serif;color:#784a38}
 .market-hours {margin:0 0 12px;color:#cbe7d9;line-height:1.45}
 .order-history {margin:12px 0 4px;padding-left:18px;color:#daceaa;font-size:.91rem;line-height:1.6}
-#world,#overhead {touch-action:none;cursor:none}
+#world,#overhead {touch-action:none;cursor:default}
 #vignette {pointer-events:none;background:linear-gradient(0deg,#16232848,transparent 19%,transparent 89%,#19203314)}
 #hud {pointer-events:none;font-variant-numeric:tabular-nums}
 #hud button {pointer-events:auto}
