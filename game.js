@@ -536,6 +536,7 @@
   const spiderPark=save.starlite.park;
   if(spiderPark&&fitsCar(spider,spiderPark.x,spiderPark.z,spiderPark.yaw)&&!cars.some(o=>o!==spider&&dist(o,spiderPark)<7&&BayDriving.contact({...spider,...spiderPark},o)))Object.assign(spider,spiderPark);
   const fireHouse=BayEngineSeven.house,engine7=addCar("pumper","#a23e37",fireHouse.x,fireHouse.z,fireHouse.yaw);
+  Object.assign(engine7,BayEngineSeven.berth);
   engine7.serviceCar=true;engine7.plate="ENG 7";
   const company=new BayEngineSeven.Company(engine7,save.engineSeven),sevenJob={name:"Station Seven",id:"engine-seven",by:"Nel Baptiste"};let sevenPage=0;
   let timingFilm=null;
@@ -1657,6 +1658,7 @@
       return ["Space",q.z>-.72||dist(hero,c.call)>13||c.obstructed?"Walk around to the smoky side · E hand line back":"Hold to spray · Mouse or A / D to sweep · "+Math.round(c.tank)+" gal · E hand line back"];
     }
     if(active?.engineSeven&&car===engine7)return c.working?["E","Step out · Meet Nel at the line"]:c.canPark()?["F","Set the pump brake"]:["H","Response lights "+(engine7.responseLights?"on":"off")+" · Head for "+c.call.title];
+    if(active?.engineSeven&&c.seatWaiting&&dist(hero,engine7)<6.4)return ["E","Board Engine 7 · Driver’s seat"];
     if(near==="line")return ["F","Take the branch line from Nel"];
     if(near==="desk")return ["F","Station Seven · Company board"];
     if(near==="daybook")return ["F",sevenWitness().name+" · Read your call slip"];
@@ -5061,7 +5063,16 @@
     };
     if(actor===hero&&(palm.visit?.a.ride===v||active?.palm&&palm.visit||gull.drive?.v===v||v===unit4||active?.story?.ride===v||active?.ferry?.ride===v||active?.cabFare?.ride===v||band.june.ride===v||v===wrecker&&recovery.people.some(p=>p.ride===v)))side=-1;
     if(actor===hero&&(v===iceVan||afternoon.vehicle===v&&(afternoon.seated||afternoon.inDoor)))side=-1;
-    return BayCarAccess.plan(v,actor,exiting,clear,side);
+    const stationDoor=v===engine7&&!exiting&&dist(v,fireHouse)<5;
+    if(stationDoor)side=-1;
+    const plan=BayCarAccess.plan(v,actor,exiting,clear,side);
+    if(plan||!stationDoor)return plan;
+    const s=bayCarLayout(v.kind),curb=BayCarAccess.outside(s,-1),door=BayDriving.world(v,curb.x,curb.z);
+    const swing=BayCarAccess.plan(v,{...actor,...door},false,clear,-1);
+    if(!swing)return null;
+    const front=[[-3.5,4.15],[-1.65,4.3],[-1.05,3.55],[-1.06,1.15]].map(([x,z])=>BayDriving.world(fireHouse,x,z));
+    const approach=recoveryWalkway(actor,door,v,front,cars.filter(o=>o!==v&&dist(o,v)<11&&!o.path));
+    return approach?{...swing,points:[...approach,...swing.points]}:null;
   }
   function stepTransfer(dt){
     const a=transfer,v=a.v;

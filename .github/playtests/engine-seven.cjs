@@ -37,7 +37,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     if(driver){
       await js("(()=>{const u=new BaySecondUnit.Unit();u.met=true;u.remember({...BayEngineSeven.desk,yaw:BayEngineSeven.house.yaw+Math.PI},null);u.save();})()");await reload();
       await tap("KeyF");await waitFor(row("Marlin laundry cart"));await js(row("Marlin laundry cart")+".click()");
-      await waitFor("nav.co.manual");await walk("BayDriving.world(nav.co.v,-1.95,1.38)",1);
+      await waitFor("nav.co.manual");
       await tap("KeyE");await waitFor("nav.car?.kind==='pumper'&&nav.map.player.driving",40000);
       await tap("KeyH");assert(await js("nav.co.v.responseLights"));await snap("station");
       const end=Date.now()+230000;let parked=false;

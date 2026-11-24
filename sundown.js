@@ -61146,6 +61146,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const turn=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
   const here=(o,x,z)=>BayDriving.world(o,x,z);
   const house={x:115,z:-59.2,y:.096,yaw:-Math.PI/2,name:"Station Seven"};
+  const berth={...here(house,.74,0),yaw:house.yaw,name:house.name};
   const desk={...here(house,-3.45,2.6),kind:"engine-house",name:"Station Seven · Gantry Street"};
   const specs=[
     ["linen","Marlin laundry cart","Ema Duarte",153.2,-51,0,"Those are the upstairs towels. I thought the orange was the sunset.","You saved the blue stripes. The other hotel buys plain white.",[.79,1,.62]],
@@ -61172,12 +61173,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     actor.x+=dx*d/len;actor.z+=dz*d/len;actor.stride+=d;actor.yaw+=turn(actor.yaw,Math.atan2(dx,dz))*(1-Math.exp(-dt*8));
     return len-d<.04;
   }
-  const rollout=sign=>[[0,0],[0,7.6],[-1.1,10.6],[-5.4,14],[-9.1,17],[-10.32,20]].map(([x,z])=>here(house,x,sign*z));
+  const rollout=sign=>[[.74,0],[.74,7.6],[-1.1,10.6],[-5.4,14],[-9.1,17],[-10.32,20]].map(([x,z])=>here(house,x,sign*z));
   const out=rollout(1),back=rollout(-1).reverse();
   const homeRoad=(p)=>({...p,dir:3,yaw:-Math.PI/2});
   class Company {
     constructor(v,book){
-      this.v=v;this.site={bay:house};this.yieldKey="sevenYield";this.phase="standby";this.age=0;this.idle=15;
+      this.v=v;this.site={bay:berth};this.phase="standby";this.age=0;this.idle=15;
       this.next=book.number%calls.length;this.call=calls[this.next];this.recent=null;this.reserved=null;this.joined=false;this.manual=false;this.holding=false;
       this.mate=crew("Nel Baptiste",v,"mate");this.mate.seat=1;this.owners=calls.map(c=>crew(c.owner,c.start,"owner"));
       this.levels=[...zero];this.water=null;this.nozzleSide=0;this.fed=0;this.tank=320;this.pump=1;this.spent=0;this.hits=0;
@@ -61187,24 +61188,25 @@ window.buildBayCity = function buildBayCity(g,water) {
     get working(){return ["unroll","working","stow"].includes(this.phase);}
     get burning(){return ["outbound","unroll","working"].includes(this.phase);}
     get owner(){return this.owners[calls.indexOf(this.call)];}
-    get goal(){return this.phase==="return"?house:this.call.road;}
+    get goal(){return this.phase==="return"?berth:this.call.road;}
     get socket(){return {...here(this.v,-1.14,.13),y:1.12};}
     get pumpStand(){return here(this.v,-1.80,.13);}
     get mateStand(){return here(this.call,.14,-2.85);}
     get roadGoal(){return {...this.goal,name:this.phase==="return"?"Station Seven":this.call.title};}
-    route(home,start=null){
+    route(home,start=null,trail=[]){
       const edge=start||this.call.road;
       return BayRescue.track(home?[this.v,...BayCab.route(edge,homeRoad(back[0])).pts,...back]:
-        start?[this.v,...BayCab.route(start,this.call.road).pts]:[this.v,...out,...BayCab.route(homeRoad(out.at(-1)),this.call.road).pts]);
+        start?[this.v,...trail,...BayCab.route(start,this.call.road).pts]:[this.v,...trail,...out,...BayCab.route(homeRoad(out.at(-1)),this.call.road).pts]);
     }
-    travel(home,start=null){
-      this.line=this.route(home,start);this.cursor=0;this.lateral=0;this.blocked=0;
+    travel(home,start=null,line=this.route(home,start)){
+      this.line=line;this.cursor=0;this.lateral=0;this.blocked=0;
       this.v.responseLights=!home;this.v.pumpWorking=false;this.go(home?"return":"outbound");
     }
     dispatch(which,manual){
       this.call=calls[which];this.next=(which+1)%calls.length;this.manual=this.joined=!!manual;
       this.seatWaiting=!!manual;this.holding=false;this.levels=[...this.call.initial];this.tank=320;this.spent=this.hits=this.fed=this.workTime=0;this.pump=1;this.aimX=0;this.water=null;this.recent=null;
       this.mate.seat=1;this.reported=false;this.travel(false);this.v.responseLights=!manual;
+      if(manual){this.lastRoad=null;this.trace=[{x:this.v.x,z:this.v.z}];}
     }
     canPark(){
       return this.phase==="outbound"&&Math.abs(this.v.speed)<1.25&&gap(this.v,this.call.road)<8&&gap(this.v,this.call)<13;
@@ -61233,7 +61235,18 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     resumeAI(env){
       this.reclaim=false;this.manual=false;this.seatWaiting=false;
-      if(this.phase==="outbound"){this.travel(false,gap(this.v,house)<7?null:env.street(this.v));}
+      if(this.phase!=="outbound")return;
+      const line=this.line,near=line.closest(this.v);
+      if(near.gap<3.8){
+        const ahead=Math.min(line.length,near.at+3);
+        const remaining=BayRescue.track([this.v,line.sample(ahead),...line.pts.filter(p=>p.at>ahead)]);
+        if(remaining.pts.length<2)this.startDock(true);
+        else this.travel(false,null,remaining);
+        return;
+      }
+      const current=env.street(this.v),road=current||this.lastRoad;
+      const trail=current?[]:this.trace.slice().reverse();
+      this.travel(false,road,this.route(false,road,trail));
     }
     wet(x,dt,flow,player){
       this.spent+=flow*dt*10;if(player)this.tank=Math.max(0,this.tank-flow*dt*10);
@@ -61278,7 +61291,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(this.reclaim&&!env.driving()&&!env.transition())this.resumeAI(env);
       if(this.traveling){
         if(this.manual){
-          if(env.driving()&&!this.reclaim)this.seatWaiting=false;
+          if(env.driving()&&!this.reclaim){
+            this.seatWaiting=false;
+            if(gap(this.v,this.trace.at(-1))>2.4){
+              const road=env.street(this.v);
+              if(road){this.lastRoad=road;this.trace.length=0;}
+              this.trace.push({x:this.v.x,z:this.v.z});
+            }
+          }
           return;
         }
         BayRescue.followResponse(this,dt,env);return;
@@ -61314,7 +61334,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
     }
   }
-  window.BayEngineSeven={house,desk,calls,block,read,Company};
+  window.BayEngineSeven={house,berth,desk,calls,block,read,Company};
 })();
 
 ;
@@ -61944,6 +61964,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const spiderPark=save.starlite.park;
   if(spiderPark&&fitsCar(spider,spiderPark.x,spiderPark.z,spiderPark.yaw)&&!cars.some(o=>o!==spider&&dist(o,spiderPark)<7&&BayDriving.contact({...spider,...spiderPark},o)))Object.assign(spider,spiderPark);
   const fireHouse=BayEngineSeven.house,engine7=addCar("pumper","#a23e37",fireHouse.x,fireHouse.z,fireHouse.yaw);
+  Object.assign(engine7,BayEngineSeven.berth);
   engine7.serviceCar=true;engine7.plate="ENG 7";
   const company=new BayEngineSeven.Company(engine7,save.engineSeven),sevenJob={name:"Station Seven",id:"engine-seven",by:"Nel Baptiste"};let sevenPage=0;
   let timingFilm=null;
@@ -63065,6 +63086,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       return ["Space",q.z>-.72||dist(hero,c.call)>13||c.obstructed?"Walk around to the smoky side · E hand line back":"Hold to spray · Mouse or A / D to sweep · "+Math.round(c.tank)+" gal · E hand line back"];
     }
     if(active?.engineSeven&&car===engine7)return c.working?["E","Step out · Meet Nel at the line"]:c.canPark()?["F","Set the pump brake"]:["H","Response lights "+(engine7.responseLights?"on":"off")+" · Head for "+c.call.title];
+    if(active?.engineSeven&&c.seatWaiting&&dist(hero,engine7)<6.4)return ["E","Board Engine 7 · Driver’s seat"];
     if(near==="line")return ["F","Take the branch line from Nel"];
     if(near==="desk")return ["F","Station Seven · Company board"];
     if(near==="daybook")return ["F",sevenWitness().name+" · Read your call slip"];
@@ -66469,7 +66491,16 @@ window.buildBayCity = function buildBayCity(g,water) {
     };
     if(actor===hero&&(palm.visit?.a.ride===v||active?.palm&&palm.visit||gull.drive?.v===v||v===unit4||active?.story?.ride===v||active?.ferry?.ride===v||active?.cabFare?.ride===v||band.june.ride===v||v===wrecker&&recovery.people.some(p=>p.ride===v)))side=-1;
     if(actor===hero&&(v===iceVan||afternoon.vehicle===v&&(afternoon.seated||afternoon.inDoor)))side=-1;
-    return BayCarAccess.plan(v,actor,exiting,clear,side);
+    const stationDoor=v===engine7&&!exiting&&dist(v,fireHouse)<5;
+    if(stationDoor)side=-1;
+    const plan=BayCarAccess.plan(v,actor,exiting,clear,side);
+    if(plan||!stationDoor)return plan;
+    const s=bayCarLayout(v.kind),curb=BayCarAccess.outside(s,-1),door=BayDriving.world(v,curb.x,curb.z);
+    const swing=BayCarAccess.plan(v,{...actor,...door},false,clear,-1);
+    if(!swing)return null;
+    const front=[[-3.5,4.15],[-1.65,4.3],[-1.05,3.55],[-1.06,1.15]].map(([x,z])=>BayDriving.world(fireHouse,x,z));
+    const approach=recoveryWalkway(actor,door,v,front,cars.filter(o=>o!==v&&dist(o,v)<11&&!o.path));
+    return approach?{...swing,points:[...approach,...swing.points]}:null;
   }
   function stepTransfer(dt){
     const a=transfer,v=a.v;
