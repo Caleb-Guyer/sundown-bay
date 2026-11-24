@@ -4474,7 +4474,7 @@
   }
   function rearStreet(eye){
     const see=(p,r)=>Math.abs(p.x-eye.x)<r&&Math.abs(p.z-eye.z)<r;
-    view.drawWater(streetTime);view.draw("city");
+    view.drawCityAndWater(streetTime);
     BayStreetArt.draw(view,streetTime,eye);
     if(transitArtReady){const list=[];drawTransit(list,see,streetTime);for(const item of list)view.draw(...item);}
     if(roofArtReady&&see(neon.bench,115)){const list=[];drawMarlinRoof(list,see,streetTime);for(const item of list)view.draw(...item);}
@@ -4778,7 +4778,7 @@
     if(insideSeat()&&Math.abs(driverSeat.pan)<1.18)driverSeat.reflect(view,car,footLevel(car.x,car.z)+.008,t,dusk,hours,rearStreet);
     view.begin(eye,dusk,hours,run?.subject()||car);
     skyPainter.draw(view,eye,t,dusk,hours);
-    view.drawWater(t);view.draw("city");
+    view.drawCityAndWater(t);
     const see=(o,limit)=>Math.abs(o.x-eye.x)<limit&&Math.abs(o.z-eye.z)<limit;
     if(!motorArtReady){BayStreetCars.install(model);BayMotorists.install(model);BayValetPlaces.install(model);motorArtReady=true;}
     if(!bandArtReady){BayBandPlayers.install(model);BaySoundShell.install(model);bandArtReady=true;}

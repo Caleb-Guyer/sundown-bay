@@ -62,6 +62,14 @@
       for(let i=0;i<sides;i++) this.quad(rim(a,i),rim(a,i+1),rim(b,i+1),rim(b,i),color,.88+.1*Math.cos(i));
     }
   }
+  function meshBounds(vertices,start,end){
+    let x0=Infinity,y0=Infinity,z0=Infinity,x1=-Infinity,y1=-Infinity,z1=-Infinity;
+    for(let i=start*6;i<end*6;i+=6){
+      const x=vertices[i],y=vertices[i+1],z=vertices[i+2];
+      x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);z0=Math.min(z0,z);z1=Math.max(z1,z);
+    }
+    return {x:(x0+x1)*.5,y:(y0+y1)*.5,z:(z0+z1)*.5,r:Math.hypot(x1-x0,y1-y0,z1-z0)*.5+.035};
+  }
   const LIGHT = `
     const vec3 sunDir=vec3(.510,.430,.746);
     vec3 lightClip(vec3 world){
@@ -275,7 +283,19 @@
     upload(name,data){
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
       gl.bufferData(gl.ARRAY_BUFFER,data,this.animated.has(name)?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
-      this.models.set(name,{buf,count:data.length/6});if(name==="city")this.bakeSun(buf,data.length/6);
+      const count=data.length/6,model={buf,count};
+      if(count&&!this.animated.has(name))model.bounds=meshBounds(data,0,count);
+      if(name==="city"){
+        // City geometry is generated building by building. Keep the original triangle
+        // order so flush signs, windows and painted road markings keep their layering.
+        model.sections=[];
+        for(let first=0;first<count;first+=768){
+          const end=Math.min(count,first+768);
+          model.sections.push({first,end,bounds:meshBounds(data,first,end)});
+        }
+        this.bakeSun(buf,count);
+      }
+      this.models.set(name,model);
     }
     updateAnimated(name){
       const model=this.models.get(name);if(!model||this.lost)return;
@@ -315,6 +335,8 @@
       gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
       const sn=Math.sin(camera.yaw),cs=Math.cos(camera.yaw),sp=Math.sin(camera.pitch),cp=Math.cos(camera.pitch);
       const focal=camera.focal||1.5;this.basis={sn,cs,sp,cp,camera,f:focal,aspect:w/h};this.bound=null;this.tiltX=NaN;this.tiltZ=NaN;
+      const horizontal=w/(h*focal),vertical=1/focal;
+      Object.assign(this.basis,{horizontal,vertical,xMargin:Math.hypot(1,horizontal),yMargin:Math.hypot(1,vertical)});
       const timed=weather&&Number.isFinite(weather.minute),night=Math.max(0,Math.min(1,Math.max(dusk||0,timed?weather.night||0:0)));
       const rain=timed?weather.rain||0:0,wet=timed?weather.wet||0:0;
       const noon=timed?Math.max(0,1-Math.abs(weather.minute-730)/325):0;
@@ -330,6 +352,19 @@
       gl.uniform3f(this.u.eye,camera.x,camera.y,camera.z);gl.uniform3f(this.u.rightV,cs,0,-sn);
       gl.uniform3f(this.u.upV,-sn*sp,cp,-cs*sp);gl.uniform3f(this.u.forwardV,sn*cp,sp,cs*cp);gl.uniform2f(this.u.focal,focal/(w/h),focal);
     }
+    inFrame(b,x,y,z,yaw,tiltX,tiltZ,pad=0){
+      const v=this.basis;if(!v||!b)return true;
+      let u=b.x,h=b.y,n=b.z,r=b.r+pad;
+      if(tiltX){const c=Math.cos(tiltX),s=Math.sin(tiltX),old=h;h=h*c-n*s;n=old*s+n*c;}
+      if(tiltZ){const c=Math.cos(tiltZ),s=Math.sin(tiltZ),old=u;u=u*c-h*s;h=old*s+h*c;}
+      if(yaw){const c=Math.cos(yaw),s=Math.sin(yaw),old=u;u=u*c+n*s;n=n*c-old*s;}
+      x+=u;y+=h;z+=n;
+      if(this.casting){x-=.510/.430*(y-.15);z-=.746/.430*(y-.15);y=.153;r*=2.35;}
+      x-=v.camera.x;y-=v.camera.y;z-=v.camera.z;
+      const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
+      return depth+r>=.13&&depth-r<=1100&&Math.abs(x*v.cs-z*v.sn)<=depth*v.horizontal+r*v.xMargin&&
+        Math.abs(y*v.cp-along*v.sp)<=depth*v.vertical+r*v.yMargin;
+    }
     project(x,y,z){
       if(!this.basis)return null;
       const {sn,cs,sp,cp,camera,f,aspect}=this.basis,dx=x-camera.x,dy=y-camera.y,dz=z-camera.z;
@@ -343,6 +378,11 @@
     endShadow(){this.casting=false;const gl=this.gl;gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.uniform1f(this.u.castOnly,0);}
     drawGhost(name,x,y,z,yaw){
       this.gl.uniform1f(this.u.ghost,1);this.draw(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
+    }
+    drawCityAndWater(t){
+      this.draw("city");
+      // Opaque land masks the water shader. Keep city surfaces on equal-depth shore pixels.
+      const gl=this.gl;gl.depthFunc(gl.LESS);this.drawWater(t);gl.depthFunc(gl.LEQUAL);
     }
     drawWater(t){
       const gl=this.gl,eye=this.basis.camera;gl.uniform4f(this.u.waterParams,eye.x,eye.z,t,1);
@@ -367,13 +407,23 @@
     }
     draw(name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0,vehicle=null,doorSide=0,vapor=0){
       if(vapor&&this.casting)return;
-      const model=vehicle?.damage?BayBodyworkArt.buffer(this,name,vehicle,doorSide):this.models.get(name);
-      if(!model)return;const gl=this.gl;
+      const base=this.models.get(name);
+      if(!base?.count||!this.inFrame(base.bounds,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0))return;
+      const model=vehicle?.damage?BayBodyworkArt.buffer(this,name,vehicle,doorSide):base,gl=this.gl;
+      if(!model)return;
       if(this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}
       if(tiltX!==this.tiltX||tiltZ!==this.tiltZ){gl.uniform4f(this.u.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));this.tiltX=tiltX;this.tiltZ=tiltZ;}
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
-      gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));gl.drawArrays(gl.TRIANGLES,0,model.count);
+      gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
+      if(model.sections){
+        let first=-1;
+        for(const section of model.sections){
+          if(this.inFrame(section.bounds,x,y,z,yaw,tiltX,tiltZ)){if(first<0)first=section.first;}
+          else if(first>=0){gl.drawArrays(gl.TRIANGLES,first,section.first-first);first=-1;}
+        }
+        if(first>=0)gl.drawArrays(gl.TRIANGLES,first,model.count-first);
+      }else gl.drawArrays(gl.TRIANGLES,0,model.count);
       if(vapor){gl.uniform1f(this.u.beam,0);gl.disable(gl.BLEND);gl.depthMask(true);}
     }
   }
