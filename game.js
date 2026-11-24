@@ -179,6 +179,7 @@
   const unitPin={...BaySecondUnit.home.frankie,kind:"scout",name:"Cine Luna · Location desk"};
   const curbWire=new BayCurbWire.Column(),wireDesk=BayCurbWire.desk,wirePin={...wireDesk.stand,kind:"curb-news",name:wireDesk.name};locations.push(wirePin);
   let wireView=null,wireSelected=0,wireTV=null,wireTVVersion=0,wireLastFrame="",wireNextTV=0;
+  let freshEdition=null;
   const afternoon=new BayOffClock.Afternoon();let stripShown=0,fotoGlass="";
   const fotoPins=BayOffClock.sites.map(s=>({...s.stand,id:s.id,kind:"foto-booth",name:"Foto Bahía · "+s.name}));locations.push(...fotoPins);
   const otherBody={...BaySecondUnit.home[unit.other],motion:otherMotion};let windowRide=null,otherCar=null,scoutSheet=0,houseCard=null,houseFrame=null;
@@ -245,7 +246,7 @@
   const neighbors=new BayNeighbors.Block(walkers,{meli:threads.counter,marisol:studio.counter,eli:ticketWindow,nell:BayDrawbridge.iceCounter,ren:skatePins[1],ada:BayCut.station});
   neighbors.refresh();
   addEventListener("storage",e=>{if(!e.key||e.key.startsWith(BayNeighbors.key))neighbors.refresh();});
-  let localInReach=null,helloPose=null;
+  let localInReach=null,helloPose=null,localVoice=null,voiceCheck=0;
   const watchCrew=new BaySurfPatrol.Watch(save.shore.next);
   BayMarshLine.restore(save.fieldReels);
   const clockKey="sundownBay.clock.v1";
@@ -3035,6 +3036,10 @@
   }
   function neighborStep(){
     const a=car||hero,free=neighborFree(),lead=unit.lead;
+    if(localVoice&&(!free||dist(a,localVoice)>11||elapsed>speechTill||elapsed>=voiceCheck&&!seesNeighbor(localVoice))){
+      localVoice=null;$("neighborTag").hidden=true;$("hud").classList.toggle("neighbor-speech",false);
+    }
+    if(localVoice&&elapsed>=voiceCheck)voiceCheck=elapsed+.2;
     if(helloPose){helloPose.age=streetTime-helloPose.at;if(helloPose.age>helloPose.duration||!free||!!car!==(helloPose.kind==="driver"))helloPose=null;}
     const prior=neighbors.chat?.p;
     const visited=neighbors.step(streetTime,a,lead,car,free,seesNeighbor);
@@ -3067,7 +3072,7 @@
     if(result.story){
       if(result.target)waypoint=personPin(result.target);
       else if(waypoint?.kind==="neighbor"&&waypoint.id===c.p.neighbor.id)waypoint=null;
-      if(result.news)broadcastDesk.queue.push(result.news);
+      if(result.news)freshEdition={story:result.story,until:streetTime+12};
       note(result.story.name,result.target?"Find "+result.target.name+" · Live position on map":"Story sent to Sol FM",3.2);
     }
     lastMap=lastHud=-10;return true;
@@ -3076,7 +3081,8 @@
     const lead=unit.lead;
     for(const s of BayNeighbors.stories){
       const n=neighbors.stage(lead,s);if(!n)continue;
-      signedNote(b,[s.ask,s.reply,s.news][n-1],n===3?"Sol FM · Local bulletin":neighbors.byId(n===1?s.from:s.to).name);
+      if(n===3)editionPrint(b,s);
+      else signedNote(b,n===1?s.ask:s.reply,neighbors.byId(n===1?s.from:s.to).name);
       const p=neighbors.target(lead,s);if(p)b.append(makeButton(s.name,"Look for "+p.name+" on their usual route.","Find "+p.name.split(" ")[0],()=>clockPin(personPin(p))));
     }
     for(const p of neighbors.people){
@@ -3116,7 +3122,16 @@
       (save.edition==="live"?"Heard the pier story on Sol FM. My aunt’s already down there.":"Saw the pier on the big screen last night. Whole theater went quiet."):p.lines[index%p.lines.length];}
     speak(p.name,text);
   }
-  function speak(name,text){const el=$("speech");el.children[0].textContent=name;el.children[1].textContent=text;el.hidden=false;speechTill=elapsed+6;}
+  function speak(name,text){
+    const el=$("speech");el.children[0].textContent=name;el.children[1].textContent=text;el.hidden=false;speechTill=elapsed+6;
+    localVoice=neighbors.people.find(p=>p.name===name&&p.neighborPose)||null;
+    $("hud").classList.toggle("neighbor-speech",!!localVoice);$("neighborTag").hidden=true;
+    if(localVoice)$("neighborTag").textContent=localVoice.name;
+  }
+  function placeVoiceTag(x,y){
+    const el=$("neighborTag");el.hidden=!(x>38&&x<innerWidth-38&&y>30&&y<innerHeight-44);
+    if(!el.hidden){el.style.left=Math.round(x)+"px";el.style.top=Math.round(y)+"px";}
+  }
   function greenFree(){
     return !!car&&unitRoadCar(car)&&!active&&!heat&&!transfer&&!room&&!unit.transition&&!unit.eye&&!cabs.booking&&!transit.engaged&&
       !afternoon.active&&!valet.onDuty&&!watchCrew.towing&&!gull.engaged&&!serviceVehicle&&!band.take;
@@ -5762,7 +5777,9 @@
     if(id&&save.airwaves.request&&BayAirwaves.stationFor(id)==="sol"){
       writeRadioBook(b=>{if(!b.request)return false;b.encore={id:b.request,at:hours.total};b.request="";});
     }
-    broadcastDesk.update(id,hours.total,elapsed);broadcastDesk.headlines(save,hours,bridge,elapsed,gutters);
+    broadcastDesk.update(id,hours.total,elapsed);
+    const story=neighbors.unheard;
+    if(broadcastDesk.headlines(save,hours,bridge,elapsed,gutters,story?.news))neighbors.aired(story);
   }
   function curbVehicle(){return play&&car&&!transfer&&!active?.take&&!motos.finder&&!unit.eye&&!room&&!car.serviceCar?car:null;}
   const coffeeEnv={
@@ -5825,8 +5842,17 @@
   function wireButton(){
     return makeButton("On the Curb · Bay Wire",curbWire.book.clips.length?"Local footage · Latest from "+curbWire.book.clips[0].by:"Meli’s neighborhood video column.","Watch",()=>wireOpen());
   }
+  function editionPrint(b,story){
+    const page=document.createElement("figure"),picture=document.createElement("canvas"),caption=document.createElement("figcaption");
+    const name=document.createElement("strong"),copy=document.createElement("p");
+    page.className="wire-archive";picture.width=576;picture.height=384;picture.setAttribute("role","img");
+    picture.setAttribute("aria-label",story.name+" · Bay Wire archive photograph");
+    BayNeighborhoodEdition.paint(picture,story.id);name.textContent=story.name;copy.textContent=story.news;
+    caption.append(name,copy);page.append(picture,caption);b.append(page);
+  }
   function wirePanel(b){
     const book=curbWire.book;book.refresh();
+    if(neighbors.editions.length)b.append(makeButton("Bay Wire · Neighborhood edition",neighbors.editions.map(s=>s.name).join(" · "),"Read",()=>openPanel("wire-edition")));
     const all=[...new Map([...book.clips,book.cover,...Object.values(book.edits)].filter(Boolean).map(c=>[c.id,c])).values()];
     const at=Math.max(0,all.findIndex(c=>c.id===wireSelected)),clip=all[at];
     if(!clip){
@@ -5880,13 +5906,20 @@
     BayCurbWire.paint(v.canvas,v.clip,v.t,rideScenery);v.counter.textContent=v.t.toFixed(1)+" / "+end.toFixed(1)+" s";
   }
   function updateWireTV(t){
-    const book=curbWire.book;if(!book.cover||!play||room||dist(pos(),wireDesk)>20)return null;
-    const playlist=book.complete?BayCurbWire.assignments.map(id=>book.edits[id]):[book.cover];
+    const book=curbWire.book,editions=neighbors.editions;
+    if(!play||room||dist(pos(),wireDesk)>20||!book.cover&&!editions.length)return null;
+    const playlist=book.complete?BayCurbWire.assignments.map(id=>book.edits[id]):book.cover?[book.cover]:[];
     // A hand-picked clip opens the loop even after the whole edition is signed.
-    if(book.complete&&playlist[0].id!==book.pin)playlist.unshift(book.cover);
-    let time=t%playlist.reduce((sum,c)=>sum+c.frames.at(-1)[0],0),clip=playlist[0];
-    for(const c of playlist){clip=c;const end=c.frames.at(-1)[0];if(time<end)break;time-=end;}
+    if(book.complete&&book.cover&&playlist[0].id!==book.pin)playlist.unshift(book.cover);
+    const clipSeconds=playlist.reduce((sum,c)=>sum+c.frames.at(-1)[0],0);
+    let time=t%(clipSeconds+editions.length*5),clip=playlist[0];
     if(!wireTV){wireTV=document.createElement("canvas");wireTV.width=128;wireTV.height=80;}
+    const page=streetTime<(freshEdition?.until??0)?freshEdition.story:time>=clipSeconds?editions[Math.floor((time-clipSeconds)/5)]:null;
+    if(page){
+      const stamp="edition/"+page.id;if(wireLastFrame!==stamp){BayNeighborhoodEdition.paint(wireTV,page.id);wireTVVersion++;wireLastFrame=stamp;}
+      return wireTV;
+    }
+    for(const c of playlist){clip=c;const end=c.frames.at(-1)[0];if(time<end)break;time-=end;}
     if(t<wireNextTV&&wireLastFrame.startsWith(clip.id+"/"))return wireTV;
     const stamp=clip.id+"/"+Math.floor(time*6);
     if(stamp!==wireLastFrame){BayCurbWire.paint(wireTV,clip,time,rideScenery);wireTVVersion++;wireLastFrame=stamp;}
@@ -6780,6 +6813,10 @@
       if(unit.transition&&!unit.transition.braking){const q=BaySecondUnit.travel(unit.transition);state.cx=q.x;state.cz=q.z;state.scale=h/(47+q.high*2.65);state.rotation=state.cameraYaw=0;}
       if(film)setTakeMap(state,film,w,h,replay);
       drawBayMap(map.getContext("2d"),state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
+      if(localVoice){
+        const q=scoutMapProject(state,w,h)(localVoice.x,0,localVoice.z);
+        placeVoiceTag(q.x*innerWidth,q.y*innerHeight-8);
+      }
       if(printing)printTake(run,map,null);
       finishMeetFrame(map,null,(x,y,z)=>{
         const dx=(x-state.cx)*state.scale,dy=(state.cz-z)*state.scale,c=Math.cos(yaw),n=Math.sin(yaw);
@@ -7108,6 +7145,9 @@
         label.hidden=false;label.style.left=mark.x+"px";label.style.top=mark.y+"px";label.textContent=(tar.kind==="ferry-gate"?"PALOMA · ":"")+Math.round(dist(pos(),tar))+" m";
       }else label.hidden=true;
     }else $("targetTag").hidden=true;
+    if(localVoice){
+      const q=view.project(localVoice.x,footLevel(localVoice.x,localVoice.z)+1.99,localVoice.z);placeVoiceTag(q?.x,q?.y);
+    }
     if(a&&a.light>.01&&see(a,190)){
       if(!airBeam){airBeam=new BayPatrolArt.Searchlight();view.add("air-beam",airBeam,true);}
       airBeam.update(a,backup.lamp(a));view.updateAnimated("air-beam");view.drawSearchlight("air-beam");
@@ -8235,6 +8275,9 @@
       const clock=nearbyClock();title=clock.route.landmark;kicker="On Green  /  "+clock.route.street;clockCard(b,clock);
     }else if(next==="curb-wire"){
       title="On the Curb";kicker="Bay Wire  /  Street clips";wirePanel(b);
+    }else if(next==="wire-edition"){
+      title="Neighborhood edition";kicker="Bay Wire  /  Picture desk";
+      for(const story of neighbors.editions)editionPrint(b,story);
     }else if(next==="free-afternoon"||next==="foto-album"){
       title=next==="foto-album"?"Photo strips":"An afternoon off";kicker=next==="foto-album"?"Foto Bahía":"Second Unit";afternoonPanel(b,next==="foto-album");
     }else if(next==="unit-sheet"||next==="unit-roll"){

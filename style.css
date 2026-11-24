@@ -143,6 +143,9 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 #toast>span {display:block;color:#f3c99c;font-size:.66rem;line-height:1.6}
 #toast b {font-size:.94rem;line-height:1.25}
 #targetTag {transform:translate(-50%,-100%);font:700 .75rem Consolas,monospace;white-space:nowrap;color:#173436;background:#abf3d7;padding:3px 7px;border-radius:3px}
+#neighborTag {position:absolute;transform:translate(-50%,-100%);pointer-events:none;color:#fff5dc;background:#253c3bdc;padding:2px 6px;border-radius:2px;white-space:nowrap;font:600 .78rem/1.3 "DM Sans","Segoe UI",sans-serif}
+#neighborTag::after {content:"";position:absolute;left:calc(50% - 3px);bottom:-4px;border:3px solid transparent;border-top:4px solid #253c3bdc;border-bottom:0}
+@media(min-width:800px){#hud.neighbor-speech #speech {max-width:min(460px,45vw)}}
 #shade {background:#10242969}
 .panel {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(510px,94vw);max-height:90vh;overflow:auto;color:#24383a;background:#f2e6c8;border:2px solid #223e3e;border-radius:4px;box-shadow:5px 6px 0 #213838a8,0 18px 70px #15272c88;padding:20px 23px 23px;color-scheme:light}
 .panel-head {display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;padding-bottom:12px;border-bottom:3px double #7d8978}
@@ -415,3 +418,8 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .threads-choice[aria-pressed=true]{background:#364b43;color:#fff2d3}
 .threads-buy em{white-space:nowrap}
 @media(max-height:620px){.threads-glass{height:min(33vh,210px);object-fit:contain}.threads-rail{gap:3px}.threads-choice{padding:6px}}
+.wire-archive {margin:0 0 1rem;padding:.65rem .65rem .8rem;background:#f6ead0;border:1px solid #aa9b7a;box-shadow:0 2px 3px #3b3a3529;color:#293936}
+.wire-archive canvas {width:100%;height:auto;display:block;background:#443d37}
+.wire-archive figcaption {padding:.65rem .2rem 0;border-bottom:1px solid #b3a085}
+.wire-archive figcaption strong {font:italic bold 1.32rem Georgia,serif}
+.wire-archive figcaption p {margin:.4rem 0 .7rem;font:1rem/1.42 Georgia,serif}

@@ -9,7 +9,7 @@
       this.mix=null;this.approach=null;this.close=true;this.lastKey="";this.dialPainted="";
       this.state={mixing:false,beat:0,incomingBeat:0,blend:0,activeDeck:false,station:"sol",ready:true};
     }
-    headlines(save,clock,bridge,now,water){
+    headlines(save,clock,bridge,now,water,localReport){
       if(now<this.newsAt)return;this.newsAt=now+1;
       const current=[save.buttonwood.runs,save.stunt?.distance||0,save.edition,save.brisas.classes.house.wins,save.cab.reel];
       if(this.facts){
@@ -32,7 +32,9 @@
       if(current[1])reports.push("Cine Luna’s stunt poster is up. Look for Romy’s number 27 on the way in.");
       reports.push("Ivo’s got two turntables out behind the Sol van on the North Boardwalk.");
       reports.push("Marta’s Route 6 runs the Marlin, Mercado, Port Sol and Cine Luna.");
-      this.wire=this.queue.shift()||reports[this.issue++%reports.length];this.newsUntil=now+7;this.nextNews=now+38;
+      const local=this.station==="sol"&&localReport;
+      this.wire=local||this.queue.shift()||reports[this.issue++%reports.length];this.newsUntil=now+7;this.nextNews=now+38;
+      return !!local;
     }
     update(device,clock,now){
       const station=fm.stationFor(device);

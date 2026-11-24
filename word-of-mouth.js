@@ -10,14 +10,14 @@
     {id:"ada",name:"Ada Pike",place:"Sol FM fish camp",hello:"Ada. Keep your voice low a second. That last pink bird's about to lift.",again:"I've saved you the dry end of the rail.",tip:"Kit keeps a field recorder at the fish camp. Bring her a good bird call and she'll put it on the air.",back:"Kit let you see the recorder? I remember when she did the whole show on one microphone."}
   ];
   const stories=[
-    {id:"bib",from:"meli",to:"marisol",name:"The missing race number",ask:"Marisol's old finish photo is on my desk, but the bib folded over. Ask what number she wore so I can run the right caption.",reply:"Forty-one. Forty was my sister. We swapped shoes at the bus stop, not bibs. Tell Meli she can print that.",thanks:"Forty-one. I've had that caption wrong since high school. Let's get it on Sol FM before my sister calls.",news:"Photo correction from Meli Funes. Marisol ran the boardwalk mile in number forty-one. Her sister wore forty. They shared a pair of shoes."},
+    {id:"bib",from:"meli",to:"marisol",name:"The missing race number",ask:"I've got two sisters in a finish photo and no names on the back. Ask Marisol which number she wore. I want to get this caption right.",reply:"Forty-one. Forty was my sister. We swapped shoes at the bus stop, not bibs. Tell Meli she can print that.",thanks:"Forty-one. I've had that caption wrong since high school. Let's get it on Sol FM before my sister calls.",news:"Photo correction from Meli Funes. Marisol ran the boardwalk mile in number forty-one. Her sister wore forty. They traded shoes at the bus stop before the start."},
     {id:"bell",from:"eli",to:"nell",name:"Little Dot's bell",ask:"My dad swore Little Dot used to have a school bell on deck. Nell works that boat. Ask if it's still there?",reply:"It's under the ice box. Granddad took the clapper out after it rang through a whole squall. Tell Eli I'll bring it round.",thanks:"Under the ice box! I knew it. I'll tell Ivo to put the old boat story back on the radio.",news:"From the pier, Eli and Nell have located Little Dot's old school bell. The deck crew would like the clapper to stay ashore."},
     {id:"pink",from:"ren",to:"ada",name:"The pink visitors",ask:"Pink birds slept on the market roof last night. Ada keeps the count out at the hide. Ask if they're hers?",reply:"Roseate spoonbills. Six of them. Tell Ren to look for the one white feather on the last bird's wing.",thanks:"Six! I thought the last one was a plastic bag. Leave the roof light off tonight. I'll get word to Ivo.",news:"El Mercado is leaving its roof light off for six roosting spoonbills. Ada Pike says to watch for one white wing feather."}
   ];
   const key="sundownBay.neighbors.",gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   class Block{
     constructor(walkers,places){
-      this.people=[];this.places=places;this.cache=new Map();this.nextScan=0;
+      this.people=[];this.places=places;this.cache=new Map();this.nextScan=0;this.editions=[];
       for(const local of locals){
         const p=walkers.find(w=>w.name===local.name);if(!p)continue;
         p.neighbor=local;this.people.push(p);
@@ -31,8 +31,15 @@
         for(const s of stories)ids.push(lead+"."+s.id);
       }
       for(const l of locals)ids.push(l.id+".car");
+      for(const s of stories)ids.push("aired."+s.id);
       try{for(const id of ids){const raw=localStorage.getItem(key+id);if(typeof raw==="string"&&raw.length<=180)this.cache.set(id,raw);else this.cache.delete(id);}}catch{}
+      this.updateEditions();
     }
+    updateEditions(){
+      this.editions=stories.filter(s=>this.stage("guest",s)===3||this.stage("frankie",s)===3);
+      this.unheard=this.editions.find(s=>this.get("aired."+s.id)!=="1");
+    }
+    aired(story){this.put("aired."+story.id,"1");this.updateEditions();}
     put(id,value){
       if(this.cache.get(id)===value)return;
       this.cache.set(id,value);try{localStorage.setItem(key+id,value);}catch{}
@@ -88,6 +95,7 @@
       }
       const s=this.message(lead,p);if(number!==2||!s)return null;
       const n=this.stage(lead,s)+1;this.put(lead+"."+s.id,String(n));this.chat=null;
+      if(n===3)this.updateEditions();
       const target=this.target(lead,s);
       this.pose(p,target?"point":"wave",t,target?Math.atan2(target.x-p.x,target.z-p.z):p.yaw,target);
       return {line:[s.ask,s.reply,s.thanks][n-1],story:s,target,news:n===3?s.news:""};

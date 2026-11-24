@@ -4,7 +4,7 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
-Say hello with **N** to one of six regulars on foot or from a slow street car. Look for **Meli Funes** by the Bay Wire television on the beach side of Ocean Drive. Stop and press **1** to ask for a local spot. She points to Cora's stall, and remembers if you visit. **2** takes her question to **Marisol**, the runner on the promenade. Bring Marisol's answer back to Meli and listen for the corrected race result on Sol FM. Eli on the pier and Ren at El Mercado have stories of their own.
+Say hello with **N** to one of six regulars on foot or from a slow street car. Look for **Meli Funes** by the Bay Wire television on the beach side of Ocean Drive. Stop and press **1** to ask for a local spot. She points to Cora's stall, and remembers if you visit. **2** takes her question to **Marisol**, the runner on the promenade. Bring Marisol's answer back to Meli to see their finish photo on the curb TV. The corrected caption appears in your contacts, and Sol FM runs the story the next time you tune in. Eli on the pier and Ren at El Mercado have stories of their own.
 
 **J → Word of mouth** keeps each lead's introductions, recommendations and messages. Its map pins follow people on their usual routes. A local who has to jump out of your way or gets soaked by your car remembers it. Come back, greet them and press **1** to apologize.
 

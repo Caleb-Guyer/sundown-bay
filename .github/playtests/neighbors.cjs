@@ -31,6 +31,13 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   const pause=ms=>new Promise(ok=>setTimeout(ok,ms)),held=new Set();
   const hooks=`
     window.nav=({nextStep:${nextStep.toString()}});window.seenGestures=[];
+    window.photoOnTV=false;window.streetScreen=false;
+    const photos=BayNeighborhoodEdition;window.BayNeighborhoodEdition={...photos,paint(c,id){
+      if(c.width===128&&id==='bib')window.photoOnTV=true;return photos.paint(c,id);
+    }};
+    const screen=BayCurbDeskArt;window.BayCurbDeskArt={...screen,
+      screen(...a){if(photoOnTV)window.streetScreen=true;return screen.screen(...a);},
+      mapScreen(...a){if(photoOnTV)window.streetScreen=true;return screen.mapScreen(...a);}};
     const paint=window.drawBayMap;window.drawBayMap=function(ctx,o){if(o.mode==='radar')nav.map=o;return paint(ctx,o);};
     const advance=BayNeighbors.Block.prototype.step;BayNeighbors.Block.prototype.step=function(t,at,...rest){
       nav.block=this;nav.at={x:at.x,z:at.z};return advance.call(this,t,at,...rest);
@@ -81,12 +88,16 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     await snapshot("point");await approach("stall",1.60);await check("meli.visited","1");
     await hello("meli");await tap("Digit2");await check("bib","1");
     await hello("marisol");await tap("Digit2");await check("bib","2");
-    await hello("meli");await tap("Digit2");await check("bib","3");await snapshot("reply");
+    await hello("meli");await tap("Digit2");await check("bib","3");
+    await waitFor("photoOnTV&&streetScreen",25000);await snapshot("reply");
     await tap("KeyJ");const card="[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('Word of mouth'))";
     await waitFor(card);await js(card+".click()");await waitFor("document.querySelector('#panelBody').innerText.includes('forty-one')");
-    await snapshot("contacts");assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
+    const print="document.querySelector('.wire-archive canvas')",pixels="Array.from("+print+".getContext('2d').getImageData(0,0,576,384).data)";
+    assert(await js("new Set("+pixels+".filter((_,i)=>i%4===0)).size>35"));
+    const original=await js(print+".toDataURL()");await snapshot("contacts");assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     await send("Page.reload");await check("bib","3");await check("meli.visited","1");await js("document.querySelector('#play').click()");await tap("KeyJ");
     await waitFor(card);await js(card+".click()");await waitFor("document.querySelector('#panelBody').innerText.includes('forty-one')");
+    assert.equal(await js(print+".toDataURL()"),original);
     assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
     console.log("PASS live",mode,"greeted Meli from the starter coupe and on foot, saw her point, visited Cora, carried the runner’s answer back and found the corrected bulletin after reload.");
   }finally{await keys([]);}
