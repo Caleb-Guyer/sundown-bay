@@ -4,6 +4,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+Find the **Bay Wire** box on the beach-side curb of Ocean Drive, a few car lengths north of the Marlin’s coral coupe. Press **F** on foot to read the front page. The paper carries local stories you’ve uncovered and the actual Cine Luna bill. Keep an issue and reopen it under **J → Folded copies**.
+
+A bumper can tip a news box, a Cine Luna sandwich board or a wooden citrus crate. Loose papers flutter and oranges bounce into the street. The attendant comes out to right the stand, gather what fell and put the stand back. You can help. Hold **L** beside a fallen stand to lift it, tap **L** by a loose item to pick it up, and tap **L** beside its upright stand to return it. **F** unfolds a paper you’re carrying.
+
 Say hello with **N** to one of six regulars on foot or from a slow street car. Look for **Meli Funes** by the Bay Wire television on the beach side of Ocean Drive. Stop and press **1** to ask for a local spot. She points to Cora's stall, and remembers if you visit. **2** takes her question to **Marisol**, the runner on the promenade. Bring Marisol's answer back to Meli to see their finish photo on the curb TV. The corrected caption appears in your contacts, and Sol FM runs the story the next time you tune in. Eli on the pier and Ren at El Mercado have stories of their own.
 
 **J → Word of mouth** keeps each lead's introductions, recommendations and messages. Its map pins follow people on their usual routes. A local who has to jump out of your way or gets soaked by your car remembers it. Come back, greet them and press **1** to apologize.

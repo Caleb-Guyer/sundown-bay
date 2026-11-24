@@ -423,3 +423,4 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .wire-archive figcaption {padding:.65rem .2rem 0;border-bottom:1px solid #b3a085}
 .wire-archive figcaption strong {font:italic bold 1.32rem Georgia,serif}
 .wire-archive figcaption p {margin:.4rem 0 .7rem;font:1rem/1.42 Georgia,serif}
+.bay-front-page{display:block;width:100%;max-width:500px;height:auto;margin:0 auto .75rem}

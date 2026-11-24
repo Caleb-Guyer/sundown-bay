@@ -789,6 +789,7 @@
       }
     }
     if(street&&opt.gutters)BayGutterArt.overhead(ctx,px,py,s,opt.gutters,streetTime);
+    if(street&&opt.pavement)BayPavementArt.overhead(ctx,px,py,s,opt.pavement,streetTime,visible);
     if(street)for(const k of opt.skids||empty)if(t-k.time<20&&visible(px(k.x),py(k.z))){
       const dx=Math.sin(k.yaw)*.40,dz=Math.cos(k.yaw)*.40;
       line(ctx,px(k.x-dx),py(k.z-dz),px(k.x+dx),py(k.z+dz),"#4c4c4e",Math.max(.8,s*.15));
