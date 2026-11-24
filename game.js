@@ -316,9 +316,9 @@
     {x:155,z:-55,name:"Motel demo"},{x:186,z:83,name:"Saltwater sessions"},{x:-7,z:137,name:"Last picture show"},
     {x:-151,z:-104,name:"Dockside dub"},{x:-82,z:-149,name:"Market mixtape"}
   ];
-  const valid=(x,z,r=.42)=>(x>=-184+r&&x<=210-r&&z>=-182+r&&z<=182-r||z>176&&BayCut.land(x,z,r))
+  const valid=(x,z,r=.42,blocks=solids)=>(x>=-184+r&&x<=210-r&&z>=-182+r&&z<=182-r||z>176&&BayCut.land(x,z,r))
     &&(z<231||bridge.roadOpenAt(x,z,r))
-    &&!solids.some(s=>Math.abs(x-s.x)<s.w/2+r&&Math.abs(z-s.z)<s.d/2+r);
+    &&!blocks.some(s=>Math.abs(x-s.x)<s.w/2+r&&Math.abs(z-s.z)<s.d/2+r);
   // Bring any sidewalk collectible that overlaps a facade out onto its nearest street.
   for(const t of tapes){if(!valid(t.x,t.z,.65)){const ax=nearestAxis(t.x),az=nearestAxis(t.z);if(Math.abs(ax-t.x)<Math.abs(az-t.z))t.x=ax+5.5;else t.z=az+5.5;}}
   function addCar(kind,color,x,z,yaw,path=null,pace=0){
@@ -2053,7 +2053,20 @@
   function recoveryWalkway(a,b,v,via=[],nearby=null){
     const obstacles=[v,wrecker,...(nearby||[])].filter((o,i,list)=>o&&list.indexOf(o)===i);
     const footRadius=nearby ? .29 : .23,carGap=nearby ? .28 : .21;
-    const clear=(x,z)=>valid(x,z,footRadius)&&(!BayRooftops.near(x,z)||stairBlocks.every(o=>Math.abs(x-o.x)>=o.w/2+footRadius||Math.abs(z-o.z)>=o.d/2+footRadius))&&obstacles.every(o=>BayDriving.clearance(o,{x,z})>carGap);
+    // A long walk checks thousands of points. Each 12 m square only needs the
+    // buildings and parked vehicles whose footprints can reach that square.
+    const cells=new Map(),vehicles=obstacles.map(v=>{const s=v.footprint||bayCarLayout(v.kind);return {v,r:Math.hypot(s.track,s.halfLength)+carGap};});
+    function clear(x,z){
+      const i=Math.floor(x/12),j=Math.floor(z/12),key=i*1024+j;let cell=cells.get(key);
+      if(!cell){
+        const cx=i*12+6,cz=j*12+6,span=6+footRadius;
+        const blocks=solids.filter(o=>Math.abs(o.x-cx)<=o.w/2+span&&Math.abs(o.z-cz)<=o.d/2+span);
+        const cars=vehicles.filter(o=>Math.abs(o.v.x-cx)<=6+o.r&&Math.abs(o.v.z-cz)<=6+o.r);
+        cell={blocks,cars};cells.set(key,cell);
+      }
+      return valid(x,z,footRadius,cell.blocks)&&(!BayRooftops.near(x,z)||stairBlocks.every(o=>Math.abs(x-o.x)>=o.w/2+footRadius||Math.abs(z-o.z)>=o.d/2+footRadius))&&
+        cell.cars.every(o=>BayDriving.clearance(o.v,{x,z})>carGap);
+    }
     const nodes=[a,b,...via.filter(n=>clear(n.x,n.z))];
     for(const o of obstacles){
       const s=o.footprint||bayCarLayout(o.kind);
@@ -2061,19 +2074,19 @@
         const q=BayDriving.world(o,x,z);if(clear(q.x,q.z))nodes.push(q);
       }
     }
-    const visited=new Set(),cost=nodes.map(()=>Infinity),prev=[];cost[0]=0;
+    const visited=new Set(),cost=nodes.map(()=>Infinity),estimate=nodes.map(p=>dist(p,b)),prev=[];cost[0]=0;
     for(;;){
-      let i=-1,min=Infinity;
-      for(let j=0;j<nodes.length;j++)if(!visited.has(j)&&cost[j]<min){i=j;min=cost[j];}
+      let i=-1,priority=Infinity;
+      for(let j=0;j<nodes.length;j++)if(!visited.has(j)&&cost[j]+estimate[j]<priority){i=j;priority=cost[j]+estimate[j];}
       if(i<0)return null;
       if(i===1){const path=[];for(let j=1;j!==0;j=prev[j])path.unshift(nodes[j]);return path;}
       visited.add(i);
       for(let j=1;j<nodes.length;j++){
         if(visited.has(j))continue;
         const a=nodes[i],b=nodes[j],d=dist(a,b),count=Math.max(1,Math.ceil(d/.37));
-        if(min+d>=cost[j])continue;
+        if(cost[i]+d>=cost[j])continue;
         let open=true;for(let k=1;k<=count;k++){const t=k/count;if(!clear(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t)){open=false;break;}}
-        if(open){cost[j]=min+d;prev[j]=i;}
+        if(open){cost[j]=cost[i]+d;prev[j]=i;}
       }
     }
   }
