@@ -6,6 +6,12 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.
 
+In a car, use **[** and **]** or the **FM dial** button to tune **88.3 Sol FM**, **94.7 Marea**, **103.9 Breaker**, or turn the receiver off. Each car remembers its station. Tune back in and the record will have moved on. The receiver displays local reports and song credits with sound off. **R** toggles all sound.
+
+Follow Ocean Drive north to the **Sol FM broadcast van** on the Boardwalk. Talk to **Ivo Vidal** beside the turntables with **F** and take a pair of record sleeves. **W/S** adjusts the second record’s tempo. Tap **Space** on the first beat of deck A to start B, then hold **D** to move the crossfader across. **A** brings it back. **V** changes the view and **E** steps away. Beat lights and BPM readouts let you play the whole set muted.
+
+Score **64/100** to earn a spot on Sol. Ivo pays **$65–90** for the first broadcast of each pair. His book keeps your best handover, including the tempo changes and crossfader moves you actually made. Tune Sol in a car to catch your encore, or open **J → Sol FM request book** to request a saved mix.
+
 South of the Marlin, find **Buttonwood Boat Works** at Gantry and Ocean. Press **F** at Benji Moss’s bench to sign one of Alda Santana’s two **Pot Run** tickets. Enter the green **Cortez Stepside** with **E** and hitch the loaded trailer with **F**. Follow Ocean Drive north to the signed public slip. Follow the white turnaround until you face back toward town, then reverse down the striped lane. **V** shows the trailer. Hold **Shift + S** to help keep it straight. Stop at the wet stripe and press **F** to launch.
 
 Walk down the pier and press **E** beside **Pip 16**. Slow alongside the next marked buoy and press **F** to grab the line. Hold **Space** to haul, ease off as the gauge rises, and use **V** for the deck view. Bring the skiff back to the trailer or tie up alongside the slip. **F** winds it in. Tow the catch back to the yard, step out and ask Benji to weigh it. Each keeper pays **$8**, plus **$95** for Little Bank or **$155** for the Outside String. The truck, trailer, skiff and unfinished ticket save locally. You can also take the rig out on your own or hitch the trailer to a Marisma Estate or Pelican Panelvan.

@@ -21,6 +21,15 @@
     <div id="vignette" aria-hidden="true"></div>
     <section id="hud" aria-label="Game dashboard" hidden>
       <div class="location"><span class="area-kicker">SUNDOWN BAY <time id="cityTime"></time></span><strong id="district">Ocean Drive</strong><span id="streetName" hidden></span></div>
+      <aside id="receiverCard" aria-label="Car radio" hidden>
+        <canvas id="radioScale" width="480" height="80" aria-hidden="true"></canvas>
+        <small id="receiverStation"></small><strong id="receiverTitle"></strong><span id="receiverCredit"></span><p id="receiverWire" hidden></p>
+      </aside>
+      <section id="boothReadout" aria-label="Sol FM mixing desk" hidden>
+        <div class="sleeve-names"><span><i>A</i> <b id="boothA"></b></span><span><i>B</i> <b id="boothB"></b></span></div>
+        <canvas id="boothMeter" width="680" height="176" aria-label="Outgoing and incoming beat lights and crossfader"></canvas>
+        <strong id="boothStatus"></strong><small id="boothTip"></small>
+      </section>
       <section id="potReadout" aria-label="Buttonwood deck gauge" hidden>
         <span id="potName"></span><strong id="potStatus"></strong><small id="potGaugeLabel"></small>
         <div id="potLoad" role="meter" aria-label="Deck gauge" aria-valuemin="0" aria-valuemax="100"><i></i></div>
@@ -100,7 +109,7 @@
       <div id="context" role="status"></div>
       <div id="speech" role="status" aria-live="polite" hidden><strong></strong><span></span></div>
       <div class="vehicle"><span id="tireCall" hidden></span><span id="mode"></span><strong id="speed"></strong></div>
-      <div class="shortcuts"><button id="jobKey"><kbd>J</kbd> Jobs</button><button id="audioKey"><kbd>R</kbd> <span>Sound off</span></button><button id="pauseKey" aria-label="Pause and controls"><kbd>Esc</kbd> Pause</button></div>
+      <div class="shortcuts"><button id="jobKey"><kbd>J</kbd> Jobs</button><button id="dialKey" title="Previous or next station with [ or ]" hidden><kbd>]</kbd> FM dial</button><button id="audioKey"><kbd>R</kbd> <span>Sound off</span></button><button id="pauseKey" aria-label="Pause and controls"><kbd>Esc</kbd> Pause</button></div>
       <div id="targetTag" hidden></div>
       <div id="toast" role="status" aria-live="polite" hidden><span></span><b></b></div>
     </section>
@@ -184,6 +193,11 @@
   <script src="locals.js"></script>
   <script src="atlas.js"></script>
   <script src="cut-tape.js"></script>
+  <script src="airwaves-score.js"></script>
+  <script src="airwaves.js"></script>
+  <script src="airwaves-booth-art.js"></script>
+  <script src="airwaves-dial-art.js"></script>
+  <script src="airwaves-street.js"></script>
   <script src="radio.js"></script>
   <script src="marsh-line.js"></script>
   <script src="exposure-art.js"></script>

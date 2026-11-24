@@ -24,6 +24,25 @@ button {color:inherit;cursor:pointer}
 button:disabled {opacity:.57;cursor:default}
 button:focus-visible,select:focus-visible,canvas:focus-visible {outline:3px solid #fbb866;outline-offset:3px}
 [hidden] {display:none!important}
+#receiverCard,#boothReadout {position:absolute;color:#fff1d3;background:#1d302eef;border:1px solid #ccb88c8c;border-radius:3px;box-shadow:0 2px 7px #112b2b55}
+#receiverCard {left:clamp(12px,2vw,24px);top:clamp(84px,15.3vh,126px);padding:7px 9px 8px;width:min(230px,36vw)}
+#radioScale,#boothMeter {display:block;width:100%;height:auto}
+#radioScale {margin-bottom:5px}
+#receiverCard small,#receiverCard strong,#receiverCard span,#boothStatus,#boothTip {display:block}
+#receiverStation,.sleeve-names i,#boothTip {font:700 .73rem/1.3 Consolas,monospace;letter-spacing:.025em;color:#e9d6a3}
+#receiverTitle,#boothStatus {font:700 1rem/1.2 Georgia,serif;margin:.15em 0}
+#receiverCredit,#receiverWire {font:.83rem/1.24 "Source Sans 3",Arial,sans-serif}
+#receiverWire {border-top:1px solid #e7cd8f55;padding-top:5px;margin:6px 0 0}
+#hud:has(#streetName:not([hidden])) #receiverCard {margin-top:1.25rem}
+#hud.fm-mixing #speech {top:13%;bottom:auto;right:16px;left:auto;transform:none;max-width:min(230px,25vw);text-align:left;padding:7px 10px}
+#hud.fm-mixing #speech span {font-size:.86rem}
+#boothReadout {bottom:15%;left:50%;transform:translateX(-50%);width:min(355px,65vw);padding:8px 10px 9px}
+.sleeve-names {display:flex;justify-content:space-between;gap:8px;margin:0 0 5px;font:700 .82rem/1.25 Georgia,serif}
+.sleeve-names i {font-style:normal;color:#a5dfce}.sleeve-names span:last-child i {color:#f4ae8d}
+#boothTip {margin-top:3px;color:#e1d9be}
+@media(max-height:550px){#receiverCard{top:65px;width:195px}#boothReadout{bottom:14%;width:277px;padding:4px 7px}#boothMeter{max-height:66px}#boothTip{margin:0}}
+@media(max-width:650px){#boothReadout{bottom:27%;width:min(300px,82vw)}#receiverCard{top:79px;width:min(205px,49vw)}}
+@media(max-width:650px){#hud.fm-mixing #speech {top:70px;left:12px;right:auto;max-width:52vw}}
 #sky,#world,#overhead,#vignette,#intro,#hud,#shade {position:absolute;inset:0;width:100%;height:100%}
 #sky {pointer-events:none;background:#b8acac}
 #rain,#driverGlass {position:absolute;inset:0;width:100%;height:100%;pointer-events:none}

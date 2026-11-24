@@ -727,6 +727,7 @@
         }
       }
     }
+    if(opt.airwaves&&street)BayAirwavesBooth.map(ctx,px,py,s,visible,streetTime,opt.airwaves,opt);
     if(opt.buttonwood){
       const work=opt.buttonwood;
       BayButtonwoodYard.map(ctx,px,py,s,visible,streetTime,work,opt);
@@ -1012,6 +1013,7 @@
           if(opt.roofs?.action)BayTraversalPose.map(ctx,px,py,s,player,opt.roofs.action,streetTime);
           else if(opt.band?.player){const p=opt.band.player;p.kit=player.kit;BayBandPlayers.mapActor(ctx,p,x,y,s,streetTime,opt.band);}
           else if(opt.keyMapActor)BayMotorists.mapActor(ctx,opt.keyMapActor,x,y,s,streetTime,opt.valet.focus);
+          else if(opt.airwaves?.mixing)BayAirwavesBooth.mapOperator(ctx,px,py,s,player,streetTime,opt.airwaves);
           else personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
           if(opt.airCarried)BayAirmailArt.carryMap(ctx,opt,px,py,s,opt.airCarried,streetTime,BayAirPost.tagFor(opt.airLine.saved.bag));
           if(opt.deckHand)BaySkateArt.carryMap(ctx,opt,px,py,s,opt.deckHand,streetTime,opt.skate.saved.deck);
@@ -1025,7 +1027,7 @@
           if(opt.airLine?.saved.bag){const q=BayDriving.world(v,.48,-.94);BayAirmailArt.bagMap(ctx,opt,px,py,s,q,v.yaw+.28,BayAirPost.tagFor(opt.airLine.saved.bag));}
           disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
         if(opt.wash)BayPalmaWash.mapActivity(ctx,opt,px,py,s,visible);
-        if(!opt.airLine?.aboard&&!opt.photograph&&!opt.keyMapActor&&!opt.band?.take&&!opt.skate?.rider){
+        if(!opt.airwaves?.mixing&&!opt.airLine?.aboard&&!opt.photograph&&!opt.keyMapActor&&!opt.band?.take&&!opt.skate?.rider){
           const r=Math.max(player.driving?2.7*s:opt.pickup ? .52*s : 1.1*s,5.2*ui);
           ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.lineWidth=1.5*ui;ctx.strokeStyle=mint;ctx.stroke();
           const vx=Math.sin(player.yaw||0),vy=-Math.cos(player.yaw||0);

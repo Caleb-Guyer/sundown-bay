@@ -40,7 +40,8 @@
     spanDrive: ['sawtooth','lowpass',.60], spanChain: ['noise','bandpass',1.08]
   };
 
-  let context, master, music, instruments, effects, ambience, hats, noise, waves;
+  let context, master, music, effects, ambience, hats, noise, waves;
+  let channels=[],scheduledGroup=null;
   let openAir, submergedBus, waterFilter;
   let enabled = false, paused = false;
   let floatEngine=0,floatThrottle=0,rescueLevel=0,nextRescue=0;
@@ -65,6 +66,17 @@
     return node;
   }
 
+  function channel(){
+    const bus=gainNode(music,0),keys=gainNode(bus,1),high=context.createBiquadFilter();
+    high.type="highpass";high.frequency.value=4100;high.Q.value=.45;high.connect(bus);
+    const echo=context.createDelay(.5);echo.delayTime.value=beat*.375;
+    keys.connect(echo);echo.connect(gainNode(bus,.135));
+    return {bus,keys,high,voices:new Set(),key:"",next:0,last:0,level:-1,
+      score:{note(midi,at,length,volume,shape,slide,attack,sustain){
+        tone(keys,hz(midi),at,length,volume,shape,Number.isFinite(slide)&&slide>0?hz(slide):0,attack,sustain);
+      },noise(at,length,volume,highHz,lowHz){waterNoise(bus,at,length,volume,highHz,lowHz);}}};
+  }
+
   function initialize() {
     if (context) return true;
     const Audio = window.AudioContext || window.webkitAudioContext;
@@ -82,19 +94,14 @@
       const scene = gainNode(openAir, 1);
       scene.connect(waterFilter);
       music = gainNode(scene, 0.66);
-      instruments = gainNode(music, 1);
+      channels = [channel(),channel()];
       effects = gainNode(scene, 0.88);
       ambience = gainNode(scene, 0.74);
       hats = context.createBiquadFilter();
       hats.type = 'highpass';
       hats.frequency.value = 4100;
       hats.Q.value = 0.45;
-      hats.connect(music);
-
-      const echo = context.createDelay(0.5);
-      echo.delayTime.value = beat * 0.375;
-      instruments.connect(echo);
-      echo.connect(gainNode(music, 0.135));
+      hats.connect(effects);
 
       const rate = Math.min(context.sampleRate, 24000);
       const length = Math.floor(rate * 2.3);
@@ -145,6 +152,7 @@
     envelope.gain.exponentialRampToValueAtTime(0.0001, end);
     source.connect(envelope);
     const voice = { source, envelope };
+    if(scheduledGroup){voice.group=scheduledGroup;scheduledGroup.add(voice);}
     voices.add(voice);
     source.onended = () => release(voice);
     source.start(start);
@@ -166,10 +174,10 @@
     strike(source, destination, start, length, volume, attack, sustain);
   }
 
-  function hiss(start, length, volume) {
+  function hiss(start, length, volume,destination=hats) {
     const source = context.createBufferSource();
     source.buffer = noise;
-    strike(source, hats, start, length, volume, 0.003);
+    strike(source, destination, start, length, volume, 0.003);
   }
   function waterNoise(bus, start, length, volume, high, low) {
     const source = context.createBufferSource(), filter = context.createBiquadFilter();
@@ -221,7 +229,7 @@
     }
   }
 
-  function stationIdent(start) {
+  function stationIdent(start,instruments) {
     for (const [offset, note] of badge) {
       const length = offset > 0.6 ? 0.89 : 0.3;
       tone(instruments, hz(note), start + offset, length, 0.115, 'tine', 0, 0.014, 0.22);
@@ -229,7 +237,7 @@
     }
   }
 
-  function melody(note, start, length, bright) {
+  function melody(note, start, length, bright,instruments) {
     const pitch = hz(note);
     const reed = oscillator('reed', pitch * 0.985, start);
     reed.frequency.exponentialRampToValueAtTime(pitch, start + 0.048);
@@ -244,29 +252,30 @@
     strike(reed, instruments, start, length, bright ? 0.097 : 0.078, 0.032, 0.66);
   }
 
-  function playDrums(bar, tick, at, full, sparse) {
+  function playDrums(bar, tick, at, full, sparse,output) {
     const fill = bar === 9 || bar === 17 || bar === 21 || bar === 29;
     if (tick === 0 || (!sparse && (tick === 9 || (full && bar % 2 && tick === 6)))) {
-      tone(music, 114, at, 0.23, 0.21, 'sine', 43, 0.003);
+      tone(output.bus, 114, at, 0.23, 0.21, 'sine', 43, 0.003);
     }
     if (tick === 4 || (tick === 12 && !sparse)) {
-      tone(music, 336, at + 0.006, 0.08, 0.066, 'triangle', 194, 0.003);
-      hiss(at + 0.011, full ? 0.145 : 0.085, full ? 0.10 : 0.064);
+      tone(output.bus, 336, at + 0.006, 0.08, 0.066, 'triangle', 194, 0.003);
+      hiss(at + 0.011, full ? 0.145 : 0.085, full ? 0.10 : 0.064,output.high);
     }
     if ((!sparse && tick % 4 === 2) || (sparse && tick === 10)) {
       const open = full && tick === 14 && !fill;
-      hiss(at + 0.014, open ? 0.20 : 0.065, tick === 6 ? 0.059 : 0.042);
+      hiss(at + 0.014, open ? 0.20 : 0.065, tick === 6 ? 0.059 : 0.042,output.high);
     }
     if (full && (tick === 3 || (bar % 2 && tick === 11))) {
-      tone(music, tick === 3 ? 227 : 271, at + 0.008, 0.16, 0.065, 'sine', tick === 3 ? 178 : 213);
+      tone(output.bus, tick === 3 ? 227 : 271, at + 0.008, 0.16, 0.065, 'sine', tick === 3 ? 178 : 213);
     }
     if (fill && (tick === 12 || tick === 14 || tick === 15)) {
       const pitch = tick === 12 ? 201 : tick === 14 ? 160 : 127;
-      tone(music, pitch, at, 0.19, tick === 15 ? 0.12 : 0.095, 'tine', pitch * 0.69);
+      tone(output.bus, pitch, at, 0.19, tick === 15 ? 0.12 : 0.095, 'tine', pitch * 0.69);
     }
   }
 
-  function radioStep(index, start) {
+  function radioStep(index, start,output,tempo=96) {
+    const instruments=output.keys;
     const bar = Math.floor(index / 16) % chart.length;
     const tick = index % 16;
     const at = start + (tick % 2 ? 0.013 : 0);
@@ -274,14 +283,14 @@
     const chorus = (bar >= 10 && bar < 18) || (bar >= 22 && bar < 30);
     const breakdown = bar >= 18 && bar < 22;
     const sparse = breakdown || bar < 2 || bar >= 30;
-    if (bar === 0 && tick === 0) stationIdent(at);
+    if (bar === 0 && tick === 0) stationIdent(at,instruments);
     if (bar === 0 && tick < 8) return;
 
-    playDrums(bar, tick, at, chorus, sparse);
+    playDrums(bar, tick, at, chorus, sparse,output);
     if (tick === 0 || (sparse ? tick === 10 : tick === 7 || tick === 10 || (chorus && tick === 14))) {
       const offset = tick === 7 ? 7 : tick === 14 ? 12 : 0;
       const length = tick === 0 ? (sparse ? 1.05 : 0.66) : 0.31;
-      tone(music, hz(chord.bass + offset), at, length, 0.15, 'bass', 0, 0.012, 0.40);
+      tone(output.bus, hz(chord.bass + offset), at, length, 0.15, 'bass', 0, 0.012, 0.40);
     }
     if (tick === (sparse ? 0 : 2) || (chorus && tick === 10) || (!sparse && bar % 2 && tick === 12)) {
       const length = sparse ? 1.70 : tick === 2 ? 0.81 : 0.31;
@@ -295,7 +304,7 @@
     if (breakdown) phrase = bridge[bar - 18];
     if (phrase) {
       for (const [when, pitch, duration] of phrase) {
-        if (when === tick) melody(pitch, at + 0.017, duration * stepLength, chorus);
+        if (when === tick) melody(pitch, at + 0.017, duration * 15/tempo, chorus,instruments);
       }
     }
     if (bar === 31 && tick === 13) tone(instruments, hz(68), at, 0.32, 0.045, 'tine');
@@ -496,6 +505,12 @@
     if (context.state === 'running') startBroadcast(context.currentTime);
     return true;
   }
+  function stopField(){
+    queuedTape=null;
+    if(!broadcast||!context)return;
+    broadcast.envelope.gain.setTargetAtTime(.0001,context.currentTime,.014);
+    broadcast.source.stop(context.currentTime+.07);
+  }
 
   function gull(at, pitch, power) {
     const length = 0.44;
@@ -543,6 +558,36 @@
     }
   }
 
+  function changeRecord(output,key,phase,now){
+    for(const v of output.voices){
+      v.envelope.gain.cancelScheduledValues(now);
+      v.envelope.gain.setTargetAtTime(.0001,now,.012);
+      v.source.stop(now+.055);
+    }
+    output.voices.clear();output.key=key;output.next=Math.ceil(phase-.04);
+  }
+  function playChannel(output,record,now){
+    const level=record?unit(record.level):0;
+    if(Math.abs(output.level-level)>.002||level===0&&output.level!==0){
+      output.bus.gain.setTargetAtTime(level,now,.025);output.level=level;
+    }
+    if(!record){if(output.key)changeRecord(output,"",0,now);return;}
+    const phase=record.beat*4,length=15/record.tempo,key=record.key+"/"+record.id;
+    if(key!==output.key||phase<output.last-.16||phase>output.last+4)changeRecord(output,key,phase,now);
+    output.last=phase;output.next=Math.max(output.next,Math.ceil(phase-.4));
+    while(output.next<phase+.105/length){
+      const at=now+Math.max(.006,(output.next-phase)*length);
+      if(level>.002){
+        scheduledGroup=output.voices;
+        try{
+          if(record.id==="after-hours")radioStep(output.next,at,output,record.tempo);
+          else window.BayAirwavesScore.play(record.id,output.next,at,output.score);
+        }finally{scheduledGroup=null;}
+      }
+      output.next++;
+    }
+  }
+
   function mix(now, state, band) {
     if (now < nextMix) return;
     nextMix = now + 0.085;
@@ -552,7 +597,7 @@
     const passing = (0.5 + 0.5 * Math.sin(worldTime * 0.71 + 2 * Math.sin(worldTime * 0.19))) ** 2;
     swimMix(now, swell, passing);
     const monitoring = mixField(state.field, now);
-    const radioVolume = broadcast ? 0.10 : monitoring ? 0.13 : driving ? 0.71 : 0.47;
+    const radioVolume = broadcast ? 0.10 : monitoring ? 0.13 : (state.radioProgram?.booth||driving) ? 0.71 : 0.47;
     music.gain.setTargetAtTime(radioVolume * (1 - band), now, broadcast || monitoring || band ? 0.075 : 0.18);
     if (broadcast) broadcast.envelope.gain.setTargetAtTime(.91 * (1 - band), now, .065);
     mixBed('surf', ambience, now, coast * inside * (0.033 + 0.096 * swell), 540 + 1650 * swell);
@@ -602,12 +647,16 @@
     worldTime = Number.isFinite(state.time) ? state.time : now;
     if (queuedTape) startBroadcast(now);
     const band = shell ? shell.update(state.shell, now) : 0;
-    // A backgrounded tab should resume on one beat, never play a backlog.
-    if (nextStep < now - 0.12) nextStep = now + 0.02;
-    while (nextStep < now + 0.11) {
-      if (band < .999) radioStep(step, nextStep);
-      step++;
-      nextStep += stepLength;
+    if(state.radioProgram){
+      for(let i=0;i<channels.length;i++)playChannel(channels[i],band<.999?state.radioProgram.decks[i]:null,now);
+    }else{
+      // Older callers supply only the driving mix.
+      channels[0].bus.gain.value=1;
+      if (nextStep < now - 0.12) nextStep = now + 0.02;
+      while (nextStep < now + 0.11) {
+        if (band < .999) radioStep(step, nextStep,channels[0]);
+        step++;nextStep += stepLength;
+      }
     }
     mixWipers(now, state);
     mix(now, state, band);
@@ -617,6 +666,12 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="fm-tune"){
+      // A preset key latches mechanically. The receiver passes through a short band of noise.
+      tone(effects,285,at,.026,.027,"triangle",87,.002);
+      if(source.station!=="off")waterNoise(effects,at+.015,.115,.060,source.station==="breaker"?3070:2440,620);
+      return;
+    }
     if(name.startsWith('brisas-')){
       const gain=Math.max(0,1-(source.distance||0)/32)*.09;
       if(name==='brisas-pump'){tone(effects,96,at,.14,gain*.68,'triangle',179,.011);waterNoise(effects,at,.063,gain*.34,740,510);}
@@ -744,6 +799,7 @@
     master.gain.cancelScheduledValues(context.currentTime);
     master.gain.setValueAtTime(0, context.currentTime);
     for (const voice of voices) { voice.source.stop(); release(voice); }
+    for(const output of channels){output.key="";output.level=-1;}
     skidSince = null;
     context.suspend().catch(() => {});
   }
@@ -784,5 +840,5 @@
     else wake();
   }
 
-  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField });
+  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField, stopField });
 })();

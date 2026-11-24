@@ -17,7 +17,7 @@
     reset(){
       this.vx=0;this.vz=0;this.phase=.20;this.weight=0;this.run=0;
       this.jumpTime=-1;this.jumpBuffer=0;this.lift=0;this.airPose=0;this.crouch=0;this.lead=1;
-      this.stumble=0;this.stumblePose=0;this.ride=null;this.handTarget=null;
+      this.stumble=0;this.stumblePose=0;this.ride=null;this.handTarget=null;this.console=null;
       this.turn=0;this.time=0;this.step(0,0,0);
     }
     jump(){
@@ -218,17 +218,18 @@
       const breath=Math.sin(motion.time*1.68),swing=Math.cos(t+.12),roll=Math.sin(t+.40)*w;
       const reach=this.sides[0].thigh.length+this.sides[0].shin.length-.004;
       let height=hipY-.010-w*(.083+.01*run)+w*(.019+.033*run)*Math.sin(2*t-.70);
+      const desk=motion.console?.amount||0;
       for(const f of motion.feet)height=Math.min(height,f.y+Math.sqrt(Math.max(.001,reach*reach-f.z*f.z))-.003*w);
-      height-=.145*motion.crouch+.095*motion.stumblePose;
+      height-=.145*motion.crouch+.095*motion.stumblePose+.082*desk;
       if(ride)height=blend(height,ride.seatY+.029,ride.seat)-ride.duck*.18-ride.latchDip;
       const hipYaw=swing*w*(.065+.046*run),hipRoll=.027*roll-motion.turn*.037;
       const at=this.pivot;
-      at[0]=.024*roll+.009*Math.sin(motion.time*.79)*(1-w);at[1]=height;at[2]=0;
+      at[0]=.024*roll+.009*Math.sin(motion.time*.79)*(1-w)+.36*desk*(motion.console?.shift||0);at[1]=height;at[2]=.25*desk;
       this.pelvis.place(at,.018*w,hipYaw,hipRoll);
       this.pelvis.map(this.chest.pivot,at);at[1]+=.004*breath*(1-w);
       const chestYaw=-swing*w*(.085+.115*run);
       const pitch=.016+(.079+.18*run)*w+.009*breath*(1-w)+motion.crouch*.22+motion.stumblePose*.46;
-      const cabinPitch=ride?ride.duck*.61+ride.seat*.055:0;
+      const cabinPitch=ride?ride.duck*.61+ride.seat*.055:.78*desk;
       this.chest.place(at,pitch+cabinPitch,chestYaw,-hipRoll*.48-motion.turn*.105+(ride?ride.side*(.18*ride.duck-.24*ride.pull):0));
       this.chest.map(this.head.pivot,at);
       this.head.place(at,.015+.034*w+.014*Math.sin(2*t-.55)*w+cabinPitch*.50,chestYaw*.18,-motion.turn*.036);
@@ -249,6 +250,9 @@
           if(ride.passenger)reachFor(limb,side*.12,ride.seatY+.18,.19,grip);
           else reachFor(limb,side*.105*Math.cos(turn),ride.seatY+.41-side*.105*Math.sin(turn),.32,grip);
           if(hand>0)reachFor(limb,...ride.handle,hand);
+        }else if(motion.console){
+          const hand=side<0?motion.console.left:motion.console.right;
+          reachFor(limb,hand.x,hand.y,hand.z,hand.weight);
         }else if(side===1&&motion.handTarget){
           const h=motion.handTarget;reachFor(limb,h.x,h.y,h.z,h.weight);
         }
