@@ -26,7 +26,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,mode+"-"+name+".jpg"),Buffer.from(image.data,"base64"));
   }
   const hooks=`
-    window.phases=new Set();window.crossed=new Set();window.peaks=[0,0];window.framed=false;window.minScale=1;
+    window.phases=new Set();window.crossed=new Set();window.peaks=[0,0];window.framed=false;window.minScale=1;window.guests=new Set();
     window.seenGreen=false;window.seenRed=false;window.badLight=false;
     const originalMap=window.drawBayMap;window.drawBayMap=function(c,o){
       if(o.mode==="radar"&&o.coffee){
@@ -40,6 +40,10 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       minScale=Math.min(minScale,this.scale);
       if(window.trip?.stage==="sip"&&eye.y<2.3&&Math.hypot(eye.x-BayPalmCoffee.site.x,eye.z-BayPalmCoffee.site.z)<3.4)framed=true;
       return beginView.call(this,eye,...rest);
+    };
+    const submit=BayView.prototype.draw;BayView.prototype.draw=function(name,...rest){
+      if(!this.casting&&window.trip?.stage==="sip"&&trip.lifts[0]>.45&&trip.lifts[1]>.1&&["player","palm-coffee-bea"].includes(name))guests.add(name);
+      return submit.call(this,name,...rest);
     };
     const art=window.BayCrosswalkArt,method=${JSON.stringify(mode==="street"?"world":"map")};
     window.BayCrosswalkArt={...art,[method](...a){
@@ -62,7 +66,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await walk("({x:BayPalmCoffee.site.x+.1,z:BayPalmCoffee.site.z-1.35})",.55);
     await walk("({x:BayPalmCoffee.guest.x,z:BayPalmCoffee.site.z-1.32})",.55);
     await walk("BayPalmCoffee.guest",.44);await tap("KeyF");await waitFor("trip.stage==='sip'");
-    await waitFor("peaks[0]>.8&&peaks[1]>.35&&framed",30000);
+    await waitFor("peaks[0]>.8&&peaks[1]>.35&&framed"+(mode==="street"?"&&guests.size===2":""),30000);
     assert((await js("document.querySelector('#context').textContent")).includes("Put the cup down"));await snap("coffee");
     await waitFor("trip.cups===1&&trip.stage===''",30000);
     const scale=await js("minScale");
