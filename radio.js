@@ -43,7 +43,7 @@
   let context, master, music, instruments, effects, ambience, hats, noise, waves;
   let openAir, submergedBus, waterFilter;
   let enabled = false, paused = false;
-  let floatEngine=0,floatThrottle=0;
+  let floatEngine=0,floatThrottle=0,rescueLevel=0,nextRescue=0;
   let driving = false, boating = false, speed = 0, heat = 0, siren = 0, rotor = 0, coast = 0, docks = 0, skid = 0;
   let nextStep = 0, step = 0, nextMix = 0, skidSince = null, nextGull = 0, nextPortSound = 0;
   let nextHorn = 0, nextTrafficHorn = 0, nextSiren = 0, seed = 87533, portBell = true, worldTime = 0;
@@ -531,6 +531,10 @@
       portBell = !portBell;
       nextPortSound = now + 10.3 + random() * 11;
     }
+    if(rescueLevel>.035&&now>=nextRescue){
+      tone(effects,652,now+.01,.48,.030*rescueLevel,"triangle",669,.055,.64);
+      tone(effects,508,now+.50,.48,.029*rescueLevel,"triangle",495,.055,.64);nextRescue=now+1.16;
+    }
     if (heat <= 0) nextSiren = now + 1.2;
     if (heat > 0 && siren > 0.035 && now >= nextSiren) {
       tone(effects, 415, now + 0.01, 0.46, 0.043 * siren, 'sine', 651, 0.095, 0.64);
@@ -576,7 +580,7 @@
     boating = Boolean(state.boating);
     speed = Math.abs(Number(state.speed) || 0);
     heat = Number(state.heat) || 0;
-    siren = unit(state.siren);
+    siren = unit(state.siren);rescueLevel=unit(state.rescueLevel);
     rotor = unit(state.rotor);floatEngine=unit(state.floatEngine);floatThrottle=unit(state.floatThrottle);
     coast = unit(state.coast);
     docks = unit(state.docks);

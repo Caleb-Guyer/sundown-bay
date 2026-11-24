@@ -46,7 +46,7 @@
   }
   function profile(kind){
     if(plans.has(kind))return plans.get(kind);
-    const s=bayCarLayout(kind),truck=kind==="wrecker",rear=s.sections[0],front=s.sections.at(-1);
+    const s=bayCarLayout(kind),truck=kind==="wrecker"||kind==="ambulance",rear=s.sections[0],front=s.sections.at(-1);
     const p={kind,s,truck,rear:rear[0],front:front[0],rW:rear[1],fW:front[1],tail:rear[2],nose:front[2]};
     p.grit=Array.from({length:4},(_,zone)=>{
       const rng=random(490211+zone*87169+kind.charCodeAt(0)*763);

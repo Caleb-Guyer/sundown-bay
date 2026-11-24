@@ -8,6 +8,7 @@
     cab:{trim:"#8b7359",top:"#605b4e",pad:"#a18867",cloth:"#a38462",thread:"#ddbb85",edge:"#d5c5a2",face:"#313b38",ink:"#f5ddb0",accent:"#e6a755",rim:"#6a5543",hub:"#826c51",dash:"ribbon",spokes:2,stamp:"BAY CAB",limit:100},
     van:{trim:"#687776",top:"#465957",pad:"#75837a",cloth:"#63716c",thread:"#b1bbb0",edge:"#bcc0ac",face:"#273b3d",ink:"#e4ddba",accent:"#d4a266",rim:"#384945",hub:"#556661",dash:"box",spokes:4,stamp:"PELICAN",limit:80},
     cruiser:{trim:"#505b64",top:"#333f48",pad:"#4c555c",cloth:"#535c62",thread:"#83918a",edge:"#96a7aa",face:"#273037",ink:"#e7e5d8",accent:"#d67961",rim:"#343a3a",hub:"#454d50",dash:"three",spokes:4,stamp:"FLEET",limit:120},
+    ambulance:{trim:"#636e66",top:"#495652",pad:"#707b70",cloth:"#568480",thread:"#abc3aa",edge:"#c7baa3",face:"#e4ddbd",ink:"#273c3c",accent:"#d66042",rim:"#54615a",hub:"#465953",dash:"work",spokes:3,stamp:"RESCUE 4",limit:90},
     wrecker:{trim:"#386561",top:"#4d6961",pad:"#528278",cloth:"#8d7156",thread:"#c1a681",edge:"#d4c9ad",face:"#e8dfbc",ink:"#344541",accent:"#b75f3e",rim:"#b9aa84",hub:"#476963",dash:"work",spokes:3,stamp:"PORTSIDE",limit:80}
   };
   const glyph={
@@ -32,7 +33,7 @@
     const kind=styles[v.kind]?v.kind:"coupe";
     if(layoutCache.has(kind))return layoutCache.get(kind);
     const s=bayCarLayout(kind),style=styles[kind],[rear,roofRear,roofFront,front,sill,roof,base,cap]=s.glass;
-    const high=kind==="van"||kind==="wrecker",ey={x:-s.seatX,y:Math.min(roof-.165,s.seatY+(high?.795:.716)),z:s.seatZ+(high?.07:.102)};
+    const high=kind==="van"||kind==="wrecker"||kind==="ambulance",ey={x:-s.seatX,y:Math.min(roof-.165,s.seatY+(high?.795:.716)),z:s.seatZ+(high?.07:.102)};
     const wheel={x:ey.x,y:ey.y-(high?.262:.24),z:ey.z+(high?.44:.405),r:high?.175:kind==="hatch"?.147:.159,tilt:high?.62:.43};
     const dashZ=Math.min(front-.097,ey.z+(high?.67:.595)),clusterY=ey.y-(high?.257:.226);
     // Meet the raked glass from the inside. The van and hatch share almost no glass geometry.
@@ -141,7 +142,7 @@
       g.box(x,low+.46,back-.021,.194,.128,.107,p.cloth);
       for(const off of [-.055,.055])g.box(x+off,low+.39,back-.015,.014,.115,.016,p.edge);
     }
-    if(a.kind==="wrecker"||a.kind==="van")return;
+    if(a.kind==="wrecker"||a.kind==="van"||a.kind==="ambulance")return;
     const rz=a.rear+.20;
     g.box(0,low-.03,rz+.075,a.base*1.82,.180,.34,p.cloth);
     g.box(0,low+.11,rz-.08,a.base*1.8,.31,.105,p.cloth);
@@ -171,7 +172,7 @@
     g.box(0,sill-.028,front,base*2+.02,.063,.053,seal);
     g.box(0,s.floorY-.035,s.seatZ,base*2,.13,front-rear,frame);
     g.box(0,sill-.018,rear,base*2,.047,.065,p.pad);
-    if(a.kind==="van"||a.kind==="wrecker"){
+    if(a.kind==="van"||a.kind==="wrecker"||a.kind==="ambulance"){
       const y=(sill+roof)*.5;
       for(const ss of [-1,1])g.box(ss*base*.78,y-.08,rear+.003,base*.46,roof-sill+.12,.045,p.trim);
       g.box(0,sill+.065,rear+.009,base*2,.18,.055,p.trim);
