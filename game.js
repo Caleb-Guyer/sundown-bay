@@ -263,8 +263,11 @@
     if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
     lastHud=lastMap=-10;
   }
+  function syncProgress(latest){
+    syncWindowWork(latest);syncGarage(latest);syncPalm(latest);syncBrisas(latest);syncButtonwood(latest);syncRadioBook(latest);
+  }
   function persist(){
-    try{const latest=JSON.parse(localStorage.getItem("sundownBay.v1"));syncWindowWork(latest);syncGarage(latest);syncPalm(latest);syncBrisas(latest);syncButtonwood(latest);syncRadioBook(latest);}catch{}
+    try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
     if(gull&&car)gull.remember(car);
     save.airmail.progress=airLine.receiptInProgress();
     for(const v of cars)BayPalma.storeCar(v,save.palma);
@@ -276,7 +279,7 @@
     if(ev.key===BayRainWalk.key){rainWalk.book=BayRainWalk.read();lastHud=-10;}
     if(ev.key===BaySecondUnit.filmKey){unit.film=BaySecondUnit.loadFilm();houseFrame=null;}
     BayAirwaves.refreshPreset(ev.key);
-    if(ev.key==="sundownBay.v1"){try{const latest=JSON.parse(ev.newValue);syncWindowWork(latest);syncGarage(latest);syncPalm(latest);syncBrisas(latest);syncButtonwood(latest);syncRadioBook(latest);}catch{}return;}
+    if(ev.key==="sundownBay.v1"){try{syncProgress(JSON.parse(ev.newValue));}catch{}return;}
     if(ev.key===BayRideFilm.key){const book=new BayRideFilm.Book(save.moto.last);motos.film.prints=book.prints;if(!motos.job&&!motos.develop)motos.film.pending=book.pending;lastHud=-10;return;}
     if(ev.key===skateKey){const f=loadSkateReel();if(f&&(!skateReel||f.score>skateReel.score))skateReel=f;return;}
     if(ev.key?.startsWith("sundownBay.fieldReel.v1.")){BayMarshLine.restore(save.fieldReels);return;}
@@ -832,7 +835,7 @@
     windowRide=null;unit.eye=null;active=null;resetFeet();motion.ride=null;keys.clear();resetPointer();cameraSnap();
     unit.remember(hero,null);unit.save();
     if(finished&&r.best){
-      try{syncWindowWork(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
+      try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
       const premiered=!negatives.reel;negatives.keep(r.brief,r.best);
       const pay=r.brief.pay+Math.round(r.best.score*.6);save.windowBest[r.brief.id]=Math.max(save.windowBest[r.brief.id]||0,r.best.score);
       save.wallet+=pay;save.paid++;save.windowJobs++;persist();sound.cue("paid");note(r.brief.title,"Print #"+r.best.number+" · "+r.best.score+"/100 · "+cash(pay)+(premiered&&negatives.reel?" · Your three-frame short is on the Cine Luna bill":" from Cine Luna")+(negatives.stored?"":" · Negative held for this session"),5);
@@ -7243,7 +7246,7 @@
       if(car)for(const [id,master] of Object.entries(save.band.best))b.append(makeButton(BaySessions.byId(id).name,"Your Sound Shell recording  ·  "+master.score+"%","Play in car",()=>cueTape(id)));
       if(Object.keys(motos.prints).length)b.append(makeButton("Coast Camera prints","Your photographs from Second Seat.","Open prints",()=>openPanel("moto-prints")));
       if(skateReel)b.append(skateReelButton());if(printAvailable())b.append(airLedgerButton());
-      if(unit.met)b.append(makeButton("Second Unit · "+BaySecondUnit.names[unit.other],"Where your partner is now, plus Frankie’s location prints.","Call sheet",()=>openPanel("unit-sheet")));
+      if(unit.met)b.prepend(makeButton("Second Unit · "+BaySecondUnit.names[unit.other],"Call for a Window Seat shoot, find your partner or browse your prints.","Call sheet",()=>openPanel("unit-sheet")));
       if(save.edition)b.append(makeButton("Bay Wire",BayExposure.routes[save.edition].headline,"Read edition",()=>openPanel("edition")));
       if(save.meet.cover)b.append(makeButton("Bay Wire · Night edition","Your photograph from Cine Luna.","Read cover",()=>openPanel("meet-cover")));
       if(!active&&!watchCrew.towing)b.append(makeButton("Rosario León","Night counter at El Mercado. Serving from 6 PM to 2 AM.","Set waypoint",()=>clockPin(BayMercadoArt.counter)),
@@ -7407,6 +7410,7 @@
     if(!handled.has(ev.code)&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyF"&&!unit.eye&&!unit.transition&&!windowRide&&byCinema()&&!crewDeskNear()){cabAction();return;}
     if(crewKeys(ev.code)||umbrellaKey(ev.code)||radioKeys(ev.code)||buttonwoodKey(ev.code)||brisasKeys(ev.code)||palmInput(ev.code)||gullKeys(ev.code)||motoKeys(ev.code)||rescueKeys(ev.code)||airKeys(ev.code)||skateKeys(ev.code)||transitKeys(ev.code))return;
     if(neon.testing){
       if(ev.code==="KeyE"){neon.pocket();motion.handTarget=null;lastHud=-10;return;}
