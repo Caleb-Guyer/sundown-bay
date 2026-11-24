@@ -384,3 +384,9 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .air-receipt canvas{display:block;width:100%;height:auto;margin-bottom:6px}
 @media(max-height:545px){#airTicket{bottom:48px;left:auto;right:12px;width:min(229px,36vw)}}
 @media(max-height:480px){#neonTester{bottom:50px;padding:7px 9px}.neon-strip{margin:5px 0}}
+#fotoFinder{position:absolute;z-index:12;left:50%;top:44%;transform:translate(-50%,-50%);width:min(360px,75vw);padding:13px;background:#314a49;color:#fff0c9;border:3px double #c6ac84;box-shadow:0 10px 36px #14282ba8;font-family:system-ui,sans-serif}
+#fotoFinder[hidden]{display:none}
+#fotoFinder header,.foto-poses{display:flex;align-items:center;justify-content:space-between;gap:5px}
+#fotoFinder header{padding:0 1px 8px}#fotoFinder strong{font:italic bold 1.6rem Georgia,serif}#fotoCounter,#fotoFinder small{font-size:.78rem}
+.foto-glass{position:relative;overflow:hidden;border:2px solid #152c31;background:#1b3336}.foto-glass canvas{display:block;width:100%;height:auto}.foto-glass b{position:absolute;bottom:7px;right:8px;background:#142c32dc;color:#fff3cd;font:bold 1.35rem monospace;padding:1px 6px}.foto-glass.flash:after{content:"";position:absolute;inset:0;background:#fff9e3;opacity:.83}
+.foto-poses{margin:9px 0 4px}.foto-poses button{flex:1;border:1px solid #75918a;background:#283b3b;color:#f6e4c4;padding:6px 2px;cursor:pointer}.foto-poses button[aria-pressed=true]{background:#efc47d;color:#283536}.foto-strip{display:block;width:min(205px,70%,calc(38vh - 37px));height:auto;margin:6px auto 14px;box-shadow:1px 4px 8px #102d353b}

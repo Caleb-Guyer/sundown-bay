@@ -144,9 +144,12 @@
     }return radioKeys.get(id);
   }
   function tune(id,dir){
-    if(!id)return null;const value=presets[wrap(presets.indexOf(stationFor(id))+dir,presets.length)];radioKeys.set(id,value);
+    return tuneTo(id,presets[wrap(presets.indexOf(stationFor(id))+dir,presets.length)]);
+  }
+  function tuneTo(id,value){
+    if(!id||!presets.includes(value))return null;radioKeys.set(id,value);
     try{localStorage.setItem("sundownBay.receiver."+id,value);}catch{}return value;
   }
   function refreshPreset(key){const prefix="sundownBay.receiver.";if(key?.startsWith(prefix))radioKeys.delete(key.slice(prefix.length));}
-  window.BayAirwaves={stations,slots,slotById,records,read,Mix,program,stamp,stationFor,tune,refreshPreset,tapeLength,distanceToBeat};
+  window.BayAirwaves={stations,slots,slotById,records,read,Mix,program,stamp,stationFor,tune,tuneTo,refreshPreset,tapeLength,distanceToBeat};
 })();
