@@ -2,6 +2,9 @@
 (() => {
   "use strict";
   const routes={
+    palmBreak:[[153.5,-8.85,65],[134.95,-8.85,.3],[134.95,8.85,.4],[135.85,15.1,0],[135.85,21.6,0],[134.42,23.9,22],[135.85,21.6,0],[135.85,15.1,0],[134.95,8.85,.5],[134.95,-8.85,.5]],
+    library:[[81.2,62.95,7],[62.9,62.95,.45],[62.9,81.05,4],[62.9,62.95,.45]],
+    portCorner:[[-81.15,-81,8],[-62.85,-81,.45],[-62.85,-62.9,4],[-62.85,-81,.45]],
     wire:[[153.8,-19.75,18],[153.8,-30,3],[153.6,-10.1,7],[151.8,-11,2]],
     motel:[[153.8,-25.4,13],[153.5,-9,2],[134.6,-9,1],[134.3,-22,5],[134.8,-8.8,1],[153.8,-8.8,0]],
     pier:[[169,124,3],[170,103,1],[167.8,80,2],[167.7,103,0]],
@@ -55,6 +58,9 @@
       "I used to count this flock from my kitchen window. The knees still get me out here."]);
     people.at(-1).fieldSource="spoonbills";
     add("wire",4,"local",0,0,"Meli Funes",["I cut On the Curb for Bay Wire. Tap your horn before you make a pass and I’ll get the whole thing.","That set used to show the numbers at the dog track. It still has the clearest picture on Ocean Drive."]);
+    add("palmBreak",3,"local",0,0,"Bea Serrano",["I do the desk at the Marlin. The Palm keeps a pot on through shift change.","I take mine with milk. My mother would call that soup."]);
+    people.at(-1).coffeeRegular=true;
+    add("library",2,"courier",0,0,null,null);add("portCorner",4,"dockhand",0,.22,null,null);
     for(const [route,name] of [["west","Vic Bell"],["north","Cora Ledesma"],["downtown","Emi Brea"],["esplanade","Dani Silva"]]){
       const w=people.find(p=>!p.name&&p.path===routes[route]);if(w)w.curbName=name;
     }
@@ -76,30 +82,27 @@
       if(BayStreetReactions.startlePerson(p,dt,driver,cars,people,valid,time))continue;
       if(p.sprayPose)continue;
       if(p.curbAim){p.moving=false;p.yaw+=wrap(Math.atan2(p.curbAim.x-p.x,p.curbAim.z-p.z)-p.yaw)*-Math.expm1(-12*dt);continue;}
-      if((rain>.12||p.porch)&&BayRainWalk.porchStep(p,dt,rain,time,people,cars,valid))continue;
+      if(p.coffeePause){p.moving=false;p.gesture=0;continue;}
+      if(!p.coffeeRegular&&!p.crossing?.entered&&(rain>.12||p.porch)&&BayRainWalk.porchStep(p,dt,rain,time,people,cars,valid))continue;
       p.moving=false;
       const target=p.path[p.index],dx=target[0]+p.offset-p.x,dz=target[1]+p.offset-p.z,d=Math.hypot(dx,dz);
       if(p.alert>0){p.alert-=dt;p.gesture=1;continue;}
       if(p.wait>0){p.wait-=dt;p.gesture=p.name?2:(Math.floor(time*.32+p.phase)%3===0?1:0);continue;}
       if(d<.3||p.stuck>2.4){p.wait=target[2];p.index=(p.index+1)%p.path.length;p.stuck=0;continue;}
-      const ux=dx/d,uz=dz/d;let hold=false;
-      for(const s of signals){
-        const ew=Math.abs(ux)>.92,ns=Math.abs(uz)>.92;
-        const edge=ew?Math.abs(p.x-s.x):Math.abs(p.z-s.z);
-        const across=ew?Math.abs(p.z-s.z):Math.abs(p.x-s.x);
-        const ahead=ew?(s.x-p.x)*ux:(s.z-p.z)*uz;
-        if((ew||ns)&&edge>6.4&&edge<9.9&&across<10.5&&ahead>0&&d>edge){
-          const trafficNS=(time+s.offset)%14<7;
-          if(ew===trafficNS)hold=true;
-          if(!hold)for(const c of cars){
-            if(Math.abs(c.speed)<1.5)continue;
-            const rx=p.x-c.x,rz=p.z-c.z,front=rx*Math.sin(c.yaw)+rz*Math.cos(c.yaw);
-            if(front>-1&&front<7&&Math.hypot(rx,rz)<8){hold=true;break;}
-          }
+      const ux=dx/d,uz=dz/d;
+      if(!BayCrosswalk.ready(p,time,signals,cars,driver,dt))continue;
+      const pace=p.crossing?.entered?Math.max(1.72,p.pace):p.pace;
+      const step=Math.min(d,pace*dt);let nx=p.x+ux*step,nz=p.z+uz*step;
+      if(p.crossing?.entered){
+        for(const v of cars){
+          if(Math.abs(nx-v.x)>5||Math.abs(nz-v.z)>5)continue;
+          const gap=BayDriving.clearance(v,{x:nx,z:nz});if(gap>.42||gap>BayDriving.clearance(v,p))continue;
+          const side=(p.x-v.x)*uz-(p.z-v.z)*ux>=0?1:-1;
+          const sx=p.x+uz*step*side,sz=p.z-ux*step*side;
+          if(valid(sx,sz,.24)&&BayDriving.clearance(v,{x:sx,z:sz})>=gap){nx=sx;nz=sz;}
+          else{nx=p.x;nz=p.z;}break;
         }
       }
-      if(hold){p.gesture=0;continue;}
-      const step=Math.min(d,p.pace*dt),nx=p.x+ux*step,nz=p.z+uz*step;
       let clear=valid(nx,nz,.24);
       if(clear&&driver&&Math.abs(driver.x-nx)<4&&Math.abs(driver.z-nz)<4){
         const gap=BayDriving.clearance(driver,{x:nx,z:nz});
@@ -107,7 +110,7 @@
       }
       if(clear){p.x=nx;p.z=nz;p.stuck=0;p.moving=true;p.phase+=step*4.8;}
       else{p.stuck+=dt;}
-      p.gesture=0;p.yaw+=wrap(Math.atan2(ux,uz)-p.yaw)*Math.min(1,dt*6.8);
+      p.gesture=p.crossing?.wave>time?4:0;p.yaw+=wrap(Math.atan2(ux,uz)-p.yaw)*Math.min(1,dt*6.8);
     }
   }
   function closestSpeaker(people,hero){

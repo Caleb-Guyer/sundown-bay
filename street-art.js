@@ -205,7 +205,7 @@
       yaw:Math.atan2(-13*Math.sin(a),87*Math.cos(a))};
   }
 
-  function signalMesh(g,nsGreen) {
+  function signalMesh(g,state) {
     // The junction origin stays at the road centre. Both approaches see the same pair of heads.
     const pole="#747f79",rail="#98a59c",black="#3a4b4b",housing="#d3af77";
     g.cyl(8,.265,8,.215,.275,.53,7,pole);
@@ -214,13 +214,14 @@
       tube(g,[8,4.68,8],[8+dx*2.34,5.385,8+dz*2.34],.043,rail);
       tube(g,[8,5.45,8],[8+dx*5.81,5.45,8+dz*5.81],.087,pole);
     }
-    function head(x,z,alongZ,green){
+    function head(x,z,alongZ,axis){
+      const green=state===axis,amber=state===axis+"-amber";
       const plane=(u,y,v)=>[x+(alongZ?u:v),y,z+(alongZ?v:u)];
       g.box(x,4.82,z,alongZ?.56:.40,1.235,alongZ?.40:.56,housing);
       for(const side of [-1,1]){
         g.quad(plane(-.239,4.233,side*.205),plane(.239,4.233,side*.205),
           plane(.239,5.403,side*.205),plane(-.239,5.403,side*.205),black);
-        const lenses=[[5.161,green?"#7b5350":"#ff715b"],[4.811,"#927950"],[4.457,green?"#9afb99":"#456c5c"]];
+        const lenses=[[5.161,green||amber?"#7b5350":"#ff715b"],[4.811,amber?"#ffca57":"#927950"],[4.457,green?"#9afb99":"#456c5c"]];
         for(const [y,col] of lenses){
           const cen=plane(0,y,side*.213);
           for(let i=0;i<8;i++){
@@ -233,7 +234,7 @@
         }
       }
     }
-    head(2.45,8,true,nsGreen);head(8,2.45,false,!nsGreen);
+    head(2.45,8,true,"ns");head(8,2.45,false,"ew");
   }
 
   function install(model) {
@@ -241,14 +242,18 @@
     for(let i=0;i<4;i++)model("street-vendor-"+i,g=>vendor(g,i/3));
     for(let i=0;i<5;i++)model("street-gull-"+i,g=>gullMesh(g,(i-2)/2));
     model("street-juice-cart",juiceCart);model("street-skiff",skiff);model("street-wake",wake);
-    model("signal-ns",g=>signalMesh(g,true));model("signal-ew",g=>signalMesh(g,false));
+    for(const state of ["ns","ew","ns-amber","ew-amber","red"])model("signal-"+state,g=>signalMesh(g,state));
+    BayCrosswalkArt.install(model);
   }
   function near(c,x,z,distance) {
     return !c || (c.x-x)*(c.x-x)+(c.z-z)*(c.z-z)<distance*distance;
   }
   function draw(view,t,camera,shadowPass=false) {
     for(const sig of signals) {
-      if(near(camera,sig.x,sig.z,136))view.draw(mod(t+sig.offset,14)<7?"signal-ns":"signal-ew",sig.x,.14,sig.z);
+      if(near(camera,sig.x,sig.z,136)){
+        view.draw("signal-"+BayCrosswalk.lamps(sig,t),sig.x,.14,sig.z);
+        BayCrosswalkArt.world(view,sig,BayCrosswalk.phase(sig,t),t);
+      }
     }
     const cycle=cycleAt(t);
     if(near(camera,cycle.x,cycle.z,96)) {

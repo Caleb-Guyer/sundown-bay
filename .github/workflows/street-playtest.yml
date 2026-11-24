@@ -14,9 +14,9 @@ permissions:
 
 jobs:
   play:
-    name: Bay Wire in ${{ matrix.view }} view
+    name: Walk to the Palm in ${{ matrix.view }} view
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
@@ -25,11 +25,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: node .github/playtests/live.cjs ${{ matrix.view }} --frames
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --corner --frames
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bay-wire-${{ matrix.view }}
+          name: street-playtest-${{ matrix.view }}
           path: .github/playtests/curb-wire-proof/*.jpg
           retention-days: 3
           if-no-files-found: ignore

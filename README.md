@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+Meet **Bea Serrano** on the beach-side corner of Ocean Drive and Marquee, just north of the Marlin. Walk up and press **F** to join her diner break. Watch the far corner for the pale walk figure, cross both streets together, and press **F** by the Palm’s green cup. Bea remembers your shared coffees. The four signalized junctions accept pedestrian calls from any corner. Press **F** beside a button to stop traffic for a walk phase.
+
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.
 
 Find the **Manta 90** tied to the seaward tip of **North Float**, east of the boardwalk. Walk to the saddle and press **E** to board. Open the throttle with **W** and aim east along the striped practice ramp. Hold **Space** on approach for more lift. **A/D** steer in the air. Land pointing along your flight path to keep your speed. You can also jump the whitewater behind moving boats. Press **F** on the Manta near North Float to take Paz’s timed **North Float Double**. Land the ramp and then cross Yellowtail’s wake. The game saves your clean jump distances and quickest double.

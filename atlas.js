@@ -124,6 +124,7 @@
       }
     }
     for(const x of roads) for(const z of roads) {
+      if(street&&BayStreetArt.signals.some(s=>s.x===x&&s.z===z))continue;
       if(x!==0 && x!==144 && z!==-72) continue;
       if(x===144 && z===-144) continue;
       for(const side of [-1,1]) for(let j=-2;j<=2;j++) {
@@ -350,6 +351,7 @@
       c.restore();return;
     }
     const guard=recoil?.guard||0,air=recoil?.air||0,lead=recoil?.lead||1;
+    if(p.gesture===4){line(c,.19,.01,.40,-.17,p.shirt,.12);disc(c,.42,-.20,.087,p.skin||"#c58b68");}
     for(const side of [-1,1]){
       rect(c,side*.14-.065,.04+air*side*lead*.17,.13,.35,"#374650");
       if(guard>.015){
@@ -406,19 +408,21 @@
     c.restore();
   }
 
-  function intersectionLights(c,x,y,s,nsGreen) {
+  function intersectionLights(c,x,y,s,state) {
     c.save();c.translate(x,y);c.scale(s,s);
     const mx=8,my=-8;
     line(c,mx,my,2.45,my,"#657873",.22);line(c,mx,my,mx,-2.45,"#657873",.22);
     disc(c,mx,my,.267,"#aaa991");
-    const head=(hx,hy,angle,green)=>{
+    const head=(hx,hy,angle,axis)=>{
+      const green=state===axis,amber=state===axis+"-amber";
       c.save();c.translate(hx,hy);c.rotate(angle);
       rect(c,-.44,-.68,.88,1.36,"#3b4b4b");
       rect(c,-.44,-.68,.88,.115,"#d8ac7d");
-      disc(c,0,-.26,.234,green?"#785b55":"#ff8b77");disc(c,0,.27,.234,green?"#adf4a5":"#546c60");
+      disc(c,0,-.26,.234,green||amber?"#785b55":"#ff8b77");disc(c,0,.27,.234,green?"#adf4a5":"#546c60");
+      if(amber)disc(c,0,.015,.195,"#ffd06a");
       c.restore();
     };
-    head(2.45,my,0,nsGreen);head(mx,-2.45,Math.PI/2,!nsGreen);
+    head(2.45,my,0,"ns");head(mx,-2.45,Math.PI/2,"ew");
     c.restore();
   }
 
@@ -644,6 +648,7 @@
       ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);
       paintStatic(ctx,solids,street);ctx.restore();
     }
+    if(street)for(const sig of opt.signals||empty)if(visible(px(sig.x),py(sig.z),12*s))BayCrosswalkArt.mapPaint(ctx,px,py,s,sig);
     if(visible(px(226),py(327),143*s)){
       const shore=[];for(let z=208;z<=478;z+=5)shore.push([px(BayCut.coast(z)-.28),py(z)]);
       shore.push([px(480),py(478)],[px(480),py(208)]);path(ctx,shore,p.ocean);
@@ -864,6 +869,7 @@
       }
     }
     const passedPop=street&&opt.campana?.passing();if(passedPop)BayCampanaArt.treatMap(ctx,px,py,s,passedPop,passedPop.flavor,streetTime,true);
+    if(street&&opt.coffee&&visible(px(BayPalmCoffee.site.x),py(BayPalmCoffee.site.z),3*s))BayPalmCoffeeArt.map(ctx,px,py,s,BayPalmCoffee.site,opt.coffee.lifts);
     if(street&&opt.curbWire&&visible(px(BayCurbWire.desk.x),py(BayCurbWire.desk.z),4*s)){
       BayCurbDeskArt.map(ctx,px,py,s,BayCurbWire.desk,streetTime);
       if(opt.wireTV)BayCurbDeskArt.mapScreen(ctx,px,py,s,BayCurbWire.desk,opt.wireTV);
@@ -1013,7 +1019,10 @@
     }
     if(street) for(const sig of opt.signals||empty) {
       const x=px(sig.x),y=py(sig.z);
-      if(visible(x,y,9*s)) intersectionLights(ctx,x,y,s,((streetTime+sig.offset)%14+14)%14<7);
+      if(visible(x,y,12*s)){
+        intersectionLights(ctx,x,y,s,BayCrosswalk.lamps(sig,streetTime));
+        BayCrosswalkArt.map(ctx,px,py,s,sig,BayCrosswalk.phase(sig,streetTime),streetTime);
+      }
     }
     if(opt.target&&(street||opt.target.kind!=="garage")&&!(street&&opt.target.kind==="ferry-gate"&&visible(px(opt.target.x),py(opt.target.z),-12))&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {
       const x=px(opt.target.x),y=py(opt.target.z);

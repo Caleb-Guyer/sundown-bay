@@ -373,7 +373,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   for(const xx of roads) for(const zz of roads) {
-    if((xx===144 || xx===0 || zz===-72) && !(xx===144 && zz===-144)){
+      if((xx===144 || xx===0 || zz===-72) && !(xx===144 && zz===-144)&&!BayStreetArt.signals.some(s=>s.x===xx&&s.z===zz)){
       for(const s of [-1,1]){
         for(let j=-2;j<=2;j++){
           rect(xx+j*2.25,zz+s*8.3,1.05,1.65,.125,"#c9c6b2");
