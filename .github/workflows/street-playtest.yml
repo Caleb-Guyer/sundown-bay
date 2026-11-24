@@ -1,0 +1,35 @@
+name: Street playtest
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - sundown.js
+      - .github/playtests/**
+      - .github/workflows/street-playtest.yml
+
+permissions:
+  contents: read
+
+jobs:
+  play:
+    name: Bay Wire in ${{ matrix.view }} view
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        view: [street, overhead]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --frames
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bay-wire-${{ matrix.view }}
+          path: .github/playtests/curb-wire-proof/*.jpg
+          retention-days: 3
+          if-no-files-found: ignore

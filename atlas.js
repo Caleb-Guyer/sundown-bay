@@ -864,10 +864,15 @@
       }
     }
     const passedPop=street&&opt.campana?.passing();if(passedPop)BayCampanaArt.treatMap(ctx,px,py,s,passedPop,passedPop.flavor,streetTime,true);
+    if(street&&opt.curbWire&&visible(px(BayCurbWire.desk.x),py(BayCurbWire.desk.z),4*s)){
+      BayCurbDeskArt.map(ctx,px,py,s,BayCurbWire.desk,streetTime);
+      if(opt.wireTV)BayCurbDeskArt.mapScreen(ctx,px,py,s,BayCurbWire.desk,opt.wireTV);
+    }
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){
         personSprite(ctx,person,x,y,Math.max(2.3,s*1.42),false,rotation);
+        if(person.curbAim&&!person.startle)BayCurbDeskArt.mapPhone(ctx,px,py,s,person,person.curbAim.lift);
         if(person.canopy>.01&&!person.startle)BayRainCanopies.map(ctx,px,py,s,person,person.canopy,person.canopyStyle,streetTime);
         if(person.iceBox){
           ctx.save();ctx.translate(x,y);ctx.rotate(person.yaw);ctx.fillStyle="#5d8781";

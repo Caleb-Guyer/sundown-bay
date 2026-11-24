@@ -62,9 +62,24 @@
       for(const k of [0,6,12])out.push(source[i+k],source[i+k+1],source[i+k+2]);out.push(source[i+3],source[i+4],source[i+5]);
     }return new Float32Array(out);
   }
+  // Retain the street's larger painted surfaces in small geographic groups for bystander replays.
+  function streetTiles(city){
+    const bins=new Map();
+    for(let i=0;i<city.length;i+=18){
+      const x0=Math.min(city[i],city[i+6],city[i+12]),x1=Math.max(city[i],city[i+6],city[i+12]);
+      const z0=Math.min(city[i+2],city[i+8],city[i+14]),z1=Math.max(city[i+2],city[i+8],city[i+14]);
+      const dy=Math.max(city[i+1],city[i+7],city[i+13])-Math.min(city[i+1],city[i+7],city[i+13]);
+      if(Math.max(x1-x0,z1-z0,dy)<.85)continue;
+      const k=Math.max(x1-x0,z1-z0)>44?"wide":Math.floor((x0+x1)/64)+","+Math.floor((z0+z1)/64);
+      let data=bins.get(k);if(!data){data=[];bins.set(k,data);}
+      for(const j of [0,6,12])data.push(city[i+j],city[i+j+1],city[i+j+2]);
+      data.push(city[i+3],city[i+4],city[i+5]);
+    }
+    for(const [key,data] of bins)bins.set(key,new Float32Array(data));return bins;
+  }
   class Scenery{
     constructor(city){
-      this.models=new Map();this.sectors={};this.canvas=null;this.time=-50;this.collecting=false;
+      this.cityTiles=streetTiles(city);this.streetCars=new Map();this.models=new Map();this.sectors={};this.canvas=null;this.time=-50;this.collecting=false;
       // These three pieces are retained before the large city mesh is released. No second city is built.
       for(const c of BaySecondSeat.briefs){const {x,z}=c.subject;
         this.sectors[c.id]=pack(city,(v,i)=>{
@@ -81,7 +96,7 @@
     }
     paint(out,eye,c,t,env,force=false){
       if(!this.canvas)this.canvas=document.createElement("canvas");
-      const canvas=this.canvas,w=352,h=Math.max(136,Math.min(280,Math.round(w*out.height/out.width)));
+      const canvas=this.canvas,w=env.curb?Math.min(320,out.width):352,h=env.curb?Math.round(w*out.height/out.width):Math.max(136,Math.min(280,Math.round(w*out.height/out.width)));
       if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;this.image=null;}
       const ctx=canvas.getContext("2d",{alpha:false});
       const project=basis(eye,w,h),q=[0,0,0];
@@ -120,7 +135,12 @@
             }
           }
         };
-        raster(this.sectors[c.id],null);const list=[];this.collecting=true;
+        if(env.curb){
+          const cx=Math.floor(eye.x/32),cz=Math.floor(eye.z/32);
+          raster(this.cityTiles.get("wide"),null);
+          for(let x=cx-3;x<=cx+3;x++)for(let z=cz-3;z<=cz+3;z++)raster(this.cityTiles.get(x+","+z),null);
+        }else raster(this.sectors[c.id],null);
+        const list=[];this.collecting=true;
         if(c.id==="wheel"){if(!this.wheel){BayCoastWheelArt.install(env.model);this.wheel=true;}BayCoastWheelArt.world(list,(_p,range)=>range>120,t,env.hours,env.wheel);}
         if(c.id==="marlin"){if(!this.neon){BayMarlinNeonArt.install(env.model);this.neon=true;}BayMarlinNeonArt.world(list,(_p,range)=>range>100,env.neon,t,env.hours);}
         this.collecting=false;
@@ -130,6 +150,14 @@
           raster(this.models.get(name),command);
         }
         for(const v of env.cars){
+          if(env.curb){
+            const key=v.kind+"#"+v.color;
+            let mesh=this.streetCars.get(key);
+            if(!mesh){const g=new BayMesh();buildBayCar(g,v.kind,v.color);mesh=pack(g.vertices);
+              if(this.streetCars.size>=14)this.streetCars.delete(this.streetCars.keys().next().value);this.streetCars.set(key,mesh);}
+            raster(mesh,[key,v.x,v.y,v.z,v.yaw,v.pitch,v.lean]);
+            continue;
+          }
           if(Math.abs(v.x-eye.x)>46||Math.abs(v.z-eye.z)>46)continue;
           const name="film-traffic/"+v.kind+v.color;
           if(!this.models.has(name)){const g=new BayMesh(),width=(v.footprint?.track||.9)*2,length=(v.footprint?.halfLength||2.1)*2;

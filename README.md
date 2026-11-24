@@ -10,6 +10,8 @@ Find the **Manta 90** tied to the seaward tip of **North Float**, east of the bo
 
 At the **Marlin cab rank payphone**, press **Y** to take Frankie Prado’s call. You can also meet her at the folding desk outside **Cine Luna**. Afterward, **Y** switches between Frankie and the Marlin driver during free roam. Each stays where you leave them, including in a parked car.
 
+Find **Meli Funes** at the **Bay Wire curb desk** outside the Marlin Motel. On foot, press **F** to pick up her shot list. In a car, tap **H** near a sidewalk contributor to call a shot. Drive past, slide around a corner or hop a hydraulic car while their phone is up. People can also film a passing car on their own. Open **J → On the Curb · Bay Wire** to replay or scrub their footage and pin a clip to the street TV. The six latest clips remain in your phone. Meli keeps your best called take in each of her three categories and screens the completed edition outside the motel.
+
 Meet Frankie in person at the folding desk outside **Cine Luna** and press **G** to hang out. Either character can invite the other. Walk together, or get into a parked street car and give your partner a moment to reach the passenger door. They’ll ride along and step out with you at your next stop. On foot together, **Y** switches leads. **G** opens the hangout card to mark a photo booth, hand your passenger the radio dial or say goodbye. The station stays with the car.
 
 Bring your partner to a **Foto Bahía** booth at Cine Luna, Marlin Motel or North Boardwalk. Press **F** by the curtain, then **1**, **2** or **3** to choose a pose before each flash. The booth prints all three exposures. Find your strips in **J → Second Unit → Photo strips** or on the desk in Room 14.

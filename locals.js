@@ -2,6 +2,7 @@
 (() => {
   "use strict";
   const routes={
+    wire:[[153.8,-19.75,18],[153.8,-30,3],[153.6,-10.1,7],[151.8,-11,2]],
     motel:[[153.8,-25.4,13],[153.5,-9,2],[134.6,-9,1],[134.3,-22,5],[134.8,-8.8,1],[153.8,-8.8,0]],
     pier:[[169,124,3],[170,103,1],[167.8,80,2],[167.7,103,0]],
     run:[[158.8,-57,1],[159.2,-5,0],[159.7,48,1],[158.8,-5,0]],
@@ -53,6 +54,10 @@
     add("birdHide",5,"fisher",0,0,"Ada Pike",["Watch the pink one on the end. She always takes three steps before she lifts.",
       "I used to count this flock from my kitchen window. The knees still get me out here."]);
     people.at(-1).fieldSource="spoonbills";
+    add("wire",4,"local",0,0,"Meli Funes",["I cut On the Curb for Bay Wire. Tap your horn before you make a pass and I’ll get the whole thing.","That set used to show the numbers at the dog track. It still has the clearest picture on Ocean Drive."]);
+    for(const [route,name] of [["west","Vic Bell"],["north","Cora Ledesma"],["downtown","Emi Brea"],["esplanade","Dani Silva"]]){
+      const w=people.find(p=>!p.name&&p.path===routes[route]);if(w)w.curbName=name;
+    }
     return people;
   }
   const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
@@ -70,6 +75,7 @@
       }
       if(BayStreetReactions.startlePerson(p,dt,driver,cars,people,valid,time))continue;
       if(p.sprayPose)continue;
+      if(p.curbAim){p.moving=false;p.yaw+=wrap(Math.atan2(p.curbAim.x-p.x,p.curbAim.z-p.z)-p.yaw)*-Math.expm1(-12*dt);continue;}
       if((rain>.12||p.porch)&&BayRainWalk.porchStep(p,dt,rain,time,people,cars,valid))continue;
       p.moving=false;
       const target=p.path[p.index],dx=target[0]+p.offset-p.x,dz=target[1]+p.offset-p.z,d=Math.hypot(dx,dz);
