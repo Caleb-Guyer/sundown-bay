@@ -109,8 +109,9 @@ async function run() {
     await waitFor("!document.querySelector('#hud').hidden");
     assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
     const jumps = process.argv.includes("--picture-jumps");
-    if (!jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
-    const activity = jumps ? require("./picture-jumps.cjs") : play;
+    const carbon = process.argv.includes("--carbon-copies");
+    if (!carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
+    const activity = carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
     await activity({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
     assert.equal(await js("audioStarts+cursorRequests"), 0);

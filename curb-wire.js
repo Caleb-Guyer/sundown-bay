@@ -5,7 +5,7 @@
   const desk={x:155.35,z:-17.1,y:.076,yaw:-Math.PI/2,name:"Bay Wire · Curb desk"};
   desk.stand=BayDriving.world(desk,0,1.1);desk.block={x:desk.x,z:desk.z,w:.84,d:1.43,bottom:0,top:1.45,streetProp:true};
   const assignments=["pass","slide","hop"];
-  const titles={pass:"Street pass",slide:"Sliding corner",hop:"Off the springs",jump:"Picture car jump",chase:"Sirens in frame",impact:"Fender bender"};
+  const titles={pass:"Street pass",slide:"Sliding corner",donut:"Around on the rear tires",hop:"Off the springs",jump:"Picture car jump",chase:"Sirens in frame",impact:"Fender bender"};
   const clamp=(n,a,b)=>Math.min(b,Math.max(a,n)),round=n=>Math.round(n*100)/100;
   const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   const cleanName=s=>typeof s==="string"&&s.length>0&&s.length<=70;
@@ -83,7 +83,7 @@
         if(!(w.curbName||w.name)||w.onTour||w.startle||w.palmManaged||w.sprayPose||w.palmPassenger||w.fieldSource||w.coffeeRegular||w.crossing||w.neighborTalking||w.neighborPose||!env.free(w))continue;
         const d=gap(w,v);if(d<4||d>=best)continue;
         const arrival=(w.x-v.x)*v.vx+(w.z-v.z)*v.vz;
-        if(!called&&arrival<0&&!v.hydraulic?.bodyLift)continue;
+        if(!called&&arrival<0&&!v.hydraulic?.bodyLift&&!(v.burn>.5))continue;
         if(!env.sees(w,v))continue;best=d;who=w;
       }return who;
     }
@@ -101,7 +101,7 @@
       if(!v)return;
       const speed=Math.hypot(v.vx,v.vz);
       if(!this.shot){
-        if(this.cool>0||this.scan>0||speed<9&&!(v.hydraulic?.bodyLift>.10))return;
+        if(this.cool>0||this.scan>0||speed<9&&!(v.hydraulic?.bodyLift>.10)&&!(v.burn>.5))return;
         this.scan=.24;const w=this.choose(v,env,false);if(!w)return;this.begin(v,w,env,false);
       }
       const s=this.shot,w=s.w;s.age+=dt;s.sample-=dt;
@@ -110,13 +110,17 @@
       if(s.sample>0)return;
       s.sample+=interval;
       const d=gap(w,v);if(d>47||d<2.3||!env.sees(w,v))return this.finish();
-      if(!s.moving&&speed<3&&!(v.hydraulic?.bodyLift>.06)){
+      if(!s.moving&&speed<3&&!(v.hydraulic?.bodyLift>.06)&&!(v.burn>.5)){
         if(s.age>9)this.cancel();return;
       }
       if(s.age<.23)return;
       if(!s.moving){s.moving=true;s.start=s.age;}
       s.rolling=s.age-s.start;
-      if(s.prev)s.path+=gap(v,s.prev);s.prev={x:v.x,z:v.z};
+      if(s.prev){
+        s.path+=gap(v,s.prev);
+        if(v.burn>.5)s.tireTurn=(s.tireTurn||0)+Math.atan2(Math.sin(v.yaw-s.prev.yaw),Math.cos(v.yaw-s.prev.yaw));
+      }
+      s.prev={x:v.x,z:v.z,yaw:v.yaw};
       s.far=Math.max(s.far,d);s.near=Math.min(s.near,d);s.after=Math.max(s.after,d-s.near);
       s.maxSpeed=Math.max(s.maxSpeed,speed);
       const sideways=Math.abs(v.vx*Math.cos(v.yaw)-v.vz*Math.sin(v.yaw));
@@ -139,10 +143,10 @@
     }
     finish(){
       const s=this.shot;if(!s)return;this.cancel();
-      const type=s.impact>=4?"impact":s.airHeight>.4?"jump":s.hop>.21?"hop":s.slide>=.36?"slide":s.police>=.32?"chase":"pass";
-      if(s.frames.length<7||s.near>33||type!=="hop"&&s.path<7||
+      const type=s.impact>=4?"impact":s.airHeight>.4?"jump":s.hop>.21?"hop":Math.abs(s.tireTurn||0)>=Math.PI*1.84?"donut":s.slide>=.36?"slide":s.police>=.32?"chase":"pass";
+      if(s.frames.length<7||s.near>33||type!=="hop"&&type!=="donut"&&s.path<7||
         type==="pass"&&(s.maxSpeed<(s.called?10.5:15)||s.path<10||s.after<1.5)){this.cool=1.1;return;}
-      const action=type==="slide"?s.slide*12:type==="hop"?s.hop*28:type==="chase"?s.police*9:type==="impact"?s.impact:s.maxSpeed*.75;
+      const action=type==="donut"?Math.abs(s.tireTurn)*3.7:type==="slide"?s.slide*12:type==="hop"?s.hop*28:type==="chase"?s.police*9:type==="impact"?s.impact:s.maxSpeed*.75;
       const score=Math.round(clamp(38+Math.min(27,action)+Math.min(18,s.rolling*6)+Math.max(0,17-Math.abs(s.near-9)*.95),1,100));
       const clip={id:1,type,by:s.by,street:s.street,called:s.called===true,score,day:s.day,minute:s.minute,
         rain:round(s.rain),night:round(s.night),eye:s.eye,cast:[s.v,...s.extra].map(castMember),frames:s.frames};

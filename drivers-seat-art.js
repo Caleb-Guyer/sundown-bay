@@ -422,7 +422,7 @@
   function values(v){
     const speed=Math.abs(v.speed||0),gear=clamp(Math.round(v.gear||1),1,5),spec=BayDriving.cars[v.kind]||BayDriving.cars.coupe;
     const ratio=speed/(spec.top*(v.upgrades?.engine?1.18:1)*[.275,.48,.704,.897,1.12][gear-1]);
-    return {mph:speed*2.237,revs:clamp(.89+ratio*4.84+(v.throttle||0)*.89-(v.shift>0?.36:0),.8,7.4),
+    return {mph:speed*2.237,revs:clamp(.89+Math.max(ratio*4.84,(v.burn||0)*4.55)+(v.throttle||0)*.89-(v.shift>0?.36:0),.8,7.4),
       temp:clamp(36+(v.throttle||0)*9+(v.damage?.front||0)*60,30,100),gear:v.reversing?"R":String(gear)};
   }
   function wheelPoint(a,ang,x,y,z){

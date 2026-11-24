@@ -20,9 +20,11 @@
     cruiser:{name:"Bay Patrol",top:33,power:12.2,brake:18.3,grip:14.1,balance:.48,steer:.65,response:7.8,roll:.092}
   };
   const shiftAt=[.25,.46,.68,.86],pull=[1,.82,.68,.56,.46];
+  const rearDrive=new Set(["coupe","caleta","cayo","solena","stepside","cab","cruiser"]);
   function settle(v){
     Object.assign(v,{speed:0,vx:0,vz:0,steer:0,yawRate:0,throttle:0,brakes:0,handbrake:0,
-      reverseWait:0,reversing:false,gear:1,shift:0,wheelSpin:v.wheelSpin||0,pitch:0,pitchRate:0,lean:0,rollRate:0,slip:0});
+      reverseWait:0,reversing:false,gear:1,shift:0,wheelSpin:v.wheelSpin||0,burn:0,rearSpin:0,lean:0,rollRate:0,pitch:0,pitchRate:0,slip:0});
+    v.chalkTurn=null;
   }
   function signedSpeed(v){
     const forward=v.vx*Math.sin(v.yaw)+v.vz*Math.cos(v.yaw);
@@ -39,6 +41,31 @@
     const forward=v.vx*sn+v.vz*cs,lateral=v.vx*cs-v.vz*sn,speed=Math.hypot(v.vx,v.vz);
     const d=v.damage,engine=Math.max(0,((d?.front||0)-.19)/.81)*.49,load=v.towLoad?1:v.trailerLoad||0;
     const gain=(tuned?1.18:1)*(1-engine)*(1-load*.30),top=spec.top*(tuned?1.18:1)*(1-engine*.87)*(1-load*.24)*(.55+.45*surface),ratio=Math.max(0,forward)/top;
+    // The front brakes hold the contact patches while engine torque spins the rear axle.
+    // Above walking pace the same two pedals brake normally before the tires can break loose.
+    const spin=gas&&back&&!hand&&!parking&&!load&&!v.flatSide&&!v.jumpFlight&&
+      surface>.65&&rearDrive.has(v.kind)&&speed<(v.burn>.2?4.4:1.35);
+    v.burn=damp(v.burn||0,spin?1:0,spin?3.8:5.5,dt);
+    if(spin){
+      v.reversing=false;v.reverseWait=0;v.gear=1;v.shift=0;
+      v.brakes=damp(v.brakes,.91,13,dt);v.throttle=damp(v.throttle,1,8,dt);v.handbrake=damp(v.handbrake,0,14,dt);
+      v.steer=damp(v.steer,spec.steer*steerInput,spec.response,dt);
+      const traction=(v.upgrades?.tires?1.11:1)*surface;
+      const spinRate=(1.58+spec.power*.035)*gain/Math.sqrt(traction);
+      const rate=damp(v.yawRate,v.steer/spec.steer*spinRate*v.burn,3.8,dt);
+      const newYaw=v.yaw+(rate+v.yawRate)*.5*dt,front=shape.axles[1];
+      const inside=v.steer/spec.steer*shape.track*.91;
+      const creep=Math.abs(v.steer)*.58*v.burn;
+      // Integrate around the loaded front axle. Walls and vehicles still resolve this motion in drive().
+      const ns=Math.sin(newYaw),nc=Math.cos(newYaw);
+      v.vx=((sn-ns)*front+(cs-nc)*inside)/dt+ns*creep;
+      v.vz=((cs-nc)*front+(ns-sn)*inside)/dt+nc*creep;
+      v.yaw=newYaw;v.yawRate=rate;signedSpeed(v);
+      v.slip=v.burn;v.wheelSpin=(v.wheelSpin+creep/shape.wheel*dt)%(Math.PI*2);
+      v.rearSpin=((v.rearSpin||0)+v.burn*(16+spec.power*.45)*dt/shape.wheel)%(Math.PI*2);
+      spring(v,"pitch","pitchRate",.013*v.burn,11,dt);spring(v,"lean","rollRate",-rate*.011,8,dt);
+      return;
+    }
     // A sideways slide can cross zero longitudinal speed while the car is still moving fast.
     // Only select reverse after the whole car has stopped under the brake pedal.
     if(parking||(gas&&forward>=-.18))v.reversing=false;
@@ -65,7 +92,7 @@
     const dryGrip=spec.grip*surface*(1-.12*flat),weightShift=.045*v.brakes-.02*v.throttle;
     const water=v.waterLoad,planing=clamp((speed-5)/18,0,1)*(v.upgrades?.tires ? .67 : 1);
     const frontGrip=dryGrip*(spec.balance+weightShift)*(v.hydraulic?.grip(true)??1)*(1-.44*planing*(water?.front||0));
-    const rearGrip=dryGrip*(1-spec.balance-weightShift)*(1-.76*v.handbrake)*(v.hydraulic?.grip(false)??1)*(1-.38*planing*(water?.rear||0));
+    const rearGrip=dryGrip*(1-spec.balance-weightShift)*(1-.76*v.handbrake)*(1-.43*v.burn)*(v.hydraulic?.grip(false)??1)*(1-.38*planing*(water?.rear||0));
     const turnSin=Math.sin(v.steer),turnCos=Math.cos(v.steer);
     const frontSlip=(lateral+frontArm*v.yawRate)*turnCos-forward*turnSin;
     const rearSlip=lateral-rearArm*v.yawRate;
@@ -95,7 +122,8 @@
     spring(v,"pitch","pitchRate",clamp(-longAccel*.0051,-.068,.105),10,dt);
     spring(v,"lean","rollRate",clamp(sideForce/12,-1.3,1.3)*spec.roll-flatSide*.052,8.4,dt);
     const slipSpeed=Math.abs(rearSlip)+v.handbrake*Math.abs(forward)*.27;
-    v.slip=damp(v.slip,clamp((slipSpeed-1.2)/4.5,0,1)*clamp((speed-3)/5,0,1),9,dt);
+    v.slip=damp(v.slip,Math.max(v.burn,clamp((slipSpeed-1.2)/4.5,0,1)*clamp((speed-3)/5,0,1)),9,dt);
+    if(v.burn>.01)v.rearSpin=(v.rearSpin+v.burn*45*dt)%(Math.PI*2);
     v.wheelSpin=(v.wheelSpin+along/shape.wheel*dt)%(Math.PI*2);
   }
   function world(v,x,z){
@@ -145,5 +173,5 @@
     }
     return {nx,nz,depth};
   }
-  window.BayDriving={cars,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact};
+  window.BayDriving={cars,rearDrive,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact};
 })();

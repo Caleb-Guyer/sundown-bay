@@ -808,8 +808,9 @@
       else if(atlas){disc(ctx,px(site.x),py(site.z),3.1*ui,"#b56247");ctx.save();ctx.textAlign="center";ctx.fillStyle="#533b31";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.fillText("STARLITE",px(site.x),py(site.z)-5*ui);ctx.restore();}
     }
     if(street&&opt.pavement)BayPavementArt.overhead(ctx,px,py,s,opt.pavement,streetTime,visible);
+    if(street&&opt.copies&&visible(px(BayCarbonCopies.pad.x),py(BayCarbonCopies.pad.z),s*9))BayCarbonCopies.map(ctx,px,py,s,opt.copies);
     if(street)for(const k of opt.skids||empty)if(t-k.time<20&&visible(px(k.x),py(k.z))){
-      const dx=Math.sin(k.yaw)*.40,dz=Math.cos(k.yaw)*.40;
+      const dx=Math.sin(k.yaw)*(k.length*.5+.022),dz=Math.cos(k.yaw)*(k.length*.5+.022);
       line(ctx,px(k.x-dx),py(k.z-dz),px(k.x+dx),py(k.z+dz),"#4c4c4e",Math.max(.8,s*.15));
     }
     dashCourse(ctx,opt,px,py,s,street,ui,visible);
@@ -1037,6 +1038,7 @@
         if(p!==line.player)BayBusRidersArt.map(ctx,opt,px,py,s,p,b,streetTime);
       }
     }
+    if(street&&opt.tireCloud)BayContactPatchArt.smokeOverlay(ctx,opt.tireCloud,(x,y,z)=>({x:px(x),y:py(z)-y*s*.18,scale:s}),t,opt.weather?.wet);
     if(street&&opt.skate){
       for(const c of opt.skate.crew){
         if(c.site.loan&&opt.skate.saved.deck!==c.site.id&&visible(px(c.site.loan.x),py(c.site.loan.z),s))BaySkateArt.map(ctx,opt,px,py,s,c.site.loan,streetTime);
