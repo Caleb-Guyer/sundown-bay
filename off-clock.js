@@ -57,7 +57,7 @@
     reset(){
       this.active=false;this.phase="foot";this.vehicle=null;this.side=1;this.seat=0;
       this.path=[];this.goal=null;this.replan=0;this.lastLine=-20;this.said=new Set();
-      this.photo=null;this.trail=[];this.meters=0;this.lastDrive=null;this.ending=false;
+      this.photo=null;this.trail=[];this.meters=0;this.lastDrive=null;this.ending=false;this.handoff=null;
     }
     start(v){
       this.reset();this.active=true;

@@ -7,7 +7,8 @@ const luggage = process.argv.includes("--luggage");
 const green = process.argv.includes("--on-green");
 const threads = process.argv.includes("--threads");
 const neighbors = process.argv.includes("--neighbors");
-const play = require(neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
+const partnerDrive = process.argv.includes("--partner-drive");
+const play = require(partnerDrive ? "./partner-drive.cjs" : neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
 
 const mode = process.argv[2];
 const site = "https://caleb-guyer.github.io/sundown-bay/";
@@ -28,6 +29,7 @@ async function waitForRelease() {
 }
 
 async function run() {
+  assert.equal(process.platform, "linux", "Browser playtests run on GitHub's Linux machines");
   assert.equal(process.env.GITHUB_ACTIONS, "true", "Use a hosted runner for browser tests");
   assert(["overhead", "street"].includes(mode));
   const asset = await waitForRelease();
@@ -103,9 +105,10 @@ async function run() {
     await js("document.querySelector('#play').click()");
     await waitFor("!document.querySelector('#hud').hidden");
     assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
-    if (!corner && !luggage && !green && !threads && !neighbors) await tap("KeyM");
+    if (!corner && !luggage && !green && !threads && !neighbors && !partnerDrive) await tap("KeyM");
     await play({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
+    assert.equal(await js("audioStarts+cursorRequests"), 0);
     console.log("Verified public bundle " + asset);
   } finally {
     if (chrome.exitCode === null) chrome.kill();

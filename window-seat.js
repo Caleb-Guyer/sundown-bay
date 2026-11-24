@@ -11,13 +11,25 @@
     {id:"wheel",title:"Eight cars over the water",subject:"Coast Wheel",point:BayCoastWheelArt.centre,range:75,ideal:42,pay:160,
       lead:mark(146.48,82,0,"North Boardwalk"),end:mark(149.05,134,0,"North Boardwalk rail"),line:"Mags says the blue cabin has the best view. From the ground I always liked the red one.",call:"Right window, over the roofs. Watch the cabins come around."}
   ];
+  const places=[
+    {id:"luna",road:["I used to take that corner in the motel shuttle. Whole back row would slide left.","I waited three afternoons for the L in Luna to light up. Had my finger on the shutter when it did."],
+      here:"They still put the next double bill in the little case by the doors.",again:"Same curb as last time. Check the case and see what’s playing."},
+    {id:"wheel",road:["Mags used to give the motel one free ticket a month. Front desk had to draw straws.","There’s one blue cabin with a white door. You can pick it out all the way from Ocean."],
+      here:"There’s the ticket window. I’ll walk up with you.",again:"I can see the blue cabin from here this time."},
+    {id:"flowers",road:["Bea kept fresh flowers in the Marlin lobby even when the upstairs was empty.","Bea wraps the stems in yesterday’s sports page. She saves me the movie listings."],
+      here:"Look at those buckets. Bea must’ve had a delivery this morning.",again:"Bea’s got a different bunch out front today."},
+    {id:"marlin",road:["I used to count the lit windows from this block to see how much work was waiting.","My dad knew which rooms had a view of the sign. Always asked for fourteen."],
+      here:"There’s the Marlin. I left room for the cab.",again:"Back at the Marlin. Feels like we just went around the block."}
+  ].map(p=>({...p,stop:BayCab.stops[p.id],title:BayCab.stops[p.id].name}));
   class Run extends BayCab.StreetDriver{
     constructor(v,brief,pickup,start,path,seated){
       super(v);this.brief=brief;this.pickup=pickup;this.location=start;this.driverPath=path;this.driverSeat=seated?1:0;
       this.phase=seated?"calling":"driver-walk";this.seat=0;this.path=[];this.best=null;this.passes=0;this.early=false;
     }
     get held(){return ["approach","in","ride","park","out"].includes(this.phase);}
+    get social(){return !!this.brief.stop;}
     get target(){
+      if(this.held&&this.social)return {...(this.early&&this.leg?.end||this.brief.stop),name:this.early?"Next curb":this.brief.title};
       if(this.held)return {x:this.brief.point.x,z:this.brief.point.z,name:this.brief.subject};
       if(this.phase==="ready")return {x:this.vehicle.x,z:this.vehicle.z,name:"Passenger door"};
       return {...this.pickup.stand,name:"Meet your driver"};
@@ -31,9 +43,13 @@
       this.path=plan.points;this.phase="approach";return true;
     }
     roll(){
-      const start={...this.location,x:this.vehicle.x,z:this.vehicle.z},b=this.brief,end=this.berth(b.end,this.vehicle);
-      const first=gap(start,b.lead)>2?BayCab.route(start,b.lead).pts:[start];
-      const road=BayCab.track(first.concat(BayCab.route(b.lead,end).pts.slice(1)));
+      const start={...this.location,x:this.vehicle.x,z:this.vehicle.z},b=this.brief,end=this.berth(this.social?b.stop:b.end,this.vehicle);
+      let road;
+      if(this.social)road=BayCab.route(start,end);
+      else{
+        const first=gap(start,b.lead)>2?BayCab.route(start,b.lead).pts:[start];
+        road=BayCab.track(first.concat(BayCab.route(b.lead,end).pts.slice(1)));
+      }
       this.leg=this.newLeg(road,end);this.phase="ride";this.passes++;this.cued=false;this.spoke=false;
     }
     pullOver(curb){
@@ -77,10 +93,10 @@
             this.leg.end=this.leg.farEnd;delete this.leg.stopAt;this.leg.passUntil=0;
             this.early=false;this.pullOver(env.curb);
           }
-          const d=gap(v,this.brief.point),remaining=this.leg.route.length-this.leg.at;
-          this.leg.pace=remaining<85?5.6:14;
+          const remaining=this.leg.route.length-this.leg.at;
+          this.leg.pace=this.social?13.7:remaining<85?5.6:14;
           if(!this.spoke&&this.leg.at>8){this.spoke=true;emit("road");}
-          if(!this.cued&&remaining<75&&d<this.brief.range+18){this.cued=true;emit("mark");}
+          if(!this.social&&!this.cued&&remaining<75&&gap(v,this.brief.point)<this.brief.range+18){this.cued=true;emit("mark");}
           if(this.drive(dt,env)||env.settle(this)){this.phase="park";emit("stopped");}
         }
         if(this.phase==="park"&&this.early&&env.exitClear(v))this.phase="out";
@@ -103,5 +119,5 @@
       try{localStorage.setItem(key,JSON.stringify(this.frames));this.stored=true;}catch{this.stored=false;}
     }
   }
-  window.BayWindowSeat={briefs,Run,Negatives,key,filmTitle};
+  window.BayWindowSeat={briefs,places,Run,Negatives,key,filmTitle};
 })();

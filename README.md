@@ -30,6 +30,8 @@ Find **Meli Funes** at the **Bay Wire curb desk** outside the Marlin Motel. On f
 
 Meet Frankie in person at the folding desk outside **Cine Luna** and press **G** to hang out. Either character can invite the other. Walk together, or get into a parked street car and give your partner a moment to reach the passenger door. They’ll ride along and step out with you at your next stop. On foot together, **Y** switches leads. **G** opens the hangout card to mark a photo booth, hand your passenger the radio dial or say goodbye. The station stays with the car.
 
+Once you’ve met Frankie, choose **J → Second Unit → You drive** on a city sidewalk. Your partner brings their car. Pick a favorite stop or mark a place on the city map, then press **E** at the passenger door. If you’re already driving together, park facing traffic at a clear city curb and use **G → You drive** to trade seats in that same car. **E** asks to get out along the way. At your destination, **G** picks the next stop and **E** gets you both out for a walk.
+
 Bring your partner to a **Foto Bahía** booth at Cine Luna, Marlin Motel or North Boardwalk. Press **F** by the curtain, then **1**, **2** or **3** to choose a pose before each flash. The booth prints all three exposures. Find your strips in **J → Second Unit → Photo strips** or on the desk in Room 14.
 
 As Frankie, press **P** on foot to raise her rangefinder. Aim with the free mouse or arrow keys, use **Z** to zoom, and press **Space** for the shutter. **P** lowers it. Find your six latest frames under **J → Second Unit → Location prints**. At the Cine Luna desk, use **F** to choose a print for the house screen. Your selection stays on the bill when the roll turns over.
