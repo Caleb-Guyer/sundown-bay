@@ -791,7 +791,7 @@
     if(street&&opt.gutters)BayGutterArt.overhead(ctx,px,py,s,opt.gutters,streetTime);
     if(opt.starlite&&visible(px(opt.starlite.x),py(opt.starlite.z),s*16)){
       const site=opt.starlite;
-      if(street)BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,opt.starliteFrame(),opt.starliteVisit);
+      if(street)BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,opt.starliteFrame(),opt.starliteVisit,opt.atProjector);
       else if(atlas){disc(ctx,px(site.x),py(site.z),3.1*ui,"#b56247");ctx.save();ctx.textAlign="center";ctx.fillStyle="#533b31";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.fillText("STARLITE",px(site.x),py(site.z)-5*ui);ctx.restore();}
     }
     if(street&&opt.pavement)BayPavementArt.overhead(ctx,px,py,s,opt.pavement,streetTime,visible);

@@ -222,7 +222,7 @@
     return [block(site,-8,-3,3.12,2.64,2.80),block(site,0,10.15,9.30,.43,6.29),
       ...[-3.63,0,3.63].map(x=>block(site,x,10.45,.58,.57,.70)),...bays.map(x=>block(site,x-1.35,.20,.29,.29,1.17))];
   }
-  function overhead(ctx,px,py,scale,site,t,lit,canvas,visit){
+  function overhead(ctx,px,py,scale,site,t,lit,canvas,visit,atProjector){
     const c=ctx;
     c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
     const rect=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -251,7 +251,7 @@
     line([[.78,-.17],[1.26,-.17]],.035,coral);line([[1.03,-.40],[1.03,.06]],.035,coral);c.restore();
     for(const x of [-3.63,0,3.63])rect(x-.28,-10.68,.56,.78,"#788981");
     // Tip the screen's top away from the row. The projected image stays upright from the car bays.
-    const left=-4.52,top=-10.09,height=2.85;
+    const left=-4.52,top=-10.09,height=visit||atProjector?5.08:2.85;
     polygon([[left-.19,top-.16],[-left+.19,top-.16],[-left+.30,top+height+.17],[left-.09,top+height+.17]],iron);
     rect(left-.09,top-.08,9.20,height+.18,white);
     if(canvas?.width)c.drawImage(canvas,left,top,9.04,height);

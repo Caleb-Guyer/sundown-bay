@@ -13,7 +13,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const step=BayStarlite.Theatre.prototype.step;BayStarlite.Theatre.prototype.step=function(...a){nav.theatre=this;return step.apply(this,a);};
       const art=BayStarliteArt;window.BayStarliteArt={...art,
         screen(v,s,c,n){if(v.gl&&c){nav.stamps.add(n);nav.billboard=c;}return art.screen(v,s,c,n);},
-        overhead(ctx,x,z,scale,s,t,lit,c,visit){if(c){nav.stamps.add(nav.theatre?.version);nav.billboard=c;}return art.overhead(ctx,x,z,scale,s,t,lit,c,visit);}
+        overhead(ctx,x,z,scale,s,t,lit,c,...rest){if(c){nav.stamps.add(nav.theatre?.version);nav.billboard=c;}return art.overhead(ctx,x,z,scale,s,t,lit,c,...rest);}
       };`);
   }
   const saved="JSON.parse(localStorage.getItem('sundownBay.v1')||'{}')";
