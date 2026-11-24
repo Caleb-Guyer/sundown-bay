@@ -8,6 +8,10 @@ Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the ra
 
 Use **WASD** or the arrow keys to move and steer. Move the mouse to look around. Press **E** beside a car to get in or out. **Space** is the handbrake while driving and jump on foot. **M** opens the map and **R** toggles sound.
 
+**Route 6** runs from the Marlin Motel to El Mercado, Port Sol and Cine Luna, then back to the Marlin. Look for the striped bus shelter on the motel side of Ocean Drive. Press **F** at any stop to check the timetable and flag Marta Leal down. The ride is free. From the window seat, **F** pulls the stop cord and **V** changes the view. Your transfer keeps a punch for each stop where you get off.
+
+Pick **Take Marta’s wheel** at a stop to drive the same bus. Use **WASD** to steer and brake, line up the front door with the next stop, and press **F** to open up. Wait for riders to finish boarding and stepping off to get paid. A smooth stop and passengers delivered earn more. Press **F** to close the doors for another trip, or **E** when stopped to hand the wheel back to Marta.
+
 At the wheel, **Z** switches between the chase camera and the driver’s seat. The speedometer, gear indicator and steering wheel follow the car. Look into the rearview mirror for the street behind you, move the mouse or use **Q/C** to look around, and press **X** to face forward. In overhead view, **Z** brings up the live instrument cluster. **I** cycles the wipers through automatic, continuous and off. **Comma** and **period** signal left and right.
 
 **Palma Hand Wash** sits south of the Marlin on the beach side of Ocean Drive. Sand, wet roads and the tracks at Pelican Cut leave different amounts of dirt on each car. Park on the open striped pad and press **F**. Elia Mena gives you the first hand wash on the house, then charges **$12**. You can also take the blue hose and wash your own car for free.

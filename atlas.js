@@ -666,6 +666,13 @@
     if(opt.neon&&visible(px(117),py(-36),54*s)){
       BayMarlinRoofArt.map(ctx,opt,px,py,s,visible);BayMarlinNeonArt.map(ctx,opt,px,py,s,visible);
     }
+    if(opt.transit&&!opt.marina?.bayChart&&!opt.countyChart){
+      if(atlas){
+        ctx.save();ctx.strokeStyle="rgba(71,117,96,.76)";ctx.lineWidth=1.25*ui;ctx.setLineDash([3*ui,2.6*ui]);ctx.beginPath();
+        BayTransit.track.marks.forEach((p,i)=>i?ctx.lineTo(px(p.x),py(p.z)):ctx.moveTo(px(p.x),py(p.z)));ctx.stroke();ctx.restore();
+      }
+      BayBusStopArt.map(ctx,opt,px,py,s,visible,BayTransit.stops,streetTime);
+    }
     if(opt.courts)BayCourtPlaces.map(ctx,opt,px,py,s,visible);
     if(atlas&&!opt.marina?.bayChart)BayStreetNames.atlas(ctx,px,py,s);
     if(atlas&&opt.countyChart){
@@ -767,7 +774,7 @@
     }
     let garageBounds;
     for(const place of opt.places||empty) {
-      if(place.kind==="pickup-court")continue;
+      if(place.kind==="pickup-court"||place.kind==="bus-stop")continue;
       const x=px(place.x),y=py(place.z);
       if(place.kind==="garage"){
         const selected=opt.target?.kind==="garage";
@@ -914,6 +921,18 @@
       }
     }
     if(street&&opt.meet)BayMeetArt.drawMap(ctx,opt,px,py,s,ui,visible);
+    if(opt.transit&&!opt.marina?.bayChart&&!opt.countyChart){
+      const line=opt.transit,b=line.bus,inside=line.aboard&&line.inside;
+      if(visible(px(b.x),py(b.z),6*s))BayCityBusArt.map(ctx,px,py,s,b,{mode:opt.mode,inside,night:opt.dusk>.35},streetTime);
+      if(street)for(const p of [line.driver,...line.people,...(line.player?[line.player]:[])]){
+        if(!visible(px(p.x),py(p.z),2*s))continue;
+        if((p.stage==="ride"||p.stage==="sitting")&&!inside)continue;
+        const seated=p.sit>.44,skin=p.skin||"#af7353",shirt=p.shirt||"#30a292";
+        if(seated){disc(ctx,px(p.x),py(p.z),Math.max(1.2,.245*s),shirt);disc(ctx,px(p.x),py(p.z),Math.max(1,.148*s),skin);}
+        else personSprite(ctx,{...p,shirt,skin},px(p.x),py(p.z),Math.max(2.3,s*1.5),false,rotation);
+        if(p!==line.player)BayBusRidersArt.map(ctx,opt,px,py,s,p,b,streetTime);
+      }
+    }
     if(street&&opt.meet?.phase==="idle")BayTakeArt.inviteMap(ctx,opt.meet.rival,px,py,s,visible);
     if(opt.take)BayTakeArt.map(ctx,opt,px,py,s,ui,visible,carSprite);
     if(street)BayTakePoster.map(ctx,opt,px,py,s,ui,visible);

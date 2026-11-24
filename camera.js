@@ -4,6 +4,8 @@
   const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
   const wrap=x=>Math.atan2(Math.sin(x),Math.cos(x));
   const smooth=(a,b,rate,dt)=>a+(b-a)*-Math.expm1(-rate*dt);
+  const overhang=v=>Math.max(0,(v?.footprint?.halfLength||0)-2);
+  const chaseBoom=(v,blend,pace)=>4.55+blend*(2.25+pace*1.35+overhang(v)*2.55);
   // Sweep a small near-plane volume along the boom, including its height under awnings.
   function safeFraction(start,end,obstacles) {
     const dx=end.x-start.x,dy=end.y-start.y,dz=end.z-start.z;
@@ -38,9 +40,10 @@
     }
     reset(subject,yaw=subject.yaw) {
       this.anchor={x:subject.x,z:subject.z};this.jumpLift=0;
-      this.yaw=this.wantedYaw=yaw;this.elevation=this.wantedElevation=.255;
-      this.distance=4.6*this.zoom;this.safeDistance=this.distance;
-      this.lastLook=-20;this.manualAim=false;this.lastCarYaw=null;this.carBlend=0;this.lookBack=0;
+      const long=overhang(subject)>0;
+      this.yaw=this.wantedYaw=yaw;this.elevation=this.wantedElevation=long?.34:.255;
+      this.distance=(long?chaseBoom(subject,1,0):4.6)*this.zoom;this.safeDistance=this.distance;
+      this.lastLook=-20;this.manualAim=false;this.lastCarYaw=null;this.carBlend=long?1:0;this.lookBack=0;
       this.reversing=0;this.behindCar=false;this.hideActor=false;this.diving=false;
     }
     orbit(dx,dy,time) {
@@ -79,12 +82,12 @@
       anchor.x=smooth(anchor.x,subject.x,17,dt);anchor.z=smooth(anchor.z,subject.z,17,dt);
       // Keep a lagged anchor on the subject's side when it rounds a corner.
       this.jumpLift=smooth(this.jumpLift,vehicle?0:(options.lift||0)*.39,12,dt);
-      const ground=options.ground||0,pivotY=swim?subject.y+(swim.exit?1.22:.15):ground+(options.court?1.59:1.26)+.10*b+this.jumpLift;
+      const ground=options.ground||0,pivotY=swim?subject.y+(swim.exit?1.22:.15):ground+(options.court?1.59:1.26)+(.10+.43*overhang(vehicle))*b+this.jumpLift;
       const realPivot={x:subject.x,y:pivotY,z:subject.z};
       const anchorEye={x:anchor.x,y:pivotY,z:anchor.z};
       const free=safeFraction(realPivot,anchorEye,this.obstacles);
       const pivot={x:subject.x+(anchor.x-subject.x)*free,y:pivotY,z:subject.z+(anchor.z-subject.z)*free};
-      this.distance=smooth(this.distance,(swim?(this.diving?3.35:4.25):options.court?5.35:4.55+b*(2.25+pace*1.35))*this.zoom,6.5,dt);
+      this.distance=smooth(this.distance,(swim?(this.diving?3.35:4.25):options.court?5.35:chaseBoom(vehicle,b,pace))*this.zoom,6.5,dt);
       const shoulder=.47*(1-b),radius=this.distance,flat=Math.cos(this.elevation)*radius;
       const xOff=-sn*flat+cs*shoulder,zOff=-cs*flat-sn*shoulder;
       const yOff=Math.sin(this.elevation)*radius+.20*b;

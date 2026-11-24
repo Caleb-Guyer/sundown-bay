@@ -27,7 +27,7 @@
   }
   function step(v,dt,gas,back,steerInput,hand,surface,tuned=v.upgrades?.engine,parking=false){
     if(dt<=0)return;
-    const spec=cars[v.kind],shape=bayCarLayout(v.kind),sn=Math.sin(v.yaw),cs=Math.cos(v.yaw);
+    const spec=v.handling||cars[v.kind],shape=v.footprint||bayCarLayout(v.kind),sn=Math.sin(v.yaw),cs=Math.cos(v.yaw);
     const forward=v.vx*sn+v.vz*cs,lateral=v.vx*cs-v.vz*sn,speed=Math.hypot(v.vx,v.vz);
     const d=v.damage,engine=Math.max(0,((d?.front||0)-.19)/.81)*.49,load=v.towLoad?1:0;
     const gain=(tuned?1.18:1)*(1-engine)*(1-load*.30),top=spec.top*(tuned?1.18:1)*(1-engine*.87)*(1-load*.24)*(.55+.45*surface),ratio=Math.max(0,forward)/top;
@@ -120,8 +120,10 @@
     return Math.hypot(Math.max(0,x),Math.max(0,z))+Math.min(0,Math.max(x,z));
   }
   function contact(a,b){
-    const dx=a.x-b.x,dz=a.z-b.z,reach=a.kind==="wrecker"||b.kind==="wrecker"?6.5:5.6;if(Math.abs(dx)>reach||Math.abs(dz)>reach)return null;
-    const sa=bayCarLayout(a.kind),sb=bayCarLayout(b.kind),ca=Math.cos(a.yaw),aa=Math.sin(a.yaw),cb=Math.cos(b.yaw),ab=Math.sin(b.yaw);
+    const sa=a.footprint||bayCarLayout(a.kind),sb=b.footprint||bayCarLayout(b.kind);
+    const dx=a.x-b.x,dz=a.z-b.z,reach=sa.halfLength+sb.halfLength+.85;
+    if(Math.abs(dx)>reach||Math.abs(dz)>reach)return null;
+    const ca=Math.cos(a.yaw),aa=Math.sin(a.yaw),cb=Math.cos(b.yaw),ab=Math.sin(b.yaw);
     let depth=Infinity,nx=0,nz=0;
     for(const [x,z] of [[ca,-aa],[aa,ca],[cb,-ab],[ab,cb]]){
       const extA=(sa.track-.08)*Math.abs(x*ca-z*aa)+(sa.halfLength-.11)*Math.abs(x*aa+z*ca);

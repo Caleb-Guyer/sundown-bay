@@ -602,6 +602,17 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if (name === 'bus-bell' || name === 'bus-door') {
+      const near = Math.max(0, 1 - (source.distance || 0) / 34) ** 1.4;
+      if (name === 'bus-bell') {
+        tone(effects, 687, at, .22, .065*near, 'sine', 685, .005);
+        tone(effects, 1027, at+.025, .18, .028*near, 'sine', 1021, .006);
+      } else {
+        waterNoise(effects, at, .41, .085*near, 2200, 610);
+        tone(effects, 119, at+.39, .10, .045*near, 'triangle', 66, .004);
+      }
+      return;
+    }
     if (name === 'packet-whistle') {
       const near = bridgeFalloff(source.distance, 130) * (driving && !boating ? .68 : 1);
       if (at < nextPacketWhistle || near < .012) return;
