@@ -80,7 +80,7 @@
     choose(v,env,called){
       let who=null,best=called?29:37;
       for(const w of env.people){
-        if(!(w.curbName||w.name)||w.onTour||w.startle||w.palmManaged||w.sprayPose||w.palmPassenger||w.fieldSource||w.coffeeRegular||w.crossing||!env.free(w))continue;
+        if(!(w.curbName||w.name)||w.onTour||w.startle||w.palmManaged||w.sprayPose||w.palmPassenger||w.fieldSource||w.coffeeRegular||w.crossing||w.neighborTalking||w.neighborPose||!env.free(w))continue;
         const d=gap(w,v);if(d<4||d>=best)continue;
         const arrival=(w.x-v.x)*v.vx+(w.z-v.z)*v.vz;
         if(!called&&arrival<0&&!v.hydraulic?.bodyLift)continue;

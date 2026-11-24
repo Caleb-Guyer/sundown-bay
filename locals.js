@@ -83,6 +83,11 @@
       if(p.sprayPose)continue;
       if(p.curbAim){p.moving=false;p.yaw+=wrap(Math.atan2(p.curbAim.x-p.x,p.curbAim.z-p.z)-p.yaw)*-Math.expm1(-12*dt);continue;}
       if(p.coffeePause){p.moving=false;p.gesture=0;continue;}
+      if(p.neighborPose||p.neighborTalking){
+        p.moving=false;p.gesture=0;
+        p.yaw+=wrap(p.neighborFace-p.yaw)*-Math.expm1(-5.8*dt);
+        continue;
+      }
       if(!p.coffeeRegular&&!p.crossing?.entered&&(rain>.12||p.porch)&&BayRainWalk.porchStep(p,dt,rain,time,people,cars,valid))continue;
       p.moving=false;
       const target=p.path[p.index],dx=target[0]+p.offset-p.x,dz=target[1]+p.offset-p.z,d=Math.hypot(dx,dz);

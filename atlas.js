@@ -895,6 +895,7 @@
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){
         personSprite(ctx,person,x,y,Math.max(2.3,s*1.42),false,rotation);
+        if(person.neighborPose&&!person.startle&&!person.sprayPose)BayNeighborGestures.map(ctx,x,y,Math.max(2.3,s*1.42),person,person.neighborPose);
         if(person.curbAim&&!person.startle)BayCurbDeskArt.mapPhone(ctx,px,py,s,person,person.curbAim.lift);
         if(person.canopy>.01&&!person.startle)BayRainCanopies.map(ctx,px,py,s,person,person.canopy,person.canopyStyle,streetTime);
         if(person.iceBox){
@@ -1075,6 +1076,7 @@
       const projected=street&&rider?BayCoastWheelArt.mapPoint(rider):player,x=px(projected.x),y=py(projected.z);
       if(street) {
         if(player.driving && !playerCar){carSprite(ctx,opt.streetCar||player,x,y,s,streetTime);if(opt.streetCar){BayStreetCars.map(ctx,opt.streetCar,x,y,s,streetTime);BayRoadGlass.map(ctx,opt.streetCar,x,y,s,streetTime);if(opt.streetCar===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,opt.streetCar,opt.campana.open,opt.campana.bell,streetTime);}}
+        if(player.driving&&opt.streetCar&&player.neighborPose)BayNeighborGestures.mapDriver(ctx,px,py,s,opt.streetCar,player.neighborPose,player.skin,player.shirt);
         for(const a of opt.motorists||empty)if(visible(px(a.x),py(a.z),4*s))BayMotorists.mapActor(ctx,a,px(a.x),py(a.z),s,streetTime,a===opt.valet?.staff?opt.valet.staffJob:null);
         if(opt.band)for(const p of opt.band.performers)if(visible(px(p.x),py(p.z),3*s))BayBandPlayers.mapActor(ctx,p,px(p.x),py(p.z),s,streetTime,opt.band);
         if(opt.cabService)for(const p of opt.cabService.people){
@@ -1092,6 +1094,7 @@
           else if(BayLowTide.custom(player.kit))BayThreadsArt.map(ctx,x,y,Math.max(3,s*1.8),player,player.kit,rotation);
           else if(opt.crew?.lead==="frankie")BayScoutArt.mapPerson(ctx,px,py,s,player,streetTime);
           else personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+          if(player.neighborPose)BayNeighborGestures.map(ctx,x,y,Math.max(3,s*1.8),player,player.neighborPose);
           if(opt.rainWalk?.amount>.01){
             ctx.save();if(opt.rainWalk.trip)ctx.globalAlpha*=.65;
             BayRainCanopies.map(ctx,px,py,s,player,opt.rainWalk.amount,opt.rainWalk.book.style,streetTime);ctx.restore();

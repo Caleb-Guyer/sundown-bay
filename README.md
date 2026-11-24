@@ -4,6 +4,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+Say hello with **N** to one of six regulars on foot or from a slow street car. Look for **Meli Funes** by the Bay Wire television on the beach side of Ocean Drive. Stop and press **1** to ask for a local spot. She points to Cora's stall, and remembers if you visit. **2** takes her question to **Marisol**, the runner on the promenade. Bring Marisol's answer back to Meli and listen for the corrected race result on Sol FM. Eli on the pier and Ren at El Mercado have stories of their own.
+
+**J → Word of mouth** keeps each lead's introductions, recommendations and messages. Its map pins follow people on their usual routes. A local who has to jump out of your way or gets soaked by your car remembers it. Come back, greet them and press **1** to apologize.
+
 **Low Tide Exchange** is the striped clothing stall on the beach side of Ocean Drive, a few steps from the starting coupe. Press **F** beside Cora Vidal. Select a garment, turn in the fitting mirror, then take the free Tideline polo or spend job money on the No. 13 pit jacket (**$55**), Blue Hour jumpsuit (**$65**) or Netter’s work set (**$85**). Both leads share what you buy and remember what each is wearing. Change back at the stall or the clothes rail in Room 14.
 
 Cora buys three **Foto Bahía window prints**. For her first **$65**, wear the polo to the booth outside Room 14. Press **F**, choose three different poses with **1/2/3** between the flashes, then bring your strip to **Cora’s window commissions** at the stall. The booths work solo or with your hangout partner. Cora also pays for a Cine Luna jumpsuit strip and a two-person North Boardwalk workwear shoot. The picture you hand her goes on the front of the stall. Outfit changes leave developed prints intact.

@@ -509,8 +509,13 @@
     if(!cache.has(skin)){model(skin,g=>paintedHood(g,a,paint));cache.set(skin,true);}
     const gloved=state.gloves??a.kind==="wrecker",kit=["sol","mercado"].includes(state.kit)||window.BayThreadsArt?.colors[state.kit]?state.kit:"street",pose=key+"/wheel/"+(gloved?"work":"street")+"/"+kit;
     let r=cache.get(pose);
-    if(!r){r=buildMotion(a,gloved,kit);animate(r,a,v,state);view.add(pose,r,true);cache.set(pose,r);}
-    else if(animate(r,a,v,state))view.updateAnimated(pose);
+    if(!r){
+      r=buildMotion(a,gloved,kit);animate(r,a,v,state);BayNeighborGestures.cockpit(r,a,v,state.greet);
+      view.add(pose,r,true);cache.set(pose,r);
+    }else{
+      const moved=animate(r,a,v,state);
+      if(BayNeighborGestures.cockpit(r,a,v,state.greet)||moved)view.updateAnimated(pose);
+    }
     const place=[v.x,ground,v.z,v.yaw,v.pitch||0,v.lean||0];
     view.draw(skin,...place);
     window.BayRoadGlass?.hood?.(view,v,ground);
