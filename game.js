@@ -5601,6 +5601,7 @@
     const x=v.x+v.vx*dt,z=v.z+v.vz*dt;
     if(x!==v.x){if(fitsCar(v,x,v.z,v.yaw))v.x=x;else{impact=Math.abs(v.vx);wallX=v.vx;v.vx*=-.10;}}
     if(z!==v.z){if(fitsCar(v,v.x,z,v.yaw))v.z=z;else{impact=Math.max(impact,Math.abs(v.vz));wallZ=v.vz;v.vz*=-.10;}}
+    BayStarlite.wheelStop(v,oldZ);
     if(impact>5&&bumpLock<=0){
       dent(v,wallX,wallZ,impact);if(v===unit4&&rescue.phase==="return")rescue.grade=Math.max(0,rescue.grade-impact*.9);if(recovery.call&&tow.target)recovery.call.jolts++;
       active?.plate?.jolt(impact);sound.cue("hit");bumpLock=.7;persist();lastHud=-10;
@@ -6306,7 +6307,9 @@
   const coffeeObstacles=solids.filter(o=>o!==BayPalmCoffee.block&&Math.abs(o.x-BayPalmCoffee.site.x)<o.w*.5+7&&Math.abs(o.z-BayPalmCoffee.site.z)<o.d*.5+7);
   function moveCamera(dt,t){
     if(theatre.run||theatre.visit){
-      const watching=!!theatre.visit,x=watching?car.x-.44:hero.x+.18,z=watching?car.z+.27:hero.z+.15,y=watching?1.28:1.70;
+      const watching=!!theatre.visit,shape=watching&&bayCarLayout(car.kind);
+      const eye=watching?BayDriving.world(car,-shape.track*.46,shape.sections.at(-1)[0]-.10):{x:hero.x+.18,z:hero.z+.15};
+      const x=eye.x,z=eye.z,y=watching?footLevel(car.x,car.z)+Math.max(1.16,shape.glass[4]+.18):1.70;
       Object.assign(cam,{x,y,z,yaw:Math.atan2(starliteSite.x-x,starliteSite.z+10-z),pitch:Math.atan2(3.70-y,Math.hypot(starliteSite.x-x,starliteSite.z+10-z)),focal:watching?1.64:1.85});return;
     }
     const opening=bell.open&&bell.lid&&onStreetFeet();
@@ -7396,7 +7399,10 @@
       if(play&&see(ada,65))visible.push([personSkin(4,"local",0,theatre.run?1:0),ada.x,footLevel(ada.x,ada.z),ada.z,ada.yaw]);
     }
     for(const a of visible)view.draw(...a);
-    if(play&&see(starliteSite,76)){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}
+    if(play&&see(starliteSite,76)){
+      const dx=starliteSite.x-eye.x,dz=starliteSite.z+9.89-eye.z;
+      if(dz>-.25&&dx*Math.sin(eye.yaw)+dz*Math.cos(eye.yaw)>-.5){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}
+    }
     if(play&&see(threads.site,32)&&featuredStrip())stall.print(view,threads.site,windowStrip,windowStamp);
     if(play&&see(wireDesk,24)){const screen=updateWireTV(t);if(screen)BayCurbDeskArt.screen(view,wireDesk,screen,wireTVVersion);}
     if(play&&see(scoutDesk,75)&&scoutHouseCard())BayScoutArt.drawDeskPrint(view,scoutDesk,houseCard,unit.film.pinned.number);

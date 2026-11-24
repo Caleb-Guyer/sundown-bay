@@ -20,6 +20,13 @@
     if(Math.abs(v.speed)>3||v.softTop===v.roofTarget)return;
     v.softTop+=clamp(v.roofTarget-v.softTop,-dt/2.8,dt/2.8);
   }
+  function wheelStop(v,priorZ){
+    if(v.z<site.z-2||v.z>site.z+4||Math.abs(v.x-site.x)>5||v.vz<=0||v.speed>6.5||Math.cos(v.yaw)<.83)return;
+    if(![-3.8,0,3.8].some(x=>Math.abs(v.x-site.x-x)<.87))return;
+    const s=bayCarLayout(v.kind),lead=Math.max(...s.axles)*Math.cos(v.yaw)+Math.abs(Math.sin(v.yaw))*s.track;
+    const limit=site.z+2.60-lead-.22;
+    if(priorZ<=limit+.002&&v.z>limit){v.z=limit;v.vz=0;v.speed=v.vx*Math.sin(v.yaw);v.yawRate*=.8;}
+  }
   class Theatre {
     constructor(){this.clock=0;this.run=null;this.visit=null;this.playFrom=0;this.variation=0;this.version=0;this.frameKey="";}
     show(program,booked){
@@ -73,5 +80,5 @@
       this.frameKey=key;this.version++;return this.canvas;
     }
   }
-  window.BayStarlite={site,booth,coast,read,bay,fold,Theatre};
+  window.BayStarlite={site,booth,coast,read,bay,fold,wheelStop,Theatre};
 })();

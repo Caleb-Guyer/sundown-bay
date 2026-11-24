@@ -426,3 +426,4 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .bay-front-page{display:block;width:100%;max-width:500px;height:auto;margin:0 auto .75rem}
 
 #starliteGauge{position:absolute;left:50%;bottom:4.1rem;transform:translateX(-50%);width:min(33vw,325px);height:auto;pointer-events:none}.starlite-ticket{display:block;width:100%;height:auto;margin:8px auto 18px}
+#starliteGauge:not([hidden])~#speech{top:4.5rem;bottom:auto;max-width:min(34rem,68vw)}
