@@ -18296,7 +18296,9 @@ window.buildBayCity = function buildBayCity(g,water) {
         this.takeoff(v,"ramp",2.4+clamp(forward,0,30)*.12+v.trim*1.45,null);v.y+=this.height;return;
       }
       this.onRamp=false;this.height=0;
-      if(!ridingRamp&&across<1.65&&Math.abs(along)<3)BayMarina.clearWorkingHull(v,barrier);
+      const approachFromBack=before.x>kicker.x+2&&forward<0;
+      const approachFromSide=Math.abs(before.z-kicker.z)>1.54&&Math.abs(along)<3;
+      if(!ridingRamp&&across<3.7&&Math.abs(along)<5.7&&(approachFromBack||approachFromSide))BayMarina.clearWorkingHull(v,barrier);
       if(this.cooldown||v.speed<8)return;
       for(const boat of boats){
         if(Math.hypot(boat.x-v.x,boat.z-v.z)>110)continue;
