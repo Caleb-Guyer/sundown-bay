@@ -146,14 +146,18 @@
       if(a.phase!=="running"){
         if(Math.abs(q.x)>10||q.z< -35||q.z>line+5.2||a.age>70){this.leave();return "cancel";}
         const green=BayCrosswalk.lamps(s.signal,t)===(Math.abs(Math.cos(r.yaw))>.7?"ns":"ew");
+        const gap=Math.hypot(v.x-a.stop.x,v.z-a.stop.z);
+        const alongside=v.path&&v.corner===v.path.length-1&&v.blocked>.6&&gap<2.25&&Math.abs(relative(r,v).z-q.z)<2.35;
+        // A driver can acknowledge the grid from the queue, then edge up as it
+        // clears. A green already in progress while they're moving is not a start.
+        if(v.path&&(gap<.20||alongside&&v.blocked>12)){v.path=null;BayDriving.settle(v);v.brakes=1;}
         if(a.phase==="offer"){
-          if(v.path&&Math.hypot(v.x-a.stop.x,v.z-a.stop.z)<.20){v.path=null;BayDriving.settle(v);v.brakes=1;}
-          if(!a.accepted||v.path||!lined(r,p)||Math.abs(q.x-a.lane)<2)return;
+          if(!a.accepted||v.path&&!alongside||!lined(r,p)||Math.abs(q.x-a.lane)<2)return;
           a.staged+=dt;if(a.staged<.20)return;
-          a.start=nose(r,p);a.phase="armed";a.sawRed=!green;return "armed";
+          a.start=nose(r,p);a.phase="armed";a.sawRed=!green&&!v.path;return "armed";
         }
-        if(!green)a.sawRed=true;
-        if(green&&a.sawRed){
+        if(!green&&!v.path)a.sawRed=true;
+        if(green&&a.sawRed&&!v.path){
           a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;
           a.frame=exposure(r,p,v,0);a.shots=[a.frame];a.nextPhoto=90;
           leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;v.greenRacing=true;

@@ -43,10 +43,10 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   try{
     await js(observer);await waitFor("window.site");await tap("KeyE");await waitFor("!!window.ride",35000);
     await lineUp();await waitFor("club.run?.phase==='offer'");await tap("KeyH");
-    await waitFor("club.run?.phase==='armed'&&driverSeen",65000);
+    await waitFor("club.run?.phase==='armed'&&driverSeen",130000);
     const staged=await js("({x:site.v.x,z:site.v.z,dx:Math.abs(ride.x-site.v.x),gap:Math.abs(ride.z-site.v.z)})");
     assert(staged.dx>2&&staged.dx<5.6&&staged.gap<3.1,JSON.stringify(staged));await snap("grid");
-    await waitFor("club.run?.phase==='running'&&onGreen",150000);await controls("KeyW");
+    await waitFor("club.run?.phase==='running'&&onGreen",210000);await controls("KeyW");
     await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1",45000);
     await controls("KeyS");await waitFor("Math.abs(ride.speed)<1.5",40000);await controls();
     assert(await js("finishSeen"));const card=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).green.cards.ocean");
