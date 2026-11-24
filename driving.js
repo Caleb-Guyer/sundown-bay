@@ -61,8 +61,9 @@
     const rearArm=-shape.axles[0],frontArm=shape.axles[1],wheelbase=rearArm+frontArm;
     const rearDamage=Math.max(0,(d?.rear||0)-.25);
     const dryGrip=spec.grip*surface*(1-.12*flat),weightShift=.045*v.brakes-.02*v.throttle;
-    const frontGrip=dryGrip*(spec.balance+weightShift)*(v.hydraulic?.grip(true)??1);
-    const rearGrip=dryGrip*(1-spec.balance-weightShift)*(1-.76*v.handbrake)*(v.hydraulic?.grip(false)??1);
+    const water=v.waterLoad,planing=clamp((speed-5)/18,0,1)*(v.upgrades?.tires ? .67 : 1);
+    const frontGrip=dryGrip*(spec.balance+weightShift)*(v.hydraulic?.grip(true)??1)*(1-.44*planing*(water?.front||0));
+    const rearGrip=dryGrip*(1-spec.balance-weightShift)*(1-.76*v.handbrake)*(v.hydraulic?.grip(false)??1)*(1-.38*planing*(water?.rear||0));
     const turnSin=Math.sin(v.steer),turnCos=Math.cos(v.steer);
     const frontSlip=(lateral+frontArm*v.yawRate)*turnCos-forward*turnSin;
     const rearSlip=lateral-rearArm*v.yawRate;
@@ -71,7 +72,8 @@
     const rearForce=-rearGrip*Math.tanh(rearSlip*(7.0-3.9*v.handbrake)/rearGrip)*tireGain*(1-rearDamage*.15);
     const sideForce=frontForce*turnCos+rearForce;
     const inertia=.27*wheelbase*wheelbase;
-    const torque=(frontArm*frontForce*turnCos-rearArm*rearForce)/inertia;
+    const waterTorque=(water?.pull||0)*planing*Math.sign(forward)*.86;
+    const torque=(frontArm*frontForce*turnCos-rearArm*rearForce)/inertia+waterTorque;
     let nextYawRate=(v.yawRate+torque*dt)*Math.exp(-(.84-.46*v.handbrake)*dt);
     const low=clamp(1-speed/4.5,0,1);
     nextYawRate=damp(nextYawRate,forward*Math.tan(v.steer)/wheelbase,low*10,dt);
@@ -79,7 +81,8 @@
     const shove=v.reversing?-6.4*(1-.17*load)*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*
       (v.shift>0?.39:1)*clamp((1.06-ratio)*5,0,1);
     const drag=.36+.00092*forward*forward+(gas||reverse?0:.63)+
-      (1-surface)*2.5+v.handbrake*4.3+v.brakes*spec.brake*(1-.23*load)+flat*(.7+.045*speed);
+      (1-surface)*2.5+v.handbrake*4.3+v.brakes*spec.brake*(1-.23*load)+flat*(.7+.045*speed)+
+      ((water?.front||0)+(water?.rear||0))*Math.min(speed*.072,1.4);
     let along=forward+(brake?0:shove*v.throttle)*dt-frontForce*turnSin*dt;
     along=Math.sign(along)*Math.max(0,Math.abs(along)-drag*dt);
     const sideways=lateral+sideForce*dt;

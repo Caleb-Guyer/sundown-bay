@@ -215,7 +215,7 @@
     accept(p,v,plan){
       if(!p||p.phase!=="wait"||!plan||!stopped(v)||gap(v,p)>9.5)return false;
       if(v!==this.vehicle){if(this.privateFare||this.booking)return false;if(this.trip===p)this.trip=null;this.privateFare=p;p.personal=true;}
-      p.ride=v;p.path=plan.points;p.phase="approach";p.seat=0;p.age=0;p.remarked=false;p.jolt=0;p.cancelled=false;return true;
+      p.ride=v;p.path=plan.points;p.phase="approach";p.seat=0;p.age=0;p.remarked=false;p.splashWarned=false;p.jolt=0;p.cancelled=false;return true;
     }
     holds(v){return !!v&&this.people.some(p=>p.ride===v&&["approach","in","out"].includes(p.phase));}
     board(hero,plan){

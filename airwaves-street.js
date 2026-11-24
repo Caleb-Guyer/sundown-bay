@@ -9,7 +9,7 @@
       this.mix=null;this.approach=null;this.close=true;this.lastKey="";this.dialPainted="";
       this.state={mixing:false,beat:0,incomingBeat:0,blend:0,activeDeck:false,station:"sol",ready:true};
     }
-    headlines(save,clock,bridge,now){
+    headlines(save,clock,bridge,now,water){
       if(now<this.newsAt)return;this.newsAt=now+1;
       const current=[save.buttonwood.runs,save.stunt?.distance||0,save.edition,save.brisas.classes.house.wins,save.cab.reel];
       if(this.facts){
@@ -24,7 +24,9 @@
       if(!this.device||this.station==="off"||this.mix||now<this.nextNews)return;
       const reports=[];
       if(bridge.phase!=="road")reports.push("Salt Creek’s road gates are down. Inez is working the span.");
-      if(clock.rain>.44)reports.push("Rain on the studio window. Ocean Drive’s taking a soaking.");
+      const road=water?.report();
+      if(road)reports.push(road);
+      else if(clock.rain>.44)reports.push("Rain on the studio window. Ocean Drive’s taking a soaking.");
       if(clock.market==="open")reports.push("Rosario’s counter is open at El Mercado. Ask her which plate is still hot.");
       if(current[0]&&save.buttonwood.last)reports.push("Buttonwood’s last landing was "+save.buttonwood.last.count+" keepers. Benji kept the slip.");
       if(current[1])reports.push("Cine Luna’s stunt poster is up. Look for Romy’s number 27 on the way in.");

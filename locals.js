@@ -59,7 +59,17 @@
   function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0){
     for(const p of people){
       if(p.onTour)continue;
+      if(p.sprayWait>0){
+        p.sprayWait=Math.max(0,p.sprayWait-dt);p.sprayAge+=dt;
+        const age=p.sprayAge;
+        if(age<1.35&&!p.startle){
+          const guard=Math.min(1,age/.16,(1.35-age)/.56);
+          p.sprayPose={lift:0,air:0,guard,bend:.33*guard,lead:p.side};
+          p.moving=false;p.yaw+=wrap(p.sprayFace-p.yaw)*-Math.expm1(-7*dt);
+        }else p.sprayPose=null;
+      }
       if(BayStreetReactions.startlePerson(p,dt,driver,cars,people,valid,time))continue;
+      if(p.sprayPose)continue;
       if((rain>.12||p.porch)&&BayRainWalk.porchStep(p,dt,rain,time,people,cars,valid))continue;
       p.moving=false;
       const target=p.path[p.index],dx=target[0]+p.offset-p.x,dz=target[1]+p.offset-p.z,d=Math.hypot(dx,dz);
