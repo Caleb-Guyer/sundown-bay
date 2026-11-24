@@ -146,4 +146,4 @@ You can take the wrecker between calls to tow your own car. Della repairs the bo
 
 Park in the same bay and press **F** for parts and paint. An **engine tune** costs **$250** and adds 18% engine power. **Sport tires** cost **$125** and add 25% cornering grip on pavement. Select **Respray** to preview six colors for **$75**. Fitted parts and paint stay on that individual car after you get out and are saved in the browser.
 
-The game runs in the browser. To play locally, open `index.html` or serve this directory with `python -m http.server`. The overhead view is available when WebGL is unavailable.
+The game runs in the browser. To play locally, open `index.html` or serve this directory with `python -m http.server`. The overhead view is available when WebGL is unavailable. The game loads its JavaScript in one request. After editing the individual scripts, run `python build_bundle.py` and commit the updated `index.html` and `sundown.js`. The ordered source list lives in `index.html`.
