@@ -6,6 +6,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.
 
+At the **Marlin cab rank payphone**, press **Y** to take Frankie Prado’s call. You can also meet her at the folding desk outside **Cine Luna**. Afterward, **Y** switches between Frankie and the Marlin driver during free roam. Each stays where you leave them, including in a parked car.
+
+As Frankie, press **P** on foot to raise her rangefinder. Aim with the free mouse or arrow keys, use **Z** to zoom, and press **Space** for the shutter. **P** lowers it. Find your six latest frames under **J → Second Unit → Location prints**. At the Cine Luna desk, use **F** to choose a print for the house screen. Your selection stays on the bill when the roll turns over.
+
 Outside **Room 14** at the Marlin and at all four **Route 6** shelters, press **U** at the umbrella stand to borrow a Marlin stripe. Away from a stand, **U** opens or folds it. During showers, locals open their own canopies or wait under a nearby shelter until the rain lets up.
 
 Look for **Alba Font** with her bundle of Cine Luna tickets under the Marlin arcade. With your umbrella open, press **G** beside her to share it. Walk next to her using the usual controls, or hold **G** to match her pace. The same invitation works when other Route 6 regulars are at work or walking between the bus and their workplace. Keep them under the canopy for at least **65%** of the walk to get their signed note and unlock the guava print. Every stand keeps your loan card, even after a reload.

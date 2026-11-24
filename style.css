@@ -45,6 +45,9 @@ button:focus-visible,select:focus-visible,canvas:focus-visible {outline:3px soli
 @media(max-width:650px){#hud.fm-mixing #speech {top:70px;left:12px;right:auto;max-width:52vw}}
 #sky,#world,#overhead,#vignette,#intro,#hud,#shade {position:absolute;inset:0;width:100%;height:100%}
 #sky {pointer-events:none;background:#b8acac}
+#scoutFinder{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+#game.scout-framing .location,#game.scout-framing .account,#game.scout-framing .radar,#game.scout-framing .shortcuts,#game.scout-framing #targetTag{visibility:hidden}
+.scout-card{display:block;width:min(100%,510px);height:auto;margin:6px auto 12px}
 #rain,#driverGlass {position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #cityTime {margin-left:.58em;white-space:nowrap;letter-spacing:.04em;color:#ffe1a5}
 #streetName {font:italic 600 .94rem/1.25 Georgia,serif;color:#b9ead5;text-shadow:1px 1px 2px #142c32}

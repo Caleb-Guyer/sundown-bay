@@ -11,7 +11,7 @@
     ruben:{name:"Rubén Díaz",offer:"Got room on that side? I’m taking the bread home in a paper bag.",signed:"We ate it on the steps. The paper even made it back to the bakery."}
   };
   const racks=[{id:"room14",name:"Marlin Motel",x:130.85,z:-32.85,y:.076,yaw:Math.PI/2},
-    ...BayTransit.stops.map(s=>({...BayDriving.world(s,1.96,-4.30),id:s.id,name:s.short,y:s.y,yaw:s.yaw-Math.PI/2}))];
+    ...BayTransit.stops.map(s=>({...BayDriving.world(s,1.96,s.id==="marlin"?4.30:-4.30),id:s.id,name:s.short,y:s.y,yaw:s.yaw-Math.PI/2}))];
   const block=r=>({x:r.x,z:r.z,w:Math.abs(Math.cos(r.yaw))*.86+Math.abs(Math.sin(r.yaw))*.44,
     d:Math.abs(Math.cos(r.yaw))*.44+Math.abs(Math.sin(r.yaw))*.86,bottom:0,top:1.25,streetProp:true});
   function read(){

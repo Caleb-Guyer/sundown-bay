@@ -540,7 +540,7 @@
     });
   }
 
-  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery;
+  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -548,9 +548,12 @@
     const print=options?.edition==="print"&&typeof window.BayExposureArt?.drawPhoto==="function";
     const second=!!options?.second;
     const delivery=second&&typeof options?.deliveredBy==="string"?options.deliveredBy.trim().slice(0,48):"";
-    if(schedule&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const location=window.BaySecondUnit?.record(options?.location)?options.location:null;
+    if(schedule&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    if(listedLocation!==location){listedLocation=location;locationCard=null;}
     listedRecord=saved;listedSkate=skate;listedPrint=print;listedSecond=second;listedDelivery=delivery;
     const list=[];
+    if(location)list.push(slot("location",location.title,"Second Unit · Frankie Prado · Frame "+location.number,5));
     if(skate)list.push(slot("skate","Curb Cut",film.title(skate.site)+" · "+skate.score+" pts",film.duration(skate)));
     if(saved)list.push(slot("stunt","One Good Take","Romy Vale & Jules · "+saved.distance.toFixed(1)+" m",5));
     if(print)list.push(slot("edition","Bay Wire","Mara Vega · Lot 14, Port Sol",4));
@@ -583,7 +586,11 @@
     else if(item.id==="tram")showTram(context,elapsed,item.credit);
     else if(item.id==="stunt")showStunt(context,listedRecord);
     else if(item.id==="skate")window.BaySkateFilm.draw(context,listedSkate,elapsed,width,height);
-    else showEdition(context);
+    else if(item.id==="location"){
+      if(!locationCard){locationCard=surface(720,610);window.BayScoutPrints.print(locationCard,listedLocation);}
+      rect(context,0,0,width,height,"#222825");const w=height*720/610;
+      context.drawImage(locationCard,(width-w)*.5,0,w,height);
+    }else showEdition(context);
     finishFrame(context,inSlot);
     lastProgram=program;lastTick=tick;lastDecode=decode;
     projection={canvas:projector,revision:++revision,id:item.id,title:item.title,credit:item.credit,elapsed,seconds:item.seconds};
