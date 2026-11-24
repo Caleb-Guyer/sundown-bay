@@ -596,6 +596,9 @@
     disc(c,-3.85,3.86,.62,"#286461");c.restore();
     if(label)return {left:x-9*ui,right:x+(right+1)*ui,top:y-9*ui,bottom:y+9*ui};
   }
+  window.drawBayTimingCar=(ctx,v,x,y,s)=>{
+    carSprite(ctx,v,x,y,s,0);BayStreetCars.map(ctx,v,x,y,s,0);
+  };
   window.drawBayMap=function drawBayMap(ctx,opt) {
     const w=ctx.canvas.width,h=ctx.canvas.height,s=opt.scale;
     if(!(w>0 && h>0 && s>0)) return;

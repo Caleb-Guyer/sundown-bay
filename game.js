@@ -498,7 +498,8 @@
   iceVan.plate="NIEVE";iceVan.serviceCar=true;iceVan.campanaDriver=!save.campana.shift;
   const campana=new BayCampana.Truck(iceVan,save.campana),iceJob={name:"La Campana · Two more stops",id:"paletas",by:"Nina Rojas"};
   const green=new BayOnGreen.Club(addCar,BayStreetArt.signals);
-  for(const s of green.sites){s.v.serviceCar=true;s.clock=save.green.cards[s.route.id]?.slip?.time||0;}
+  let timingFilm=null;
+  for(const s of green.sites){const slip=save.green.cards[s.route.id]?.slip;s.v.serviceCar=true;s.clock=slip?.film?slip.film.shots.at(-1)[0]/1000:slip?.time||0;}
   if(!personalCar)restoreParking();
   locations.push(unitPin);
   locations.push(brisasSite.marker,boatYard.marker,boatYard.slipMarker,radioPin,{...BayDriving.world(BayRainWalk.racks[0],0,1.05),name:"Marlin · Umbrella stand",kind:"shelter"});
@@ -3031,10 +3032,35 @@
     speak(a.s.route.driver,"You’re on. Stop next to me before the crosswalk. We leave on green.");
     lastHud=lastMap=-10;return true;
   }
+  function greenPassing(a,dt){
+    if(a.phase!=="running"||a.opponent!==null||a.clock<a.s.route.delay)return;
+    a.scanIn=(a.scanIn||0)-dt;if(a.scanIn>0)return;a.scanIn=.28;
+    const {s}=a,v=s.v,r=s.route,at=BayOnGreen.relative(r,v);
+    if(at.z>r.finish-7||at.z<9&&s.signal.call&&BayCrosswalk.lamps(s.signal,streetTime)==="red")return;
+    const look=Math.min(25,Math.max(20,v.speed*1.1)),run=Math.min(10,Math.max(5.4,v.speed*.41));
+    const obstacles=cars.concat(transit.bus,motos.all).filter(o=>o!==v&&Math.abs(o.x-v.x)<look+6&&Math.abs(o.z-v.z)<look+6);
+    const blocked=obstacles.some(o=>{
+      const pos=BayOnGreen.relative(r,o);
+      return pos.z>at.z+.1&&pos.z<at.z+look&&Math.abs(pos.x-a.lane)<2.05&&
+        (o.path?Math.cos(o.yaw-r.yaw)*o.speed:0)<Math.max(8.5,v.speed+1);
+    });
+    if(!blocked)return;
+    for(const lane of [1.0,3.3,5.68,-.85].sort((a,b)=>Math.abs(a-at.x)-Math.abs(b-at.x))){
+      if(Math.abs(lane-a.lane)<2.1)continue;
+      const slope=(lane-at.x)/run,heading=r.yaw+Math.atan(slope);
+      let clear=true;
+      for(const d of [1.2,2.5,4,run,run+3.5,look]){
+        const f=Math.min(1,d/run),p=BayOnGreen.roadPoint(r,at.x+(lane-at.x)*f,at.z+d);
+        if(!spaceToSwerve(v,p.x,p.z,f<1?heading:r.yaw,Math.min(.48,d/Math.max(7,v.speed)),true)){clear=false;break;}
+      }
+      if(clear&&BayOnGreen.laneChange(a,lane,run)){a.scanIn=.58;return;}
+    }
+  }
   function greenStep(dt){
     const old=green.run,event=green.step(dt,streetTime,car,greenFree(),held("KeyW","ArrowUp")),a=green.run;
+    for(const s of green.sites)if(s.runOut)greenPassing(s.runOut,dt);
     if(old&&old!==a)old.s.v.greenGesture=0;
-    if(a)a.s.v.greenGesture=a.phase==="running"?0:clamp(a.age*3,0,1)*(.79+.19*Math.cos(a.age*5.2));
+    if(a){a.s.v.greenGesture=a.phase==="running"?0:clamp(a.age*3,0,1)*(.79+.19*Math.cos(a.age*5.2));greenPassing(a,dt);}
     if(!event)return;
     lastHud=lastMap=-10;
     if(event==="cancel"){if(old?.accepted)note("On Green","Run called off. "+old.s.route.driver+" is heading around the block.",2.8);return;}
@@ -3046,7 +3072,7 @@
     if(event==="armed"){note("On Green · "+r.driver,"Hold here. Watch the traffic light.",2.3);return;}
     if(event==="go"){note("Green","First to the "+r.landmark+".",1.35);return;}
     const winner=event==="first",early=event==="early";
-    const slip={token:a.token,result:event,time:early?null:a.clock,reaction:early?null:a.react,car:formatVehicle(car),plate:BayStreetCars.plateFor(car)};
+    const slip={token:a.token,result:event,time:early?null:a.clock,reaction:early?null:a.react,car:formatVehicle(car),plate:BayStreetCars.plateFor(car),film:a.film||null};
     syncProgress(readSave());
     if(BayOnGreen.file(save.green,r.id,slip)){if(winner){save.wallet+=r.pay;save.paid++;}persist();}
     if(early)a.s.clock=0;
@@ -3101,6 +3127,8 @@
       line("span","slip-car",slip.car+"  /  "+slip.plate);
       line("span","slip-launch",slip.reaction==null?"No launch time":"Reaction "+slip.reaction.toFixed(2)+" s");
       line("span","slip-signed","Timed against "+r.driver);b.append(paper);
+      if(slip.film)b.append(makeButton("Finish camera","The last second at the timing line.","View replay",()=>openPanel("green-film-"+r.id)));
+      if(c.bestSlip?.film)b.append(makeButton("Personal best · "+c.best.toFixed(2)+" s",c.bestSlip.car+" · "+c.bestSlip.plate,"View best",()=>openPanel("green-best-"+r.id)));
       b.append(makeButton(r.street+" · "+r.landmark,c.wins+" wins in "+c.runs+" starts"+(c.best?" · Best "+raceWatch(c.best):"")+
         (c.reaction!==null?" · Best launch "+c.reaction.toFixed(2)+" s":""),"Mark light",()=>clockPin({...r.grid,name:r.street+" · On Green start",kind:"green-start"})));
     }
@@ -3108,6 +3136,31 @@
   function nearbyClock(){
     if(!onStreetFeet()||active||heat||unit.eye||afternoon.active||bell.pass||luggage.hand(save.luggage))return null;
     return green.sites.find(s=>dist(hero,s.route.post)<2.6);
+  }
+  function showTimingFilm(b,r,best){
+    const card=save.green.cards[r.id],slip=best?card?.bestSlip:card?.slip,f=slip?.film;if(!f)return;
+    const canvas=document.createElement("canvas");canvas.width=664;canvas.height=184;canvas.className="timing-film";
+    canvas.setAttribute("role","img");canvas.setAttribute("aria-label",r.street+" finish camera · "+slip.plate+" against "+r.plate);
+    const controls=document.createElement("div");controls.className="timing-film-controls";
+    const play=document.createElement("button"),scrub=document.createElement("input");play.textContent="Replay";
+    scrub.type="range";scrub.min="0";scrub.max="1000";scrub.step="1";scrub.value="1000";scrub.setAttribute("aria-label","Finish camera position");
+    const film=timingFilm={r,f,canvas,play,scrub,at:1,playing:false,previous:0};controls.append(play,scrub);b.append(canvas,controls);
+    play.addEventListener("click",()=>{
+      film.playing=!film.playing;film.previous=performance.now();if(film.playing&&film.at>=1)film.at=0;
+      play.textContent=film.playing?"Pause":"Play";drawTimingFilm(film.previous);
+    });
+    scrub.addEventListener("input",()=>{film.playing=false;film.at=Number(scrub.value)/1000;play.textContent=film.at>=1?"Replay":"Play";drawTimingFilm(performance.now());});
+    b.append(makeButton("Timing slips",slip.car+" · "+slip.plate,"Back",()=>openPanel("green-slips")));
+    drawTimingFilm(performance.now());
+  }
+  function drawTimingFilm(now){
+    const v=timingFilm;if(!v)return;
+    if(v.playing){
+      const shots=v.f.shots;
+      v.at=Math.min(1,v.at+Math.max(0,now-v.previous)*.40/Math.max(1,shots.at(-1)[0]-shots[0][0]));
+      if(v.at===1){v.playing=false;v.play.textContent="Replay";}
+    }
+    v.previous=now;v.scrub.value=String(Math.round(v.at*1000));BayOnGreenArt.film(v.canvas,v.r,v.f,v.at);
   }
   function clockCard(b,s){
     const r=s.route,c=save.green.cards[r.id];
@@ -5397,7 +5450,7 @@
       let maximum=stop?Math.min(4.6,Math.max(.36,run*.94)):evading?(response.offset?v.pace*.52:0):v.pace;
       if(yielding)maximum=Math.min(maximum,yielding.max);
       if(v.finiteRoute&&v.corner===v.path.length-1)maximum=Math.min(maximum,Math.max(.5,remaining*1.3));
-      if(v.indicator)maximum=Math.min(maximum,5.7);
+      if(v.indicator)maximum=Math.min(maximum,v.greenRacing?15:5.7);
       const pace=v.wait>0?0:Math.min(maximum,clearance*1.24);
       v.speed=ease(v.speed,pace,pace<v.speed?(evading?6.2:4.1):1.7,dt);
       let step=Math.min(remaining,clearance,run,v.speed*dt);
@@ -7584,6 +7637,7 @@
     if(!$("speech").hidden&&elapsed>speechTill)$("speech").hidden=true;
   }
   function closePanel(){
+    timingFilm=null;
     wireView=null;
     skateProof=null;
     if(panel==="field-proof"&&active?.field?.phase==="review"){active.field.phase="return";cameraSnap();}
@@ -7871,6 +7925,7 @@
   }
   function airLedgerButton(){return makeButton("Pelican Air · Signed mail","Delivery slips, recorded routes and water landings.","Open ledger",()=>openPanel("air-book"));}
   function openPanel(next,redraw=false){
+    timingFilm=null;
     if(next!=="curb-wire")wireView=null;
     if(next==="radio-desk"&&!atRadioDesk()||next==="radio-sleeves"&&!save.airwaves.met)return;
     if(afternoon.photo)clearFoto();
@@ -7960,6 +8015,8 @@
       title="Left luggage";kicker="Marlin Motor Court  /  Claim checks";bellPanel(b);
     }else if(next==="claim-stubs"){
       title="Your claim stubs";kicker="Marlin Motor Court  /  Cart "+(save.luggage.round+1);claimStubs(b);
+    }else if((next.startsWith("green-film-")||next.startsWith("green-best-"))&&BayOnGreen.route(next.slice(11))){
+      const r=BayOnGreen.route(next.slice(11));title="Finish camera";kicker=r.street+"  /  "+r.driver;showTimingFilm(b,r,next.startsWith("green-best-"));
     }else if(next==="green-slips"){
       title="Timing slips";kicker="On Green  /  Local runs";greenSlips(b);
     }else if(next==="green-clock"&&nearbyClock()){
@@ -8608,6 +8665,7 @@
       if(elapsed-lastHud>.10){hud();lastHud=elapsed;}if(elapsed-lastMap>.09){drawMini();lastMap=elapsed;}
     }
     if(wireView&&panel==="curb-wire")paintWire(now);
+    if(timingFilm?.playing)drawTimingFilm(now);
     if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;
     tuneStreetResolution(raw,play&&!panel&&!isTop());
     renderWorld(dt,streetTime);

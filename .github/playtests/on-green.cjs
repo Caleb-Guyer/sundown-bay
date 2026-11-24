@@ -12,9 +12,9 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     fs.writeFileSync(path.join(dir,mode+"-"+label+".jpg"),Buffer.from(data,"base64"));
   }
   const observer=`
-    window.gridSeen=window.driverSeen=window.finishSeen=window.onGreen=false;
+    window.driverSeen=window.finishSeen=window.onGreen=false;
     const drawMap=window.drawBayMap;window.drawBayMap=function(c,o){
-      if(o.mode==="radar"&&o.green){window.club=o.green;window.ride=o.streetCar;window.site=club.sites[0];}
+      if(o.mode==="radar"&&o.green){window.club=o.green;window.ride=o.streetCar;window.site=club.sites[0];window.traffic=o.cars;}
       return drawMap(c,o);
     };
     const pass=BayOnGreen.Club.prototype.step;BayOnGreen.Club.prototype.step=function(dt,t,...rest){
@@ -51,14 +51,28 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     await controls("KeyS");await waitFor("Math.abs(ride.speed)<1.5",40000);await controls();
     assert(await js("finishSeen"));const card=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).green.cards.ocean");
     assert(["first","second"].includes(card.slip.result)&&card.slip.time>1&&card.slip.reaction>=0);assert.equal(card.runs,1);
-    assert.equal(await js("Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>22"),true);
+    await waitFor("!site.runOut&&Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>48",65000);
     await tap("KeyJ");await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('On Green · Timing slips')).click()");
     await waitFor("document.querySelector('.green-slip .slip-time')?.textContent.includes(' s')");await snap("slip");
     const paper=await js("document.querySelector('.green-slip').innerText");assert(paper.includes(card.slip.plate)&&paper.includes("Lena Ríos"));
+    await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('View replay')).click()");
+    await waitFor("!!document.querySelector('.timing-film-controls input')");
+    const last=card.slip.film.shots.at(-1),k=card.slip.result==="first"?1:4;
+    const half=await js("bayCarLayout("+JSON.stringify(k===1?card.slip.film.kind:"hatch")+").halfLength");
+    assert(Math.abs(last[k]+half*Math.cos(last[k+2]))<.02);
+    const endImage=await js("document.querySelector('.timing-film').toDataURL()");await snap("beam");
+    await js("document.querySelector('.timing-film-controls button').click()");
+    await waitFor("Number(document.querySelector('.timing-film-controls input').value)>30&&Number(document.querySelector('.timing-film-controls input').value)<940");
+    await js("document.querySelector('.timing-film-controls button').click()");
+    assert.notEqual(await js("document.querySelector('.timing-film').toDataURL()"),endImage);
     assert.equal(await js("audioStarts+cursorRequests"),0);
     await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayOnGreen==='object'");
-    assert.equal(await js("BayOnGreen.read(JSON.parse(localStorage.getItem('sundownBay.v1')).green).cards.ocean.best"),card.slip.time);
+    const restored=await js("BayOnGreen.read(JSON.parse(localStorage.getItem('sundownBay.v1')).green).cards.ocean");
+    assert.equal(restored.best,card.slip.time);assert.deepEqual(restored.slip.film.shots,card.slip.film.shots);
     assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
     console.log("PASS live",mode,"drove from the Marlin, staged alongside the numbered hatch, launched on the working green, crossed the timing clock and recovered the printed slip after reload.",card.slip.result,card.slip.time.toFixed(2));
+  }catch(error){
+    const state=await js("window.site&&({stage:club.run?.phase,driver:ride&&[ride.x,ride.z,ride.speed],rival:[site.v.x,site.v.z,site.v.speed,site.v.corner,site.v.blocked],returning:site.out,through:!!site.runOut,near:traffic.filter(v=>v!==site.v&&Math.hypot(v.x-site.v.x,v.z-site.v.z)<12).map(v=>[v.kind,v.x,v.z])})").catch(()=>null);
+    throw Error(error.message+" · timing camera state "+JSON.stringify(state),{cause:error});
   }finally{await controls();}
 };

@@ -19,26 +19,52 @@
   const route=id=>routes.find(r=>r.id===id);
   const finite=(n,min,max)=>Number.isFinite(n)&&n>=min&&n<=max;
   const count=n=>Number.isSafeInteger(n)&&n>=0?n:0;
+  const wrapped=n=>Math.atan2(Math.sin(n),Math.cos(n));
+  function readFilm(f){
+    if(!f||!Object.hasOwn(BayDriving.cars,f.kind)||!/^#[0-9a-f]{6}$/i.test(f.color)||!Array.isArray(f.shots)||f.shots.length<2||f.shots.length>18)return null;
+    let last=-1;
+    for(const a of f.shots){
+      if(!Array.isArray(a)||a.length!==7||!finite(a[0],0,45000)||a[0]<=last||
+        ![1,4].every(i=>finite(a[i],-220,80)&&finite(a[i+1],-24,24)&&finite(a[i+2],-3.15,3.15)))return null;
+      last=a[0];
+    }
+    return {kind:f.kind,color:f.color,plate:typeof f.plate==="string"?f.plate.slice(0,10):"",shots:f.shots.map(a=>a.slice())};
+  }
+  function exposure(r,p,v,ms){
+    const a=relative(r,p),b=relative(r,v);
+    return [ms,a.z-r.finish,a.x,wrapped(p.yaw-r.yaw),b.z-r.finish,b.x,wrapped(v.yaw-r.yaw)];
+  }
+  function contactPrint(a,previous,now,hit){
+    const last=now.map((v,i)=>previous[i]+(i===3||i===6?wrapped(v-previous[i]):v-previous[i])*hit);
+    last[3]=wrapped(last[3]);last[6]=wrapped(last[6]);
+    const stamp=Math.round(last[0]),shots=a.shots.filter(frame=>Math.round(frame[0])<stamp);
+    shots.push(last);
+    return {kind:a.p.kind,color:a.p.color,plate:BayStreetCars.plateFor(a.p),shots:shots.map(frame=>frame.map((n,i)=>i===0?Math.round(n):Math.round(n*1000)/1000))};
+  }
+  function readSlip(s){
+    if(!s||!["first","second","early"].includes(s.result))return null;
+    return {result:s.result,time:finite(s.time,1,50)?s.time:null,reaction:finite(s.reaction,0,45)?s.reaction:null,
+      car:typeof s.car==="string"?s.car.slice(0,26):"",plate:typeof s.plate==="string"?s.plate.slice(0,10):"",
+      token:typeof s.token==="string"?s.token.slice(0,60):"",film:readFilm(s.film)};
+  }
   function read(raw){
     const book={rev:count(raw?.rev),last:"",cards:{}};
     for(const r of routes){
       const c=raw?.cards?.[r.id];if(!c||!count(c.runs))continue;
       const runs=count(c.runs),wins=Math.min(runs,count(c.wins)),faults=Math.min(runs-wins,count(c.faults));
-      const slip=c.slip,valid=slip&&["first","second","early"].includes(slip.result);
-      book.cards[r.id]={runs,wins,faults,best:finite(c.best,1,50)?c.best:null,
-        reaction:finite(c.reaction,0,45)?c.reaction:null,slip:valid?{
-          result:slip.result,time:finite(slip.time,1,50)?slip.time:null,reaction:finite(slip.reaction,0,45)?slip.reaction:null,
-          car:typeof slip.car==="string"?slip.car.slice(0,26):"",plate:typeof slip.plate==="string"?slip.plate.slice(0,10):"",
-          token:typeof slip.token==="string"?slip.token.slice(0,60):""}:null};
+      const slip=readSlip(c.slip),previous=readSlip(c.bestSlip),best=finite(c.best,1,50)?c.best:null;
+      book.cards[r.id]={runs,wins,faults,best,slip,bestSlip:previous?.film&&previous.time===best&&previous.token!==slip?.token?previous:null,
+        reaction:finite(c.reaction,0,45)?c.reaction:null};
     }
     if(Object.hasOwn(book.cards,raw?.last))book.last=raw.last;
     return book;
   }
   function file(book,id,slip){
     const card=book.cards[id]||{runs:0,wins:0,faults:0,best:null,reaction:null,slip:null};
-    if(!route(id)||card.slip?.token===slip.token)return false;
+    if(!route(id)||card.slip?.token===slip.token||card.bestSlip?.token===slip.token)return false;
+    if(card.slip?.film&&card.slip.time===card.best)card.bestSlip=card.slip;
     card.runs++;if(slip.result==="first")card.wins++;if(slip.result==="early")card.faults++;
-    if(slip.time!=null)card.best=Math.min(card.best??Infinity,slip.time);
+    if(slip.time!=null&&slip.time<=(card.best??Infinity)){card.best=slip.time;card.bestSlip=null;}
     if(slip.reaction!=null)card.reaction=Math.min(card.reaction??Infinity,slip.reaction);
     card.slip={...slip};book.cards[id]=card;book.last=id;book.rev++;return true;
   }
@@ -53,6 +79,11 @@
     return [p(lane,65),p(lane,69),p(lane-1.2,72.7),p(-2.7,74.5),p(-69,74.5),p(-72.8,73.1),p(-74.5,69),
       p(-74.5,-68.5),p(-73,-72.9),p(-69,-74.5),p(-2,-74.5),p(1,-73.2),p(2.5,-69),
       p(5.8,-65),p(7.6,-53),r.home];
+  }
+  function laneChange(a,lane,run){
+    const {s}=a,r=s.route,v=s.v,q=relative(r,v),path=homeward(s,lane);
+    if(q.z+run>=r.finish-1)return false;
+    leg(v,[roadPoint(r,lane,q.z+run),...path],v.pace,r.yaw);a.lane=lane;return true;
   }
   function relative(r,v){return BayDriving.local(r,v.x,v.z);}
   function lined(r,p){
@@ -91,12 +122,14 @@
       const a=this.run;if(!a)return;
       const s=a.s,v=s.v;
       if(a.phase!=="running")leg(v,homeward(s,a.lane),6.3,s.route.yaw);
-      v.pace=7.7;s.out=true;this.run=null;this.cooldown=3;
+      s.runOut=a.phase==="running"&&a.film&&nose(s.route,v)<s.route.finish+2?a:null;
+      v.greenRacing=!!s.runOut;v.pace=s.runOut?s.route.pace:7.7;s.out=true;this.run=null;this.cooldown=3;
     }
     step(dt,t,p,eligible,gas=false){
       this.cooldown=Math.max(0,this.cooldown-dt);
       for(const s of this.sites){
         s.flash=Math.max(0,s.flash-dt);
+        if(s.runOut&&nose(s.route,s.v)>=s.route.finish+2){s.runOut=null;s.v.greenRacing=false;s.v.pace=7.7;}
         if(s.out&&!s.v.path)s.out=false;
       }
       const a=this.run;
@@ -116,25 +149,37 @@
         if(!green)a.sawRed=true;
         if(green&&a.sawRed){
           a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;
-          leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;
+          a.frame=exposure(r,p,v,0);a.shots=[a.frame];a.nextPhoto=90;
+          leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;v.greenRacing=true;
           return "go";
         }
         if(nose(r,p)>a.start+.85||q.z>line+3)return "early";
         if(q.z<line-4||Math.abs(q.x-a.lane)<1.6){this.leave();return "cancel";}
         return;
       }
-      const before=a.clock;a.clock+=dt;s.clock=a.clock;
+      const before=a.clock;a.clock+=dt;if(!a.film)s.clock=a.clock;
       v.pace=Math.min(r.pace,Math.max(0,a.clock-r.delay)*r.pull);
       const now=nose(r,p),other=nose(r,v),driverCross=crossed(a.prev,now,r.finish),rivalCross=crossed(a.rivalPrev,other,r.finish);
+      const cleanCross=q.x>=-6.6&&q.x<=7.2&&Math.cos(p.yaw-r.yaw)>.65;
+      if(!a.film){
+        const frame=exposure(r,p,v,a.clock*1000);
+        const hit=Math.min(cleanCross?(driverCross??Infinity):Infinity,rivalCross??Infinity);
+        if(Number.isFinite(hit)){
+          a.film=contactPrint(a,a.frame,frame,hit);s.flash=1.7;s.clock=before+dt*hit;
+        }else if(frame[0]>=a.nextPhoto){
+          a.shots.push(frame);if(a.shots.length>16)a.shots.shift();a.nextPhoto=frame[0]+90;
+        }
+        a.frame=frame;
+      }
       if(a.react===null&&gas)a.react=before;
       if(a.opponent===null&&rivalCross!==null)a.opponent=before+dt*rivalCross;
       a.prev=now;a.rivalPrev=other;
-      if(driverCross!==null&&q.x>=-6.6&&q.x<=7.2&&Math.cos(p.yaw-r.yaw)>.65){
-        a.clock=before+dt*driverCross;s.clock=a.clock;s.flash=1.7;
+      if(driverCross!==null&&cleanCross){
+        a.clock=before+dt*driverCross;
         return a.opponent===null||a.clock<=a.opponent?"first":"second";
       }
       if(Math.abs(q.x)>12||q.z<line-8||q.z>r.finish+6||a.clock>45){this.leave();return "cancel";}
     }
   }
-  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,read,file,Club};
+  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,read,file,laneChange,Club};
 })();

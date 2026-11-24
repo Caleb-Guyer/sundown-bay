@@ -244,5 +244,121 @@
     paint(c,rect(-.077,.144,.154,.058),flash>0?"#9affba":"#48735b");
     c.restore();
   }
-  window.BayOnGreenArt=Object.freeze({car,carMap,finish,finishMap});
+  // The timing camera stays bolted to one spot. Fit the whole roll once so panning
+  // and changing magnification never alter the apparent finish margin while scrubbing.
+  function cameraBounds(shots,playerLength,rivalLength){
+    let back=-4,front=3.15,left=-.80,right=8.72;
+    for(const q of shots){
+      back=Math.min(back,q[1]-playerLength-1,q[4]-rivalLength-1);
+      front=Math.max(front,q[1]+playerLength+1,q[4]+rivalLength+1);
+      left=Math.min(left,q[2]-1.80,q[5]-1.80);right=Math.max(right,q[2]+1.80,q[5]+1.80);
+    }
+    return {back,front,left,right};
+  }
+  function filmFrame(shots,fraction){
+    const a=shots[0],b=shots[shots.length-1];
+    const ms=mix(a[0],b[0],unit(fraction)),end=shots.findIndex(q=>q[0]>=ms);
+    if(end<=0)return end<0?b:a;
+    const lo=shots[end-1],hi=shots[end],f=unit((ms-lo[0])/(hi[0]-lo[0]||1));
+    return lo.map((v,i)=>{
+      if(i===3||i===6){const angle=hi[i]-v;return v+Math.atan2(Math.sin(angle),Math.cos(angle))*f;}
+      return mix(v,hi[i],f);
+    });
+  }
+  const playerChip="#f9cb82",rivalChip="#a7e3dc",filmInk="#203436";
+  function chip(c,x,y,size,player){
+    const points=player?[[x-size,y-size],[x+size,y],[x-size,y+size]]:[[x,y-size],[x+size,y],[x,y+size],[x-size,y]];
+    paint(c,points,player?playerChip:rivalChip);
+  }
+  function cameraRoad(c,w,top,bottom,px,py,s,id){
+    const gull=id==="ocean",yard=id==="port";
+    const curb=py(7.1);
+    c.fillStyle=yard?"#666a63":gull?"#68716f":"#656c70";c.fillRect(0,top,w,bottom-top);
+    c.fillStyle=yard?"#ada993":gull?"#cdbb9e":"#bbaea0";c.fillRect(0,curb,w,Math.max(0,bottom-curb));
+    c.fillStyle="#e1d3af";c.fillRect(0,curb,w,Math.max(1,s*.12));
+    for(let m=-50;m<8;m+=3.5){
+      const x=px(m);if(x<0||x>w)continue;
+      paint(c,[[x,curb+2],[x+1.2,curb+2],[x+s*.48+1,bottom],[x+s*.48,bottom]],"#9b9586");
+    }
+    c.fillStyle="#a49e72";c.fillRect(0,py(-.15),w,Math.max(1,s*.07));c.fillRect(0,py(.10),w,Math.max(1,s*.07));
+    // Patches left by the island's salt air survive under the raised timing paint.
+    for(const [m,l,width] of [[-4,.65,1.2],[-18,5.82,1.71],[-25,3.35,.83],[.90,6.23,1.05]]){
+      paint(c,[[px(m),py(l)],[px(m+width*.87),py(l+.04)],[px(m+width),py(l+.12)],[px(m+.21),py(l+.16)]],"#727875");
+    }
+    // Shadows from the palms, theater awning or dock lattice identify each exposure.
+    c.save();c.globalAlpha=.19;
+    const shadow=points=>paint(c,points.map(([u,v])=>[px(u),py(v)]),"#34494a");
+    if(gull){
+      for(const trunk of [-22,-6]){
+        const crown=[trunk-2.5,5.88];shadow(stroke([trunk,8.75],crown,.12));
+        for(const [dx,dy] of [[-1.68,-.21],[-1.22,-1.13],[-.28,-1.57],[.82,-1.38],[1.39,-.50],[-1.35,.45]]){
+          const [x,y]=crown;
+          shadow([[x,y],[x+dx*.49-dy*.11,y+dy*.42+dx*.11],[x+dx,y+dy],[x+dx*.58,y+dy*.52]]);
+        }
+      }
+    }else if(yard){
+      shadow(stroke([-31,5.54],[0,6.52],.10));
+      for(let m=-30;m<0;m+=5){const a=5.54+(m+31)*.032;shadow(stroke([m,a],[m+2.5,8.13],.10));shadow(stroke([m+2.5,8.13],[m+5,a+.16],.10));}
+    }else{
+      shadow([[-29,8.6],[-28,5.95],[-16,5.95],[-16.8,8.6]]);
+      for(const x of [-27.4,-24.3,-21.4,-18.4])shadow(stroke([x,5.95],[x-.42,5.64],.15));
+    }
+    c.restore();
+    for(const p of paintBlocks)paint(c,p.map(([x,z])=>[px(z),py(7.90+x)]),"#e4ddc8");
+    c.fillStyle="#f4efda";c.fillRect(px(0)-.7,py(.21),1.4,py(7.16)-py(.21));
+    const cx=px(0),cy=py(7.91);
+    paint(c,[[cx-s*.33,cy-s*.26],[cx+s*.41,cy-s*.16],[cx+s*.06,cy+s*.38]],"#58594e");
+    c.fillStyle=teams[id].sign;c.fillRect(cx-s*.35,cy-s*.16,s*.70,Math.max(2,s*.26));
+  }
+  function film(canvas,route,record,fraction=1){
+    const ctx=canvas?.getContext("2d"),frames=record?.shots,team=teams[route?.id];
+    if(!ctx||!team||!frames?.length||!canvas.width||!canvas.height)return false;
+    const w=canvas.width,h=canvas.height;
+    // Layout works in backing pixels. At small CSS widths these larger captions
+    // remain legible without covering either car or the timing stripe.
+    const top=h*.17,bottom=h*.835,ui=Math.min(w/480,h/164);
+    const playerLength=bayCarLayout(record.kind).halfLength,rivalLength=bayCarLayout(route.kind).halfLength;
+    const bounds=cameraBounds(frames,playerLength,rivalLength);
+    const s=Math.min((w-16*ui)/(bounds.front-bounds.back),(bottom-top-4)/(bounds.right-bounds.left));
+    const spare=w-16*ui-s*(bounds.front-bounds.back);
+    const stripeX=8*ui+spare*.48-s*bounds.back;
+    const px=f=>stripeX+f*s,py=l=>(top+bottom)/2+(l-(bounds.left+bounds.right)/2)*s;
+    const q=filmFrame(frames,fraction);
+    ctx.save();ctx.fillStyle=filmInk;ctx.fillRect(0,0,w,h);
+    ctx.save();ctx.beginPath();ctx.rect(0,top,w,bottom-top);ctx.clip();
+    cameraRoad(ctx,w,top,bottom,px,py,s,route.id);
+    for(const player of [true,false]){
+      const i=player?1:4,data=player?record:route,angle=q[i+2],yaw=Math.PI/2+angle;
+      const v={kind:data.kind,color:data.color,plate:data.plate,yaw,greenId:player?undefined:route.id};
+      const x=px(q[i]),y=py(q[i+1]);
+      window.drawBayTimingCar(ctx,v,x,y,s);
+      if(!player)carMap(ctx,()=>x,()=>y,s,v);
+    }
+    // These small register marks identify the *measured* front centres. Keeping
+    // them separate from sprite edges also works for long trucks and a turned car.
+    for(const player of [true,false]){
+      const i=player?1:4,len=player?playerLength:rivalLength;
+      const x=px(q[i]+len*Math.cos(q[i+2])),y=py(q[i+1]+len*Math.sin(q[i+2]));
+      const side=q[2]<=q[5]?(player?-1:1):(player?1:-1);
+      const tagY=y+side*(s*.95+3*ui),c=player?playerChip:rivalChip;
+      ctx.fillStyle=filmInk;ctx.fillRect(x-1.2*ui,Math.min(y,tagY),2.4*ui,Math.abs(y-tagY));
+      ctx.fillStyle=c;ctx.fillRect(x-.5*ui,Math.min(y,tagY),ui,Math.abs(y-tagY));
+      chip(ctx,x,tagY,2.9*ui,player);
+    }
+    ctx.restore();
+    const margin=12*ui;
+    ctx.textBaseline="middle";ctx.textAlign="left";ctx.fillStyle="#f5edda";ctx.font="bold "+16*ui+"px system-ui";
+    ctx.fillText(route.street,margin,top*.51,w*.58);
+    ctx.textAlign="right";ctx.font="bold "+17*ui+"px monospace";ctx.fillStyle="#f8cd88";
+    ctx.fillText((q[0]/1000).toFixed(3)+" s",w-margin,top*.51);
+    const labels=[["You",record.plate,true],[route.driver,route.plate,false]];
+    ctx.textAlign="left";ctx.font="600 "+14.2*ui+"px system-ui";ctx.fillStyle="#e9ebd8";
+    for(const [idx,[name,plate,player]] of labels.entries()){
+      const x=idx*w/2+margin,y=(bottom+h)/2;
+      chip(ctx,x+4*ui,y,4.2*ui,player);
+      ctx.fillStyle="#e9ebd8";ctx.fillText(name+(plate?"  /  "+plate:""),x+16*ui,y,w/2-2*margin-14*ui);
+    }
+    ctx.restore();return true;
+  }
+  window.BayOnGreenArt=Object.freeze({car,carMap,finish,finishMap,film});
 })();

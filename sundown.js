@@ -9418,26 +9418,52 @@ window.buildBayCity = function buildBayCity(g,water) {
   const route=id=>routes.find(r=>r.id===id);
   const finite=(n,min,max)=>Number.isFinite(n)&&n>=min&&n<=max;
   const count=n=>Number.isSafeInteger(n)&&n>=0?n:0;
+  const wrapped=n=>Math.atan2(Math.sin(n),Math.cos(n));
+  function readFilm(f){
+    if(!f||!Object.hasOwn(BayDriving.cars,f.kind)||!/^#[0-9a-f]{6}$/i.test(f.color)||!Array.isArray(f.shots)||f.shots.length<2||f.shots.length>18)return null;
+    let last=-1;
+    for(const a of f.shots){
+      if(!Array.isArray(a)||a.length!==7||!finite(a[0],0,45000)||a[0]<=last||
+        ![1,4].every(i=>finite(a[i],-220,80)&&finite(a[i+1],-24,24)&&finite(a[i+2],-3.15,3.15)))return null;
+      last=a[0];
+    }
+    return {kind:f.kind,color:f.color,plate:typeof f.plate==="string"?f.plate.slice(0,10):"",shots:f.shots.map(a=>a.slice())};
+  }
+  function exposure(r,p,v,ms){
+    const a=relative(r,p),b=relative(r,v);
+    return [ms,a.z-r.finish,a.x,wrapped(p.yaw-r.yaw),b.z-r.finish,b.x,wrapped(v.yaw-r.yaw)];
+  }
+  function contactPrint(a,previous,now,hit){
+    const last=now.map((v,i)=>previous[i]+(i===3||i===6?wrapped(v-previous[i]):v-previous[i])*hit);
+    last[3]=wrapped(last[3]);last[6]=wrapped(last[6]);
+    const stamp=Math.round(last[0]),shots=a.shots.filter(frame=>Math.round(frame[0])<stamp);
+    shots.push(last);
+    return {kind:a.p.kind,color:a.p.color,plate:BayStreetCars.plateFor(a.p),shots:shots.map(frame=>frame.map((n,i)=>i===0?Math.round(n):Math.round(n*1000)/1000))};
+  }
+  function readSlip(s){
+    if(!s||!["first","second","early"].includes(s.result))return null;
+    return {result:s.result,time:finite(s.time,1,50)?s.time:null,reaction:finite(s.reaction,0,45)?s.reaction:null,
+      car:typeof s.car==="string"?s.car.slice(0,26):"",plate:typeof s.plate==="string"?s.plate.slice(0,10):"",
+      token:typeof s.token==="string"?s.token.slice(0,60):"",film:readFilm(s.film)};
+  }
   function read(raw){
     const book={rev:count(raw?.rev),last:"",cards:{}};
     for(const r of routes){
       const c=raw?.cards?.[r.id];if(!c||!count(c.runs))continue;
       const runs=count(c.runs),wins=Math.min(runs,count(c.wins)),faults=Math.min(runs-wins,count(c.faults));
-      const slip=c.slip,valid=slip&&["first","second","early"].includes(slip.result);
-      book.cards[r.id]={runs,wins,faults,best:finite(c.best,1,50)?c.best:null,
-        reaction:finite(c.reaction,0,45)?c.reaction:null,slip:valid?{
-          result:slip.result,time:finite(slip.time,1,50)?slip.time:null,reaction:finite(slip.reaction,0,45)?slip.reaction:null,
-          car:typeof slip.car==="string"?slip.car.slice(0,26):"",plate:typeof slip.plate==="string"?slip.plate.slice(0,10):"",
-          token:typeof slip.token==="string"?slip.token.slice(0,60):""}:null};
+      const slip=readSlip(c.slip),previous=readSlip(c.bestSlip),best=finite(c.best,1,50)?c.best:null;
+      book.cards[r.id]={runs,wins,faults,best,slip,bestSlip:previous?.film&&previous.time===best&&previous.token!==slip?.token?previous:null,
+        reaction:finite(c.reaction,0,45)?c.reaction:null};
     }
     if(Object.hasOwn(book.cards,raw?.last))book.last=raw.last;
     return book;
   }
   function file(book,id,slip){
     const card=book.cards[id]||{runs:0,wins:0,faults:0,best:null,reaction:null,slip:null};
-    if(!route(id)||card.slip?.token===slip.token)return false;
+    if(!route(id)||card.slip?.token===slip.token||card.bestSlip?.token===slip.token)return false;
+    if(card.slip?.film&&card.slip.time===card.best)card.bestSlip=card.slip;
     card.runs++;if(slip.result==="first")card.wins++;if(slip.result==="early")card.faults++;
-    if(slip.time!=null)card.best=Math.min(card.best??Infinity,slip.time);
+    if(slip.time!=null&&slip.time<=(card.best??Infinity)){card.best=slip.time;card.bestSlip=null;}
     if(slip.reaction!=null)card.reaction=Math.min(card.reaction??Infinity,slip.reaction);
     card.slip={...slip};book.cards[id]=card;book.last=id;book.rev++;return true;
   }
@@ -9452,6 +9478,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     return [p(lane,65),p(lane,69),p(lane-1.2,72.7),p(-2.7,74.5),p(-69,74.5),p(-72.8,73.1),p(-74.5,69),
       p(-74.5,-68.5),p(-73,-72.9),p(-69,-74.5),p(-2,-74.5),p(1,-73.2),p(2.5,-69),
       p(5.8,-65),p(7.6,-53),r.home];
+  }
+  function laneChange(a,lane,run){
+    const {s}=a,r=s.route,v=s.v,q=relative(r,v),path=homeward(s,lane);
+    if(q.z+run>=r.finish-1)return false;
+    leg(v,[roadPoint(r,lane,q.z+run),...path],v.pace,r.yaw);a.lane=lane;return true;
   }
   function relative(r,v){return BayDriving.local(r,v.x,v.z);}
   function lined(r,p){
@@ -9490,12 +9521,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       const a=this.run;if(!a)return;
       const s=a.s,v=s.v;
       if(a.phase!=="running")leg(v,homeward(s,a.lane),6.3,s.route.yaw);
-      v.pace=7.7;s.out=true;this.run=null;this.cooldown=3;
+      s.runOut=a.phase==="running"&&a.film&&nose(s.route,v)<s.route.finish+2?a:null;
+      v.greenRacing=!!s.runOut;v.pace=s.runOut?s.route.pace:7.7;s.out=true;this.run=null;this.cooldown=3;
     }
     step(dt,t,p,eligible,gas=false){
       this.cooldown=Math.max(0,this.cooldown-dt);
       for(const s of this.sites){
         s.flash=Math.max(0,s.flash-dt);
+        if(s.runOut&&nose(s.route,s.v)>=s.route.finish+2){s.runOut=null;s.v.greenRacing=false;s.v.pace=7.7;}
         if(s.out&&!s.v.path)s.out=false;
       }
       const a=this.run;
@@ -9515,27 +9548,39 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(!green)a.sawRed=true;
         if(green&&a.sawRed){
           a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;
-          leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;
+          a.frame=exposure(r,p,v,0);a.shots=[a.frame];a.nextPhoto=90;
+          leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;v.greenRacing=true;
           return "go";
         }
         if(nose(r,p)>a.start+.85||q.z>line+3)return "early";
         if(q.z<line-4||Math.abs(q.x-a.lane)<1.6){this.leave();return "cancel";}
         return;
       }
-      const before=a.clock;a.clock+=dt;s.clock=a.clock;
+      const before=a.clock;a.clock+=dt;if(!a.film)s.clock=a.clock;
       v.pace=Math.min(r.pace,Math.max(0,a.clock-r.delay)*r.pull);
       const now=nose(r,p),other=nose(r,v),driverCross=crossed(a.prev,now,r.finish),rivalCross=crossed(a.rivalPrev,other,r.finish);
+      const cleanCross=q.x>=-6.6&&q.x<=7.2&&Math.cos(p.yaw-r.yaw)>.65;
+      if(!a.film){
+        const frame=exposure(r,p,v,a.clock*1000);
+        const hit=Math.min(cleanCross?(driverCross??Infinity):Infinity,rivalCross??Infinity);
+        if(Number.isFinite(hit)){
+          a.film=contactPrint(a,a.frame,frame,hit);s.flash=1.7;s.clock=before+dt*hit;
+        }else if(frame[0]>=a.nextPhoto){
+          a.shots.push(frame);if(a.shots.length>16)a.shots.shift();a.nextPhoto=frame[0]+90;
+        }
+        a.frame=frame;
+      }
       if(a.react===null&&gas)a.react=before;
       if(a.opponent===null&&rivalCross!==null)a.opponent=before+dt*rivalCross;
       a.prev=now;a.rivalPrev=other;
-      if(driverCross!==null&&q.x>=-6.6&&q.x<=7.2&&Math.cos(p.yaw-r.yaw)>.65){
-        a.clock=before+dt*driverCross;s.clock=a.clock;s.flash=1.7;
+      if(driverCross!==null&&cleanCross){
+        a.clock=before+dt*driverCross;
         return a.opponent===null||a.clock<=a.opponent?"first":"second";
       }
       if(Math.abs(q.x)>12||q.z<line-8||q.z>r.finish+6||a.clock>45){this.leave();return "cancel";}
     }
   }
-  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,read,file,Club};
+  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,read,file,laneChange,Club};
 })();
 
 ;
@@ -9786,7 +9831,123 @@ window.buildBayCity = function buildBayCity(g,water) {
     paint(c,rect(-.077,.144,.154,.058),flash>0?"#9affba":"#48735b");
     c.restore();
   }
-  window.BayOnGreenArt=Object.freeze({car,carMap,finish,finishMap});
+  // The timing camera stays bolted to one spot. Fit the whole roll once so panning
+  // and changing magnification never alter the apparent finish margin while scrubbing.
+  function cameraBounds(shots,playerLength,rivalLength){
+    let back=-4,front=3.15,left=-.80,right=8.72;
+    for(const q of shots){
+      back=Math.min(back,q[1]-playerLength-1,q[4]-rivalLength-1);
+      front=Math.max(front,q[1]+playerLength+1,q[4]+rivalLength+1);
+      left=Math.min(left,q[2]-1.80,q[5]-1.80);right=Math.max(right,q[2]+1.80,q[5]+1.80);
+    }
+    return {back,front,left,right};
+  }
+  function filmFrame(shots,fraction){
+    const a=shots[0],b=shots[shots.length-1];
+    const ms=mix(a[0],b[0],unit(fraction)),end=shots.findIndex(q=>q[0]>=ms);
+    if(end<=0)return end<0?b:a;
+    const lo=shots[end-1],hi=shots[end],f=unit((ms-lo[0])/(hi[0]-lo[0]||1));
+    return lo.map((v,i)=>{
+      if(i===3||i===6){const angle=hi[i]-v;return v+Math.atan2(Math.sin(angle),Math.cos(angle))*f;}
+      return mix(v,hi[i],f);
+    });
+  }
+  const playerChip="#f9cb82",rivalChip="#a7e3dc",filmInk="#203436";
+  function chip(c,x,y,size,player){
+    const points=player?[[x-size,y-size],[x+size,y],[x-size,y+size]]:[[x,y-size],[x+size,y],[x,y+size],[x-size,y]];
+    paint(c,points,player?playerChip:rivalChip);
+  }
+  function cameraRoad(c,w,top,bottom,px,py,s,id){
+    const gull=id==="ocean",yard=id==="port";
+    const curb=py(7.1);
+    c.fillStyle=yard?"#666a63":gull?"#68716f":"#656c70";c.fillRect(0,top,w,bottom-top);
+    c.fillStyle=yard?"#ada993":gull?"#cdbb9e":"#bbaea0";c.fillRect(0,curb,w,Math.max(0,bottom-curb));
+    c.fillStyle="#e1d3af";c.fillRect(0,curb,w,Math.max(1,s*.12));
+    for(let m=-50;m<8;m+=3.5){
+      const x=px(m);if(x<0||x>w)continue;
+      paint(c,[[x,curb+2],[x+1.2,curb+2],[x+s*.48+1,bottom],[x+s*.48,bottom]],"#9b9586");
+    }
+    c.fillStyle="#a49e72";c.fillRect(0,py(-.15),w,Math.max(1,s*.07));c.fillRect(0,py(.10),w,Math.max(1,s*.07));
+    // Patches left by the island's salt air survive under the raised timing paint.
+    for(const [m,l,width] of [[-4,.65,1.2],[-18,5.82,1.71],[-25,3.35,.83],[.90,6.23,1.05]]){
+      paint(c,[[px(m),py(l)],[px(m+width*.87),py(l+.04)],[px(m+width),py(l+.12)],[px(m+.21),py(l+.16)]],"#727875");
+    }
+    // Shadows from the palms, theater awning or dock lattice identify each exposure.
+    c.save();c.globalAlpha=.19;
+    const shadow=points=>paint(c,points.map(([u,v])=>[px(u),py(v)]),"#34494a");
+    if(gull){
+      for(const trunk of [-22,-6]){
+        const crown=[trunk-2.5,5.88];shadow(stroke([trunk,8.75],crown,.12));
+        for(const [dx,dy] of [[-1.68,-.21],[-1.22,-1.13],[-.28,-1.57],[.82,-1.38],[1.39,-.50],[-1.35,.45]]){
+          const [x,y]=crown;
+          shadow([[x,y],[x+dx*.49-dy*.11,y+dy*.42+dx*.11],[x+dx,y+dy],[x+dx*.58,y+dy*.52]]);
+        }
+      }
+    }else if(yard){
+      shadow(stroke([-31,5.54],[0,6.52],.10));
+      for(let m=-30;m<0;m+=5){const a=5.54+(m+31)*.032;shadow(stroke([m,a],[m+2.5,8.13],.10));shadow(stroke([m+2.5,8.13],[m+5,a+.16],.10));}
+    }else{
+      shadow([[-29,8.6],[-28,5.95],[-16,5.95],[-16.8,8.6]]);
+      for(const x of [-27.4,-24.3,-21.4,-18.4])shadow(stroke([x,5.95],[x-.42,5.64],.15));
+    }
+    c.restore();
+    for(const p of paintBlocks)paint(c,p.map(([x,z])=>[px(z),py(7.90+x)]),"#e4ddc8");
+    c.fillStyle="#f4efda";c.fillRect(px(0)-.7,py(.21),1.4,py(7.16)-py(.21));
+    const cx=px(0),cy=py(7.91);
+    paint(c,[[cx-s*.33,cy-s*.26],[cx+s*.41,cy-s*.16],[cx+s*.06,cy+s*.38]],"#58594e");
+    c.fillStyle=teams[id].sign;c.fillRect(cx-s*.35,cy-s*.16,s*.70,Math.max(2,s*.26));
+  }
+  function film(canvas,route,record,fraction=1){
+    const ctx=canvas?.getContext("2d"),frames=record?.shots,team=teams[route?.id];
+    if(!ctx||!team||!frames?.length||!canvas.width||!canvas.height)return false;
+    const w=canvas.width,h=canvas.height;
+    // Layout works in backing pixels. At small CSS widths these larger captions
+    // remain legible without covering either car or the timing stripe.
+    const top=h*.17,bottom=h*.835,ui=Math.min(w/480,h/164);
+    const playerLength=bayCarLayout(record.kind).halfLength,rivalLength=bayCarLayout(route.kind).halfLength;
+    const bounds=cameraBounds(frames,playerLength,rivalLength);
+    const s=Math.min((w-16*ui)/(bounds.front-bounds.back),(bottom-top-4)/(bounds.right-bounds.left));
+    const spare=w-16*ui-s*(bounds.front-bounds.back);
+    const stripeX=8*ui+spare*.48-s*bounds.back;
+    const px=f=>stripeX+f*s,py=l=>(top+bottom)/2+(l-(bounds.left+bounds.right)/2)*s;
+    const q=filmFrame(frames,fraction);
+    ctx.save();ctx.fillStyle=filmInk;ctx.fillRect(0,0,w,h);
+    ctx.save();ctx.beginPath();ctx.rect(0,top,w,bottom-top);ctx.clip();
+    cameraRoad(ctx,w,top,bottom,px,py,s,route.id);
+    for(const player of [true,false]){
+      const i=player?1:4,data=player?record:route,angle=q[i+2],yaw=Math.PI/2+angle;
+      const v={kind:data.kind,color:data.color,plate:data.plate,yaw,greenId:player?undefined:route.id};
+      const x=px(q[i]),y=py(q[i+1]);
+      window.drawBayTimingCar(ctx,v,x,y,s);
+      if(!player)carMap(ctx,()=>x,()=>y,s,v);
+    }
+    // These small register marks identify the *measured* front centres. Keeping
+    // them separate from sprite edges also works for long trucks and a turned car.
+    for(const player of [true,false]){
+      const i=player?1:4,len=player?playerLength:rivalLength;
+      const x=px(q[i]+len*Math.cos(q[i+2])),y=py(q[i+1]+len*Math.sin(q[i+2]));
+      const side=q[2]<=q[5]?(player?-1:1):(player?1:-1);
+      const tagY=y+side*(s*.95+3*ui),c=player?playerChip:rivalChip;
+      ctx.fillStyle=filmInk;ctx.fillRect(x-1.2*ui,Math.min(y,tagY),2.4*ui,Math.abs(y-tagY));
+      ctx.fillStyle=c;ctx.fillRect(x-.5*ui,Math.min(y,tagY),ui,Math.abs(y-tagY));
+      chip(ctx,x,tagY,2.9*ui,player);
+    }
+    ctx.restore();
+    const margin=12*ui;
+    ctx.textBaseline="middle";ctx.textAlign="left";ctx.fillStyle="#f5edda";ctx.font="bold "+16*ui+"px system-ui";
+    ctx.fillText(route.street,margin,top*.51,w*.58);
+    ctx.textAlign="right";ctx.font="bold "+17*ui+"px monospace";ctx.fillStyle="#f8cd88";
+    ctx.fillText((q[0]/1000).toFixed(3)+" s",w-margin,top*.51);
+    const labels=[["You",record.plate,true],[route.driver,route.plate,false]];
+    ctx.textAlign="left";ctx.font="600 "+14.2*ui+"px system-ui";ctx.fillStyle="#e9ebd8";
+    for(const [idx,[name,plate,player]] of labels.entries()){
+      const x=idx*w/2+margin,y=(bottom+h)/2;
+      chip(ctx,x+4*ui,y,4.2*ui,player);
+      ctx.fillStyle="#e9ebd8";ctx.fillText(name+(plate?"  /  "+plate:""),x+16*ui,y,w/2-2*margin-14*ui);
+    }
+    ctx.restore();return true;
+  }
+  window.BayOnGreenArt=Object.freeze({car,carMap,finish,finishMap,film});
 })();
 
 ;
@@ -12586,6 +12747,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     disc(c,-3.85,3.86,.62,"#286461");c.restore();
     if(label)return {left:x-9*ui,right:x+(right+1)*ui,top:y-9*ui,bottom:y+9*ui};
   }
+  window.drawBayTimingCar=(ctx,v,x,y,s)=>{
+    carSprite(ctx,v,x,y,s,0);BayStreetCars.map(ctx,v,x,y,s,0);
+  };
   window.drawBayMap=function drawBayMap(ctx,opt) {
     const w=ctx.canvas.width,h=ctx.canvas.height,s=opt.scale;
     if(!(w>0 && h>0 && s>0)) return;
@@ -57280,7 +57444,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   iceVan.plate="NIEVE";iceVan.serviceCar=true;iceVan.campanaDriver=!save.campana.shift;
   const campana=new BayCampana.Truck(iceVan,save.campana),iceJob={name:"La Campana · Two more stops",id:"paletas",by:"Nina Rojas"};
   const green=new BayOnGreen.Club(addCar,BayStreetArt.signals);
-  for(const s of green.sites){s.v.serviceCar=true;s.clock=save.green.cards[s.route.id]?.slip?.time||0;}
+  let timingFilm=null;
+  for(const s of green.sites){const slip=save.green.cards[s.route.id]?.slip;s.v.serviceCar=true;s.clock=slip?.film?slip.film.shots.at(-1)[0]/1000:slip?.time||0;}
   if(!personalCar)restoreParking();
   locations.push(unitPin);
   locations.push(brisasSite.marker,boatYard.marker,boatYard.slipMarker,radioPin,{...BayDriving.world(BayRainWalk.racks[0],0,1.05),name:"Marlin · Umbrella stand",kind:"shelter"});
@@ -59813,10 +59978,35 @@ window.buildBayCity = function buildBayCity(g,water) {
     speak(a.s.route.driver,"You’re on. Stop next to me before the crosswalk. We leave on green.");
     lastHud=lastMap=-10;return true;
   }
+  function greenPassing(a,dt){
+    if(a.phase!=="running"||a.opponent!==null||a.clock<a.s.route.delay)return;
+    a.scanIn=(a.scanIn||0)-dt;if(a.scanIn>0)return;a.scanIn=.28;
+    const {s}=a,v=s.v,r=s.route,at=BayOnGreen.relative(r,v);
+    if(at.z>r.finish-7||at.z<9&&s.signal.call&&BayCrosswalk.lamps(s.signal,streetTime)==="red")return;
+    const look=Math.min(25,Math.max(20,v.speed*1.1)),run=Math.min(10,Math.max(5.4,v.speed*.41));
+    const obstacles=cars.concat(transit.bus,motos.all).filter(o=>o!==v&&Math.abs(o.x-v.x)<look+6&&Math.abs(o.z-v.z)<look+6);
+    const blocked=obstacles.some(o=>{
+      const pos=BayOnGreen.relative(r,o);
+      return pos.z>at.z+.1&&pos.z<at.z+look&&Math.abs(pos.x-a.lane)<2.05&&
+        (o.path?Math.cos(o.yaw-r.yaw)*o.speed:0)<Math.max(8.5,v.speed+1);
+    });
+    if(!blocked)return;
+    for(const lane of [1.0,3.3,5.68,-.85].sort((a,b)=>Math.abs(a-at.x)-Math.abs(b-at.x))){
+      if(Math.abs(lane-a.lane)<2.1)continue;
+      const slope=(lane-at.x)/run,heading=r.yaw+Math.atan(slope);
+      let clear=true;
+      for(const d of [1.2,2.5,4,run,run+3.5,look]){
+        const f=Math.min(1,d/run),p=BayOnGreen.roadPoint(r,at.x+(lane-at.x)*f,at.z+d);
+        if(!spaceToSwerve(v,p.x,p.z,f<1?heading:r.yaw,Math.min(.48,d/Math.max(7,v.speed)),true)){clear=false;break;}
+      }
+      if(clear&&BayOnGreen.laneChange(a,lane,run)){a.scanIn=.58;return;}
+    }
+  }
   function greenStep(dt){
     const old=green.run,event=green.step(dt,streetTime,car,greenFree(),held("KeyW","ArrowUp")),a=green.run;
+    for(const s of green.sites)if(s.runOut)greenPassing(s.runOut,dt);
     if(old&&old!==a)old.s.v.greenGesture=0;
-    if(a)a.s.v.greenGesture=a.phase==="running"?0:clamp(a.age*3,0,1)*(.79+.19*Math.cos(a.age*5.2));
+    if(a){a.s.v.greenGesture=a.phase==="running"?0:clamp(a.age*3,0,1)*(.79+.19*Math.cos(a.age*5.2));greenPassing(a,dt);}
     if(!event)return;
     lastHud=lastMap=-10;
     if(event==="cancel"){if(old?.accepted)note("On Green","Run called off. "+old.s.route.driver+" is heading around the block.",2.8);return;}
@@ -59828,7 +60018,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(event==="armed"){note("On Green · "+r.driver,"Hold here. Watch the traffic light.",2.3);return;}
     if(event==="go"){note("Green","First to the "+r.landmark+".",1.35);return;}
     const winner=event==="first",early=event==="early";
-    const slip={token:a.token,result:event,time:early?null:a.clock,reaction:early?null:a.react,car:formatVehicle(car),plate:BayStreetCars.plateFor(car)};
+    const slip={token:a.token,result:event,time:early?null:a.clock,reaction:early?null:a.react,car:formatVehicle(car),plate:BayStreetCars.plateFor(car),film:a.film||null};
     syncProgress(readSave());
     if(BayOnGreen.file(save.green,r.id,slip)){if(winner){save.wallet+=r.pay;save.paid++;}persist();}
     if(early)a.s.clock=0;
@@ -59883,6 +60073,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       line("span","slip-car",slip.car+"  /  "+slip.plate);
       line("span","slip-launch",slip.reaction==null?"No launch time":"Reaction "+slip.reaction.toFixed(2)+" s");
       line("span","slip-signed","Timed against "+r.driver);b.append(paper);
+      if(slip.film)b.append(makeButton("Finish camera","The last second at the timing line.","View replay",()=>openPanel("green-film-"+r.id)));
+      if(c.bestSlip?.film)b.append(makeButton("Personal best · "+c.best.toFixed(2)+" s",c.bestSlip.car+" · "+c.bestSlip.plate,"View best",()=>openPanel("green-best-"+r.id)));
       b.append(makeButton(r.street+" · "+r.landmark,c.wins+" wins in "+c.runs+" starts"+(c.best?" · Best "+raceWatch(c.best):"")+
         (c.reaction!==null?" · Best launch "+c.reaction.toFixed(2)+" s":""),"Mark light",()=>clockPin({...r.grid,name:r.street+" · On Green start",kind:"green-start"})));
     }
@@ -59890,6 +60082,31 @@ window.buildBayCity = function buildBayCity(g,water) {
   function nearbyClock(){
     if(!onStreetFeet()||active||heat||unit.eye||afternoon.active||bell.pass||luggage.hand(save.luggage))return null;
     return green.sites.find(s=>dist(hero,s.route.post)<2.6);
+  }
+  function showTimingFilm(b,r,best){
+    const card=save.green.cards[r.id],slip=best?card?.bestSlip:card?.slip,f=slip?.film;if(!f)return;
+    const canvas=document.createElement("canvas");canvas.width=664;canvas.height=184;canvas.className="timing-film";
+    canvas.setAttribute("role","img");canvas.setAttribute("aria-label",r.street+" finish camera · "+slip.plate+" against "+r.plate);
+    const controls=document.createElement("div");controls.className="timing-film-controls";
+    const play=document.createElement("button"),scrub=document.createElement("input");play.textContent="Replay";
+    scrub.type="range";scrub.min="0";scrub.max="1000";scrub.step="1";scrub.value="1000";scrub.setAttribute("aria-label","Finish camera position");
+    const film=timingFilm={r,f,canvas,play,scrub,at:1,playing:false,previous:0};controls.append(play,scrub);b.append(canvas,controls);
+    play.addEventListener("click",()=>{
+      film.playing=!film.playing;film.previous=performance.now();if(film.playing&&film.at>=1)film.at=0;
+      play.textContent=film.playing?"Pause":"Play";drawTimingFilm(film.previous);
+    });
+    scrub.addEventListener("input",()=>{film.playing=false;film.at=Number(scrub.value)/1000;play.textContent=film.at>=1?"Replay":"Play";drawTimingFilm(performance.now());});
+    b.append(makeButton("Timing slips",slip.car+" · "+slip.plate,"Back",()=>openPanel("green-slips")));
+    drawTimingFilm(performance.now());
+  }
+  function drawTimingFilm(now){
+    const v=timingFilm;if(!v)return;
+    if(v.playing){
+      const shots=v.f.shots;
+      v.at=Math.min(1,v.at+Math.max(0,now-v.previous)*.40/Math.max(1,shots.at(-1)[0]-shots[0][0]));
+      if(v.at===1){v.playing=false;v.play.textContent="Replay";}
+    }
+    v.previous=now;v.scrub.value=String(Math.round(v.at*1000));BayOnGreenArt.film(v.canvas,v.r,v.f,v.at);
   }
   function clockCard(b,s){
     const r=s.route,c=save.green.cards[r.id];
@@ -62179,7 +62396,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       let maximum=stop?Math.min(4.6,Math.max(.36,run*.94)):evading?(response.offset?v.pace*.52:0):v.pace;
       if(yielding)maximum=Math.min(maximum,yielding.max);
       if(v.finiteRoute&&v.corner===v.path.length-1)maximum=Math.min(maximum,Math.max(.5,remaining*1.3));
-      if(v.indicator)maximum=Math.min(maximum,5.7);
+      if(v.indicator)maximum=Math.min(maximum,v.greenRacing?15:5.7);
       const pace=v.wait>0?0:Math.min(maximum,clearance*1.24);
       v.speed=ease(v.speed,pace,pace<v.speed?(evading?6.2:4.1):1.7,dt);
       let step=Math.min(remaining,clearance,run,v.speed*dt);
@@ -64366,6 +64583,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!$("speech").hidden&&elapsed>speechTill)$("speech").hidden=true;
   }
   function closePanel(){
+    timingFilm=null;
     wireView=null;
     skateProof=null;
     if(panel==="field-proof"&&active?.field?.phase==="review"){active.field.phase="return";cameraSnap();}
@@ -64653,6 +64871,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function airLedgerButton(){return makeButton("Pelican Air · Signed mail","Delivery slips, recorded routes and water landings.","Open ledger",()=>openPanel("air-book"));}
   function openPanel(next,redraw=false){
+    timingFilm=null;
     if(next!=="curb-wire")wireView=null;
     if(next==="radio-desk"&&!atRadioDesk()||next==="radio-sleeves"&&!save.airwaves.met)return;
     if(afternoon.photo)clearFoto();
@@ -64742,6 +64961,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       title="Left luggage";kicker="Marlin Motor Court  /  Claim checks";bellPanel(b);
     }else if(next==="claim-stubs"){
       title="Your claim stubs";kicker="Marlin Motor Court  /  Cart "+(save.luggage.round+1);claimStubs(b);
+    }else if((next.startsWith("green-film-")||next.startsWith("green-best-"))&&BayOnGreen.route(next.slice(11))){
+      const r=BayOnGreen.route(next.slice(11));title="Finish camera";kicker=r.street+"  /  "+r.driver;showTimingFilm(b,r,next.startsWith("green-best-"));
     }else if(next==="green-slips"){
       title="Timing slips";kicker="On Green  /  Local runs";greenSlips(b);
     }else if(next==="green-clock"&&nearbyClock()){
@@ -65390,6 +65611,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(elapsed-lastHud>.10){hud();lastHud=elapsed;}if(elapsed-lastMap>.09){drawMini();lastMap=elapsed;}
     }
     if(wireView&&panel==="curb-wire")paintWire(now);
+    if(timingFilm?.playing)drawTimingFilm(now);
     if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;
     tuneStreetResolution(raw,play&&!panel&&!isTop());
     renderWorld(dt,streetTime);

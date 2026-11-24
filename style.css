@@ -400,3 +400,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .green-slip .slip-time{grid-column:2;grid-row:2 / 4;align-self:center;font:700 clamp(1.15rem,4.1vw,1.8rem)/1 ui-monospace,monospace;white-space:nowrap}
 .green-slip .slip-car{grid-column:1}.green-slip .slip-launch{text-align:right}
 .green-slip .slip-signed{grid-column:1 / -1;border-top:1px dotted currentColor;margin-top:.28rem;padding-top:.32rem;font:italic .86rem Georgia,serif}
+.timing-film{display:block;width:100%;height:auto;margin:.5rem 0 0;background:#293b3a;border:1px solid #40514b}
+.timing-film-controls{display:flex;gap:1rem;align-items:center;padding:.6rem 0 .9rem}
+.timing-film-controls button{min-width:5rem;padding:.35rem .7rem;border:1px solid #3d6153;background:#294d40;color:#f5ecd6;font:700 .85rem system-ui;cursor:pointer}
+.timing-film-controls input{flex:1;min-width:0;accent-color:#316754}
