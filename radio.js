@@ -617,6 +617,13 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name.startsWith('pool-')){
+      const near=Math.max(0,1-(source.distance||0)/29),gain=near*Math.min(.12,.035+.025*(source.force||0));
+      if(name==='pool-pocket'){tone(effects,142,at,.12,gain,'triangle',68,.002);waterNoise(effects,at+.022,.062,gain*.60,780,280);}
+      else if(name==='pool-rail'){tone(effects,240,at,.048,gain*.72,'triangle',122,.002);}
+      else{tone(effects,name==='pool-cue'?770:1130,at,.037,gain,'sine',477,.001);waterNoise(effects,at,.019,gain*.53,3600,1250);}
+      return;
+    }
     if (name.startsWith('skate-')) {
       const rolling = name === 'skate-lock', rough = name === 'skate-bail', landing = name === 'skate-land';
       const length = rolling ? .28 : rough ? .23 : .07;

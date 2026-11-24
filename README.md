@@ -6,6 +6,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.
 
+Walk north from the Marlin to **Palm Diner** on Ocean Drive. Find Luz by the green felt and press **F** for a short **Last three** rack, full **house eight-ball**, or practice. Aim with the mouse or left/right arrows. Up/down sets power. Hold **Shift** for fine adjustments. Tap **Space** to use that power, or hold and release for a timed stroke. Call the eight’s pocket with **1–6** or **Q**, switch views with **V**, and use **E** to step away. You can resume a scored rack from its last settled shot.
+
+Read the chalk card inside to call **Val** at Cine Luna or **Boone** at Port Sol. Pull alongside in your own car, let them take the passenger seat, then drive to the Palm. Your first short win against each regular pays **$25** and your first full win pays **$85**. Beat all three over full racks for Luz’s honey-maple cue and a **$100** bonus.
+
 Find **Gull Street Motors** on Biscayne, behind Cine Luna. Walk up to Kitty Vega’s counter or either window sticker and press **F**. For **A Second Opinion**, take the keys from Kitty, get in with **E**, and drive with Malik Bell. Follow his road sheet, stop at the chalk and press **F**. Bring the car back to its display stripe, step out and hand Kitty the keys to get paid.
 
 The long-hood **Cayo 72** and mid-engine **Marea S** have different steering, weight and gearing. A signed test earns a first-purchase credit on that model. A purchased car keeps its own paint, Portside upgrades, damage, mileage and parking spot. Its numbered key tag appears on your phone under **Gull Street Motors**. Roll into your bay and press **F** to file the parking spot. A car carrying the Marlin’s Room 14 permit can take a free bay too. To sell a dealership car, return it to its display stripe and visit Kitty.

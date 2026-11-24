@@ -94,7 +94,7 @@
   }
   function closestSpeaker(people,hero){
     let found=null,best=3.65;
-    for(const p of [shopkeeper,...people]){if(!p.name)continue;const d=Math.hypot(hero.x-p.x,hero.z-p.z);if(d<best){best=d;found=p;}}
+    for(const p of [shopkeeper,...people]){if(!p.name||p.palmManaged)continue;const d=Math.hypot(hero.x-p.x,hero.z-p.z);if(d<best){best=d;found=p;}}
     return found;
   }
   window.BayLocals={makeWalkers,animatePeople,closestSpeaker};

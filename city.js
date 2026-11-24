@@ -130,13 +130,22 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
     }
   }
-  function building(x,z,w,d,h,dir,style,body,trim,name="") {
+  function building(x,z,w,d,h,dir,style,body,trim,name="",openGround=false) {
     const nx=dir[0], nz=dir[1];
     const f=facade(x,z,nx,nz), front=d/2;
     const sx=nx?d:w, sz=nx?w:d;
-    block(x,z,sx+.35,sz+.35,h+(style==="house"?2.43:.70));
-    f.box(0,h/2+.15,0,w,h,d,body);
-    f.box(0,.43,0,w+.26,.6,d+.25,trim);
+    if(openGround){
+      // The Palm has an occupied ground floor. The original upper facade still casts
+      // shadows onto the street, while the roof is a separate mesh for the table camera.
+      for(const side of [-1,1]){
+        f.box(0,(h+3.48)/2+.075,side*(d/2-.075),w,h-3.48+.15,.15,body);
+        f.box(side*(w/2-.075),(h+3.48)/2+.075,0,.15,h-3.48+.15,d-.30,body);
+      }
+    }else{
+      block(x,z,sx+.35,sz+.35,h+(style==="house"?2.43:.70));
+      f.box(0,h/2+.15,0,w,h,d,body);
+      f.box(0,.43,0,w+.26,.6,d+.25,trim);
+    }
     if(style === "house") {
       const y=h+.18, ridge=y+2.25, roof=pick(["#bd7567","#9b7c6d","#6d8e8e"]);
       const a=-w/2-.56,b=w/2+.56,k=d/2+.55;
@@ -157,8 +166,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       f.box(w*.30,h+1.28,-d*.19,.68,1.75,.78,"#b89582");
       return;
     }
-    f.box(0,h+.3,0,w+.52,.52,d+.52,trim);
-    f.box(0,h+.59,0,w-.7,.16,d-.7,"#849095");
+    if(!openGround){
+      f.box(0,h+.3,0,w+.52,.52,d+.52,trim);
+      f.box(0,h+.59,0,w-.7,.16,d-.7,"#849095");
+    }
     if(style==="shed"){
       const bays=Math.max(2,Math.floor(w/8));
       for(let i=0;i<bays;i++){
@@ -195,9 +206,16 @@ window.buildBayCity = function buildBayCity(g,water) {
       const side = facade(x,z,-nz,nx);
       windows(side,d,h,w/2,style==="deco"?"side":style);
       if(style==="deco"){
-        for(const y of [h-.55,h-1.26]) f.box(0,y,0,w+.32,.22,d+.32,trim);
-        f.box(w*.27,h+1.25,-d*.13,w*.32,2.0,d*.54,body);
-        f.box(w*.27,h+2.3,-d*.13,w*.34,.27,d*.56,trim);
+        for(const y of [h-.55,h-1.26]){
+          if(openGround)for(const side of [-1,1]){
+            f.box(0,y,side*d/2,w+.32,.22,.32,trim);
+            f.box(side*w/2,y,0,.32,.22,d,trim);
+          }else f.box(0,y,0,w+.32,.22,d+.32,trim);
+        }
+        if(!openGround){
+          f.box(w*.27,h+1.25,-d*.13,w*.32,2.0,d*.54,body);
+          f.box(w*.27,h+2.3,-d*.13,w*.34,.27,d*.56,trim);
+        }
         f.camera(w*.27,-d*.13,w*.34,d*.56,h+.65,h+2.44);
       } else {
         f.box(-w*.24,h+1,-d*.19,w*.22,1.5,d*.28,"#859094");
@@ -214,10 +232,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
     }
     // A street-level shop front and recessed entry.
-    f.face(0,1.65,front+.04,w-.8,2.7,deepGlass);
-    for(let u=-w/2+1.4;u<=w/2-1.2;u+=3.65) f.face(u,1.7,front+.055,.17,2.8,trim);
-    f.face(-w*.17,1.45,front+.072,1.6,2.65,"#2b4b5c");
-    f.face(-w*.17,1.67,front+.08,.84,1.50,paleGlass);
+    if(!openGround){
+      f.face(0,1.65,front+.04,w-.8,2.7,deepGlass);
+      for(let u=-w/2+1.4;u<=w/2-1.2;u+=3.65) f.face(u,1.7,front+.055,.17,2.8,trim);
+      f.face(-w*.17,1.45,front+.072,1.6,2.65,"#2b4b5c");
+      f.face(-w*.17,1.67,front+.08,.84,1.50,paleGlass);
+    }
     if(name) {
       const ww = Math.min(w-.6,Math.max(9,name.length*1.7));
       f.box(0,4.02,front+.49,ww,1.72,1.04,trim);
@@ -533,23 +553,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     rect(x,z,.69,1.65,.136,"#dfaf96");rect(x,z-.45,.68,.34,.145,"#f1d7ae");
   }
   roadsideMarlin();
-  building(117,30,35,25,8.2,E,"deco","#eec9a6","#b6c7b1","PALM DINER");
+  building(117,30,35,25,8.2,E,"deco","#eec9a6","#b6c7b1","PALM DINER",true);
   const diner=facade(117,30,1,0);
-  diner.face(0,1.59,12.59,34.59,2.63,"#669795");
-  diner.face(0,.68,12.605,34.59,.42,"#dc887f");
-  for(let i=0;i<8;i++){
-    const u=-14.16+i*4.05;
-    diner.face(u,1.88,12.62,3.75,1.79,"#3b6471");
-    diner.face(u,2.51,12.636,3.70,.24,"#a4c4b7");
-    // Upholstered booths and their pale formica table behind the glass.
-    diner.face(u-.75,1.41,12.645,.95,.50,i%3===0?"#d48d80":"#b97670");
-    diner.face(u+.78,1.41,12.646,.76,.46,"#b7776e");
-    diner.face(u+.06,1.69,12.654,1.20,.083,"#fed2a1");
-    diner.face(u+.02,1.9,12.664,.12,.30,"#d99175");
-    diner.face(u+1.92,1.86,12.65,.11,1.87,"#f4ceaa");
-  }
-  diner.face(-.15,1.56,12.681,1.54,2.82,"#416969");
-  diner.face(-.15,1.88,12.69,1.19,1.68,"#a4c0ad");
+  // Keep the street facade in the baked city mesh. The glazing now looks into the booths.
+  window.BayPalmDiner?.streetShell(g);
   for(const u of [-11.6,11.3]) stripeCanopy(diner,u,3.23,12.68,11.1,1.86,["#d37770","#eac5a1","#d78374","#f2d4ad"],12);
   diner.box(0,6.75,12.63,34.5,.43,.53,"#92bbb0");
   diner.box(0,7.27,12.67,33,.15,.42,"#df8b80");
