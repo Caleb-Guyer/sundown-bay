@@ -235,22 +235,22 @@
     g.vertices.push(...captainForm(pilot).chunks.body);
     g.quad([-.157,.493,.037],[-.122,.500,.054],[.103,.065,.129],[.064,.061,.132],"#40554f");
   }
-  function upperArm(g){
-    g.pole([0,0,0],[0,0,.201],.073,colors.pilot[1],8);
-    g.pole([0,0,.180],[0,0,.203],.074,"#6b8890",8);g.pole([0,0,.193],[0,0,upperLength],.046,colors.pilot[0],8);
+  function upperArm(g,palette=colors.pilot,cuff="#6b8890"){
+    g.pole([0,0,0],[0,0,.201],.073,palette[1],8);
+    g.pole([0,0,.180],[0,0,.203],.074,cuff,8);g.pole([0,0,.193],[0,0,upperLength],.046,palette[0],8);
   }
-  function forearm(g){
-    g.pole([0,0,-.015],[0,0,.218],.043,colors.pilot[0],8);
-    g.pole([0,0,.179],[0,0,.256],.037,colors.pilot[0],7);
-    g.pole([0,0,.250],[0,0,foreLength-.011],.041,colors.pilot[0],8);
-    g.box(0,-.014,foreLength,.067,.033,.031,colors.pilot[0]);
-    g.box(.001,.015,foreLength-.003,.057,.026,.030,"#b68460");
+  function forearm(g,skin=colors.pilot[0],knuckles="#b68460"){
+    g.pole([0,0,-.015],[0,0,.218],.043,skin,8);
+    g.pole([0,0,.179],[0,0,.256],.037,skin,7);
+    g.pole([0,0,.250],[0,0,foreLength-.011],.041,skin,8);
+    g.box(0,-.014,foreLength,.067,.033,.031,skin);
+    g.box(.001,.015,foreLength-.003,.057,.026,.030,knuckles);
   }
   function directed(d){
     const n=Math.hypot(...d),f=d.map(k=>k/n),h=Math.hypot(f[0],f[2]),right=h?[f[2]/h,0,-f[0]/h]:[1,0,0];
     return [right,[f[1]*right[2],f[2]*right[0]-f[0]*right[2],-f[1]*right[0]],f];
   }
-  function workingArms(list,p,f,seat,control,wheel){
+  function workingArms(list,p,f,seat,control,wheel,sleeve="pilot-sleeve",arm="pilot-forearm"){
     const shoulders=captainForm(true).shoulders;
     for(const side of [-1,1]){
       const a=shoulders[side<0?0:1].map((n,i)=>n+seat[i]),grip=vector(wheel,[side*.125,.050,-.019]).map((n,i)=>n+control[i]);
@@ -258,8 +258,8 @@
       const into=[side*.55,-.90,-.32],dot=into.reduce((acc,n,i)=>acc+n*u[i],0),out=into.map((n,i)=>n-dot*u[i]);
       const along=(upperLength**2-foreLength**2+d*d)/(2*d),across=Math.sqrt(Math.max(0,upperLength**2-along**2))/(Math.hypot(...out)||1);
       const k=a.map((n,i)=>n+along*u[i]+across*out[i]);
-      part(list,"pilot-sleeve",p,f,a,directed(k.map((n,i)=>n-a[i])));
-      part(list,"pilot-forearm",p,f,k,directed(grip.map((n,i)=>n-k[i])));
+      part(list,sleeve,p,f,a,directed(k.map((n,i)=>n-a[i])));
+      part(list,arm,p,f,k,directed(grip.map((n,i)=>n-k[i])));
     }
   }
   function readings(p){
@@ -279,11 +279,16 @@
     for(const s of [-1,1])part(list,"yoke",p,f,wheelAt(s),wheel);
     part(list,"throttle",p,f,[-.018,1.628,.910],frame(0,mix(-.60,.60,v.throttle),0));
     if(opts.companion!==false){
-      const left=isGuest(role),form=captainForm(left),seat=[(left?-1:1)*layout.seatX,layout.seatTop,armSeatZ];
-      part(list,left?"captain-at-stick":"captain-on-right",p,f,seat);
-      const scan=.10*Math.sin(t*.61)+.046*Math.sin(t*1.09),turn=left?scan+.24*(p.steer||0):scan-.11;
+      const left=isGuest(role),flying=opts.control?opts.control==="nani":left;
+      const form=captainForm(flying),side=left?-1:1,seat=[side*layout.seatX,layout.seatTop,armSeatZ];
+      part(list,flying?"captain-at-stick":"captain-on-right",p,f,seat);
+      const scan=.10*Math.sin(t*.61)+.046*Math.sin(t*1.09),turn=flying?scan+.24*(p.steer||0):scan-.11;
       part(list,"captain-head",p,f,form.head.map((n,i)=>n+seat[i]),frame(turn,.014*Math.cos(t*.71)-.018*(p.elevator||0),0));
-      if(left)workingArms(list,p,f,seat,wheelAt(-1),wheel);
+      if(flying)workingArms(list,p,f,seat,wheelAt(side),wheel);
+    }
+    if(opts.control==="player"){
+      const side=isGuest(role)?1:-1,kit=["sol","mercado"].includes(opts.kit)?opts.kit:"street";
+      workingArms(list,p,f,[side*layout.seatX,layout.seatTop,armSeatZ],wheelAt(side),wheel,"sleeve-"+kit,"player-forearm");
     }
     if(opts.mail)part(list,mailId(opts.mail===true?"dock":opts.mail),p,f,[.21,1.283,-.588],frame(-.28,0,0));
   }
@@ -346,6 +351,10 @@
     model("airmail/captain-at-stick",g=>seatedCaptain(g,true));model("airmail/captain-on-right",g=>seatedCaptain(g,false));
     model("airmail/captain-head",g=>g.vertices.push(...captainForm(true).chunks.head));
     model("airmail/pilot-sleeve",upperArm);model("airmail/pilot-forearm",forearm);
+    const skin="#af7353";for(const [kit,cloth] of Object.entries(window.BayCourtPlayers?.kitColors||{street:"#30a292",sol:"#509b85",mercado:"#9d4e55"})){
+      model("airmail/sleeve-"+kit,g=>upperArm(g,[skin,cloth],cloth));
+    }
+    model("airmail/player-forearm",g=>forearm(g,skin,"#b98160"));
     model("airmail/dock-pouch",g=>pouch(g,false));model("airmail/key-pouch",g=>pouch(g,true));
     model("airmail/envelope",envelope);model("airmail/stamp",rubberStamp);model("airmail/log",dispatchBook);model("airmail/pencil",pencil);
   }

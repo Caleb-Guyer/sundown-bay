@@ -3977,7 +3977,7 @@
     if(active?.field&&!listening()&&!swim&&!car&&!skiff&&!transfer&&!deckStep&&cutArtReady)
       BayCutWildlife.carryRecorder(visible,hero,hero.y+motion.lift,t);
     drawCourse(see);
-    if(airCockpit())BayAirmailArt.cockpit(visible,airLine.plane,t,airLine.seatRole(),{companion:true,mail:save.airmail.bag&&BayAirPost.tagFor(save.airmail.bag)});
+    if(airCockpit())BayAirmailArt.cockpit(visible,airLine.plane,t,airLine.seatRole(),{companion:true,control:airLine.player.control,kit:save.courts.equipped,mail:save.airmail.bag&&BayAirPost.tagFor(save.airmail.bag)});
     for(const a of visible)view.draw(...a);
     if(washArtReady&&see(wash.site.bay,65))BayPalmaWash.water(view,wash,t);
     if(insideSeat()){
