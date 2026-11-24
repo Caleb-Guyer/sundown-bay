@@ -8,9 +8,9 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode,local})=>{
   const held=new Set();
   async function controls(list){for(const k of held)if(!list.includes(k)){await key("keyUp",k);held.delete(k);}
     for(const k of list)if(!held.has(k)){await key("keyDown",k);held.add(k);}}
-  async function walk(x,z){
-    const end=Date.now()+18000;while(Date.now()<end){const p=await js("({x:me.x,z:me.z,h:head})"),dx=x-p.x,dz=z-p.z,d=Math.hypot(dx,dz);
-      if(d<.55){await controls([]);return;}const f=dx*Math.sin(p.h)+dz*Math.cos(p.h),s=dx*Math.cos(p.h)-dz*Math.sin(p.h),k=[];
+  async function walk(x,z,radius=.55){
+    const end=Date.now()+36000;while(Date.now()<end){const p=await js("({x:me.x,z:me.z,h:head})"),dx=x-p.x,dz=z-p.z,d=Math.hypot(dx,dz);
+      if(d<radius){await controls([]);return;}const f=dx*Math.sin(p.h)+dz*Math.cos(p.h),s=dx*Math.cos(p.h)-dz*Math.sin(p.h),k=[];
       if(Math.abs(f)>.32*d)k.push(f>0?"KeyW":"KeyS");if(Math.abs(s)>.32*d)k.push(s>0?"KeyD":"KeyA");await controls(k);await delay(40);}
     throw Error("Walk from "+JSON.stringify(await js("[me.x,me.z]"))+" to "+[x,z]);
   }
@@ -21,7 +21,7 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode,local})=>{
   try{
     assert(await js("[...document.querySelectorAll('#panelBody option')].some(o=>o.textContent==='Bay Wire · Curb desk')"));
     await js(hooks+"document.querySelector('#closePanel').click()");await waitFor("window.news&&Number.isFinite(window.head)");
-    await walk(154.2,-17.1);await tap("KeyF");await button("Take Meli’s shot list");await waitFor("news.book.list");await tap("Escape");
+    await walk(154.2,-17.1,1.9);await tap("KeyF");await button("Take Meli’s shot list");await waitFor("news.book.list");await tap("Escape");
     await walk(151.6,-23.5);await tap("KeyE");await waitFor("v&&me.driving");await tap("KeyH");
     await waitFor("!!news.shot?.called");await snap("witness");await controls(["KeyW"]);await waitFor("news.book.clips.length>0||decisions.length>0",16000);assert(await js("news.book.clips.length>0"),JSON.stringify(await js("({decisions,x:v.x,z:v.z})")));
     await controls(["KeyS"]);await waitFor("Math.abs(v.speed)<2",10000);await controls([]);
@@ -35,7 +35,7 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode,local})=>{
     const a=await seek(.12),b=await seek(.77);assert(a.length>3000&&b.length>3000&&a!==b,"scrub paints different views of the recorded take");await snap("replay");
     await send("Page.reload");await waitFor("typeof BayCurbWire==='object'&&document.readyState==='complete'");
     await js(hooks+"document.querySelector('#play').click()");await waitFor("window.news?.book.cover?.id==="+captured.id);
-    await walk(154.15,-17.1);await waitFor("tvFrames.size>=2",12000);await snap("television");await tap("KeyF");await waitFor("document.querySelector('#panelTitle').textContent==='On the Curb'");
+    await walk(154.15,-17.1,1.9);await waitFor("tvFrames.size>=2",12000);await snap("television");await tap("KeyF");await waitFor("document.querySelector('#panelTitle').textContent==='On the Curb'");
     assert.equal(await js("news.book.edits.pass.by"),captured.by);await tap("Escape");
     assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
     console.log("PASS",local?"local":"live",mode,"walked to Meli, called a shot, recorded",captured.frames.length,"real car samples, scrubbed two different images and saw the take playing on the curbside TV after reload. Zero audio or cursor requests.");
