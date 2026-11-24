@@ -877,7 +877,7 @@
       const site=BayLeftLuggage.site;
       if(visible(px(site.x),py(site.z),3*s))BayLeftLuggageArt.map(ctx,px,py,s,site,opt.luggage.rack);
       for(const t of BayLeftLuggage.tags)if(visible(px(t.x),py(t.z),3*s)){
-        BayLeftLuggageArt.receiverMap(ctx,px,py,s,BayLeftLuggage.foot(t),t.id);
+        BayLeftLuggageArt.receiverMap(ctx,px,py,s,BayLeftLuggage.placard(t),t.id);
       }
     }
     if(street&&opt.curbWire&&visible(px(BayCurbWire.desk.x),py(BayCurbWire.desk.z),4*s)){

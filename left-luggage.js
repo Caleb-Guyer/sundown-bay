@@ -16,6 +16,7 @@
   const claim=(id)=>tags.find(t=>t.id===id);
   const marker=t=>({x:t.x+.80*Math.sin(t.yaw),z:t.z+.80*Math.cos(t.yaw),name:t.person+" · "+t.place,kind:"claim"});
   const foot=t=>({...marker(t),yaw:t.yaw});
+  const placard=t=>({x:t.x+.65*Math.cos(t.yaw)+.20*Math.sin(t.yaw),z:t.z-.65*Math.sin(t.yaw)+.20*Math.cos(t.yaw),yaw:t.yaw});
   const integer=n=>Number.isSafeInteger(n)&&n>=0?n:0;
   const carKey=k=>typeof k==="string"&&/^(coupe|cab)@-?\d{1,3}\.\d\d,-?\d{1,3}\.\d\d$/.test(k);
   function read(raw){
@@ -52,6 +53,6 @@
     b.bags[id]={...to};if(s.at==="boot"&&!slots(b,s.car).some(Boolean))delete b.parks[s.car];
     b.rev++;return true;
   }
-  window.BayLeftLuggage={site,counter,porter,tags,claim,marker,foot,ids,read,hand,slots,rack,complete,change,park,
+  window.BayLeftLuggage={site,counter,porter,tags,claim,marker,foot,placard,ids,read,hand,slots,rack,complete,change,park,
     block:{...site,w:.744,d:1.292,bottom:0,top:1.79,streetProp:true}};
 })();

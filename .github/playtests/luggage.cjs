@@ -6,21 +6,33 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     for(const k of next)if(!held.has(k)){await key("keyDown",k);held.add(k);}
   }
   const observe=`
-    window.head=0;window.rendered=new Set();window.bagDrawn=false;window.bootDrawn=false;
+    window.head=0;window.bagDrawn=false;window.bootDrawn=false;window.framed=false;
     const map=window.drawBayMap;window.drawBayMap=function(c,o){
       if(o.mode==="radar"&&o.luggage){
         window.me=o.player;window.bell=o.luggage;window.ride=o.streetCar;
         window.auto=ride||o.cars.find(v=>v.garageKey==="coupe@149.00,-22.80");
       }
+      if(o.mode==="street"&&o.luggage?.amount>.96&&c.canvas.height/o.scale<7)framed=true;
       return map(c,o);
     };
     const update=BayCamera.prototype.update;BayCamera.prototype.update=function(...args){
       const result=update.apply(this,args);window.head=this.yaw;return result;
     };
     const draw=BayView.prototype.draw;BayView.prototype.draw=function(name,...a){
-      if(!this.casting&&typeof name==="string"){if(name==="marlin-case-band")bagDrawn=true;
+      if(!this.casting&&typeof name==="string"){
+        if(name==="marlin-case-band"&&window.auto&&window.bell?.items?.[1]==="band"){
+          const s=BayLuggageBootArt.slots(auto.kind)[1],p=BayDriving.world(auto,s.x,s.z);
+          if(Math.hypot(a[0]-p.x,a[2]-p.z)<.15)bagDrawn=true;
+        }
         if(name.endsWith("/trunk")&&a[4]>.95)bootDrawn=true;}
       return draw.call(this,name,...a);
+    };
+    const begin=BayView.prototype.begin;BayView.prototype.begin=function(eye,...args){
+      if(window.bell?.amount>.96&&window.auto){
+        const p=BayDriving.world(auto,0,-bayCarLayout(auto.kind).halfLength);
+        if(eye.y>1.3&&eye.y<3.6&&Math.hypot(eye.x-p.x,eye.z-p.z)<3.6)framed=true;
+      }
+      return begin.call(this,eye,...args);
     };
     const mapCase=BayLuggageBootArt.map;BayLuggageBootArt.map=function(...a){
       if(a[5]>.9){bootDrawn=true;if(a[6]?.includes("band"))bagDrawn=true;}return mapCase(...a);
@@ -52,8 +64,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
   try{
     await hook();await walk("BayLeftLuggage.counter",.65);await tap("KeyF");await waitFor("!document.querySelector('#panel').hidden&&document.querySelector('#panelTitle').innerText==='Left luggage'");
     await snap("claim");await tap("Digit1");await waitFor(at("hand"));await walk(tail);
-    await tap("KeyK");await waitFor("bell.amount>.96");await tap("Digit2");await waitFor(at("boot")+"&&bell.items[1]==='band'&&bootDrawn&&bagDrawn",30000);
-    await snap("boot");await tap("KeyK");await walk("BayDriving.world(auto,-1.75,-bayCarLayout(auto.kind).halfLength-.68)");
+    await tap("KeyK");await waitFor("bell.amount>.96");await tap("Digit2");await waitFor(at("boot")+"&&bell.items[1]==='band'&&bootDrawn&&bagDrawn&&framed",30000);
+    await snap("boot");await tap("KeyK");await tap("KeyJ");
+    await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('Marlin claim stubs')).click()");
+    assert((await js("document.querySelector('#panel').innerText")).includes("Trunk slot 2"));
+    await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('Mark guest')).click()");
+    await walk("BayDriving.world(auto,-1.75,-bayCarLayout(auto.kind).halfLength-.68)");
     await walk("BayDriving.world(auto,-1.65,-.15)");await tap("KeyE");await waitFor("!!window.ride",35000);
     const start=await js("ride.z");await controls(["KeyW"]);await waitFor("ride.z>"+(start+2.2),25000);
     await controls(["Space"]);await waitFor("Math.abs(ride.speed)<1.8",20000);await controls([]);await tap("KeyE");await waitFor("!ride&&bell.book.parks[auto.garageKey]?.z>"+(start+1.75),35000);
