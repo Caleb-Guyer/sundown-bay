@@ -561,7 +561,9 @@
 
     const gear = Math.min(3, Math.floor(speed / 10));
     const revs = boating ? 54 + 2.8 * speed + 1.4 * Math.sin(worldTime * 5.8) : 43 + 11 * gear + Math.min(11, speed - gear * 10) * 3.6;
-    mixBed('engine', effects, now, driving ? 0.060 + velocity * 0.038 : 0, 185 + 410 * velocity, revs);
+    const moto=state.motorcycle, scooter=moto?.kind==='paloma', rpm=moto?.rpm||0;
+    mixBed('engine', effects, now, driving ? (moto ? .035+.036*rpm : .060+velocity*.038) : 0,
+      moto ? (scooter?330:240)+rpm*670 : 185+410*velocity, moto ? (scooter?77:44)+(scooter?160:120)*rpm : revs);
     if (driving && speed > 4 && skid > 0.12) {
       if (skidSince === null) skidSince = now;
     } else skidSince = null;

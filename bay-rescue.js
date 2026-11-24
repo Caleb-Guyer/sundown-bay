@@ -24,21 +24,7 @@
     }
     return {count,best,next:Number.isInteger(raw?.next)?limit(raw.next,0,cases.length-1):0,last:cases.some(c=>c.id===raw?.last)?raw.last:null};
   }
-  function track(points){
-    const pts=[];for(const q of points){const p=pts.at(-1);if(!p||gap(p,q)>.015)pts.push({...q,at:p?p.at+gap(p,q):0});}
-    const length=pts.at(-1).at;
-    return {pts,length,closest(q){
-      let nearest=Infinity,at=0;
-      for(let i=1;i<pts.length;i++){
-        const a=pts[i-1],b=pts[i],dx=b.x-a.x,dz=b.z-a.z,u=limit(((q.x-a.x)*dx+(q.z-a.z)*dz)/(dx*dx+dz*dz),0,1);
-        const d=Math.hypot(q.x-a.x-u*dx,q.z-a.z-u*dz);if(d<nearest){nearest=d;at=lerp(a.at,b.at,u);}
-      }return {at,gap:nearest};
-    },sample(d){
-      let lo=1,hi=pts.length-1;while(lo<hi){const m=(lo+hi)>>1;if(pts[m].at<d)lo=m+1;else hi=m;}
-      const b=pts[lo],a=pts[lo-1],u=limit((d-a.at)/(b.at-a.at),0,1);
-      return {x:lerp(a.x,b.x,u),z:lerp(a.z,b.z,u),yaw:Math.atan2(b.x-a.x,b.z-a.z)};
-    }};
-  }
+  const track=BayCab.track;
   const actor=(role,name,p)=>Object.assign(BayMotorCourt.actor(role,p,"out"),{role,name,y:p.y??.077,action:"idle",seat:0,seatMode:null});
   const waitingSeat={x:-98.65,z:57.72,y:.16,yaw:Math.PI/2};
   const dischargeWalk=[{x:-94.0,z:52.30},{x:-91.65,z:52.31},{x:-91.65,z:57.81},{x:-97.63,z:57.78},waitingSeat];

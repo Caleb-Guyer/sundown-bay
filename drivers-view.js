@@ -24,9 +24,12 @@
       this.mirrorCar=car;this.mirrorAt=t;
       const img=this.mirrorImage??=document.createElement("canvas");
       if(img.width!==192){img.width=192;img.height=69;}
-      const w=Math.min(view.canvas.width,img.width),h=Math.min(view.canvas.height,img.height);
       const rear=BayDriving.world(car,0,-bayCarLayout(car.kind).halfLength+.02);
       Object.assign(rear,{y:ground+BayDriversSeat.eye(car).y,yaw:car.yaw+Math.PI,pitch:-.025-car.pitch*.34,focal:2.69});
+      this.sampleRear(view,img,rear,dusk,hours,draw,true);
+    }
+    sampleRear(view,img,rear,dusk,hours,draw,flipped){
+      const w=Math.min(view.canvas.width,img.width),h=Math.min(view.canvas.height,img.height);
       view.begin(rear,dusk,hours,null,null,{w,h});
       draw(rear);
       const g=img.getContext("2d");g.save();
@@ -35,7 +38,7 @@
       else if(hours.rain>.4){sky.addColorStop(0,"#83969b");sky.addColorStop(1,"#c1c0af");}
       else{sky.addColorStop(0,"#9fabb4");sky.addColorStop(1,"#e8c3a5");}
       g.fillStyle=sky;g.fillRect(0,0,img.width,img.height);
-      g.translate(img.width,0);g.scale(-1,1);
+      if(flipped){g.translate(img.width,0);g.scale(-1,1);}
       g.drawImage(view.canvas,0,view.canvas.height-h,w,h,0,0,img.width,img.height);g.restore();
     }
     mirror(g,view,v,ground){

@@ -1,3 +1,12 @@
+#motoDash { position:absolute; inset:0; height:100%; width:100%; pointer-events:none; }
+#motoFinder { position:absolute; z-index:3; pointer-events:none; top:50%; left:50%; transform:translate(-50%,-50%); width:min(100vw,133.333vh); aspect-ratio:4/3; box-sizing:border-box; border:1px solid #f1e2bfbb; box-shadow:0 0 0 100vmax #162021bd; }
+#motoFinder:not([hidden]) ~ #hud > :not(#context):not(#speech):not(#toast) { visibility:hidden; }
+#motoFinder .filmGate { position:absolute; width:10%; height:8%; left:45%; top:46%; border:1px solid #fff1ccba; box-shadow:0 0 2px #31302e; border-radius:2px; }
+#motoFinder .filmMeter { position:absolute; right:3%; bottom:15%; color:#fff0bf; background:#2d3028da; padding:.32em .65em; font:600 .72rem "Courier New",monospace; letter-spacing:.08em; }
+.coast-prints { display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:12px; }
+.coast-prints figure { background:#eadfc4; color:#263936; padding:7px 7px 10px; margin:0; }
+.coast-prints img { display:block; width:100%; aspect-ratio:4 / 3; object-fit:cover; }
+.coast-prints figcaption { margin:7px 2px 0; font-size:.78rem; }
 :root {
   color-scheme: dark;
   --ink:#142d30;

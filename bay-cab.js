@@ -79,11 +79,24 @@
     return track(pts);
   }
   function track(pts){
-    return {pts,length:pts.at(-1).at,sample(d){
+    return {pts,length:pts.at(-1).at,closest(q){
+      let nearest=Infinity,at=0;
+      for(let i=1;i<pts.length;i++){
+        const a=pts[i-1],b=pts[i],dx=b.x-a.x,dz=b.z-a.z,u=clamp(((q.x-a.x)*dx+(q.z-a.z)*dz)/(dx*dx+dz*dz),0,1);
+        const d=Math.hypot(q.x-a.x-u*dx,q.z-a.z-u*dz);
+        if(d<nearest){nearest=d;at=a.at+(b.at-a.at)*u;}
+      }
+      return {at,gap:nearest};
+    },sample(d){
       let lo=1,hi=pts.length-1;while(lo<hi){const m=(lo+hi)>>1;if(pts[m].at<d)lo=m+1;else hi=m;}
       const q=pts[lo],p=pts[lo-1],u=clamp((d-p.at)/(q.at-p.at),0,1);
       return {...mix(p,q,u),yaw:Math.atan2(q.x-p.x,q.z-p.z)};
     }};
+  }
+  function streetTrack(points){
+    const pts=[];for(const p of points){const last=pts.at(-1),d=last?gap(last,p):0;
+      if(!last||d>.015)pts.push({...p,at:last?last.at+d:0});}
+    return track(pts);
   }
   function pullIn(v,end){
     const [dx,dz]=directions[end.dir],rightX=dz,rightZ=-dx;
@@ -327,5 +340,5 @@
       if(!this.trip&&!this.leg&&!this.booking){this.wait-=dt;if(this.wait<=0)this.dispatch();}
     }
   }
-  window.BayCab={stops,cinema,cast,read,route,streetStop,stopped,Service};
+  window.BayCab={stops,cinema,cast,read,route,track:streetTrack,streetStop,stopped,Service};
 })();
