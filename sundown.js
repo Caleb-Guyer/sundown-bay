@@ -260,8 +260,8 @@
       gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,64,64,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,grain);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.generateMipmap(gl.TEXTURE_2D);
       gl.activeTexture(gl.TEXTURE2);
-      this.printTexture=gl.createTexture();this.printSource=null;this.printRevision=-1;
-      gl.bindTexture(gl.TEXTURE_2D,this.printTexture);
+      this.printSlots=[{texture:gl.createTexture(),source:null,used:0}];this.printTick=0;this.boundPrint=this.printSlots[0];
+      gl.bindTexture(gl.TEXTURE_2D,this.boundPrint.texture);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
@@ -392,11 +392,27 @@
     drawPrint(name,canvas,revision,x,y,z,yaw){
       if(!this.gl||this.lost||!this.models.has(name))return;
       const gl=this.gl;
-      if(this.printSource!==canvas||this.printRevision!==revision){
-        gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,this.printTexture);
-        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
-        gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
-        gl.activeTexture(gl.TEXTURE0);this.printSource=canvas;this.printRevision=revision;
+      // A window print and the moving curb television can share one street view.
+      // Retain a few surfaces so changing which one is drawn only changes a binding.
+      let slot=this.printSlots.find(s=>s.source===canvas);
+      if(!slot){
+        slot=this.printSlots.find(s=>!s.source);
+        if(!slot&&this.printSlots.length<4){slot={texture:gl.createTexture()};this.printSlots.push(slot);}
+        if(!slot)slot=this.printSlots.reduce((a,b)=>a.used<b.used?a:b);
+      }
+      slot.used=++this.printTick;
+      const changed=slot.source!==canvas||slot.revision!==revision;
+      if(this.boundPrint!==slot||changed){
+        gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,slot.texture);this.boundPrint=slot;
+        if(changed){
+          gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
+          const mip=canvas.width>0&&!(canvas.width&(canvas.width-1))&&canvas.height>0&&!(canvas.height&(canvas.height-1));
+          if(mip)gl.generateMipmap(gl.TEXTURE_2D);
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,mip?gl.LINEAR_MIPMAP_LINEAR:gl.LINEAR);
+          slot.source=canvas;slot.revision=revision;
+        }
+        gl.activeTexture(gl.TEXTURE0);
       }
       gl.uniform1f(this.u.showPrint,1);this.draw(name,x,y,z,yaw);gl.uniform1f(this.u.showPrint,0);
     }
@@ -23795,7 +23811,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function roomWorld(view,state,model,t){
     roomArt(model);view.draw("court-room-rail",rackX,0,rackZ,0,0,0,.52);
     for(const [k,id] of garments.entries())if(hanging(state,id))view.draw("court-room-"+id,rackX+hooks[k],0,rackZ,0,0,0,.52);
-    for(const [k,id] of (state.owned||[]).entries())if(id!==state.equipped){
+    for(const [k,id] of (state?.owned||[]).entries())if(id!==state.equipped){
       const name="low-tide-fold/"+id;
       model(name,g=>{const col=BayThreadsArt.colors[id];g.box(0,.035,0,.28,.07,.23,col);g.box(.023,.079,-.03,.17,.02,.15,col,.06);g.box(-.094,.072,.036,.040,.007,.055,"#e5d5ab");});
       view.draw(name,rackX+(k-1.5)*.32,.11,rackZ+.047,0);
@@ -23925,7 +23941,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       rackStamps.set(key,bake(g,(x,y,z)=>[x,-.94*z-.34*y,.94*y-.34*z],180));
     }
     drawStamp(ctx,rackStamps.get(key),px(rackX),py(rackZ),s);
-    for(const [k,id] of (state.owned||[]).entries())if(id!==state.equipped){
+    for(const [k,id] of (state?.owned||[]).entries())if(id!==state.equipped){
       const x=px(rackX+(k-1.5)*.32),y=py(rackZ+.047)-.06*s;
       ctx.fillStyle=BayThreadsArt.colors[id];ctx.fillRect(x-.14*s,y-.09*s,.28*s,.18*s);
       ctx.fillStyle="#e5d5ab";ctx.fillRect(x-.10*s,y-.065*s,.045*s,.04*s);
@@ -65446,7 +65462,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     card.className="room-note";text.textContent=line;by.textContent=signature;card.append(text,by);body.append(card);
   }
   function atThreads(){
-    return onStreetFeet()&&crewFree()&&!unit.eye&&!unit.transition&&!afternoon.photo&&!bell.pass&&!luggage.hand(save.luggage)&&dist(hero,threads.counter)<2.1;
+    return dist(hero,threads.counter)<2.1&&onStreetFeet()&&crewFree()&&!unit.eye&&!unit.transition&&!afternoon.photo&&!bell.pass&&!luggage.hand(save.luggage);
   }
   function visitThreads(){
     syncProgress(readSave());

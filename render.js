@@ -259,8 +259,8 @@
       gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,64,64,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,grain);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.generateMipmap(gl.TEXTURE_2D);
       gl.activeTexture(gl.TEXTURE2);
-      this.printTexture=gl.createTexture();this.printSource=null;this.printRevision=-1;
-      gl.bindTexture(gl.TEXTURE_2D,this.printTexture);
+      this.printSlots=[{texture:gl.createTexture(),source:null,used:0}];this.printTick=0;this.boundPrint=this.printSlots[0];
+      gl.bindTexture(gl.TEXTURE_2D,this.boundPrint.texture);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
@@ -391,11 +391,27 @@
     drawPrint(name,canvas,revision,x,y,z,yaw){
       if(!this.gl||this.lost||!this.models.has(name))return;
       const gl=this.gl;
-      if(this.printSource!==canvas||this.printRevision!==revision){
-        gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,this.printTexture);
-        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
-        gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
-        gl.activeTexture(gl.TEXTURE0);this.printSource=canvas;this.printRevision=revision;
+      // A window print and the moving curb television can share one street view.
+      // Retain a few surfaces so changing which one is drawn only changes a binding.
+      let slot=this.printSlots.find(s=>s.source===canvas);
+      if(!slot){
+        slot=this.printSlots.find(s=>!s.source);
+        if(!slot&&this.printSlots.length<4){slot={texture:gl.createTexture()};this.printSlots.push(slot);}
+        if(!slot)slot=this.printSlots.reduce((a,b)=>a.used<b.used?a:b);
+      }
+      slot.used=++this.printTick;
+      const changed=slot.source!==canvas||slot.revision!==revision;
+      if(this.boundPrint!==slot||changed){
+        gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,slot.texture);this.boundPrint=slot;
+        if(changed){
+          gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
+          const mip=canvas.width>0&&!(canvas.width&(canvas.width-1))&&canvas.height>0&&!(canvas.height&(canvas.height-1));
+          if(mip)gl.generateMipmap(gl.TEXTURE_2D);
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,mip?gl.LINEAR_MIPMAP_LINEAR:gl.LINEAR);
+          slot.source=canvas;slot.revision=revision;
+        }
+        gl.activeTexture(gl.TEXTURE0);
       }
       gl.uniform1f(this.u.showPrint,1);this.draw(name,x,y,z,yaw);gl.uniform1f(this.u.showPrint,0);
     }

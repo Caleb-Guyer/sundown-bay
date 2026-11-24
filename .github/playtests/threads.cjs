@@ -47,16 +47,18 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert(await js("document.querySelector('.threads-buy').disabled"));
     const front=await js("document.querySelector('.threads-glass').toDataURL()");await click("Turn right");assert.notEqual(await js("document.querySelector('.threads-glass').toDataURL()"),front);
     await snap("mirror");await click("Tideline polo");await click("Keep it");await waitFor(record+".threads.wear.guest==='tideline'");
-    await walk(152.2,-39);await walk(134.2,-39);await walk(133.16,-38.28,.68);await tap("KeyF");
+    // Cross at the Marlin loading curb and approach the curtain north of the bus shelter.
+    await walk(151,-27);await walk(135.8,-27.2);await walk(136,-36.6);await walk(133.16,-37.65,.50);await tap("KeyF");
     await waitFor("!document.querySelector('#fotoFinder').hidden");await waitFor("document.querySelector('#fotoCounter').textContent.includes('2 / 3')",50000);await tap("Digit2");
     await waitFor("document.querySelector('#fotoCounter').textContent.includes('3 / 3')",50000);await tap("Digit3");
     await waitFor(panel+"==='foto-album'&&!document.querySelector('#panel').hidden",50000);
     const strip=await js("new BayOffClock.Album().records[0]");assert(strip.solo&&strip.looks.guest==="tideline");assert.deepEqual(strip.poses,[0,1,2]);await snap("strip");await tap("Escape");
-    await walk(152.2,-39);await stall();await click("See briefs");await click("Hand in");await waitFor(record+".wallet===65&&"+record+".threads.featured==='marlin'");
+    await walk(136,-36.6);await walk(135.8,-27.2);await walk(151,-27);await stall();await click("See briefs");await click("Hand in");await waitFor(record+".wallet===65&&"+record+".threads.featured==='marlin'");
     await tap("KeyF");await waitFor(panel+"==='threads'");await click("No. 13 pit jacket");await click("Buy · $55");await waitFor(record+".wallet===10&&"+record+".threads.wear.guest==='pitlane'");
     await waitFor("wornSeen&&printSeen",35000);await tap("KeyX");await snap("exchange");
     assert.equal(await js("audioStarts+cursorRequests"),0);await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayLowTide==='object'");
     const restored=await js(record);assert.equal(restored.threads.wear.guest,"pitlane");assert.equal(restored.threads.wear.frankie,"street");assert.deepEqual(restored.threads.prints.marlin,strip);assert.equal(restored.wallet,10);
+    await js("document.querySelector('#play').click()");await js(hook);await waitFor("wornSeen&&printSeen",40000);
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     console.log("PASS live",mode,"rotated the fitted jacket, took the free polo, made three solo poses, earned $65, bought the $55 jacket and verified the worn outfit and displayed print after reload.");
   }finally{await controls([]);}

@@ -7686,7 +7686,7 @@
     card.className="room-note";text.textContent=line;by.textContent=signature;card.append(text,by);body.append(card);
   }
   function atThreads(){
-    return onStreetFeet()&&crewFree()&&!unit.eye&&!unit.transition&&!afternoon.photo&&!bell.pass&&!luggage.hand(save.luggage)&&dist(hero,threads.counter)<2.1;
+    return dist(hero,threads.counter)<2.1&&onStreetFeet()&&crewFree()&&!unit.eye&&!unit.transition&&!afternoon.photo&&!bell.pass&&!luggage.hand(save.luggage);
   }
   function visitThreads(){
     syncProgress(readSave());
