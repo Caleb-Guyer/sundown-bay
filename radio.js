@@ -617,6 +617,13 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name.startsWith('brisas-')){
+      const gain=Math.max(0,1-(source.distance||0)/32)*.09;
+      if(name==='brisas-pump'){tone(effects,96,at,.14,gain*.68,'triangle',179,.011);waterNoise(effects,at,.063,gain*.34,740,510);}
+      else if(name==='brisas-bell'){tone(effects,1440,at,.33,gain*.68,'sine',1431,.002);tone(effects,2162,at,.15,gain*.26,'sine',2150,.002);}
+      else{tone(effects,83,at,.098,gain*(source.force||.4),'triangle',47,.002);}
+      return;
+    }
     if(name.startsWith('pool-')){
       const near=Math.max(0,1-(source.distance||0)/29),gain=near*Math.min(.12,.035+.025*(source.force||0));
       if(name==='pool-pocket'){tone(effects,142,at,.12,gain,'triangle',68,.002);waterNoise(effects,at+.022,.062,gain*.60,780,280);}

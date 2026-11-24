@@ -171,13 +171,13 @@
     if(distance>76)return;
     const pitch=v.pitch||0,lean=v.lean||0;
     const add=(key,glow=0)=>list.push([key,v.x,ground,v.z,v.yaw,pitch,lean,glow,v]);
-    if(window.BayDealerCars?.owns(v.kind)){
+    const builder=window.bayCoachwork?.(v.kind);if(builder){
       const s=bayCarLayout(v.kind),rear=s.sections[0];
       if(distance<18){
         const number=plateFor(v);if(number)add(register(model,"registry/plate/"+v.kind+"/"+number,g=>strokeDie(g,number,rear[2]-.174,rear[0]-.028)));
       }
       if(lampsOn(v,t)){const k=v.indicator;add(register(model,"registry/"+v.kind+"/signal"+k,g=>{
-        BayDealerCars.signal(g,s,k,false);BayDealerCars.signal(g,s,k,true);
+        builder.signal(g,s,k,false);builder.signal(g,s,k,true);
       }),.97);}
       return;
     }

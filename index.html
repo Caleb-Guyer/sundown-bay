@@ -21,6 +21,10 @@
     <div id="vignette" aria-hidden="true"></div>
     <section id="hud" aria-label="Game dashboard" hidden>
       <div class="location"><span class="area-kicker">SUNDOWN BAY <time id="cityTime"></time></span><strong id="district">Ocean Drive</strong><span id="streetName" hidden></span></div>
+      <section id="brisasReadout" aria-label="Las Brisas switch box" hidden>
+        <canvas width="104" height="65" id="brisasMeter" aria-hidden="true"></canvas>
+        <div><small id="brisasLabel"></small><strong id="brisasCall"></strong><span id="brisasValue"></span></div>
+      </section>
       <section id="palmReadout" aria-label="Palm Diner house table" hidden>
         <div class="palm-score"><strong id="palmTurn"></strong><span id="palmLine"></span><small id="palmStatus"></small></div>
         <div class="palm-input"><div id="palmPower" role="meter" aria-label="Shot power" aria-valuemin="0" aria-valuemax="100"><i></i></div><span id="palmHelp"></span></div>
@@ -161,6 +165,8 @@
   <script src="ambulance-art.js"></script>
   <script src="wrecker-art.js"></script>
   <script src="dealer-cars-art.js"></script>
+  <script src="solena-art.js"></script>
+  <script src="boulevard-cars-art.js"></script>
   <script src="models.js"></script>
   <script src="driving.js"></script>
   <script src="car-access.js"></script>
@@ -266,6 +272,10 @@
   <script src="palm-players-art.js"></script>
   <script src="palm-league.js"></script>
   <script src="palm-room.js"></script>
+  <script src="boulevard-club-art.js"></script>
+  <script src="hydraulics.js"></script>
+  <script src="brisas-club.js"></script>
+  <script src="brisas-street.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

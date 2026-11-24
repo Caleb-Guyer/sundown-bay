@@ -334,6 +334,10 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .air-receipt{padding:12px 14px;margin:8px 0;background:#e5dcc5;color:#294641;border-left:4px solid #9e604c}
 .air-receipt strong{font:italic 700 21px/1.1 Georgia,serif}.air-receipt p{margin:4px 0 9px;color:#375a51;font-size:13px}
 #palmGuide{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
+#brisasReadout[hidden]{display:none}
+#brisasReadout{position:absolute;top:84px;right:22px;display:flex;align-items:center;gap:9px;max-width:min(287px,45vw);padding:5px 10px 5px 5px;border:1px solid #c4a576;border-bottom:3px solid #ca885d;border-radius:4px;color:#f8e9c5;background:#263f3beb;text-shadow:none}
+#brisasMeter{width:73px;height:auto;flex:none}#brisasReadout div{display:grid;gap:2px}#brisasReadout small{font:700 9px/1.2 Consolas,monospace;letter-spacing:.075em;text-transform:uppercase;color:#dcc197}#brisasReadout strong{font:700 15px/1.2 Georgia,serif}#brisasReadout span{font:600 11px/1.25 "Segoe UI",sans-serif;color:#f2dabb}
+@media(max-height:520px),(max-width:650px){#brisasReadout{right:9px;top:56px;padding:3px 6px;max-width:47vw;gap:5px}#brisasMeter{width:48px}#brisasReadout strong{font-size:13px}}
 #palmReadout[hidden],#palmGuide[hidden],#palmPower[hidden]{display:none}
 .at-palm-table #world,.at-palm-table #overhead{cursor:crosshair}
 .at-palm-table #hud>.location,.at-palm-table #hud>.account,.at-palm-table #miniButton,.at-palm-table #objective,.at-palm-table #mode,.at-palm-table #speed,.at-palm-table #context{display:none}

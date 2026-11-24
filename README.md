@@ -6,6 +6,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.
 
+At **Las Brisas**, just north of the Palm Diner at Ocean Drive and Marquee Street, talk to **Nico Paz** with **F**. Get into the plum **Solena 64** with **E**. Stop on the chalk stripe and press **F** for a hop card. **1** lifts the front, **2** the rear, **3** the driver’s side and **4** the passenger side. Release to drop. **V** changes your view during a card. The judge measures the tires after they leave the ground and gives you another call after you land.
+
+Win **First Switch** to keep the Solena, earn **$95** and unlock a **$120** per-car hydraulic kit at **Portside Tire**. **Crossed Up** pays **$160** for its first win. Join **Celia Reyes** in the gold Solena for one of two boulevard rolls. Answer her hop at both curbs, then stop on Nico’s stripe to collect. Your switch book keeps the cards, cruise stamps, highest wheel and the location of your titled car.
+
 Walk north from the Marlin to **Palm Diner** on Ocean Drive. Find Luz by the green felt and press **F** for a short **Last three** rack, full **house eight-ball**, or practice. Aim with the mouse or left/right arrows. Up/down sets power. Hold **Shift** for fine adjustments. Tap **Space** to use that power, or hold and release for a timed stroke. Call the eight’s pocket with **1–6** or **Q**, switch views with **V**, and use **E** to step away. You can resume a scored rack from its last settled shot.
 
 Read the chalk card inside to call **Val** at Cine Luna or **Boone** at Port Sol. Pull alongside in your own car, let them take the passenger seat, then drive to the Palm. Your first short win against each regular pays **$25** and your first full win pays **$85**. Beat all three over full racks for Luz’s honey-maple cue and a **$100** bonus.

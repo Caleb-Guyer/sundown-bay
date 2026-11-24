@@ -1,7 +1,7 @@
 /* Car body panels share a rest mesh. Only a changed impact builds another shape. */
 (() => {
   "use strict";
-  const kinds=new Set(["coupe","hatch","cab","van","cruiser","wrecker","ambulance","cayo","marea"]);
+  const kinds=new Set(["coupe","hatch","cab","van","cruiser","wrecker","ambulance","cayo","marea","solena","estate","stepside"]);
   const profiles=new Map(),views=new WeakMap(),installed=new WeakMap(),mapPlans=new WeakMap(),effects=new WeakMap();
   const clamp=x=>Math.max(0,Math.min(1,x)),mix=(a,b,f)=>a+(b-a)*f;
   const band=x=>Number.isFinite(x)?Math.round(clamp(x)*15):0;

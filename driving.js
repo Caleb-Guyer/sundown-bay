@@ -4,6 +4,9 @@
   const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const damp=(a,b,k,dt)=>a+(b-a)*-Math.expm1(-k*dt);
   const cars={
+    solena:{name:"Solena 64",top:34.0,power:12.4,brake:15.7,grip:12.4,balance:.44,steer:.67,response:6.0,roll:.103},
+    estate:{name:"Marisma Estate",top:30.4,power:11.2,brake:16.1,grip:13.7,balance:.47,steer:.67,response:7.2,roll:.110},
+    stepside:{name:"Cortez Stepside",top:28.6,power:12.0,brake:15.2,grip:12.3,balance:.405,steer:.65,response:6.6,roll:.127},
     cayo:{name:"Cayo 72",top:39,power:15.6,brake:16.7,grip:13,balance:.455,steer:.62,response:6.6,roll:.097},
     marea:{name:"Marea S",top:45,power:16.4,brake:21,grip:16.6,balance:.54,steer:.64,response:9.8,roll:.051},
     ambulance:{name:"Bay Rescue 4",top:32,power:10.2,brake:18.4,grip:13.0,balance:.46,steer:.69,response:6.2,roll:.13},
@@ -58,7 +61,8 @@
     const rearArm=-shape.axles[0],frontArm=shape.axles[1],wheelbase=rearArm+frontArm;
     const rearDamage=Math.max(0,(d?.rear||0)-.25);
     const dryGrip=spec.grip*surface*(1-.12*flat),weightShift=.045*v.brakes-.02*v.throttle;
-    const frontGrip=dryGrip*(spec.balance+weightShift),rearGrip=dryGrip*(1-spec.balance-weightShift)*(1-.76*v.handbrake);
+    const frontGrip=dryGrip*(spec.balance+weightShift)*(v.hydraulic?.grip(true)??1);
+    const rearGrip=dryGrip*(1-spec.balance-weightShift)*(1-.76*v.handbrake)*(v.hydraulic?.grip(false)??1);
     const turnSin=Math.sin(v.steer),turnCos=Math.cos(v.steer);
     const frontSlip=(lateral+frontArm*v.yawRate)*turnCos-forward*turnSin;
     const rearSlip=lateral-rearArm*v.yawRate;

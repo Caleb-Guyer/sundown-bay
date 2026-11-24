@@ -15,7 +15,7 @@
     const count=n=>Number.isSafeInteger(n)?clamp(n,0,999999):0;
     const soil=Object.create(null),tips={},visits={};
     for(const [id,v] of Object.entries(raw?.soil||{})){
-      if(/^(coupe|cab|hatch|wrecker|ambulance|van|cruiser|cayo|marea)@-?\d+\.\d{2},-?\d+\.\d{2}$/.test(id)&&Array.isArray(v)&&v.length===4&&v.every(n=>Number.isFinite(n)&&n>=0&&n<=1))soil[id]=v.slice();
+      if(/^(coupe|cab|hatch|wrecker|ambulance|van|cruiser|cayo|marea|solena|estate|stepside)@-?\d+\.\d{2},-?\d+\.\d{2}$/.test(id)&&Array.isArray(v)&&v.length===4&&v.every(n=>Number.isFinite(n)&&n>=0&&n<=1))soil[id]=v.slice();
     }
     for(const g of cast){tips[g.id]=clamp(count(raw?.tips?.[g.id]),0,30);visits[g.id]=count(raw?.visits?.[g.id]);}
     return {soil,tips,visits,orders:count(raw?.orders),rinses:count(raw?.rinses)};

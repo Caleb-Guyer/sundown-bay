@@ -531,11 +531,11 @@
     path(c,art.shadow,"#64655e");
     for(const k of sides)for(const z of s.axles){
       const flat=v.flatSide===k&&z===v.flatAxle;
-      c.save();c.translate(k*(b-.084),-z);if(z>0)c.rotate(v.steer||0);
+      c.save();v.hydraulic?.mapWheel(c,v.yaw,k,z>0);c.translate(k*(b-.084),-z);if(z>0)c.rotate(v.steer||0);
       c.fillStyle=flat?"#514c45":rubber;c.fillRect(-.092,-s.wheel,.184+(flat?.046:0),s.wheel*2);
       c.restore();
     }
-    drawSprite(c,art.shell);
+    v.hydraulic?.mapBody(c,v.yaw);drawSprite(c,art.shell);
     for(const k of sides){
       const open=Math.max(v.doorSide===k?v.doorAngle||0:0,k===1?v.passengerDoor||0:0);
       c.save();c.translate(k*s.hingeX,-s.hingeZ);c.rotate(-k*open);drawSprite(c,art.doors[k]);c.restore();
@@ -561,5 +561,5 @@
     }
     c.restore();
   }
-  window.BayDealerCars={owns,shapes,cockpitStyles,fit,build,driverEnds,hoodHeight,brakeLights,signal,map};
+  window.BayDealerCars={owns,shapes,cockpitStyles,fit,build,driverEnds,hoodHeight,brakeLights,signal,map,sprite};
 })();

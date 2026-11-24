@@ -3,7 +3,7 @@
   "use strict";
   const tau=2*Math.PI, mix=(a,b,t)=>a+(b-a)*t, clamp=(v,low,high)=>Math.max(low,Math.min(high,v));
   const styles={
-    ...window.BayDealerCars?.cockpitStyles,
+    ...window.BayDealerCars?.cockpitStyles,...window.BaySolenaArt?.cockpitStyles,...window.BayBoulevardCars?.cockpitStyles,
     coupe:{trim:"#353f40",top:"#314345",pad:"#424946",cloth:"#866752",thread:"#bb9a78",edge:"#b1bbb1",face:"#243236",ink:"#f0dfb4",accent:"#d27650",rim:"#78533e",hub:"#343d3b",dash:"pair",spokes:3,stamp:"MARLIN GT",limit:100},
     hatch:{trim:"#505855",top:"#434e4e",pad:"#636863",cloth:"#927c64",thread:"#d0bd92",edge:"#abb29c",face:"#e5debd",ink:"#344440",accent:"#bd5e42",rim:"#414442",hub:"#69706a",dash:"single",spokes:2,stamp:"RIVA",limit:90},
     cab:{trim:"#8b7359",top:"#605b4e",pad:"#a18867",cloth:"#a38462",thread:"#ddbb85",edge:"#d5c5a2",face:"#313b38",ink:"#f5ddb0",accent:"#e6a755",rim:"#6a5543",hub:"#826c51",dash:"ribbon",spokes:2,stamp:"BAY CAB",limit:100},
@@ -107,7 +107,7 @@
     return a.hoodRings;
   }
   function hood(v,x,z){
-    if(window.BayDealerCars?.owns(v.kind))return BayDealerCars.hoodHeight(v.kind,x,z);
+    const builder=window.bayCoachwork?.(v.kind);if(builder)return builder.hoodHeight(v.kind,x,z);
     const rows=hoodRings(layout(v));
     let j=1;while(j<rows.length-1&&z>rows[j].z)j++;
     const a=rows[j-1],b=rows[j],f=clamp((z-a.z)/(b.z-a.z),0,1),w=mix(a.w,b.w,f),u=clamp(x/w,-1,1);
@@ -118,7 +118,7 @@
     return mix(a.h,b.h,f)+mix(rib(l),rib(r),across);
   }
   function paintedHood(g,a,paint){
-    if(window.BayDealerCars?.owns(a.kind)){BayDealerCars.driverEnds(g,a.kind,paint);return;}
+    const builder=window.bayCoachwork?.(a.kind);if(builder){builder.driverEnds(g,a.kind,paint);return;}
     const s=a.s,rings=hoodRings(a).map(row=>row.z),first=rings[0],last=rings.at(-1);
     const where=(u,z,r=0)=>{const {w,h}=bodySection(s,z);return [u*w,h+rib(u)+r,z];};
     const bands=hoodBands,lifts=[.15,.085,.02,.14,.07,.055,.13,.035,.075,.14];
