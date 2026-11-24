@@ -470,12 +470,17 @@
     }
     lastHud=lastMap=-10;
   }
-  function busClear(v,x,z,yaw){
+  function busClear(v,x,z,yaw,oldYaw=v.yaw){
     if(!fitsCar(v,x,z,yaw))return false;
-    const p={x,z,yaw,kind:v.kind,footprint:v.footprint};
+    const p={x,z,yaw,kind:v.kind,footprint:v.footprint},before=oldYaw===v.yaw?v:{...v,yaw:oldYaw};
     for(const group of [cars,patrol])for(const q of group){
       if(Math.abs(x-q.x)>8||Math.abs(z-q.z)>8)continue;
-      const hit=BayDriving.contact(p,q);if(hit&&hit.depth>=(BayDriving.contact(v,q)?.depth||0)-.0001)return false;
+      const hit=BayDriving.contact(p,q);
+      if(hit){
+        const prior=BayDriving.contact(before,q);
+        // A turning car can brush the flank of a stopped bus. Let parallel movement clear that contact.
+        if(!prior||hit.depth>prior.depth+.000001)return false;
+      }
     }
     if(onStreetFeet()&&Math.abs(hero.x-x)<6&&Math.abs(hero.z-z)<6&&BayDriving.clearance(p,hero)<.27&&BayDriving.clearance(p,hero)<BayDriving.clearance(v,hero))return false;
     return true;
@@ -511,8 +516,18 @@
     const steer=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
     BayDriving.step(v,dt,held("KeyW","ArrowUp"),held("KeyS","ArrowDown"),steer,held("Space"),road*(1-hours.wet*.13),false);
     const x=v.x+v.vx*dt,z=v.z+v.vz*dt;
-    if(busClear(v,x,z,v.yaw)){v.x=x;v.z=z;return;}
+    if(busClear(v,x,z,v.yaw,oldYaw)){v.x=x;v.z=z;return;}
     const probe={...v,x,z};
+    for(const group of [cars,patrol])for(const other of group){
+      if(Math.abs(x-other.x)>8||Math.abs(z-other.z)>8)continue;
+      const hit=BayDriving.contact(probe,other);if(!hit)continue;
+      const {nx,nz,depth}=hit,inward=-(v.vx*nx+v.vz*nz);
+      if(inward>2.2)continue;
+      const clear=Math.min(.14,depth+.004),sx=x+nx*clear,sz=z+nz*clear;
+      if(!busClear(v,sx,sz,v.yaw,oldYaw))continue;
+      v.x=sx;v.z=sz;v.vx+=nx*Math.max(0,inward);v.vz+=nz*Math.max(0,inward);
+      BayDriving.signedSpeed(v);return;
+    }
     if(Math.abs(oldSpeed)>2&&bumpLock<=0){
       line.shift.rough=Math.min(14,line.shift.rough+Math.min(7,Math.abs(oldSpeed)*.48));
       const q=cars.find(q=>dist(q,probe)<8&&BayDriving.contact(probe,q));
@@ -2677,6 +2692,7 @@
         if(!lateral||!spaceToSwerve(v,x,z,v.yaw,0,true)){step=0;v.speed=0;}
         lateral=0;
       }
+      const oldX=v.x,oldZ=v.z,oldYaw=v.yaw;
       v.x+=ux*step+uz*lateral;v.z+=uz*step-ux*lateral;
       if(step<.0001&&clearance<.1)v.speed=0;
       v.blocked=v.speed<.4?v.blocked+dt:0;
@@ -2688,8 +2704,15 @@
       const steer=step>.0001?Math.atan2(lateral,step):0;
       let heading=Math.atan2(ux,uz)+steer;
       if(v.finiteRoute&&v.corner===v.path.length-1)heading+=angle(heading,v.finiteYaw)*clamp(1-remaining/3.8,0,1);
-      const turn=angle(v.yaw,heading)*-Math.expm1(-8*dt);
+      const turn=step>.00001?angle(v.yaw,heading)*-Math.expm1(-8*dt):0;
       v.yaw+=turn;v.lean=ease(v.lean||0,clamp(turn/Math.max(dt,.001)*v.speed*.017,-.09,.09),7,dt);
+      if(Math.abs(v.x-transit.bus.x)<8&&Math.abs(v.z-transit.bus.z)<8){
+        const hit=BayDriving.contact(v,transit.bus);
+        if(hit){
+          const prior=BayDriving.contact({kind:v.kind,x:oldX,z:oldZ,yaw:oldYaw},transit.bus);
+          if(!prior||hit.depth>prior.depth+.000001){v.x=oldX;v.z=oldZ;v.yaw=oldYaw;v.speed=0;v.brakes=1;}
+        }
+      }
       if(response&&!evading&&Math.abs(offset)<.09)v.reaction=null;
     }
     if(roadDrivers.size)stepRoadDrivers(dt);
@@ -3821,7 +3844,8 @@
         action="F";hint="Close doors  ·  E hand back the wheel  ·  V view";
       }else{
         call=away?"Next · "+transit.target.short:transit.stop.short;
-        detail=transit.requested?"Stop requested  ·  Exit through the rear door":away?moving+" m · "+transit.people.filter(q=>q.stage==="ride").length+" passengers":"Doors "+(b.door>.94?"open":"moving");
+        const riders=transit.people.filter(q=>q.stage==="ride").length;
+        detail=transit.requested?"Stop requested  ·  Exit through the rear door":away?moving+" m · "+riders+(riders===1?" passenger":" passengers"):"Doors "+(b.door>.94?"open":"moving");
         const open=transit.phase==="dwell";action=open?"E":"F";hint=(open?"Get off here":"Pull the stop cord")+"  ·  V change view";
       }
     }
@@ -4562,7 +4586,8 @@
       }
       b.append(points);
       if(save.transit.rides||save.transit.runs){const row=document.createElement("p");row.className="statline";
-        row.textContent=save.transit.rides+" rides  /  "+save.transit.runs+" signed trips"+(save.transit.best[s.id]!=null?"  /  Best stop here "+save.transit.best[s.id]+"%":"");b.append(row);}
+        const {rides,runs,best}=save.transit;
+        row.textContent=rides+(rides===1?" ride":" rides")+"  /  "+runs+(runs===1?" signed trip":" signed trips")+(best[s.id]!=null?"  /  Best stop here "+best[s.id]+"%":"");b.append(row);}
     }else if(next==="neon-bench"){
       title="Vacancy in Lights";kicker="Marlin Neon Service  /  Vera Cordero";
       signedNote(b,"“The E’s been giving out since my dad ran this place. Take my tester up to the sign. I’ll watch the letters from the curb.”","Vera");
