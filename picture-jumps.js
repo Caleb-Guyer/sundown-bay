@@ -37,7 +37,9 @@
       if(!r||![r.distance,r.peak,r.seconds].every(n=>Number.isFinite(n)&&n>0)||r.seconds>12||r.peak>30||r.distance>s.max+1||
         typeof r.model!=="string"||!Array.isArray(r.trace)||r.trace.length<2||r.trace.length>96)continue;
       if(!r.trace.every(p=>Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&Math.abs(n)<150)))continue;
-      book.best[s.id]={distance:r.distance,seconds:r.seconds,peak:r.peak,model:r.model.slice(0,55),trace:r.trace.map(p=>p.slice())};
+      const kind=Object.hasOwn(BayDriving.cars,r.kind)?r.kind:Object.keys(BayDriving.cars).find(id=>BayDriving.cars[id].name===r.model)||"coupe";
+      const color=/^#[a-f0-9]{6}$/i.test(r.color)?r.color:"#de6f62";
+      book.best[s.id]={distance:r.distance,seconds:r.seconds,peak:r.peak,model:r.model.slice(0,55),kind,color,trace:r.trace.map(p=>p.slice())};
       book.known=true;
     }
     return book;
@@ -108,12 +110,13 @@
     }
     return landed?finish(v,f,q,!hit):null;
   }
-  function saveLanding(book,result,model){
+  function saveLanding(book,result,v,model){
     if(!result.eligible||result.miss)return 0;
     const {site,distance,peak,seconds,trace}=result,previous=book.best[site.id];
     if(previous&&previous.distance>=distance)return 0;
-    book.known=true;book.best[site.id]={distance,peak,seconds,trace,model};
+    book.known=true;book.best[site.id]={distance,peak,seconds,trace,model,kind:v.kind,color:v.color};
     return previous?0:80+(sites.every(s=>book.best[s.id])?90:0);
   }
-  window.BayPictureJumps={sites,deck,elevation,along,across,canEnter,read,airControl,step,saveLanding};
+  const complete=book=>sites.every(s=>book?.best?.[s.id]);
+  window.BayPictureJumps={sites,deck,elevation,along,across,canEnter,read,airControl,step,saveLanding,complete};
 })();

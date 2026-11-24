@@ -5,7 +5,7 @@
   const desk={x:155.35,z:-17.1,y:.076,yaw:-Math.PI/2,name:"Bay Wire · Curb desk"};
   desk.stand=BayDriving.world(desk,0,1.1);desk.block={x:desk.x,z:desk.z,w:.84,d:1.43,bottom:0,top:1.45,streetProp:true};
   const assignments=["pass","slide","hop"];
-  const titles={pass:"Street pass",slide:"Sliding corner",hop:"Off the springs",chase:"Sirens in frame",impact:"Fender bender"};
+  const titles={pass:"Street pass",slide:"Sliding corner",hop:"Off the springs",jump:"Picture car jump",chase:"Sirens in frame",impact:"Fender bender"};
   const clamp=(n,a,b)=>Math.min(b,Math.max(a,n)),round=n=>Math.round(n*100)/100;
   const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   const cleanName=s=>typeof s==="string"&&s.length>0&&s.length<=70;
@@ -47,7 +47,7 @@
   }
   function body(v,env){
     const pose=env.pose(v);
-    return [round(v.x),round(env.floor(v.x,v.z)+.012+(v.hydraulic?.bodyLift||0)),round(v.z),round(v.yaw),round(pose.pitch||0),round(pose.lean||0)];
+    return [round(v.x),round((v.jumpFlight?.height??env.floor(v.x,v.z))+.012+(v.hydraulic?.bodyLift||0)),round(v.z),round(v.yaw),round(pose.pitch||0),round(pose.lean||0)];
   }
   const castMember=v=>({kind:v.kind,color:/^#[a-f\d]{6}$/i.test(v.color)?v.color:v.kind==="cruiser"?"#e1e1ce":"#898e85"});
   function track(clip,time){
@@ -122,6 +122,7 @@
       const sideways=Math.abs(v.vx*Math.cos(v.yaw)-v.vz*Math.sin(v.yaw));
       if(speed>5&&v.slip>.32&&Math.abs(v.yawRate)>.2&&sideways>1.0)s.slide+=interval;
       if(v.hydraulic&&v.hydraulic.contacts!==15)s.hop=Math.max(s.hop,v.hydraulic.bodyLift||0);
+      if(v.jumpFlight?.eligible)s.airHeight=Math.max(s.airHeight||0,v.jumpFlight.height-v.jumpFlight.site.base);
       for(const q of env.nearby(v))if(q!==v&&s.extra.length<3&&!s.extra.includes(q)&&Object.hasOwn(BayDriving.cars,q.kind)&&gap(q,w)<40)s.extra.push(q);
       const frame=[round(s.rolling),body(v,env)];
       for(const q of s.extra){
@@ -130,11 +131,15 @@
         if(visible&&q.kind==="cruiser"&&env.wanted&&gap(q,v)<28)s.police+=interval;
       }
       s.frames.push(frame);
-      if(s.rolling>=4.4||s.after>12&&s.rolling>1.35)return this.finish();
+      const headingForRamp=speed>6&&!s.airHeight&&window.BayPictureJumps?.sites.some(site=>{
+        const z=BayPictureJumps.along(site,v);
+        return z<=0&&z>=-site.length-18&&Math.abs(BayPictureJumps.across(site,v))<site.width*.58&&Math.cos(v.yaw-site.yaw)>.88;
+      });
+      if(s.rolling>=4.4||s.after>12&&s.rolling>1.35&&!v.jumpFlight&&!headingForRamp)return this.finish();
     }
     finish(){
       const s=this.shot;if(!s)return;this.cancel();
-      const type=s.impact>=4?"impact":s.hop>.21?"hop":s.slide>=.36?"slide":s.police>=.32?"chase":"pass";
+      const type=s.impact>=4?"impact":s.airHeight>.4?"jump":s.hop>.21?"hop":s.slide>=.36?"slide":s.police>=.32?"chase":"pass";
       if(s.frames.length<7||s.near>33||type!=="hop"&&s.path<7||
         type==="pass"&&(s.maxSpeed<(s.called?10.5:15)||s.path<10||s.after<1.5)){this.cool=1.1;return;}
       const action=type==="slide"?s.slide*12:type==="hop"?s.hop*28:type==="chase"?s.police*9:type==="impact"?s.impact:s.maxSpeed*.75;

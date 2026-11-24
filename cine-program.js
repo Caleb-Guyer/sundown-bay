@@ -540,7 +540,7 @@
     });
   }
 
-  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages;
+  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -550,11 +550,14 @@
     const delivery=second&&typeof options?.deliveredBy==="string"?options.deliveredBy.trim().slice(0,48):"";
     const location=window.BaySecondUnit?.record(options?.location)?options.location:null;
     const windows=options?.windows||null;
-    if(schedule&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const jumps=options?.pictureJumps||null;
+    if(schedule&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedJumps=jumps;
     if(listedWindows!==windows){listedWindows=windows;windowImages=null;}
     if(listedLocation!==location){listedLocation=location;locationCard=null;}
     listedRecord=saved;listedSkate=skate;listedPrint=print;listedSecond=second;listedDelivery=delivery;
     const list=[];
+    if(jumps)list.push(slot("picture-jumps","Four Wheels Down","Romy Vale · An animation from three measured jumps",15));
     if(location)list.push(slot("location",location.title,"Second Unit · "+location.by+" · Frame "+location.number,5));
     if(windows?.length===3)list.push(slot("windows",BayWindowSeat.filmTitle,"Cine Luna · Second Unit",12));
     if(skate)list.push(slot("skate","Curb Cut",film.title(skate.site)+" · "+skate.score+" pts",film.duration(skate)));
@@ -585,7 +588,8 @@
       context.lineCap="round";context.lineJoin="round";
     }
     const elapsed=inSlot/fps;
-    if(item.id==="pelican")showPelican(context,elapsed);
+    if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
+    else if(item.id==="pelican")showPelican(context,elapsed);
     else if(item.id==="tram")showTram(context,elapsed,item.credit);
     else if(item.id==="stunt")showStunt(context,listedRecord);
     else if(item.id==="skate")window.BaySkateFilm.draw(context,listedSkate,elapsed,width,height);

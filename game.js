@@ -132,13 +132,12 @@
     catch{return null;}
   }
   function readSave(){
-    const pictureBook=jumps.read(null);
     const result=blankSave();result.engineSeven=BayEngineSeven.read(null);result.starlite=BayStarlite.read(null);result.stunt=storedPoster();result.bikes=BayPedal.read(null);result.boardwalk=BayBoardwalk.read(null);result.courts=BayPickup.read(null);result.valet=BayMotorCourt.read(null);
     result.band=BaySessions.read(null);result.palma=BayPalma.read(null);result.bridge=BayDrawbridge.read(null);result.neon=BayMarlinNeon.read(null);
     result.campana=BayCampana.read(null);result.windowBest={};result.windowJobs=0;result.transit=BayTransit.read(null);result.airwaves=BayAirwaves.read(null);
     result.buttonwood=BayButtonwood.read(null);result.brisas=BayBrisasClub.read(null);result.palm=BayPalmLeague.read(null);result.gull=BayGullSales.read(null);result.moto=BaySecondSeat.read(null);result.rescue=BayRescue.read(null);result.skate=BaySkate.read(null);result.airmail=BayPelicanAir.read(null);
     result.luggage=luggage.read(null);result.green=BayOnGreen.read(null);result.threads=threads.read(null,result.courts);
-    result.pictureJumps=pictureBook;
+    result.pictureJumps=jumps.read(null);
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
       result.pictureJumps=jumps.read(raw.pictureJumps);
       result.engineSeven=BayEngineSeven.read(raw.engineSeven);result.starlite=BayStarlite.read(raw.starlite);result.luggage=luggage.read(raw.luggage);result.green=BayOnGreen.read(raw.green);
@@ -3623,7 +3622,7 @@
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,second:!!save.cab.reel,
+  const filmOptions=()=>({pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,second:!!save.cab.reel,
     deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   const cabWindow=()=>cabs.booking?.stage==="ride"&&cabs.booking.window&&!isTop();
   function cabRank(){
@@ -5849,13 +5848,13 @@
       if(firstLook)persist();
       return;
     }
-    const fee=jumps.saveLanding(book,landing,formatVehicle(v));
+    const fee=jumps.saveLanding(book,landing,v,formatVehicle(v));
     const best=!prior||book.best[s.id]!==prior;
     if(best){
       save.wallet+=fee;persist();
       broadcastDesk.queue.unshift("Romy Vale clocked a "+landing.distance.toFixed(1)+" metre jump at "+s.name+".");
     }
-    const bonus=fee===170?" · All three locations signed":"";
+    const bonus=fee===170?" · Four Wheels Down is playing at Cine Luna":"";
     note(s.name+" · "+landing.distance.toFixed(1)+" m",(fee?cash(fee)+" location fee"+bonus:best?"New personal best":"Clean landing")+" · J for Romy’s notebook",5);
     if(afternoon.seated)speak(BaySecondUnit.names[unit.other],best?"Romy’s going to want that one on paper.":"I felt those wheels come down together.");
     lastHud=-10;
@@ -5894,6 +5893,8 @@
       control.append(caption,slider);body.append(control);
     }
     body.append(makeButton("Mark the run-up",s.hint,"Set waypoint",()=>clockPin(s.runup)));
+    if(jumps.complete(save.pictureJumps))
+      body.append(makeButton("Four Wheels Down","Romy’s animated short follows these three jumps. Cue it at Cine Luna’s lobby case.","Mark cinema",()=>clockPin(BayCab.cinema)));
     for(const other of jumps.sites)if(other!==s){
       const best=save.pictureJumps.best[other.id];
       body.append(makeButton(other.name,other.area,best?best.distance.toFixed(1)+" m":"Read page",()=>openJumpBook(other)));
@@ -5932,7 +5933,10 @@
     const neighbors=cars.concat(patrol,motos.all);if(dist(v,transit.bus)<13)neighbors.push(transit.bus);
     for(const other of neighbors){
       if(other===v||v===wrecker&&other===tow.target)continue;
-      if(v.jumpFlight&&dist(v,other)<10&&v.jumpFlight.height>footLevel(other.x,other.z)+(other.footprint?.height||bayCarLayout(other.kind).glass?.[5]||1.7)+.12)continue;
+      if(v.jumpFlight&&dist(v,other)<10){
+        const roof=other===transit.bus?3.35:bayCarLayout(other.kind).glass?.[5]||1.7;
+        if(v.jumpFlight.height>footLevel(other.x,other.z)+roof+.12)continue;
+      }
       const hit=BayDriving.contact(v,other);
       if(!hit){if(crashContacts.has(other)&&dist(v,other)>6.3)crashContacts.delete(other);continue;}
       const {nx,nz,depth}=hit,out=Math.min(.45,depth+.012);
@@ -6434,7 +6438,7 @@
     present:v=>cars.includes(v)||patrol.includes(v),
     nearby(v){return [...patrol,...cars.filter(c=>c!==v&&Math.abs(c.x-v.x)<42&&Math.abs(c.z-v.z)<42).sort((a,b)=>dist(a,v)-dist(b,v))];},
     sees(w,v){
-      return scoutSight({x:w.x,y:footLevel(w.x,w.z)+1.54,z:w.z},{x:v.x,y:footLevel(v.x,v.z)+.9+(v.hydraulic?.bodyLift||0),z:v.z});
+      return scoutSight({x:w.x,y:footLevel(w.x,w.z)+1.54,z:w.z},{x:v.x,y:(v.jumpFlight?.height??footLevel(v.x,v.z))+.9+(v.hydraulic?.bodyLift||0),z:v.z});
     }
   };
   const wireDeskNear=()=>onStreetFeet()&&dist(hero,wireDesk.stand)<2.35;
@@ -8838,6 +8842,8 @@
     }
     const foot=document.createElement("p");foot.className="edition-copy";
     foot.textContent="Continuous showing. Take any open aisle seat.";body.append(foot);
+    if(jumps.complete(save.pictureJumps))body.append(makeButton("Cue Four Wheels Down","Romy traced your three jumps for this animated short.","Thread print",()=>{
+      room.cuedReel="picture-jumps";closePanel();note("Cine Luna","The reel is threaded. Take an aisle seat for Four Wheels Down.",3.8);}));
     if(negatives.reel)body.append(makeButton("Cue the window short",BayWindowSeat.filmTitle+" · Three moving frames","Thread short",()=>{room.cuedReel="windows";closePanel();note("Cine Luna","Take an aisle seat. They’ve threaded all three negatives.",3.8);}));
     if(unit.film.pinned)body.append(makeButton("Cue the location print",unit.film.pinned.title+" · "+unit.film.pinned.by,"Thread print",()=>{
       room.cuedReel="location";closePanel();note("Cine Luna","Take an aisle seat to see your frame.",3.8);}));
