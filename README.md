@@ -6,6 +6,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.
 
+Find **Gull Street Motors** on Biscayne, behind Cine Luna. Walk up to Kitty Vega’s counter or either window sticker and press **F**. For **A Second Opinion**, take the keys from Kitty, get in with **E**, and drive with Malik Bell. Follow his road sheet, stop at the chalk and press **F**. Bring the car back to its display stripe, step out and hand Kitty the keys to get paid.
+
+The long-hood **Cayo 72** and mid-engine **Marea S** have different steering, weight and gearing. A signed test earns a first-purchase credit on that model. A purchased car keeps its own paint, Portside upgrades, damage, mileage and parking spot. Its numbered key tag appears on your phone under **Gull Street Motors**. Roll into your bay and press **F** to file the parking spot. A car carrying the Marlin’s Room 14 permit can take a free bay too. To sell a dealership car, return it to its display stripe and visit Kitty.
+
 Walk north from the Marlin to **Coast Camera & Cycle** on Ocean Drive. **E** borrows either motorcycle. The Paloma 90 is a scooter, and the Heron 500 has a five-speed engine. Use **W/S** for throttle and braking, **A/D** to steer, **Space** for the rear brake, and **E** to step off when stopped. The bikes stay where you park them. **V** switches to the rider’s view in 3D.
 
 Press **F** at Inés Vidal’s counter for **Second Seat**. Pick a subject and a seat. Drive Inés to the shooting corner or ride behind her and take the picture. **G** trades seats at a stop. Near the marked curb, **F** raises the rangefinder. Frame the landmark with the mouse or arrow keys, zoom with **Z/V**, and use **Space** or click to expose the film. Ride home, step off and press **F** at the counter to develop the roll and collect your pay. Your best print for each assignment hangs in the shop window and opens on your phone (**J**).

@@ -23,6 +23,7 @@
 
   // Each body section sets its longitudinal position, half-width, and deck height.
   const shapes = {
+    ...window.BayDealerCars?.shapes,
     wrecker:BayWreckerArt.shape,
     ambulance:BayAmbulanceArt.shape,
     coupe: {
@@ -55,7 +56,7 @@
   // The seat, handle and hinge use the same measurements as the painted body.
   for(const [kind,s] of Object.entries(shapes)){
     const [rear,, ,front,sill,roof]=s.glass,van=kind==="van";
-    s.divider=van?.615:kind==="coupe"?.38:.51;
+    s.divider=s.divider??(van?.615:kind==="coupe"?.38:.51);
     s.back=mix(rear,front,s.divider);s.hingeZ=front;s.hingeX=s.track-.067;
     s.handleZ=s.back+.14;s.handleY=sill-.105;s.seatX=s.track*.43;
     s.handleX=sideAt(s,1,s.handleZ,s.handleY,.019)[0];
@@ -65,6 +66,7 @@
   }
   window.bayCarLayout=kind=>shapes[kind]||shapes.coupe;
   BayWreckerArt.fit(shapes.wrecker);BayAmbulanceArt.fit(shapes.ambulance);
+  if(window.BayDealerCars)for(const shape of Object.values(BayDealerCars.shapes))BayDealerCars.fit(shape);
 
   function bodyMesh(g, shape, paint, doors) {
     const lower = tint(paint, "#273242", .27);
@@ -287,6 +289,7 @@
   }
 
   window.buildBayBrakeLights = function buildBayBrakeLights(g,kind){
+    if(window.BayDealerCars?.owns(kind)){BayDealerCars.brakeLights(g,kind);return;}
     const shape=bayCarLayout(kind),[z,w,h]=shape.sections[0];
     for(const side of [-1,1])g.box(side*(w-.245),h-.127,z-.020,.30,.111,.018,"#ff5447");
     g.box(0,shape.glass[4]+.061,shape.glass[0]-.01,.31,.040,.04,"#ff6b53");
@@ -294,6 +297,7 @@
   window.buildBayCar = function buildBayCar(g, kind, paint, parts) {
     const shape = shapes[kind] || shapes.coupe;
     const color = typeof paint === "string" && /^#[\da-f]{6}$/i.test(paint) ? paint : shape.paint;
+    if(window.BayDealerCars?.owns(kind)){BayDealerCars.build(g,shape,color,parts);return;}
     if(kind==="ambulance"){BayAmbulanceArt.build(g,shape,color,parts,interior);return;}
     if(kind==="wrecker"){BayWreckerArt.build(g,shape,color,parts,interior);return;}
     const doors=parts?parts.doors:{[-1]:g,1:g};

@@ -286,5 +286,5 @@
       this.staff.age+=dt;this.staffStep(dt,env);
     }
   }
-  window.BayMotorCourt={Service,read,parked,cast,actor,phase,move,open,walkTo,lotPath,roundLoop,nearestLeg,signal};
+  window.BayMotorCourt={Service,read,parked,cast,actor,phase,move,open,walkTo,lotPath,lotDrive,road,roundLoop,nearestLeg,signal};
 })();

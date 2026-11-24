@@ -32,7 +32,7 @@
   const beds = new Map();
   const fieldBuffers = new Map(), fieldVoices = new Map();
   const bedsByName = {
-    engine: ['sawtooth', 'lowpass', 0.59], skid: ['noise', 'bandpass', 1.8], tire: ['triangle', 'lowpass', 0.62],
+    engine: ['sawtooth', 'lowpass', 0.59], exhaust: ['triangle','lowpass',.65], skid: ['noise', 'bandpass', 1.8], tire: ['triangle', 'lowpass', 0.62],
     surf: ['noise', 'lowpass', 0.52], street: ['noise', 'lowpass', 0.8], quay: ['sine', 'lowpass', 0.6],
     piston: ['sawtooth','lowpass',0.62], rotor: ['rotor', 'lowpass', 0.70], undertow: ['noise','lowpass',0.58],
     washJet: ['noise','bandpass',.74], washPump: ['triangle','lowpass',.61],
@@ -562,8 +562,15 @@
     const gear = Math.min(3, Math.floor(speed / 10));
     const revs = boating ? 54 + 2.8 * speed + 1.4 * Math.sin(worldTime * 5.8) : 43 + 11 * gear + Math.min(11, speed - gear * 10) * 3.6;
     const moto=state.motorcycle, scooter=moto?.kind==='paloma', rpm=moto?.rpm||0;
-    mixBed('engine', effects, now, driving ? (moto ? .035+.036*rpm : .060+velocity*.038) : 0,
-      moto ? (scooter?330:240)+rpm*670 : 185+410*velocity, moto ? (scooter?77:44)+(scooter?160:120)*rpm : revs);
+    const dealer=state.dealerEngine,fastback=dealer?.kind==='cayo';
+    const load=dealer?.throttle||0,ratio=dealer?speed/BayDriving.cars[dealer.kind].top:0;
+    const pitch=dealer?unit(ratio/[.23,.42,.62,.83,1][dealer.gear-1]+load*.08):0;
+    const firing=(fastback?34:52)+(fastback?79:119)*pitch;
+    mixBed('engine',effects,now,driving?(moto ? .035+.036*rpm : .060+velocity*.038)*(dealer?.shift ? .65 : 1):0,
+      moto?(scooter?330:240)+rpm*670:dealer?(fastback?145:235)+pitch*420+load*160:185+410*velocity,
+      moto?(scooter?77:44)+(scooter?160:120)*rpm:dealer?firing:revs);
+    if(dealer||beds.has('exhaust'))mixBed('exhaust',effects,now,dealer ? .022+load*.029 : 0,
+      fastback?240:520,fastback?firing*.5+.65*Math.sin(worldTime*8):firing*1.5);
     if (driving && speed > 4 && skid > 0.12) {
       if (skidSince === null) skidSince = now;
     } else skidSince = null;

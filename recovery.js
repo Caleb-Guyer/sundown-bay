@@ -22,7 +22,7 @@
   function readBody(raw){
     const result=Object.create(null);
     for(const [id,record] of Object.entries(raw&&typeof raw==="object"?raw:{})){
-      if(!/^(coupe|hatch|cab|van|wrecker)@-?\d{1,3}\.\d\d,-?\d{1,3}\.\d\d$/.test(id))continue;
+      if(!/^(coupe|hatch|cab|van|wrecker|cayo|marea)@-?\d{1,3}\.\d\d,-?\d{1,3}\.\d\d$/.test(id))continue;
       const d=condition(record);if(zones.some(k=>d[k]>0))result[id]=d;
     }
     return result;

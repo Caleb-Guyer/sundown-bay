@@ -27,6 +27,9 @@
       localStorage.setItem(key,JSON.stringify({id:v.garageKey,x:v.x,z:v.z,yaw:v.yaw,flatSide:v.flatSide||0,flatAxle:v.flatAxle??null}));
     }catch{}
   }
+  function release(v){
+    try{if(JSON.parse(localStorage.getItem(key)||"null")?.id===v.garageKey)localStorage.setItem(key,"null");}catch{}
+  }
   function install(model){
     model("marlin-parking",g=>{
       const stripe=(x,z,w,d,color)=>g.quad([x-w/2,.092,z-d/2],[x+w/2,.092,z-d/2],[x+w/2,.092,z+d/2],[x-w/2,.092,z+d/2],color);
@@ -49,5 +52,5 @@
     ctx.fillStyle="#c1b497";ctx.fillRect(-.85,-halfLength-.23,1.70,.19);
     ctx.fillStyle="#f2dfa8";ctx.textAlign="center";ctx.font="bold .77px sans-serif";ctx.fillText("14",0,-2.25);ctx.restore();
   }
-  window.BayMotelParking={bay,stop,inside,read,write,install,map};
+  window.BayMotelParking={bay,stop,inside,read,write,release,install,map};
 })();

@@ -280,7 +280,8 @@
     const key=v.soil||v.rinse,prior=sprites.get(key),p=profile(v.kind),color=v.color||p.s.paint;
     const cells=cellStamp(v.washCells);
     if(prior&&prior.soil===soil&&prior.rinse===rinse&&prior.color===color&&prior.kind===v.kind&&prior.cells===cells)return prior;
-    const truck=p.truck,van=v.kind==="van",l=truck?2.78:van?2.32:v.kind==="hatch"?1.82:2.16,b=truck?1:van?.97:.91;
+    const truck=p.truck,van=v.kind==="van",dealer=window.BayDealerCars?.owns(v.kind);
+    const l=dealer?p.s.halfLength:truck?2.78:van?2.32:v.kind==="hatch"?1.82:2.16,b=dealer?p.s.track:truck?1:van?.97:.91;
     const paint=pigment(color),parts=Array.from({length:3},()=>[]),damage=v.damage||{};
     const sideHull=(z,d)=>{
       const taper=clamp((Math.abs(z)-l+.28)/.28)*.20;

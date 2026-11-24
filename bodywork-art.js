@@ -1,7 +1,7 @@
 /* Car body panels share a rest mesh. Only a changed impact builds another shape. */
 (() => {
   "use strict";
-  const kinds=new Set(["coupe","hatch","cab","van","cruiser","wrecker","ambulance"]);
+  const kinds=new Set(["coupe","hatch","cab","van","cruiser","wrecker","ambulance","cayo","marea"]);
   const profiles=new Map(),views=new WeakMap(),installed=new WeakMap(),mapPlans=new WeakMap(),effects=new WeakMap();
   const clamp=x=>Math.max(0,Math.min(1,x)),mix=(a,b,f)=>a+(b-a)*f;
   const band=x=>Number.isFinite(x)?Math.round(clamp(x)*15):0;
@@ -372,5 +372,9 @@
     }
     c.globalAlpha=opacity;
   }
-  window.BayBodyworkArt={buffer,world,plan,mapShadow:(c,a)=>fill(c,a.shadow,"#62645b"),mapBody,mapTrim};
+  function deformer(car){
+    const n=code(car.damage);if(!n||!kinds.has(car.kind))return null;
+    const p=profile(car.kind),d=levels(n);return (x,y,z,out)=>bend(x,y,z,p,d,out);
+  }
+  window.BayBodyworkArt={deformer,buffer,world,plan,mapShadow:(c,a)=>fill(c,a.shadow,"#62645b"),mapBody,mapTrim};
 })();
