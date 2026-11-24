@@ -5278,7 +5278,7 @@
   }
   function curbVehicle(){return play&&car&&!transfer&&!active?.take&&!motos.finder&&!unit.eye&&!room&&!car.serviceCar?car:null;}
   const wireEnv={
-    floor:footLevel,hours,people:walkers,free:w=>w!==band.local&&!w.onTour&&!w.palmManaged,
+    floor:footLevel,pose:roadBody,hours,people:walkers,free:w=>w!==band.local&&!w.onTour&&!w.palmManaged,
     street:v=>BayStreetNames.through(v,v.yaw)||district(v),
     get wanted(){return heat>0;},
     present:v=>cars.includes(v)||patrol.includes(v),

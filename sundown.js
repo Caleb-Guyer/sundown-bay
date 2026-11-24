@@ -55046,9 +55046,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     mount(c){this.refresh();if(!valid(c))return;this.cover=c;this.pin=c.id;this.save();}
   }
-  function body(v,ground){
-    const h=v.hydraulic;
-    return [round(v.x),round(ground(v.x,v.z)+.012+(h?.bodyLift||0)),round(v.z),round(v.yaw),round((v.pitch||0)+(h?.pitch||0)),round((v.lean||0)+(h?.roll||0))];
+  function body(v,env){
+    const pose=env.pose(v);
+    return [round(v.x),round(env.floor(v.x,v.z)+.012+(v.hydraulic?.bodyLift||0)),round(v.z),round(v.yaw),round(pose.pitch||0),round(pose.lean||0)];
   }
   const castMember=v=>({kind:v.kind,color:/^#[a-f\d]{6}$/i.test(v.color)?v.color:v.kind==="cruiser"?"#e1e1ce":"#898e85"});
   function track(clip,time){
@@ -55124,10 +55124,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(speed>5&&v.slip>.32&&Math.abs(v.yawRate)>.2&&sideways>1.0)s.slide+=interval;
       if(v.hydraulic&&v.hydraulic.contacts!==15)s.hop=Math.max(s.hop,v.hydraulic.bodyLift||0);
       for(const q of env.nearby(v))if(q!==v&&s.extra.length<3&&!s.extra.includes(q)&&Object.hasOwn(BayDriving.cars,q.kind)&&gap(q,w)<40)s.extra.push(q);
-      const frame=[round(s.rolling),body(v,env.floor)];
+      const frame=[round(s.rolling),body(v,env)];
       for(const q of s.extra){
         const nearby=gap(q,w)<52&&env.present(q);
-        const visible=nearby&&env.sees(w,q);frame.push(visible?body(q,env.floor):null);
+        const visible=nearby&&env.sees(w,q);frame.push(visible?body(q,env):null);
         if(visible&&q.kind==="cruiser"&&env.wanted&&gap(q,v)<28)s.police+=interval;
       }
       s.frames.push(frame);
@@ -60657,7 +60657,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function curbVehicle(){return play&&car&&!transfer&&!active?.take&&!motos.finder&&!unit.eye&&!room&&!car.serviceCar?car:null;}
   const wireEnv={
-    floor:footLevel,hours,people:walkers,free:w=>w!==band.local&&!w.onTour&&!w.palmManaged,
+    floor:footLevel,pose:roadBody,hours,people:walkers,free:w=>w!==band.local&&!w.onTour&&!w.palmManaged,
     street:v=>BayStreetNames.through(v,v.yaw)||district(v),
     get wanted(){return heat>0;},
     present:v=>cars.includes(v)||patrol.includes(v),
