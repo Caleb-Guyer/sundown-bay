@@ -22,7 +22,7 @@
   }
 
   // Each body section sets its longitudinal position, half-width, and deck height.
-  const builders=[window.BayDealerCars,window.BaySolenaArt,window.BayBoulevardCars].filter(Boolean);
+  const builders=[window.BayDealerCars,window.BaySolenaArt,window.BayBoulevardCars,window.BayCaletaArt].filter(Boolean);
   const coachwork=new Map(builders.flatMap(b=>Object.keys(b.shapes).map(k=>[k,b])));
   window.bayCoachwork=kind=>coachwork.get(kind);
   const shapes = {

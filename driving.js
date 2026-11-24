@@ -4,6 +4,7 @@
   const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const damp=(a,b,k,dt)=>a+(b-a)*-Math.expm1(-k*dt);
   const cars={
+    caleta:{name:"Caleta Spider",top:36.5,power:13.9,brake:18.3,grip:14.1,balance:.485,steer:.71,response:9.3,roll:.061},
     solena:{name:"Solena 64",top:34.0,power:12.4,brake:15.7,grip:12.4,balance:.44,steer:.67,response:6.0,roll:.103},
     estate:{name:"Marisma Estate",top:30.4,power:11.2,brake:16.1,grip:13.7,balance:.47,steer:.67,response:7.2,roll:.110},
     stepside:{name:"Cortez Stepside",top:28.6,power:12.0,brake:15.2,grip:12.3,balance:.405,steer:.65,response:6.6,roll:.127},

@@ -789,6 +789,11 @@
       }
     }
     if(street&&opt.gutters)BayGutterArt.overhead(ctx,px,py,s,opt.gutters,streetTime);
+    if(opt.starlite&&visible(px(opt.starlite.x),py(opt.starlite.z),s*16)){
+      const site=opt.starlite;
+      if(street)BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,opt.starliteFrame(),opt.starliteVisit);
+      else if(atlas){disc(ctx,px(site.x),py(site.z),3.1*ui,"#b56247");ctx.save();ctx.textAlign="center";ctx.fillStyle="#533b31";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.fillText("STARLITE",px(site.x),py(site.z)-5*ui);ctx.restore();}
+    }
     if(street&&opt.pavement)BayPavementArt.overhead(ctx,px,py,s,opt.pavement,streetTime,visible);
     if(street)for(const k of opt.skids||empty)if(t-k.time<20&&visible(px(k.x),py(k.z))){
       const dx=Math.sin(k.yaw)*.40,dz=Math.cos(k.yaw)*.40;
@@ -942,11 +947,11 @@
         if(car===opt.luggage?.lid)BayLuggageBootArt.map(ctx,px,py,s,car,opt.luggage.amount,opt.luggage.items);
         if(car.soil)BayRoadGlass.map(ctx,car,x,y,s,streetTime);
         if(car===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,car,opt.campana.open,opt.campana.bell,streetTime);
-        if(opt.crew?.afternoon?.seated&&opt.crew.afternoon.vehicle===car){
+        if(car.kind!=="caleta"&&opt.crew?.afternoon?.seated&&opt.crew.afternoon.vehicle===car){
           const seat=bayCarLayout(car.kind),p=BayDriving.world(car,seat.seatX,seat.seatZ+.28);
           disc(ctx,px(p.x),py(p.z),Math.max(.85,s*.16),opt.crew.lead==="guest"?"#534339":"#604a38");
         }
-        if(opt.crew?.ride===car){
+        if(car.kind!=="caleta"&&opt.crew?.ride===car){
           const layout=bayCarLayout(car.kind);
           for(const side of [-1,1]){
             if(side===1&&!(opt.crew.outing?.seat>.72))continue;

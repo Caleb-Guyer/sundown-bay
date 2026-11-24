@@ -9,7 +9,8 @@ const threads = process.argv.includes("--threads");
 const neighbors = process.argv.includes("--neighbors");
 const partnerDrive = process.argv.includes("--partner-drive");
 const pavement = process.argv.includes("--pavement");
-const play = require(pavement ? "./pavement.cjs" : partnerDrive ? "./partner-drive.cjs" : neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
+const starlite = process.argv.includes("--starlite");
+const play = require(starlite ? "./starlite.cjs" : pavement ? "./pavement.cjs" : partnerDrive ? "./partner-drive.cjs" : neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
 
 const mode = process.argv[2];
 const site = "https://caleb-guyer.github.io/sundown-bay/";
@@ -106,7 +107,7 @@ async function run() {
     await js("document.querySelector('#play').click()");
     await waitFor("!document.querySelector('#hud').hidden");
     assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
-    if (!corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement) await tap("KeyM");
+    if (!corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite) await tap("KeyM");
     await play({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
     assert.equal(await js("audioStarts+cursorRequests"), 0);

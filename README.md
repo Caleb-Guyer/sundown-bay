@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+The ivory **Caleta Spider** is parked on Ocean Drive south of the Marlin. Press **O** while stopped to raise or fold the canvas top. Find the **Starlite Motor Theatre** on Gantry Street, face the outdoor screen in a numbered space, and press **F** to clip on the speaker. A ticket from the showing goes in your pocket. At the booth, Ada pays **$65** for the first clean change to each print. Start the other projector with **Space** on the first cue dot and switch shutters with **F** on the second.
+
 Find the **Bay Wire** box on the beach-side curb of Ocean Drive, a few car lengths north of the Marlin’s coral coupe. Press **F** on foot to read the front page. The paper carries local stories you’ve uncovered and the actual Cine Luna bill. Keep an issue and reopen it under **J → Folded copies**.
 
 A bumper can tip a news box, a Cine Luna sandwich board or a wooden citrus crate. Loose papers flutter and oranges bounce into the street. The attendant comes out to right the stand, gather what fell and put the stand back. You can help. Hold **L** beside a fallen stand to lift it, tap **L** by a loose item to pick it up, and tap **L** beside its upright stand to return it. **F** unfolds a paper you’re carrying.

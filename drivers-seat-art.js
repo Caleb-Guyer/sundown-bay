@@ -3,7 +3,7 @@
   "use strict";
   const tau=2*Math.PI, mix=(a,b,t)=>a+(b-a)*t, clamp=(v,low,high)=>Math.max(low,Math.min(high,v));
   const styles={
-    ...window.BayDealerCars?.cockpitStyles,...window.BaySolenaArt?.cockpitStyles,...window.BayBoulevardCars?.cockpitStyles,
+    ...window.BayDealerCars?.cockpitStyles,...window.BaySolenaArt?.cockpitStyles,...window.BayBoulevardCars?.cockpitStyles,...window.BayCaletaArt?.cockpitStyles,
     coupe:{trim:"#353f40",top:"#314345",pad:"#424946",cloth:"#866752",thread:"#bb9a78",edge:"#b1bbb1",face:"#243236",ink:"#f0dfb4",accent:"#d27650",rim:"#78533e",hub:"#343d3b",dash:"pair",spokes:3,stamp:"MARLIN GT",limit:100},
     hatch:{trim:"#505855",top:"#434e4e",pad:"#636863",cloth:"#927c64",thread:"#d0bd92",edge:"#abb29c",face:"#e5debd",ink:"#344440",accent:"#bd5e42",rim:"#414442",hub:"#69706a",dash:"single",spokes:2,stamp:"RIVA",limit:90},
     cab:{trim:"#8b7359",top:"#605b4e",pad:"#a18867",cloth:"#a38462",thread:"#ddbb85",edge:"#d5c5a2",face:"#313b38",ink:"#f5ddb0",accent:"#e6a755",rim:"#6a5543",hub:"#826c51",dash:"ribbon",spokes:2,stamp:"BAY CAB",limit:100},
@@ -154,23 +154,26 @@
   function cabinWalls(g,a){
     const {style:p,s,roof,cap,sill,base,front,roofFront,roofRear,rear}=a;
     const frame="#303c3e",seal="#263437",liner=tint(p.pad,"#e1d9b9",.40);
-    g.quad([-cap,roof+.013,roofRear],[cap,roof+.013,roofRear],[cap,roof+.013,roofFront],[-cap,roof+.013,roofFront],liner);
-    for(const z of [roofRear,roofFront])g.box(0,roof-.005,z,cap*2+.018,.04,.073,liner);
+    const fixedRoof=a.kind!=="caleta";
+    if(fixedRoof)g.quad([-cap,roof+.013,roofRear],[cap,roof+.013,roofRear],[cap,roof+.013,roofFront],[-cap,roof+.013,roofFront],liner);
+    for(const z of (fixedRoof?[roofRear,roofFront]:[roofFront]))g.box(0,roof-.005,z,cap*2+.018,.04,.073,liner);
     for(const side of [-1,1]){
       const x=side*base,x1=side*cap,sideTrim=tint(p.trim,"#2c3335",.2);
       const p0=glass({kind:a.kind},side<0?0:1,0),p1=glass({kind:a.kind},side<0?0:1,1);
       g.pole([p0.x,p0.y,p0.z],[p1.x,p1.y,p1.z],a.high?.048:.041,seal,7);
       g.pole([p0.x-side*.008,p0.y+.002,p0.z-.012],[p1.x-side*.008,p1.y-.009,p1.z-.016],a.high?.039:.033,liner,7);
-      g.pole([x,sill,rear],[x1,roof,roofRear],.044,sideTrim,6);
+      if(fixedRoof){
+        g.pole([x,sill,rear],[x1,roof,roofRear],.044,sideTrim,6);
       const b=mix(rear,front,s.divider),br=mix(roofRear,roofFront,s.divider);
       g.pole([x,sill,b],[x1,roof,br],a.high?.047:.035,sideTrim,6);
       g.pole([x1,roof,roofRear],[x1,roof,roofFront],.037,liner,6);
+      }
       g.box(x,sill*.67,(rear+front)/2,.056,sill*.66,front-rear,sideTrim);
       g.box(x-side*.013,sill-.018,(rear+front)/2,.072,.042,front-rear,p.pad);
       g.box(x-side*.038,sill-.16,s.seatZ+.11,.069,.068,.54,p.cloth);
       g.box(x-side*.047,sill-.110,s.seatZ+.27,.034,.025,.152,p.edge);
       g.box(x-side*.045,sill-.109,s.seatZ+.29,.038,.010,.089,"#424e4c");
-      g.pole([x1,roof-.006,roofRear+.16],[x1-side*.025,roof-.04,roofRear+.17],.011,p.edge,5);
+      if(fixedRoof)g.pole([x1,roof-.006,roofRear+.16],[x1-side*.025,roof-.04,roofRear+.17],.011,p.edge,5);
     }
     g.box(0,sill-.028,front,base*2+.02,.063,.053,seal);
     g.box(0,s.floorY-.035,s.seatZ,base*2,.13,front-rear,frame);
