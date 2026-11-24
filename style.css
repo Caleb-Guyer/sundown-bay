@@ -313,4 +313,17 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 #neonShoe{position:absolute;width:2px;height:calc(100% + 6px);top:-3px;background:#ffaf6a;border:1px solid #683c2c;transform:translateX(-50%);box-sizing:content-box}
 .neon-meter{height:4px;background:#aa9578}.neon-meter i{display:block;height:100%;background:#2a716b}
 #neonTask{display:block;margin-top:5px;font:600 11px/1.2 system-ui}
+#airTicket{position:absolute;left:clamp(12px,2.25vw,30px);bottom:calc(clamp(103px,16.3vmin,151px) + 39px);width:min(260px,39vw);box-sizing:border-box;padding:9px 12px 8px;color:#f7ebce;background:#243a36f2;border-top:3px solid #daab76;text-shadow:none}
+#hud.flying #mode,#hud.flying #speed{visibility:hidden}
+#airTicket[hidden],#airInstruments[hidden]{display:none}
+#airTicket>div{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+#airTicket b{font:italic 700 clamp(17px,2.5vmin,23px)/1.1 Georgia,serif;color:#efd39f}
+#airRole,.air-receipt small{font:600 10px/1.4 Consolas,monospace}
+#airRole{color:#cfddcf;text-align:right}
+#airLeg,#airGuide{display:block}#airLeg{margin:5px 0 2px;font-size:14px}#airGuide{font-size:11px;line-height:1.35;color:#d3ddc8}
+#airInstruments{display:block;width:100%;height:auto;margin-top:6px}
+.air-receipt{padding:12px 14px;margin:8px 0;background:#e5dcc5;color:#294641;border-left:4px solid #9e604c}
+.air-receipt strong{font:italic 700 21px/1.1 Georgia,serif}.air-receipt p{margin:4px 0 9px;color:#375a51;font-size:13px}
+.air-receipt canvas{display:block;width:100%;height:auto;margin-bottom:6px}
+@media(max-height:545px){#airTicket{bottom:48px;left:auto;right:12px;width:min(229px,36vw)}}
 @media(max-height:480px){#neonTester{bottom:50px;padding:7px 9px}.neon-strip{margin:5px 0}}

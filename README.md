@@ -6,6 +6,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.
 
+At **Marlin Air Dock**, east of the motel, press **F** at Milo’s dispatch window. Take an addressed pouch, then walk to the striped step to board **Fern 3**. Fly it yourself or ride over Ocean Drive with **Nani Flores**. **W/S** adjust throttle, **A/D** bank, **Space** climbs and **Shift** descends. Lift off at **24 knots**. **G** swaps controls with Nani and **V** switches between the seat and chase views. On water, slow below **6 knots**, press **F** beside the float to tie up, then **E** to step off.
+
+**Gull Key Post Office** sits south of Gull Light. At the far hatch, get the mail signed to earn **$125**, with up to **$45** extra for your own water landing. The skiff at Marlin’s opposite berth also makes the run. Signed slips on your phone trace the route you actually took. Both offices have return mail, and Liv keeps the movie playbill and record sleeve you bring her.
+
 Use **WASD** or the arrow keys to move and steer. Move the mouse to look around. Press **E** beside a car to get in or out. **Space** is the handbrake while driving and jump on foot. **M** opens the map and **R** toggles sound.
 
 At **Sol Promenade**, across Ocean Drive from the Marlin, talk to **Nia Cruz** at the filming bench. **Teo Marín** keeps a second loaner by the **El Mercado** loading ledge. Borrow either deck and press **K** to set it down. **W** pushes, **A/D** carve and **S** brakes. Hold and release **Space** for an ollie, tap **G** while rising for a kickflip, or hold **Shift** while rolling for a manual. Pick up the board with **K** to carry it on foot or take it on Route 6.

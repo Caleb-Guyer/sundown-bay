@@ -34,7 +34,7 @@
   const bedsByName = {
     engine: ['sawtooth', 'lowpass', 0.59], skid: ['noise', 'bandpass', 1.8], tire: ['triangle', 'lowpass', 0.62],
     surf: ['noise', 'lowpass', 0.52], street: ['noise', 'lowpass', 0.8], quay: ['sine', 'lowpass', 0.6],
-    rotor: ['rotor', 'lowpass', 0.70], undertow: ['noise','lowpass',0.58],
+    piston: ['sawtooth','lowpass',0.62], rotor: ['rotor', 'lowpass', 0.70], undertow: ['noise','lowpass',0.58],
     washJet: ['noise','bandpass',.74], washPump: ['triangle','lowpass',.61],
     blade: ['noise','bandpass',1.16], spindle: ['triangle','lowpass',.65],
     spanDrive: ['sawtooth','lowpass',.60], spanChain: ['noise','bandpass',1.08]
@@ -43,6 +43,7 @@
   let context, master, music, instruments, effects, ambience, hats, noise, waves;
   let openAir, submergedBus, waterFilter;
   let enabled = false, paused = false;
+  let floatEngine=0,floatThrottle=0;
   let driving = false, boating = false, speed = 0, heat = 0, siren = 0, rotor = 0, coast = 0, docks = 0, skid = 0;
   let nextStep = 0, step = 0, nextMix = 0, skidSince = null, nextGull = 0, nextPortSound = 0;
   let nextHorn = 0, nextTrafficHorn = 0, nextSiren = 0, seed = 87533, portBell = true, worldTime = 0;
@@ -563,6 +564,7 @@
     const slip = skidSince === null ? 0 : skid * unit((now - skidSince - 0.12) * 4.5);
     mixBed('skid', effects, now, slip * 0.15, 1050 + 900 * slip);
     mixBed('tire', effects, now, slip * 0.037, 1700, 580 + velocity * 206 + 35 * Math.sin(worldTime * 9));
+    mixBed('piston', effects, now, floatEngine*(.025+.040*floatThrottle), 180+450*floatThrottle, 34+53*floatThrottle+.45*Math.sin(worldTime*5.1));
     mixBed('rotor', effects, now, rotor * .10, 215 + 230 * rotor, 14.5 + .35 * Math.sin(worldTime * .8));
     mixWasher(now, state);
     mixDrawbridge(now, state);
@@ -575,7 +577,7 @@
     speed = Math.abs(Number(state.speed) || 0);
     heat = Number(state.heat) || 0;
     siren = unit(state.siren);
-    rotor = unit(state.rotor);
+    rotor = unit(state.rotor);floatEngine=unit(state.floatEngine);floatThrottle=unit(state.floatThrottle);
     coast = unit(state.coast);
     docks = unit(state.docks);
     skid = unit(state.skid);

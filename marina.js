@@ -26,8 +26,9 @@
     return Math.abs(x-d.x)<=d.headW/2-r&&Math.abs(z-d.z)<=d.headD/2-r||
       x>=d.footX+r&&x<=d.x&&Math.abs(z-d.z)<=d.walkW/2-r;
   }
-  function landing(x,z,r=0){return docks.find(d=>deck(d,x,z,r))||(z>280&&BayDrawbridge.landingLevel(x,z,r)!=null?BayDrawbridge.iceDock:undefined);}
+  function landing(x,z,r=0){return docks.find(d=>deck(d,x,z,r))||(z>280&&BayDrawbridge.landingLevel(x,z,r)!=null?BayDrawbridge.iceDock:undefined)||BayGullKey.siteAt(x,z,r);}
   function berth(d,side){
+    if(d.skiff)return {...d.skiff};
     if(d===BayDrawbridge.iceDock)return {...BayDrawbridge.iceBerth,yaw:BayDrawbridge.heading+side*Math.PI/2};
     return {x:d.x+.7,z:d.z+side*(d.headD/2+1.65),yaw:Math.PI/2};
   }
@@ -42,6 +43,7 @@
   }
   let gateOpen=()=>false;
   function navigable(x,z){
+    if(BayGullKey.waterBlocked(x,z,.72))return false;
     const north=z>180,edge=north?BayCut.coast(z):coast(z);
     if(north&&BayDrawbridge.scow(x,z,.7))return false;
     if(north&&x<edge+3&&BayDrawbridge.channel(x,z))return gateOpen(x,z)&&BayDrawbridge.landingLevel(x,z,-.55)==null;

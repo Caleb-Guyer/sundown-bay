@@ -16,7 +16,7 @@
     const texture=Math.min(1,d/13)*(.19*Math.sin(z*.094+x*.075)+.12*Math.cos(z*.133-x*.14));
     const sea=-.035-Math.max(0,Math.min(d,20)*.205+10.6*(1-Math.exp(-Math.max(0,d-20)/45))+texture);
     if(z>208&&BayDrawbridge.channel(x,z))return Math.min(sea,-1.15-1.55*(1-Math.abs(BayDrawbridge.local(x,z).s)/6.6));
-    return sea;
+    return Math.max(sea,BayGullKey.bed(x,z)??-Infinity);
   }
   const beach=z=>z>=-181.5&&z<=181.5||z>=311&&z<=332;
   function water(x,z){
