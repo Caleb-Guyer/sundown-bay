@@ -5728,12 +5728,14 @@
   }
   const keyView={mix:0,x:0,z:0};
   const coffeeFrame={mix:0,active:false,yaw:0,tilt:0};
-  const trunkFrame={mix:0,v:null,yaw:0,tilt:0,near:[]};
+  const trunkFrame={mix:0,v:null,yaw:0,tilt:0,side:1,near:[]};
   const coffeeObstacles=solids.filter(o=>o!==BayPalmCoffee.block&&Math.abs(o.x-BayPalmCoffee.site.x)<o.w*.5+7&&Math.abs(o.z-BayPalmCoffee.site.z)<o.d*.5+7);
   function moveCamera(dt,t){
     const opening=bell.open&&bell.lid&&onStreetFeet();
     if(opening&&trunkFrame.v!==bell.lid){
       const v=bell.lid;trunkFrame.v=v;trunkFrame.yaw=cameraRig.yaw;trunkFrame.tilt=cameraRig.elevation;
+      // Look over the clear rear corner, away from the shoulder beside the trunk.
+      trunkFrame.side=BayDriving.local(v,hero.x,hero.z).x<0?-1:1;
       trunkFrame.near=cameraRig.obstacles.filter(o=>Math.abs(o.x-v.x)<o.w*.5+9&&Math.abs(o.z-v.z)<o.d*.5+9);
     }
     trunkFrame.mix=ease(trunkFrame.mix,opening?1:0,opening?4.8:5.7,dt);
@@ -5877,7 +5879,7 @@
     if(trunkFrame.v&&!isTop()){
       const f=trunkFrame.mix,v=trunkFrame.v,aim=BayDriving.world(v,0,bootArt.slots(v.kind)[0].z-.31);
       aim.y=footLevel(v.x,v.z)+.80;
-      const yaw=v.yaw+.66+angle(trunkFrame.yaw,cameraRig.yaw),tilt=clamp(.55+cameraRig.elevation-trunkFrame.tilt,.15,.98);
+      const yaw=v.yaw+trunkFrame.side*1.02+angle(trunkFrame.yaw,cameraRig.yaw),tilt=clamp(.83+cameraRig.elevation-trunkFrame.tilt,.15,1.12);
       const range=3.15*cameraRig.zoom,flat=range*Math.cos(tilt);
       const eye={x:aim.x-Math.sin(yaw)*flat,y:aim.y+range*Math.sin(tilt),z:aim.z-Math.cos(yaw)*flat};
       const free=BayCamera.safeFraction(aim,eye,trunkFrame.near);
