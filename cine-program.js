@@ -540,16 +540,18 @@
     });
   }
 
-  let schedule=null,programFrames=0,listedRecord,listedPrint,listedSecond,listedDelivery;
+  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
+    const film=window.BaySkateFilm,skate=film?.valid(options?.skate)?options.skate:null;
     const print=options?.edition==="print"&&typeof window.BayExposureArt?.drawPhoto==="function";
     const second=!!options?.second;
     const delivery=second&&typeof options?.deliveredBy==="string"?options.deliveredBy.trim().slice(0,48):"";
-    if(schedule&&listedRecord===saved&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
-    listedRecord=saved;listedPrint=print;listedSecond=second;listedDelivery=delivery;
+    if(schedule&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedRecord=saved;listedSkate=skate;listedPrint=print;listedSecond=second;listedDelivery=delivery;
     const list=[];
+    if(skate)list.push(slot("skate","Curb Cut",film.title(skate.site)+" · "+skate.score+" pts",film.duration(skate)));
     if(saved)list.push(slot("stunt","One Good Take","Romy Vale & Jules · "+saved.distance.toFixed(1)+" m",5));
     if(print)list.push(slot("edition","Bay Wire","Mara Vega · Lot 14, Port Sol",4));
     list.push(slot("pelican","The Last Pelican","Bay Film Club · 16 mm",28));
@@ -563,7 +565,8 @@
     const program=describe(options);
     const raw=Number.isFinite(time)?Math.floor(time*fps+.000001):0;
     const tick=((raw%programFrames)+programFrames)%programFrames;
-    if(program===lastProgram&&tick===lastTick&&(projection.id!=="stunt"||lastDecode===decodedStamp))return projection;
+    const decode=decodedStamp+(window.BaySkateFilm?.revision||0);
+    if(program===lastProgram&&tick===lastTick&&(projection.id!=="stunt"&&projection.id!=="skate"||lastDecode===decode))return projection;
     let inSlot=tick,item=program[0];
     for(const entry of program){
       item=entry;
@@ -579,9 +582,10 @@
     if(item.id==="pelican")showPelican(context,elapsed);
     else if(item.id==="tram")showTram(context,elapsed,item.credit);
     else if(item.id==="stunt")showStunt(context,listedRecord);
+    else if(item.id==="skate")window.BaySkateFilm.draw(context,listedSkate,elapsed,width,height);
     else showEdition(context);
     finishFrame(context,inSlot);
-    lastProgram=program;lastTick=tick;lastDecode=decodedStamp;
+    lastProgram=program;lastTick=tick;lastDecode=decode;
     projection={canvas:projector,revision:++revision,id:item.id,title:item.title,credit:item.credit,elapsed,seconds:item.seconds};
     return projection;
   }

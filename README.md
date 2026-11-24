@@ -8,6 +8,10 @@ Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the ra
 
 Use **WASD** or the arrow keys to move and steer. Move the mouse to look around. Press **E** beside a car to get in or out. **Space** is the handbrake while driving and jump on foot. **M** opens the map and **R** toggles sound.
 
+At **Sol Promenade**, across Ocean Drive from the Marlin, talk to **Nia Cruz** at the filming bench. **Teo Marín** keeps a second loaner by the **El Mercado** loading ledge. Borrow either deck and press **K** to set it down. **W** pushes, **A/D** carve and **S** brakes. Hold and release **Space** for an ollie, tap **G** while rising for a kickflip, or hold **Shift** while rolling for a manual. Pick up the board with **K** to carry it on foot or take it on Route 6.
+
+Choose **Film a line** at either spot to shoot **Curb Cut**. Press **F** on the chalk cross, push off with **W**, and release your ollie at the two yellow marks before the rail. Land two different tricks and roll through the white finish stripe for a paid take. Each filmer also keeps a two-shot list. Get the next requested trick on film for a one-time **$40** bonus. **V** switches to the filmer’s camera. Your phone keeps the footage from your highest-scoring run. At Cine Luna, cue your print at the program case and take an aisle seat to watch it.
+
 **Route 6** runs from the Marlin Motel to El Mercado, Port Sol and Cine Luna, then back to the Marlin. Look for the striped bus shelter on the motel side of Ocean Drive. Press **F** at any stop to check the timetable and flag Marta Leal down. The ride is free. From the window seat, **F** pulls the stop cord and **V** changes the view. Your transfer keeps a punch for each stop where you get off.
 
 Pick **Take Marta’s wheel** at a stop to drive the same bus. Use **WASD** to steer and brake, line up the front door with the next stop, and press **F** to open up. Wait for riders to finish boarding and stepping off to get paid. A smooth stop and passengers delivered earn more. Press **F** to close the doors for another trip, or **E** when stopped to hand the wheel back to Marta.

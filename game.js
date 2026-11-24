@@ -29,6 +29,7 @@
   const stairBlocks=BayMarlinRoofArt.groundBlocks.slice(1);
   solids.push(BayMarlinRoofArt.groundBlocks[0],signBench,toolChest);
   solids.push(...BayBusStopArt.blocks(BayTransit.stops));
+  solids.push(...BaySkateSpots.blocks);
   const locations=[
     {x:151,z:-13,name:"Marlin Motel"}, {x:6,z:66,name:"Cine Luna"},
     {x:-138,z:-73,name:"Port Sol"}, {x:-66,z:-137,name:"El Mercado"},
@@ -80,6 +81,7 @@
   const hero={x:151,z:-27,y:.076,yaw:-.18};
   const roofs=new BayRooftops.Traversal();
   const motion=new BayPlayerMotion(),kits=new Map();
+  hero.motion=motion;
   Object.defineProperty(hero,"motion",{value:motion});
   let playerMesh=view.gl?new BayPlayerMesh(personColors[0]):null,playerModel="player";
   let dashResult=null,ghostMesh=null,maraMesh=null,lastMaraMotion=null;
@@ -91,7 +93,7 @@
   const skyPainter=new BaySky($("sky"));
   const meet=new BayNightMeet.Meet(),julesMotion=new BayPlayerMotion(),julesBody={};
   let meetReceipt=null,julesMesh=null,takeArtReady=false;
-  const cameraSnap=()=>cameraRig.reset(skiff||car||cycles.riding||hero);
+  const cameraSnap=()=>cameraRig.reset(skiff||car||cycles.riding||skate.rider||hero);
   const blankSave=()=>({wallet:0,paid:0,best:0,tuned:false,tapes:[],rides:0,juneReturned:false,dash:null,resprays:{},upgrades:Object.create(null),edition:"",regatta:{},ferryLine:"",meet:BayNightMeet.read(null),stunt:null,plates:BayPlates.read(null),fieldReels:{},shore:BaySwimming.read(null),cab:BayCab.read(null),bodywork:BayRecovery.readBody(null),recovery:BayRecovery.read(null)});
   const posterKey="sundownBay.cineLunaPoster.v1";
   function storedPoster(){
@@ -102,6 +104,7 @@
     const result=blankSave();result.stunt=storedPoster();result.bikes=BayPedal.read(null);result.boardwalk=BayBoardwalk.read(null);result.courts=BayPickup.read(null);result.valet=BayMotorCourt.read(null);
     result.band=BaySessions.read(null);result.palma=BayPalma.read(null);result.bridge=BayDrawbridge.read(null);result.neon=BayMarlinNeon.read(null);
     result.transit=BayTransit.read(null);
+    result.skate=BaySkate.read(null);
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
       for(const k of ["wallet","paid","best","rides"])if(Number.isFinite(raw[k])&&raw[k]>=0)result[k]=raw[k];
       result.tuned=raw.tuned===true;result.tapes=Array.isArray(raw.tapes)?[...new Set(raw.tapes.filter(n=>Number.isInteger(n)&&n>=0&&n<5))]:[];
@@ -119,6 +122,7 @@
       result.bridge=BayDrawbridge.read(raw.bridge);
       result.neon=BayMarlinNeon.read(raw.neon);
       result.transit=BayTransit.read(raw.transit);
+      result.skate=BaySkate.read(raw.skate);
       result.bodywork=BayRecovery.readBody(raw.bodywork);result.recovery=BayRecovery.read(raw.recovery);
       result.fieldReels=BayMarshLine.archive(raw.fieldReels);
       result.fieldQueue=BayCutTape.read(raw.fieldQueue);
@@ -140,6 +144,14 @@
   for(const p of [transit.driver,...transit.people])[p.skin,p.shirt]=personColors[p.style];
   locations.push(...BayTransit.stops);
   let transitArtReady=false;
+  const skate=new BaySkate.Session(save.skate),skateTape=new BaySkateFilm.Recorder();
+  const skatePins=skate.crew.map(c=>({...c.site.stand,id:c.site.id,kind:"skate-spot",name:c.site.name+" · Skate spot"}));
+  locations.push(...skatePins);let skateArtReady=false,skateProof=null,skateReel=null;
+  const skateKey="sundownBay.curbCut.v1";
+  function loadSkateReel(){
+    try{const f=JSON.parse(localStorage.getItem(skateKey)||"null");return BaySkateFilm.valid(f)?f:null;}catch{return null;}
+  }
+  skateReel=loadSkateReel();
   const neon=new BayMarlinNeon.Service(save.neon),neonJob={id:"marlin-neon",name:"Vacancy in Lights",by:"Vera Cordero"};
   const neonPin={...neon.bench,x:134.48,z:-55.76};
   locations.push(neonPin);
@@ -194,6 +206,7 @@
     try{const {stunt,...progress}=save;localStorage.setItem("sundownBay.v1",JSON.stringify(progress));}catch{/* Session progress is still available. */}
   }
   addEventListener("storage",ev=>{
+    if(ev.key===skateKey){const f=loadSkateReel();if(f&&(!skateReel||f.score>skateReel.score))skateReel=f;return;}
     if(ev.key?.startsWith("sundownBay.fieldReel.v1.")){BayMarshLine.restore(save.fieldReels);return;}
     if(ev.key!==posterKey)return;
     const record=storedPoster();if(record&&(!save.stunt||record.distance>save.stunt.distance))save.stunt=record;
@@ -355,7 +368,7 @@
     for(const v of cars){v.upgrades.engine=true;save.upgrades[v.garageKey]=v.upgrades;}
     save.tuned=false;persist();
   }
-  const pos=()=>active?.take?.subject()||(transit.player?.stage==="ride"?transit.bus:null)||(cabs.booking?.stage==="ride"?taxi:null)||skiff||car||(!cycles.transfer&&cycles.riding)||hero;
+  const pos=()=>active?.take?.subject()||(transit.player?.stage==="ride"?transit.bus:null)||(cabs.booking?.stage==="ride"?taxi:null)||skiff||car||(!cycles.transfer&&cycles.riding)||skate.rider||hero;
   function cameraSubject(){
     if(cabs.playerHeld){
       const f=cabs.booking.seat;
@@ -369,6 +382,7 @@
   const district=(p)=>BayCut.area(p)?(p.x>BayCut.coast(p.z)+2?"Pelican Sound":"Pelican Cut"):p.x>335?"Outer Sound":p.x>216?"Breakwater Bay":p.x>158?"Sol Beach":p.x>112?"Ocean Drive":p.x< -102&&p.z<10?"Port Sol":p.z< -92?"El Mercado":p.z>96&&p.x>43?"Boardwalk":p.x< -65?"Old Palms":"Neon Mile";
   const formatVehicle=v=>genres[v.kind].name;
   function footLevel(x,z){
+    const slab=BaySkateSpots.floor(x,z,true);if(slab!==null)return slab;
     if(x>139&&x<162&&z>281&&z<312){const dock=BayDrawbridge.landingLevel(x,z);if(dock!=null)return dock;}
     if(x>153&&x<175&&z>-102&&z<-83){const pad=BayPalmaWash.floorLevel(x,z);if(pad!=null)return pad;}
     if(x>178&&x<194&&z>75&&z<91){const floor=BaySoundShell.floor(x,z);if(floor!=null)return floor;}
@@ -396,8 +410,97 @@
     try{if(localStorage.getItem("sundownBay.audio")==="on"){radio=sound.setEnabled(true);$("audioKey").querySelector("span").textContent=radio?"Sol FM":"Sound off";}}catch{}
     captureMouse();note("Marlin Motel","Room 14 is yours. "+(personalCar?"Your "+formatVehicle(personalCar)+" is marked on the map.":cars[0].color===paints[0]?"Keys are in the coral coupe.":"Your "+formatVehicle(cars[0])+" is out front."),4.3);
   }
-  const freeFeet=()=>play&&!room&&!transit.aboard&&!cabs.playerHeld&&!cycles.riding&&!boardwalk.player&&!pickup&&!band.take&&!car&&!skiff&&!swim&&!transfer&&!deckStep;
+  const freeFeet=()=>play&&!room&&!transit.aboard&&!cabs.playerHeld&&!cycles.riding&&!skate.rider&&!boardwalk.player&&!pickup&&!band.take&&!car&&!skiff&&!swim&&!transfer&&!deckStep;
   const onStreetFeet=()=>freeFeet()&&!roofs.raised&&motion.jumpTime<0;
+  function skateStand(){
+    if(heat||cabs.booking||watchCrew.towing||active&&!active.skate)return null;
+    if(onStreetFeet()||skate.rider&&!skate.rider.flying&&skate.rider.speed<1.6)return skate.nearStand(hero);
+    return null;
+  }
+  const skateCarried=()=>!!save.skate.deck&&freeFeet()&&!roofs.action&&!wash.work&&!exchangingKey()&&!listening()&&!active?.field;
+  function skateTarget(){
+    const w=skate.run,s=w.site,finish=w.phase==="roll"||w.phase==="tail";
+    return {...(finish?s.finish:s.start),kind:"skate-spot",name:finish?"White finish stripe":"Chalk start · "+s.name};
+  }
+  function skateReelButton(){
+    return makeButton("Curb Cut · Your best line",BaySkateFilm.title(skateReel.site)+"  /  "+skateReel.score+" points","Watch dub",()=>openPanel("skate-reel"));
+  }
+  function skateHud(){
+    const r=skate.rider,w=skate.run,ph=w?.phase;
+    const card=$("skateTicket"),meter=$("skateBalance");card.hidden=false;$("objective").hidden=true;
+    $("skateHeading").textContent=w?"Curb Cut":r.style==="market"?"Mercado deck":"Seafern deck";
+    $("skateState").textContent=ph==="roll"?"● REC  "+w.score:ph==="tail"?"ROLL OUT":w?w.site.name:"Free skate";
+    card.classList.toggle("recording",ph==="roll");$("mode").textContent=r?"Skateboard":"Carrying deck";
+    $("speed").textContent="";meter.hidden=!(r?.manualM||r?.grind);
+    if(!meter.hidden)meter.style.setProperty("--balance",clamp(((r.balance||0)+1)*50,1,99)+"%");
+    let label="",hint="",line="";
+    if(ph==="mark"){line="Walk or roll to the chalk cross";label="F";hint="Set your front wheels on the mark";}
+    else if(ph==="set"){line="Setting the board";hint="Face down the rail";}
+    else if(ph==="ready"){line=w.call?w.call.name+"  /  +$40":"Camera standing by";label="W";hint="Push to start  ·  V filmer’s view";}
+    else if(ph==="miss"){line="Cut  /  "+w.why;label="T";hint="Retake from the chalk cross  ·  J leave job";}
+    else if(ph==="review"){line=w.score+" pts  /  "+cash(w.pay)+(w.bonus?"  ·  Shot list +$40":w.print?"  ·  Cine Luna print":"");label="T";hint="Skate back for a retake  ·  J watch your dub  ·  K carry";}
+    else if(ph==="tail"){line="Hold that ending";hint="Keep rolling";}
+    else if(ph==="roll"){
+      const q=BaySkateSpots.local(w.site,r.x,r.z);
+      line=skate.show?skate.message:r.grind?"50–50  /  "+r.grind.m.toFixed(1)+" m":r.flying?"In the air":q.v<w.site.rail.v0-3.2?"Hold Space · crouch":q.v<w.site.rail.v0?"Release Space at the chalk marks":q.v<18?"Ride straight into the bank":"Roll through the white stripe";
+      label=r.flying?"G":"Space";hint=r.flying?"Kickflip  ·  Level the deck before landing":"Hold and release to ollie  ·  Shift manual  ·  V camera";
+    }else{
+      line=skate.show?skate.message:r.grind?"Grinding  /  "+r.grind.m.toFixed(1)+" m":r.manualM?"Manual  /  "+r.manualM.toFixed(1)+" m":r.stow?"Picking up deck":"Push with W  ·  Carve with A / D";
+      const c=skateStand();label=c?"F":"Space";hint=c?"Talk to "+c.filmer.name:"Hold and release to ollie  ·  G flip in air  ·  Shift manual  ·  K carry";
+    }
+    $("skateTrick").textContent=line;$("skateCall").textContent=ph==="roll"?Math.min(2,w.kinds.size)+" of 2 trick types  /  "+(w.hit?"Got the requested shot":w.lens?"Filmer’s view":"Chase camera"):r?.chain?r.chain+" point line":"";
+    contextHint(label,hint);
+  }
+  function skateJob(c){
+    active={skate:true,job:{id:"curb-cut",name:"Curb Cut",by:c.filmer.name}};
+    waypoint=null;lastHud=lastMap=-10;
+  }
+  function skateEvent(kind,value){
+    if(kind==="save"){persist();return;}
+    if(kind==="action"){skateTape.start(value.site.id);$("speech").hidden=true;sound.cue("skate-slate");}
+    else if(kind==="cut"){skateTape.stop();lastHud=-10;}
+    else if(kind==="wrap"){
+      const w=value,score=w.score,stored=loadSkateReel();
+      if(stored&&(!skateReel||stored.score>skateReel.score))skateReel=stored;
+      w.print=false;
+      if(score>(skateReel?.score||0)){
+        const reel=skateTape.finish(score);
+        if(reel){skateReel=reel;w.print=true;try{localStorage.setItem(skateKey,JSON.stringify(reel));}catch{}}
+      }else skateTape.stop();
+      const pay=65+Math.min(135,Math.round(score*.36))+w.bonus;w.pay=pay;
+      save.wallet+=pay;save.paid++;active=null;persist();lastHud=lastMap=-10;
+      note("Curb Cut  ·  "+score+" pts",cash(pay)+(w.print?"  ·  New print for Cine Luna":"  ·  Line signed"),4.2);
+      const c=skate.crew.find(c=>c.site===w.site);
+      speak(c.filmer.name,w.print?"Keep that one. I’ll drop the print at Luna. Your copy’s on your phone.":"Got it all the way to the stripe. Same mark if you want another.");sound.cue("paid");
+    }else if(kind==="off"){motion.reset();hero.y=footLevel(hero.x,hero.z);if(!active?.skate)skate.run=null;cameraSnap();lastHud=-10;}
+    else if(kind==="pop"||kind==="bail"||kind==="land"||kind==="lock")sound.cue("skate-"+kind);
+  }
+  function skateKeys(code){
+    const r=skate.rider,w=skate.run;
+    if(code==="KeyF"&&active?.skate&&w?.phase==="mark"&&skate.mark(hero)){
+      motion.reset();cameraRig.recenter(w.site.yaw,elapsed);lastHud=-10;return true;
+    }
+    if(code==="KeyF"&&skateStand()&&(!active||w?.phase==="miss")){openPanel("skate-spot");return true;}
+    if(code==="KeyT"&&w&&["miss","review"].includes(w.phase)&&(!active||active.skate)&&dist(hero,w.site)<50&&(r||onStreetFeet())){
+      skate.retake();skateTape.stop();skateJob(skate.crew.find(c=>c.site===w.site));return true;
+    }
+    if(code==="KeyK"&&!r&&onStreetFeet()&&save.skate.deck&&(!active||active.skate)&&!transit.engaged&&!cabs.booking&&!watchCrew.towing){
+      if(skate.mount(hero)){motion.reset();cameraSnap();lastHud=-10;}return true;
+    }
+    if(!r)return false;
+    if(code==="KeyE"||code==="KeyK"){r.stow=true;r.charging=false;r.charge=0;}
+    if(code==="Space")skate.charge();
+    if(code==="KeyG")skate.flick();
+    if(code==="KeyV"&&w&&["ready","roll"].includes(w.phase)){w.lens=!w.lens;if(!w.lens)cameraRig.reset(r);}
+    if(code==="KeyX")cameraRig.recenter(r.yaw,elapsed);
+    return !["KeyJ","KeyM","Escape","KeyR","Equal","NumpadAdd","Minus","NumpadSubtract"].includes(code);
+  }
+  function stepSkate(dt){
+    const r=skate.rider;
+    skate.step(dt,{push:!!r&&held("KeyW","ArrowUp"),brake:!!r&&held("KeyS","ArrowDown"),
+      turn:r?Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")):0,manual:!!r&&held("ShiftLeft","ShiftRight")},skateEnv);
+    if(!active?.skate&&skate.run?.phase==="review"&&dist(hero,skate.run.site)>49)skate.run=null;
+  }
   const atNeonBench=()=>onStreetFeet()&&!heat&&!active&&!cabs.booking&&!watchCrew.towing&&(dist(hero,neon.vera)<2.65||dist(hero,neon.bench)<2.8);
   const atNeonBoard=()=>freeFeet()&&roofs.level==="roof"&&!roofs.action&&dist(hero,neon.console)<2.18;
   const atNellie=()=>freeFeet()&&!roofs.action&&Math.abs(hero.y-neon.guest.y)<.55&&dist(hero,neon.guest)<2.0;
@@ -815,7 +918,7 @@
   function useRoom(){
     const action=roomAction();
     if(room.kind==="cinema"){
-      if(action==="exit")leaveRoom();else if(action==="seat")BayCineRoom.seat(room);else if(action==="rise")BayCineRoom.rise(room);
+      if(action==="exit")leaveRoom();else if(action==="seat"){BayCineRoom.seat(room);if(room.queueSkate){projectionStart=streetTime+.48;room.queueSkate=false;}}else if(action==="rise")BayCineRoom.rise(room);
       else if(action==="program")openPanel("cine-program");lastHud=-10;return;
     }
     if(action==="door")leaveRoom();
@@ -908,7 +1011,7 @@
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({stunt:save.stunt,edition:save.edition,second:!!save.cab.reel,
+  const filmOptions=()=>({stunt:save.stunt,skate:skateReel,edition:save.edition,second:!!save.cab.reel,
     deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   const cabWindow=()=>cabs.booking?.stage==="ride"&&cabs.booking.window&&!isTop();
   function cabRank(){
@@ -1720,6 +1823,12 @@
   }
   function parkCycle(b){save.bikes[b.id]={x:b.x,z:b.z,yaw:b.yaw};persist();cameraSnap();lastHud=-10;}
   const cycleEnvironment={hero,motion,level:footLevel,clear:cycleClear,park:parkCycle};
+  const skateEnv={hero,floor:footLevel,local:{floor:footLevel,clear:()=>true},emit:skateEvent,
+    clear(r,x,z,air){
+      if(!cycleClear(x,z,r)||!roofs.approach(x,z,r.y+air)||!skate.clearPeople(r,x,z))return false;
+      const b=transit.bus;
+      return Math.abs(x-b.x)>7||Math.abs(z-b.z)>7||BayDriving.clearance(b,{x,z})>.31;
+    }};
   function bicycleInput(){
     return {pedal:held("KeyW","ArrowUp"),brake:held("KeyS","ArrowDown"),steer:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),
       sprint:held("ShiftLeft","ShiftRight"),hold:held("KeyF")};
@@ -1735,7 +1844,7 @@
     for(const w of walkers){if(dist(w,b)>8)continue;const p=BayDriving.local(b,w.x,w.z);if(p.z>0&&Math.abs(p.x)<3.2){w.alert=1.0;w.gesture=1;w.yaw=Math.atan2(b.x-w.x,b.z-w.z);}}
   }
   function switchCar(){
-    if(roofs.raised||transit.aboard)return;
+    if(roofs.raised||transit.aboard||skate.rider)return;
     if(band.take)return;
     if(exchangingKey())return;
     if(active?.wash&&!car){dropJob();note("Palma Hand Wash","Hose back on the hook.",2.4);return;}
@@ -1903,7 +2012,7 @@
     return closest;
   }
   function startJob(id){
-    if(active||transit.engaged||watchCrew.towing||cabs.playerHeld||cycles.riding||boardwalk.player||pickup)return;
+    if(active||skate.rider||transit.engaged||watchCrew.towing||cabs.playerHeld||cycles.riding||boardwalk.player||pickup)return;
     cabs.cancelBooking();
     const j=jobs.find(v=>v.id===id);if(!j)return;
     if(room)leaveRoom();
@@ -1974,9 +2083,9 @@
     save.wallet+=amount;save.paid++;persist();active=null;sound.cue("paid");note("Job complete","+"+cash(amount)+msg,5);
   }
   const freeTowTarget={...recoveryYard.drop,kind:"recovery-drop",name:"Portside handoff lane"};
-  const currentTarget=()=>transit.flag?transit.flag.s:transit.aboard?transit.target:active?.neon?neonTarget():active?.bridge?bridgeSite:active?.wash?wash.marker():active?.band?band.destination(car):active?.valet?valet.target(car):active?.relay?cycles.target(hero):watchCrew.towing?watchCrew.target():active?.recovery?recovery.target(car):cabs.booking||active?.cabFare?cabs.target(car):active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:car===wrecker&&tow.target&&(BayRecovery.worst(tow.target)||tow.target.flatSide)?freeTowTarget:waypoint;
+  const currentTarget=()=>active?.skate?skateTarget():transit.flag?transit.flag.s:transit.aboard?transit.target:active?.neon?neonTarget():active?.bridge?bridgeSite:active?.wash?wash.marker():active?.band?band.destination(car):active?.valet?valet.target(car):active?.relay?cycles.target(hero):watchCrew.towing?watchCrew.target():active?.recovery?recovery.target(car):cabs.booking||active?.cabFare?cabs.target(car):active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:car===wrecker&&tow.target&&(BayRecovery.worst(tow.target)||tow.target.flatSide)?freeTowTarget:waypoint;
   function streetTarget(){
-    if(transit.flag||transit.aboard&&(!transit.driving||dist(transit.bus,transit.target.berth)<14))return null;
+    if(active?.skate&&dist(pos(),skateTarget())<36||transit.flag||transit.aboard&&(!transit.driving||dist(transit.bus,transit.target.berth)<14))return null;
     const target=currentTarget();
     return target&&(active?.neon||active?.wash||active?.band||active?.valet||active?.relay||active?.recovery||target===freeTowTarget||["sign-shop","drawbridge","car-wash","sound-shell","june","valet-stand","recovery-desk"].includes(target.kind))&&dist(pos(),target)<14?null:target;
   }
@@ -1989,7 +2098,7 @@
       const street=BayStreetNames.through(transit.target.berth,transit.target.yaw);
       return {points,meters,turn:meters<22?transit.dockHint():nextBend?"Right onto "+street+" in "+Math.round(dist(transit.bus,nextBend))+" m":"Straight to "+transit.target.short};
     }
-    if(active?.valet)return null;
+    if(active?.valet||active?.skate)return null;
     if(active?.meet){
       if(meet.role!=="driver")return null;
       return {points:[car,...meet.route.gates.slice(meet.gate)],meters:dist(car,target),turn:meet.gate===meet.route.gates.length-1?"Finish northbound under the marquee":"Checkpoint "+(meet.gate+1)+" of "+meet.route.gates.length};
@@ -2022,6 +2131,7 @@
     return lastGuide={x:car.x,z:car.z,tx:target.x,tz:target.z,closed,points,meters,turn};
   }
   function dropJob(){
+    if(active?.skate){skate.run=null;skateTape.stop();lastHud=lastMap=-10;}
     if(active?.neon){neon.cancel();motion.handTarget=null;lastHud=lastMap=-10;}
     if(active?.bridge){bridge.handBack();motion.handTarget=null;}
     if(active?.wash){wash.release();hoseButton=false;persist();}
@@ -2318,6 +2428,7 @@
     else if(event==="missed")finishFerry(run,"missed");
   }
   function advanceJob(dt){
+    if(active?.skate)return;
     if(transit.engaged||active?.neon||active?.bridge||active?.wash||active?.band||active?.valet||active?.relay||active?.field||active?.cabFare||active?.recovery||cabs.booking)return;
     if(active?.plate){active.plate.step(dt);return;}
     if(active?.take)return;
@@ -2358,6 +2469,7 @@
   }
   const held=(...codes)=>codes.some(k=>keys.has(k));
   function footClear(x,z,r){
+    if(!skate.clearPeople(hero,x,z))return false;
     if(!transit.aboard&&!roofs.raised&&Math.abs(x-transit.bus.x)<5.4&&Math.abs(z-transit.bus.z)<5.4){
       const d=BayDriving.clearance(transit.bus,{x,z});
       if(d<.22&&d<BayDriving.clearance(transit.bus,hero)-.0001)return false;
@@ -2625,7 +2737,7 @@
     }
   }
   function traffic(dt){
-    const p=pos(),driver=play&&!transfer&&!cycles.transfer?(car||cycles.riding||(transit.driving?transit.bus:null)):null;
+    const p=pos(),driver=play&&!transfer&&!cycles.transfer?(car||cycles.riding||skate.rider||(transit.driving?transit.bus:null)):null;
     for(const v of cars){
       if(!v.path||v===car||v===transfer?.v){if(v!==car||v===transfer?.v)v.indicator=0;continue;}
       const t=v.path[v.corner],from=v.path[(v.corner+v.path.length-1)%v.path.length];
@@ -2764,7 +2876,7 @@
   }
   function pursuit(dt){
     if(!heat)return;
-    const p=pos(),coach=transit.aboard?transit.bus:null,vx=skiff?.vx??car?.vx??coach?.vx??cycles.riding?.vx??swim?.vx??motion.vx,vz=skiff?.vz??car?.vz??coach?.vz??cycles.riding?.vz??swim?.vz??motion.vz;
+    const p=pos(),coach=transit.aboard?transit.bus:null,vx=skiff?.vx??car?.vx??coach?.vx??cycles.riding?.vx??skate.rider?.vx??swim?.vx??motion.vx,vz=skiff?.vz??car?.vz??coach?.vz??cycles.riding?.vz??skate.rider?.vz??swim?.vz??motion.vz;
     const dock=!car&&(deckStep?.dock||bay.landing(p.x,p.z)),afloat=!!(skiff||swim),waterside=afloat||!!dock;
     const submerged=!!swim&&swim.depth>1.2;
     if(!chase.lastSeen)chase.report(p,vx,vz,afloat);
@@ -2786,7 +2898,7 @@
     chase.closestUnit=closest;
     boxed=(!roofs.raised||hero.y<2.65)&&visibleGap<8.4&&Math.hypot(vx,vz)<3.4?boxed+dt:Math.max(0,boxed-dt*1.7);
     if(boxed>5.3){const fine=Math.min(save.wallet,65);save.wallet-=fine;persist();if(transfer){transfer.v.doorAngle=0;transfer=null;}if(car)BayDriving.settle(car);
-      transit.releaseForBust();
+      transit.releaseForBust();skateTape.stop();skate.rider=skate.run=null;
       if(skiff)returnBoat(skiff,bay.docks[0]);
       if(cycles.riding){const b=cycles.riding;cycles.detach();parkCycle(b);}
       const missed=active?.ferry;car=skiff=deckStep=null;skidLast=null;hero.x=151;hero.z=-27;hero.yaw=0;resetFeet();dashResult=null;heat=0;clearPatrol();cameraSnap();note("Back at the Marlin",fine?"Patrol fine  •  "+cash(fine):"Patrol let you off with a warning.",4.5);
@@ -2856,6 +2968,13 @@
       return;
     }
     if(panel)return;
+    if(skate.run?.lens&&skate.rider){
+      const r=skate.rider,c=skate.crew.find(c=>c.site===skate.run.site),f=c.filmer;
+      const yaw=Math.atan2(r.x-f.x,r.z-f.z);
+      const x=f.x+Math.sin(yaw)*.32,z=f.z+Math.cos(yaw)*.32,y=f.y+1.48;
+      const range=Math.hypot(r.x-x,r.z-z);
+      Object.assign(cam,{x,y,z,yaw,pitch:Math.atan2(r.y+r.air+.72-y,range),focal:clamp(range*.31,1.18,5.6)});return;
+    }
     if(busCameras()){
       const b=transit.bus,p=transit.player,driver=p.role==="driver",s=p.seat;
       transit.pan=clamp(transit.pan+(Number(held("KeyC"))-Number(held("KeyQ"))+pointer.edgeX*.6)*1.7*dt,-2.24,2.24);
@@ -2942,7 +3061,7 @@
     if(keyOrbit)cameraRig.orbit(keyOrbit*dt*525,0,elapsed);
     if(pointer.edgeX)cameraRig.orbit(pointer.edgeX*dt*445,0,elapsed);
     const subject=cameraSubject();
-    cameraRig.update(cam,subject,transit.aboard?transit.bus:cabs.playerHeld?taxi:deckStep?.v||skiff||transfer?.v||car||cycles.riding,dt,elapsed,{rear:!transit.aboard&&!pickup&&held("KeyV"),court:!!pickup,swim,lift:pickup?pickup.human.lift:motion.lift,ground:skiff?0:boardwalk.player||roofs.raised?hero.y:cycles.riding?footLevel(subject.x,subject.z)+cycles.riding.air*.65:footLevel(subject.x,subject.z),
+    cameraRig.update(cam,subject,transit.aboard?transit.bus:cabs.playerHeld?taxi:deckStep?.v||skiff||transfer?.v||car||cycles.riding||skate.rider,dt,elapsed,{skate:!!skate.rider,rear:!skate.rider&&!transit.aboard&&!pickup&&held("KeyV"),court:!!pickup,swim,lift:pickup?pickup.human.lift:motion.lift,ground:skiff?0:skate.rider?skate.rider.y+skate.rider.air*.42:boardwalk.player||roofs.raised?hero.y:cycles.riding?footLevel(subject.x,subject.z)+cycles.riding.air*.65:footLevel(subject.x,subject.z),
       seat:cycles.riding ? .53*cycles.riding.mount : cabs.playerHeld?cabs.booking.seat:transfer||deckStep?(motion.ride?.seat||0):undefined});
     if(keyView.mix>.002&&!isTop()){
       const f=keyView.mix,eye={x:keyView.x-.36,z:keyView.z-2.69};
@@ -2954,6 +3073,7 @@
   }
   function collectMap(modeName,cx,cz,scale){
     if(cycles.riding)cycles.riding.kit=save.courts.equipped;
+    if(skate.rider)skate.rider.shirt=BayCourtPlayers.kitColors[save.courts.equipped];
     const take=active?.take,driving=(!!car||!!take)&&!transfer;
     const displayCar=paintPreview||car;
     const allTraffic=modeName==="atlas"?patrol:cars.filter(v=>!driving||v!==car||car===meet.jules).concat(patrol);
@@ -2973,7 +3093,7 @@
       if(meet.jules&&(!(meet.role==="photo"||meet.role==="ambient")||meet.board<.6))
         peds.push({...julesBody,shirt:personColors[2][1],skin:personColors[2][0]});
     }
-    return {mode:modeName,cx,cz,scale,solids,courts,pickup,valet,keyMapActor:exchangingKey()?keyMapActor:null,streetCar:car,motorists:modeName==="street"&&play?motoristsNear(q=>Math.abs(q.x-cx)<88&&Math.abs(q.z-cz)<88,.05):[],player:{x:p.x,y:p.y,z:p.z,yaw:p.yaw,kit:save.courts.equipped,driving,kind:car?.kind,color:displayCar?.color||"#99ebc6",motion,damage:car?.damage,towRig:car?.towRig,
+    return {mode:modeName,cx,cz,scale,solids,courts,pickup,valet,skate:play?skate:null,deckHand:skateCarried()?hero:null,deckSeat:stowedDeck(),keyMapActor:exchangingKey()?keyMapActor:null,streetCar:car,motorists:modeName==="street"&&play?motoristsNear(q=>Math.abs(q.x-cx)<88&&Math.abs(q.z-cz)<88,.05):[],player:{x:p.x,y:p.y,z:p.z,yaw:p.yaw,kit:save.courts.equipped,driving,kind:car?.kind,color:displayCar?.color||"#99ebc6",motion,damage:car?.damage,towRig:car?.towRig,
       steer:car?.steer,brakes:car?.brakes,handbrake:car?.handbrake,reversing:car?.reversing,flatSide:car?.flatSide,passengerDoor:car?.passengerDoor,inCabin:transit.aboard||(!!transfer||cabs.playerHeld)&&(motion.ride?.seat||0)>.54},skids,story:active?.story,
       cabService:play?cabs:null,cineSecond:!!save.cab.reel,recovery:play?recovery:null,
       wheel:boardwalk.wheel,boardwalk,cycles,bridge,roofs,neon,transit:play?transit:null,band:play?band:null,wash:play?wash:null,
@@ -3201,6 +3321,32 @@
       if(see(p,39))BayBusRidersArt.world(list,p,b,t);
     }
   }
+  function stowedDeck(){
+    const p=transit.player;
+    if(!save.skate.deck||p?.stage!=="ride"||p.role==="driver")return null;
+    const s=p.seat,b=transit.bus,base=BayCityBusArt.bodyPoint(b,s.x,BayCityBusArt.floor+.01,s.z+.50);
+    return {...base,yaw:b.yaw,style:save.skate.deck,rider:false};
+  }
+  function drawSkate(list,see,t){
+    const nearSite=skate.crew.some(c=>see(c.site,103));
+    if(!nearSite&&!skate.rider&&!save.skate.deck)return;
+    if(!skateArtReady){BaySkateSpots.install(model);BaySkateArt.install(model);skateArtReady=true;}
+    if(nearSite)BaySkateSpots.world(list,see,t,hours);
+    if(!play)return;
+    for(const c of skate.crew){
+      if(c.site.loan&&save.skate.deck!==c.site.id&&see(c.site.stand,38))BaySkateArt.world(list,c.site.loan,t,false);
+      for(const [p,role] of [[c.r,"skater"],[c.filmer,"filmer"]]){
+        if(!see(p,61))continue;
+        const id=c.site.id,key="curb-cut/"+id+"/"+role;
+        if(!p.mesh){p.mesh=new BayPlayerMesh(BaySkateArt.colors[id],"local");BaySkateArt.dress(p.mesh,id,role);view.add(key,p.mesh,true);}
+        if(role==="skater"){BaySkateArt.pose(p.mesh,p,t);BaySkateArt.world(list,p,t,see(p,33));}
+        else{BaySkateArt.filmerPose(p.mesh,p,t,p.weight);BaySkateArt.filmerWorld(list,p,t,p.weight);}
+        view.updateAnimated(key);list.push([key,p.x,p.y+(p.air||0),p.z,p.yaw]);
+      }
+    }
+    if(skate.rider)BaySkateArt.world(list,skate.rider,t);
+    const stowed=stowedDeck();if(stowed&&busCameras())BaySkateArt.world(list,stowed,t,false);
+  }
   function drawCrossing(list,see,t){
     BayDrawbridgeArt.world(view,see,bridge,t);BayBridgePacketArt.world(list,see,bridge,t,hours);
     const w=bridge.walker;
@@ -3414,6 +3560,11 @@
         state.cx=r.x+(m.x-r.x)*blend;state.cz=r.z+(m.z-r.z)*blend;state.scale=clamp(h/50,4,17);
       }
       if(!bridgeLook()&&!neon.testing)state.rotation=yaw;
+      if(skate.rider){
+        const r=skate.rider,lens=!!skate.run?.lens,face=lens?cam.yaw:yaw,lead=lens?0:1.0+r.speed*.10;
+        state.rotation=state.cameraYaw=face;state.cx=r.x+Math.sin(face)*lead;state.cz=r.z+Math.cos(face)*lead;
+        state.scale=h/((lens?10.8:16+r.speed*.41)*cameraRig.zoom);
+      }
       if(busCameras()){
         const b=transit.bus,drive=transit.driving,lead=drive?4.1:0;
         state.rotation=state.cameraYaw=b.yaw+transit.pan;state.cx=b.x+Math.sin(b.yaw)*lead;state.cz=b.z+Math.cos(b.yaw)*lead;
@@ -3512,7 +3663,7 @@
       BayCutArt.world(view,see,hours,t);BayCutWildlife.world(visible,see,hours,t);drawCrossing(visible,see,t);
     }
     drawMarlinRoof(visible,see,t);
-    drawTransit(visible,see,t);
+    drawTransit(visible,see,t);drawSkate(visible,see,t);
     if(see(BayMarlinRoom.outside,105)){
       marlinArt();BayMarlinRoom.outsideWorld(visible,see,hours);
       const bay=BayMotelParking.bay;view.draw("marlin-parking",bay.x,0,bay.z);
@@ -3548,7 +3699,7 @@
     }
     BayMarinaView.drawWorld(view,model,visible,boats,clubBoat,harbor.units,active?.regatta,see,t);
     drawFerry(visible,see,t);
-    const hideActor=busCameras()||cabWindow()||listening()||cameraRig.hideActor&&!transit.aboard&&!paintPreview&&!insideSeat()&&!neon.testing;
+    const hideActor=busCameras()||cabWindow()||listening()||cameraRig.hideActor&&!skate.run?.lens&&!transit.aboard&&!paintPreview&&!insideSeat()&&!neon.testing;
     const story=active?.story;
     for(const prop of BayExposure.props)if(see(prop,120)){
       if(!models.has("exposure-van"))BayExposureArt.install(model);
@@ -3647,13 +3798,17 @@
       if(exchangingKey()){
         changed=BayMotorists.partnerPose(playerMesh,hero,valet.focus,t)||changed;BayMotorists.partnerProps(visible,hero,valet.focus,t);
       }
-      if(pickup){
+      if(skate.rider){
+        const r=skate.rider;BaySkateArt.pose(playerMesh,r,t);view.updateAnimated(playerModel);
+        visible.push([playerModel,r.x,r.y+r.air,r.z,r.yaw]);
+      }else if(pickup){
         BayCourtPlayers.pose(playerMesh,pickup.human,t);view.updateAnimated(playerModel);
         visible.push([playerModel,hero.x,hero.y+pickup.human.lift,hero.z,hero.yaw]);
       }else if(b&&!cycles.transfer?.approach){
         BayPedalArt.rider(playerMesh,b,b.mount,b.side,t);view.updateAnimated(playerModel);
         const pp=BayPedalArt.point(b,b.mount,b.side,footLevel(b.x,b.z));visible.push([playerModel,pp.x,pp.y,pp.z,pp.yaw,pp.tilt,pp.lean]);
       }else{
+        if(skateCarried()&&BaySkateArt.carryPose(playerMesh,hero,t)){changed=true;BaySkateArt.carry(visible,hero,t,save.skate.deck,playerMesh);}
         if(changed)view.updateAnimated(playerModel);
         if(skiff&&!deckStep){
           const p=seatPoint(skiff);visible.push([playerModel,p.x,p.y,p.z,skiff.yaw,skiff.pitch,skiff.lean]);
@@ -3853,6 +4008,7 @@
   }
   function hud(){
     neonHud();
+    $("skateTicket").hidden=true;
     $("transitCard").hidden=!transit.engaged;
     const b=cabs.booking,fare=active?.cabFare,p=pos(),tar=currentTarget();
     const area=room?.kind==="cinema"?"Cine Luna":room?"Marlin Motel · 14":pickup?pickup.site.name:district(p);
@@ -4042,7 +4198,9 @@
     const motorist=!active&&!heat&&onStreetFeet()?recovery.offer(hero):null;
     const pastCaller=!active&&!heat&&onStreetFeet()?recovery.people.find(p=>p.phase==="home"&&dist(p,hero)<2.7):null;
     courtHud();drumHud();
-    if(transit.engaged)transitHud();
+    if(skate.rider||active?.skate)skateHud();
+    else if(skateStand()){const c=skateStand();contextHint("F","Talk to "+c.filmer.name+"  ·  "+c.site.name+" skate spot");}
+    else if(transit.engaged)transitHud();
     else if(room?.kind==="cinema"){
       const use=roomAction();$("objective").hidden=true;$("mode").textContent=room.seated?"In your seat":"Auditorium";$("speed").textContent="";
       contextHint(use?"F":"",use==="exit"?"Step outside Cine Luna":use==="seat"?"Take this seat":use==="rise"?"Get up":use==="program"?"Read tonight’s program":room.transition?"":"Walk down the aisle to find a seat");
@@ -4234,11 +4392,13 @@
     }
     else if(nearby)contextHint("E","Enter "+formatVehicle(nearby));
     else if(car&&!active&&Math.abs(car.speed)<.7&&elapsed<23)contextHint("E","Step out");
+    else if(skateCarried()&&!active)contextHint("K","Put your board down");
     else contextHint("","");
     if(!$("toast").hidden&&elapsed>toastTill)$("toast").hidden=true;
     if(!$("speech").hidden&&elapsed>speechTill)$("speech").hidden=true;
   }
   function closePanel(){
+    skateProof=null;
     if(panel==="field-proof"&&active?.field?.phase==="review"){active.field.phase="return";cameraSnap();}
     if(panel==="take-result"&&active?.take?.receipt)wrapTake();
     paintPreview=null;
@@ -4490,9 +4650,12 @@
     }
     const foot=document.createElement("p");foot.className="edition-copy";
     foot.textContent="Continuous showing. Take any open aisle seat.";body.append(foot);
+    if(skateReel)body.append(makeButton("Cue Curb Cut","The projectionist will start your line when you take a seat.","Thread print",()=>{
+      room.queueSkate=true;closePanel();note("Cine Luna","Your print is threaded. Find an aisle seat and press F.",3.8);}));
   }
   function openPanel(next,redraw=false){
     if(!play)return;if(panel===next&&!redraw){closePanel();return;}
+    if(next==="skate-spot"&&!skateStand()||next==="skate-reel"&&!skateReel)return;
     if(next==="route-six"&&!routeStop())return;
     if(next==="neon-bench"&&!atNeonBench())return;
     if(next==="bridge-house"&&(!atBridge()||active||cabs.booking||watchCrew.towing))return;
@@ -4529,6 +4692,8 @@
     panel=next;keys.clear();releaseMouse();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
     const b=$("panelBody");b.replaceChildren();$("closePanel").focus({preventScroll:true});
     let title="",kicker="";
+    if(skate.rider){skate.rider.charging=false;skate.rider.charge=0;}
+    skateProof=null;
     if(shop){
       title=garage.name;kicker="Port Sol  /  Service bay";
       b.append($("shopNav").content.cloneNode(true));
@@ -4567,6 +4732,27 @@
       if(save.boardwalk.runs){
         const best=document.createElement("p");best.className="statline";best.textContent=save.boardwalk.runs+" ticket runs  /  "+Object.entries(save.boardwalk.best).map(([k,v])=>k+" "+watch(v)).join("  /  ");b.append(best);
       }
+    }else if(next==="skate-spot"){
+      const c=skateStand(),s=c.site,name=c.filmer.name,other=s.id==="sol"?"market":"sol";
+      title=s.name;kicker="Curb Cut  /  "+name;
+      signedNote(b,s.id==="sol"?"Luz rubbed a groove in that rail before the city ever set a bank here. Give me two different tricks and roll through the white stripe. I’ve got a fresh tape.":"Emi says the loading curb is better than anything the city built. Take the rail or the ledge. Keep rolling past the white stripe so I’ve got an ending.",name);
+      const list=document.createElement("p");list.className="skate-shotlist";list.textContent=BaySkate.requests[s.id].map(q=>(save.skate.shots[s.id]&q.bit?"✓ ":"□ ")+q.name).join("   /   ");b.append(list);
+      b.append(makeButton("Borrow a board",s.id==="sol"?"Seafern deck. Take it across town. K puts it down or picks it up.":"Tomato-red deck. Ride it home, or carry it onto Route 6.","Free",()=>{
+        if(!skateStand())return;skate.carry(s.id);if(skate.rider)skate.rider.style=s.id;
+        persist();closePanel();speak(name,"Take it with you. K when you want to ride.");}));
+      b.append(makeButton("Film a line","Hold Space as you push, release at the yellow chalk marks, then tap G in the air."+(skate.request(s.id)?" Next shot on the list adds $40.":""),"Roll tape",()=>{
+        if(!skateStand())return;skateTape.stop();skate.prep(s);if(skate.rider)skate.rider.style=s.id;
+        skateJob(c);persist();closePanel();speak(name,"Chalk cross just here. Face down the rail. I’ll roll when you push.");}));
+      if(save.skate.best[s.id]||save.skate.best[other]){
+        const card=document.createElement("p");card.className="statline";card.textContent=skate.crew.map(q=>q.site.name+"  "+(save.skate.best[q.site.id]||"—")).join("  /  ");b.append(card);
+      }
+      if(skateReel)b.append(skateReelButton());
+    }else if(next==="skate-reel"){
+      title="Curb Cut";kicker="Hi8 dub  /  "+BaySkateFilm.title(skateReel.site);
+      const canvas=document.createElement("canvas");canvas.width=480;canvas.height=270;canvas.className="skate-proof";
+      canvas.setAttribute("aria-label","Moving footage of your best skateboard line");b.append(canvas);
+      skateProof={canvas,start:performance.now()};BaySkateFilm.paint(canvas,skateReel,0);
+      b.append(makeButton("Cine Luna","Your "+skateReel.score+"-point print is in the program. At the lobby case you can cue it for your seat.","Mark theater",()=>clockPin(BayCab.cinema)));
     }else if(next==="route-six"){
       const s=routeStop(),here=transit.docked(s);title="Ocean Loop";kicker="Bay Transit  /  Route 6  /  "+s.short;
       const board=document.createElement("p");board.className="statline";
@@ -4579,6 +4765,10 @@
         port:["Portside Recovery","Della works out of the yard beside the green wrecker.",dispatchPin],
         luna:["Cine Luna box office","Walk south from the stop to the illuminated theater doors.",BayCab.cinema]}[s.id];
       b.append(makeButton(walk[0],walk[1],"Walk from here",()=>clockPin(walk[2])));
+      if(s.id==="marlin"||s.id==="mercado"){
+        const pin=skatePins[s.id==="marlin"?0:1];
+        b.append(makeButton(pin.name,s.id==="marlin"?"Nia films at the bank across Ocean Drive.":"Teo keeps a spare deck behind the market.","Mark skate spot",()=>clockPin(pin)));
+      }
       const points=document.createElement("div");points.className="transfer-stamps";points.setAttribute("aria-label","Your punched transfer");
       for(const q of BayTransit.stops){
         const mark=document.createElement("span"),punched=save.transit.stamps.includes(q.id);
@@ -4776,7 +4966,7 @@
       }else if(active){
         const line=document.createElement("p");line.textContent=active.take?"One Good Take is shooting behind Cine Luna. Press G on set to switch drivers.":active.job.by+" has you on "+active.job.name+". Your next stop is "+currentTarget().name+".";b.append(line);
         b.append(makeButton("Back to the city","Keep the current job active.","Resume",closePanel),makeButton("Drop this job",active.take?"Leave the closed set at Cine Luna.":"Stay where you are and choose another contact.","Cancel job",()=>{dropJob();openPanel("jobs",true);}));
-      }else if(cycles.riding||boardwalk.player){
+      }else if(cycles.riding||skate.rider||boardwalk.player){
         for(const j of jobs){const site=jobSites.find(s=>s.id===j.id)||shorePins[0];b.append(makeButton(j.name,j.by+"  ·  "+site.name,"Set waypoint",()=>clockPin(site)));}
       }else for(const j of jobs)b.append(makeButton(j.name,j.by+"  ·  "+j.desc,j.id==="ferry"?"$450–900":j.id==="exposure"?"$300–425":j.id==="regatta"?"Race desk":cash(j.pay)+(["fare","dash"].includes(j.id)?"+":""),()=>startJob(j.id),j.id==="exposure"||j.id==="ferry"?"jobcard story-job":"jobcard"));
       if(!active&&!watchCrew.towing){
@@ -4784,11 +4974,13 @@
         b.append(makeButton("Palma Hand Wash","Elia’s wash bays on Ocean Drive, south of the Marlin.","Set waypoint",()=>clockPin(washPin)));
         b.append(makeButton("Salt Creek Drawbridge","Inez keeps the bridge on Pelican Causeway. Look for the keeper’s house on the south bank.","Set waypoint",()=>clockPin(bridgeSite)));
         b.append(makeButton("Marlin Neon Service","Vera’s workbench sits at the foot of the motel stairs on Ocean Drive.","Set waypoint",()=>clockPin(neonPin)));
+        for(const [i,pin] of skatePins.entries())b.append(makeButton(pin.name,skate.crew[i].filmer.name+" keeps a board beside the filming bench.","Set waypoint",()=>clockPin(pin)));
         const localStop=BayTransit.stops.reduce((a,b)=>dist(pos(),a)<dist(pos(),b)?a:b);
         b.append(makeButton("Route 6 · Ocean Loop","Marta Leal’s bus serves four neighborhoods. Nearest stop · "+localStop.short,"Set waypoint",()=>clockPin(localStop)));
         if(save.band.met)b.append(makeButton("June Mora",band.june.state==="shell"?"At the Sound Shell.":"Find June on her route.","Set waypoint",()=>clockPin({x:band.june.x,z:band.june.z,kind:"june",id:"june",name:"June Mora"})));
       }
       if(car)for(const [id,master] of Object.entries(save.band.best))b.append(makeButton(BaySessions.byId(id).name,"Your Sound Shell recording  ·  "+master.score+"%","Play in car",()=>cueTape(id)));
+      if(skateReel)b.append(skateReelButton());
       if(save.edition)b.append(makeButton("Bay Wire",BayExposure.routes[save.edition].headline,"Read edition",()=>openPanel("edition")));
       if(save.meet.cover)b.append(makeButton("Bay Wire · Night edition","Your photograph from Cine Luna.","Read cover",()=>openPanel("meet-cover")));
       if(!active&&!watchCrew.towing)b.append(makeButton("Rosario León","Night counter at El Mercado. Serving from 6 PM to 2 AM.","Set waypoint",()=>clockPin(BayMercadoArt.counter)),
@@ -4834,7 +5026,7 @@
         const pin={x:clamp(wx,-181,207),z:clamp(wz,-179,179)};
         const nearDock=bay.docks.find(d=>Math.hypot((chartMode==="bay"?d.x:d.footX+1.4)-wx,d.z-wz)<11);
         const court=courts.find(g=>Math.hypot(g.site.x-wx,g.site.z-wz)<6);
-        const venue=court?courtPins[courts.indexOf(court)]:Math.hypot(wx-recoveryYard.drop.x,wz-recoveryYard.drop.z)<4?dispatchPin:locations.find(p=>["room","counter","surf-tower","theater","recovery-desk","wheel-window","bike-rack","pickup-court","valet-stand","sound-shell"].includes(p.kind)&&Math.hypot(p.x-wx,p.z-wz)<4)||ranks.find(p=>Math.hypot(p.x-wx,p.z-wz)<4.5);
+        const venue=court?courtPins[courts.indexOf(court)]:Math.hypot(wx-recoveryYard.drop.x,wz-recoveryYard.drop.z)<4?dispatchPin:locations.find(p=>["room","counter","surf-tower","theater","recovery-desk","wheel-window","bike-rack","pickup-court","valet-stand","sound-shell","skate-spot","bus-stop"].includes(p.kind)&&Math.hypot(p.x-wx,p.z-wz)<4)||ranks.find(p=>Math.hypot(p.x-wx,p.z-wz)<4.5);
         const bike=parkedBikes.find(b=>Math.hypot(b.x-wx,b.z-wz)<2.3);
         let jobPin=null,hitRadius=6;
         for(const site of jobPins){const gap=Math.hypot(site.x-wx,site.z-wz);if(gap<hitRadius){jobPin=site;hitRadius=gap;}}
@@ -4942,7 +5134,7 @@
     canvas.addEventListener("wheel",zoomWheel,{passive:false});
   }
   $("world").addEventListener("webglcontextlost",()=>releaseMouse());
-  const handled=new Set(["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowLeft","ArrowDown","ArrowRight","Space","KeyE","KeyF","KeyG","KeyH","KeyT","KeyV","KeyX","KeyQ","KeyC","KeyM","KeyJ","KeyR","KeyB","Equal","Minus","NumpadAdd","NumpadSubtract","Escape","Enter","ShiftLeft","ShiftRight"]);
+  const handled=new Set(["KeyK","KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowLeft","ArrowDown","ArrowRight","Space","KeyE","KeyF","KeyG","KeyH","KeyT","KeyV","KeyX","KeyQ","KeyC","KeyM","KeyJ","KeyR","KeyB","Equal","Minus","NumpadAdd","NumpadSubtract","Escape","Enter","ShiftLeft","ShiftRight"]);
   for(const code of ["KeyZ","KeyI","Comma","Period"])handled.add(code);
   document.addEventListener("mousedown",e=>{if(e.button===0&&!panel&&e.target===lookSurface()&&wash.hasWand()&&onStreetFeet())hoseButton=true;});
   addEventListener("mouseup",()=>{hoseButton=false;});
@@ -4959,7 +5151,7 @@
     if(!handled.has(ev.code))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
-    if(transitKeys(ev.code))return;
+    if(skateKeys(ev.code)||transitKeys(ev.code))return;
     if(neon.testing){
       if(ev.code==="KeyE"){neon.pocket();motion.handTarget=null;lastHud=-10;return;}
       if(ev.code==="KeyV"){neon.view=1-neon.view;return;}
@@ -5062,6 +5254,7 @@
   });
   addEventListener("keyup",ev=>{
     keys.delete(ev.code);
+    if(ev.code==="Space"&&skate.rider&&!panel)skate.pop(skateEvent);
     if(ev.code==="Space"&&pickup&&!panel)pickup.releaseHuman(cameraRig.yaw);
   });
   addEventListener("blur",()=>{keys.clear();resetPointer();if(play&&!panel)openPanel("pause");});
@@ -5097,15 +5290,15 @@
       bumpLock=Math.max(0,bumpLock-dt);
       // Small steps keep steering and collision response consistent on slower hardware.
       let left=dt;while(left>.00001&&!panel){
-        const d=Math.min(left,car||skiff||cycles.riding||pickup||active?.take?1/60:1/45);
-        stepBridge(d);stepNeon(d);transit.step(d,transitEnv);
+        const d=Math.min(left,car||skiff||cycles.riding||skate.rider||pickup||active?.take?1/60:1/45);
+        stepBridge(d);stepNeon(d);stepSkate(d);transit.step(d,transitEnv);
         const onBoardwalk=!!(boardwalk.player||cycles.riding);stepCourts(d);boardwalkStep(d);
         if(car!==wrecker&&tow.busy)tow.step(d,towClear,recoveryEvent);
         if(room){walkRoom(d);traffic(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);left-=d;continue;}
         if(active?.take)stepTake(d);else if(deckStep)stepLanding(d);else if(transfer)stepTransfer(d);
         else if(swim)swimStep(d);
         else if(car){if(car!==meet.jules&&!(active?.meet&&meet.phase==="countdown"))drive(d);}
-        else if(!transit.engaged&&!band.take&&!pickup&&!onBoardwalk&&!cabs.playerHeld&&!skiff&&!listening()&&!exchangingKey())walk(d);
+        else if(!skate.rider&&!transit.engaged&&!band.take&&!pickup&&!onBoardwalk&&!cabs.playerHeld&&!skiff&&!listening()&&!exchangingKey())walk(d);
         stepWater(d);traffic(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);pursuit(d);stepMeet(d);advanceJob(d);serviceGarage(d);stepBeach(d);left-=d;
       }
       if(!pickup&&!room&&!boardwalk.player&&!cabs.playerHeld&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??(transit.aboard?transit.bus.speed:null)??skiff?.speed??car?.speed??(cabs.playerHeld?taxi.speed:0));
@@ -5123,9 +5316,11 @@
       if(band.take)drumHud();
       if(elapsed-lastHud>.10){hud();lastHud=elapsed;}if(elapsed-lastMap>.09){drawMini();lastMap=elapsed;}
     }
-    if(panel&&now-lastMenuPaint<300)return;lastMenuPaint=now;
+    if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;
     tuneStreetResolution(raw,play&&!panel&&!isTop());
     renderWorld(dt,streetTime);
+    if(!panel&&skateTape.active)skateTape.sample(streetTime,lookSurface(),isTop()?null:$("sky"));
+    if(skateProof)BaySkateFilm.paint(skateProof.canvas,skateReel,(now-skateProof.start)/1000);
   }
   // Show a first frame before the browser schedules its animation loop.
   renderWorld(1/60,0);requestAnimationFrame(tick);

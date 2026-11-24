@@ -602,6 +602,13 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if (name.startsWith('skate-')) {
+      const rolling = name === 'skate-lock', rough = name === 'skate-bail', landing = name === 'skate-land';
+      const length = rolling ? .28 : rough ? .23 : .07;
+      waterNoise(effects, at, length, rough ? .11 : .065, rolling ? 3400 : 1900, rolling ? 1050 : 440);
+      if (!rolling) tone(effects, landing ? 124 : 235, at, .08, .055, 'triangle', 72, .002);
+      return;
+    }
     if (name === 'bus-bell' || name === 'bus-door') {
       const near = Math.max(0, 1 - (source.distance || 0) / 34) ** 1.4;
       if (name === 'bus-bell') {
