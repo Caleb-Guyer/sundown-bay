@@ -108,8 +108,10 @@ async function run() {
     await js("document.querySelector('#play').click()");
     await waitFor("!document.querySelector('#hud').hidden");
     assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
-    if (!corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
-    await play({ js, send, waitFor, key, tap, errors, mode, local: false });
+    const jumps = process.argv.includes("--picture-jumps");
+    if (!jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
+    const activity = jumps ? require("./picture-jumps.cjs") : play;
+    await activity({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
     assert.equal(await js("audioStarts+cursorRequests"), 0);
     console.log("Verified public bundle " + asset);

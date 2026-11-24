@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   play:
-    name: Answer an Engine 7 call in ${{ matrix.view }} view
+    name: Land a picture car jump in ${{ matrix.view }} view
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: node .github/playtests/live.cjs ${{ matrix.view }} --engine-seven --frames
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --picture-jumps --frames
       - uses: actions/upload-artifact@v4
         if: always()
         with:

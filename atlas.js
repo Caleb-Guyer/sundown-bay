@@ -798,6 +798,9 @@
         const marker=radar?edgePoint(x,y,w,h,true,9*ui):[x,y];roadblockMark(ctx,marker[0],marker[1],b.yaw,ui,!!b.strip);
       }
     }
+    if(street)for(const site of BayPictureJumps.sites){
+      if(visible(px(site.x),py(site.z),s*(site.max+7)))BayPictureJumpArt.overhead(ctx,px,py,s,site);
+    }
     if(street&&opt.gutters)BayGutterArt.overhead(ctx,px,py,s,opt.gutters,streetTime);
     if(opt.starlite&&visible(px(opt.starlite.x),py(opt.starlite.z),s*16)){
       const site=opt.starlite;
@@ -1091,7 +1094,19 @@
       const rider=opt.boardwalk?.player;
       const projected=street&&rider?BayCoastWheelArt.mapPoint(rider):player,x=px(projected.x),y=py(projected.z);
       if(street) {
-        if(player.driving && !playerCar){carSprite(ctx,opt.streetCar||player,x,y,s,streetTime);if(opt.streetCar){BayStreetCars.map(ctx,opt.streetCar,x,y,s,streetTime);BayRoadGlass.map(ctx,opt.streetCar,x,y,s,streetTime);if(opt.streetCar===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,opt.streetCar,opt.campana.open,opt.campana.bell,streetTime);}}
+        if(player.driving&&!playerCar){
+          const v=opt.streetCar||player,flight=v.jumpFlight,deck=BayPictureJumps.deck(v.x,v.z);
+          const lift=flight?Math.max(0,flight.height-flight.site.base):deck?BayPictureJumps.elevation(deck,v.x,v.z):0;
+          ctx.save();
+          if(lift>.02){
+            ctx.save();ctx.translate(x+.32*lift*s,y+.19*lift*s);ctx.rotate(v.yaw);
+            ctx.fillStyle="rgba(38,42,48,.32)";ctx.beginPath();ctx.ellipse(0,0,s,s*2.05,0,0,Math.PI*2);ctx.fill();ctx.restore();
+            ctx.translate(x,y);ctx.scale(1+lift*.048,1+lift*.048);ctx.translate(-x,-y-lift*s*.47);
+          }
+          carSprite(ctx,v,x,y,s,streetTime);
+          if(opt.streetCar){BayStreetCars.map(ctx,v,x,y,s,streetTime);BayRoadGlass.map(ctx,v,x,y,s,streetTime);if(v===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,v,opt.campana.open,opt.campana.bell,streetTime);}
+          ctx.restore();
+        }
         if(player.driving&&opt.streetCar&&player.neighborPose)BayNeighborGestures.mapDriver(ctx,px,py,s,opt.streetCar,player.neighborPose,player.skin,player.shirt);
         for(const a of opt.motorists||empty)if(visible(px(a.x),py(a.z),4*s))BayMotorists.mapActor(ctx,a,px(a.x),py(a.z),s,streetTime,a===opt.valet?.staff?opt.valet.staffJob:null);
         if(opt.band)for(const p of opt.band.performers)if(visible(px(p.x),py(p.z),3*s))BayBandPlayers.mapActor(ctx,p,px(p.x),py(p.z),s,streetTime,opt.band);

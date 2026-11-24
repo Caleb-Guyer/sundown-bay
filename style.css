@@ -287,6 +287,9 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .take-marks {margin:10px 0;border-block:1px solid #818677}.take-marks p {display:grid;grid-template-columns:3.4rem 1fr;gap:6px}.take-marks b {font:italic bold 1.12rem Georgia,serif}
 .panel .take-quote {margin:8px 0 12px;font:italic 1.12rem/1.35 Georgia,serif}
 .take-print {display:block;width:auto;max-width:100%;height:auto;max-height:43vh;margin:4px auto 11px}
+.jump-scrub {display:flex;align-items:center;gap:1rem;margin:.35rem 0 .85rem}
+.jump-scrub span {white-space:nowrap;font-variant-numeric:tabular-nums}
+.jump-scrub input {min-width:6rem;flex:1;accent-color:#80c8b5}
 @media(max-height:520px){.take-print{max-height:32vh}#takeHud{left:10px;bottom:calc(99px + 19px);padding:5px 8px}}
 .panel[data-screen="meet-result"],.panel[data-screen="meet-cover"] {width:min(660px,94vw);background:#f0e4c9}
 .atlas-views {display:flex;gap:7px;margin-bottom:7px}.atlas-views button {border:1px solid #738a77;color:#335349;background:transparent;padding:4px 10px;border-radius:2px;font-weight:700}.atlas-views [aria-pressed="true"] {background:#29514c;color:#f7eacc}

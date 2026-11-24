@@ -4,6 +4,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+Across from the Marlin, **Salt Print** is a camera trailer pointed north along Sol Promenade. Walk to the low end and press **F** to read Romy’s chalk, or drive straight up it in your own car. A longer run-up gives you more distance. **A/D** trims the car’s heading in the air. In chase view, hold **V** during the jump for the roadside camera. Land all four wheels between the painted stripes.
+
+Romy has two more locations, **Off the Clock** on Foundry Road and **Dry Dock** in Port Sol. Each first clean landing pays **$80**. Signing all three earns another **$90**. Her notebook at the Portside car meet has the directions. After you find it or try a jump, **J → Romy’s location notebook** lets you mark a run-up or scrub your best recorded flight.
+
 Engine 7 runs out of **Station Seven on Gantry Street**, just east of the Starlite. The crew answers calls at the Marlin laundry cart, Mercado bread rack, and Port Sol float chest on its own. Follow the flashing pumper and meet Nel by the smoke, or choose a call at the station board and drive it yourself. **H** toggles the response lights. Pull up at the marked curb, press **F** to set the pump brake, then **E** to get out. While Seven is away, you can reserve its next run at the board.
 
 On foot, **F** takes the hose from Nel. Hold **Space** and sweep with the mouse or **A/D**. Let go to walk the line around the truck. **E** hands it back. The first completed call at each site pays **$105**. Read the signed slip under **J → Engine 7 daybook**, and look for the all-clear in the Bay Wire.

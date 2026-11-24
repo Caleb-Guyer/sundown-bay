@@ -14,6 +14,8 @@
   const deltaText=d=>Math.abs(d)<.005?"Level with best":Math.abs(d).toFixed(2)+" s "+(d<0?"ahead":"behind");
   const course=BayBeachDash.gates;
   const view=new BayView($("world")), cityMesh=new BayMesh(),waterMesh=new BayMesh(),city=buildBayCity(cityMesh,waterMesh);
+  const jumps=BayPictureJumps;
+  BayPictureJumpArt.build(cityMesh,jumps.sites);
   const rideScenery=new BayRideFilm.Scenery(cityMesh.vertices);
   view.add("city",cityMesh);cityMesh.vertices.length=0;view.add("bay-water",waterMesh);waterMesh.vertices.length=0;
   const gullSite=BayGullMotors.site,palmSite=BayPalmDiner.site,brisasSite=BayBrisas.site;let gull=null,works=null;
@@ -130,12 +132,15 @@
     catch{return null;}
   }
   function readSave(){
+    const pictureBook=jumps.read(null);
     const result=blankSave();result.engineSeven=BayEngineSeven.read(null);result.starlite=BayStarlite.read(null);result.stunt=storedPoster();result.bikes=BayPedal.read(null);result.boardwalk=BayBoardwalk.read(null);result.courts=BayPickup.read(null);result.valet=BayMotorCourt.read(null);
     result.band=BaySessions.read(null);result.palma=BayPalma.read(null);result.bridge=BayDrawbridge.read(null);result.neon=BayMarlinNeon.read(null);
     result.campana=BayCampana.read(null);result.windowBest={};result.windowJobs=0;result.transit=BayTransit.read(null);result.airwaves=BayAirwaves.read(null);
     result.buttonwood=BayButtonwood.read(null);result.brisas=BayBrisasClub.read(null);result.palm=BayPalmLeague.read(null);result.gull=BayGullSales.read(null);result.moto=BaySecondSeat.read(null);result.rescue=BayRescue.read(null);result.skate=BaySkate.read(null);result.airmail=BayPelicanAir.read(null);
     result.luggage=luggage.read(null);result.green=BayOnGreen.read(null);result.threads=threads.read(null,result.courts);
+    result.pictureJumps=pictureBook;
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
+      result.pictureJumps=jumps.read(raw.pictureJumps);
       result.engineSeven=BayEngineSeven.read(raw.engineSeven);result.starlite=BayStarlite.read(raw.starlite);result.luggage=luggage.read(raw.luggage);result.green=BayOnGreen.read(raw.green);
       for(const k of ["wallet","paid","best","rides"])if(Number.isFinite(raw[k])&&raw[k]>=0)result[k]=raw[k];
       result.windowJobs=Number.isSafeInteger(raw.windowJobs)&&raw.windowJobs>=0?raw.windowJobs:0;
@@ -174,6 +179,7 @@
     }catch{return result;}
   }
   const save=readSave();
+  let jumpPage=jumps.sites[0];
   locations.push(luggage.counter,threads.counter,starliteBooth,BayEngineSeven.desk);
   const rainWalk=new BayRainWalk.Walk(),negatives=new BayWindowSeat.Negatives();
   const unit=new BaySecondUnit.Unit(),scoutDesk=BaySecondUnit.desk,otherMotion=new BayPlayerMotion();
@@ -306,6 +312,17 @@
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    if(latest?.pictureJumps?.known){
+      const incoming=jumps.read(latest.pictureJumps),local=save.pictureJumps;
+      local.known=true;
+      for(const s of jumps.sites){
+        const entry=incoming.best[s.id],old=local.best[s.id];
+        if(entry&&(!old||entry.distance>old.distance)){
+          if(!old&&Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
+          local.best[s.id]=entry;
+        }
+      }
+    }
     if(latest?.engineSeven?.rev>save.engineSeven.rev){save.engineSeven=BayEngineSeven.read(latest.engineSeven);if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;}
     if(latest?.starlite?.rev>save.starlite.rev){save.starlite=BayStarlite.read(latest.starlite);spider.roofTarget=save.starlite.roof;if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;}
     if(Number.isSafeInteger(latest?.threads?.rev)&&latest.threads.rev>save.threads.rev){
@@ -568,6 +585,7 @@
   const district=(p)=>BayGullKey.siteAt(p.x,p.z)?.name??(BayCut.area(p)?(p.x>BayCut.coast(p.z)+2?"Pelican Sound":"Pelican Cut"):p.x>335?"Outer Sound":p.x>216?"Breakwater Bay":p.x>158?"Sol Beach":p.x>112?"Ocean Drive":p.x< -102&&p.z<10?"Port Sol":p.z< -92?"El Mercado":p.z>96&&p.x>43?"Boardwalk":p.x< -65?"Old Palms":"Neon Mile");
   const formatVehicle=v=>v===iceVan?"La Campana":genres[v.kind].name;
   function footLevel(x,z){
+    const deck=jumps.deck(x,z);if(deck)return deck.base+jumps.elevation(deck,x,z);
     const yard=BayButtonwoodYard.surface(x,z);if(yard!=null)return yard;
     const lot=BayBrisas.floor(x,z);if(lot!=null)return lot;
     const lunch=BayPalmDiner.floor(x,z);if(lunch!=null)return lunch;
@@ -4991,6 +5009,7 @@
     if(bell.pass)bagArt.case(list,model,bell.pass.id,passingCase(playerMesh));
   }
   function switchCar(){
+    if(car?.jumpFlight)return;
     if(!car&&(bell.pass||luggage.hand(save.luggage))){note("Marlin claim check","Stow the case in the trunk before you get in.",2.5);return;}
     if(gull.exchange||motos.player||motos.job?.swapping)return;
     if(rescue.holding||roofs.raised||airLine.aboard||transit.aboard||skate.rider)return;
@@ -5674,6 +5693,8 @@
   }
   const held=(...codes)=>codes.some(k=>keys.has(k));
   function footClear(x,z,r){
+    const deck=jumps.deck(x,z);
+    if(deck&&deck.base+jumps.elevation(deck,x,z)>hero.y+motion.lift+.36&&jumps.deck(hero.x,hero.z)!==deck)return false;
     if(works&&Math.abs(x-works.trailer.x)<4.8&&Math.abs(z-works.trailer.z)<4.8&&!roofs.raised){
       const gap=works.trailer.clearance(x,z);if(gap<.17&&gap<works.trailer.clearance(hero.x,hero.z)-.0001)return false;
     }
@@ -5797,6 +5818,7 @@
       hero.x>BaySwimming.coast(hero.z)+2.65&&motion.lift<.16)enterSurf(Math.max(0,hero.y+motion.lift));
   }
   function fitsCar(v,x,z,yaw){
+    if(v.x!==undefined&&!jumps.canEnter(v,x,z))return false;
     const s=v.footprint||bayCarLayout(v.kind),r=s.track-.075,reach=s.halfLength-r-.05,dx=Math.sin(yaw)*reach,dz=Math.cos(yaw)*reach;
     if(gull&&Math.abs(x-53.72)<5&&z>22&&z<44)for(const k of [-1,0,1])if(gullDoorHit(x+dx*k,z+dz*k,r,v.kind==="heron"||v.kind==="paloma"?1.62:s.glass?.[5]??1.85))return false;
     if(BayRooftops.near(x,z))for(const o of stairBlocks){
@@ -5818,6 +5840,65 @@
     }
     if(skids.length>96)skids.splice(0,skids.length-96);skidLast=axle;
   }
+  function logPictureJump(v,landing){
+    try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
+    const book=save.pictureJumps,s=landing.site,prior=book.best[s.id],firstLook=!book.known;
+    book.known=true;jumpPage=s;
+    if(landing.miss){
+      note(s.name+" · "+landing.distance.toFixed(1)+" m",landing.miss,4);
+      if(firstLook)persist();
+      return;
+    }
+    const fee=jumps.saveLanding(book,landing,formatVehicle(v));
+    const best=!prior||book.best[s.id]!==prior;
+    if(best){
+      save.wallet+=fee;persist();
+      broadcastDesk.queue.unshift("Romy Vale clocked a "+landing.distance.toFixed(1)+" metre jump at "+s.name+".");
+    }
+    const bonus=fee===170?" · All three locations signed":"";
+    note(s.name+" · "+landing.distance.toFixed(1)+" m",(fee?cash(fee)+" location fee"+bonus:best?"New personal best":"Clean landing")+" · J for Romy’s notebook",5);
+    if(afternoon.seated)speak(BaySecondUnit.names[unit.other],best?"Romy’s going to want that one on paper.":"I felt those wheels come down together.");
+    lastHud=-10;
+  }
+  function jumpHint(){
+    const chalk=jumpChalk();if(chalk)return ["F",chalk.name+" · Read Romy’s ramp marks"];
+    if(!car||active||car.serviceCar||transfer)return null;
+    const f=car.jumpFlight;
+    if(f?.eligible)return ["A/D","Trim in the air · "+Math.max(0,jumps.along(f.site,car)).toFixed(1)+" m"+(isTop()||insideSeat()?"":" · Hold V for the roadside camera")];
+    for(const s of jumps.sites){
+      const d=jumps.along(s,car);
+      if(d<=0&&d> -s.length-24&&Math.abs(jumps.across(s,car))<s.width*.7&&Math.cos(car.yaw-s.yaw)>.76)
+        return ["",s.name+" · Carry speed up the ramp and land inside the stripes"];
+    }
+    return null;
+  }
+  function jumpChalk(){
+    if(active||!onStreetFeet()||unit.eye||afternoon.photo||roofs.raised||pickup||room)return null;
+    return jumps.sites.find(s=>dist(hero,s.toe)<3.8);
+  }
+  function openJumpBook(site){
+    jumpPage=site;save.pictureJumps.known=true;persist();openPanel("picture-jumps",true);
+  }
+  function paintJumpPage(body){
+    const s=jumpPage,record=save.pictureJumps.best[s.id],page=document.createElement("canvas");
+    page.className="take-print picture-profile";page.setAttribute("role","img");
+    page.setAttribute("aria-label",s.name+(record?" · "+record.model+" · "+record.distance+" metre jump":" · Unscouted ramp"));
+    const paint=f=>BayPictureJumpBook.paint(page,s,record,f);
+    paint(record?1:undefined);body.append(page);
+    if(record){
+      const control=document.createElement("label"),slider=document.createElement("input"),caption=document.createElement("span");
+      control.className="jump-scrub";slider.type="range";slider.min=0;slider.max=100;slider.value=100;
+      slider.setAttribute("aria-label","Scrub the recorded jump");
+      const scrub=()=>{const f=Number(slider.value)/100;caption.textContent="Flight · "+(f*record.seconds).toFixed(2)+" s";paint(f);};
+      slider.oninput=scrub;caption.textContent="Flight · "+record.seconds.toFixed(2)+" s";
+      control.append(caption,slider);body.append(control);
+    }
+    body.append(makeButton("Mark the run-up",s.hint,"Set waypoint",()=>clockPin(s.runup)));
+    for(const other of jumps.sites)if(other!==s){
+      const best=save.pictureJumps.best[other.id];
+      body.append(makeButton(other.name,other.area,best?best.distance.toFixed(1)+" m":"Read page",()=>openJumpBook(other)));
+    }
+  }
   function drive(dt,parking=false){
     const v=car,oldX=v.x,oldZ=v.z,oldYaw=v.yaw;
     const tr=works.trailer,towing=tr.hitched===v;
@@ -5831,8 +5912,11 @@
     if(serviceVehicle===v&&!heat&&!held("KeyW","ArrowUp","KeyS","ArrowDown"))parking=true;
     let steering=parking?0:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
     if(towing&&!steering&&!parking&&held("KeyS","ArrowDown")&&held("ShiftLeft","ShiftRight")&&dist(tr,boatYard.wet)<39&&Math.abs(angle(tr.yaw,boatYard.wet.yaw))<.7)steering=BayButtonwoodStreet.backSteer(v,tr,boatYard);
-    gutters.wheels(v);
-    BayDriving.step(v,dt,!parking&&held("KeyW","ArrowUp"),!parking&&held("KeyS","ArrowDown"),steering,!parking&&held("Space"),surface,v.upgrades.engine,parking);
+    if(v.jumpFlight)jumps.airControl(v,dt,steering);
+    else{
+      gutters.wheels(v);
+      BayDriving.step(v,dt,!parking&&held("KeyW","ArrowUp"),!parking&&held("KeyS","ArrowDown"),steering,!parking&&held("Space"),surface,v.upgrades.engine,parking);
+    }
     if(!parking&&v.z>181&&(Math.abs(v.speed)>.45||v.throttle>.10))v.vz-=9.81*BayCut.grade(v.x,v.z)*dt;
     if(Math.abs(v.yaw-oldYaw)>.00001&&!fitsCar(v,v.x,v.z,v.yaw)&&fitsCar(v,v.x,v.z,oldYaw)){v.yaw=oldYaw;v.yawRate*=.3;}
     let impact=0,wallX=0,wallZ=0;
@@ -5844,12 +5928,15 @@
       dent(v,wallX,wallZ,impact);if(v===unit4&&rescue.phase==="return")rescue.grade=Math.max(0,rescue.grade-impact*.9);if(recovery.call&&tow.target)recovery.call.jolts++;
       active?.plate?.jolt(impact);sound.cue("hit");bumpLock=.7;persist();lastHud=-10;
     }
+    let hitVehicle=false;
     const neighbors=cars.concat(patrol,motos.all);if(dist(v,transit.bus)<13)neighbors.push(transit.bus);
     for(const other of neighbors){
       if(other===v||v===wrecker&&other===tow.target)continue;
+      if(v.jumpFlight&&dist(v,other)<10&&v.jumpFlight.height>footLevel(other.x,other.z)+(other.footprint?.height||bayCarLayout(other.kind).glass?.[5]||1.7)+.12)continue;
       const hit=BayDriving.contact(v,other);
       if(!hit){if(crashContacts.has(other)&&dist(v,other)>6.3)crashContacts.delete(other);continue;}
       const {nx,nz,depth}=hit,out=Math.min(.45,depth+.012);
+      hitVehicle=true;
       if(fitsCar(v,v.x+nx*out,v.z+nz*out,v.yaw)){v.x+=nx*out;v.z+=nz*out;}
       const inward=Math.max(0,-v.vx*nx-v.vz*nz),pace=other.path||other.serviceCar||other.meetCar||other.kind==="cruiser"?other.speed:0;
       const closing=inward+pace*(nx*Math.sin(other.yaw)+nz*Math.cos(other.yaw));
@@ -5863,7 +5950,7 @@
       v.vx+=nx*inward*1.10;v.vz+=nz*inward*1.10;v.yawRate*=Math.exp(-3*dt);other.wait=1.4;
       if(closing>4.8&&bumpLock<=0){active?.plate?.jolt(closing);sound.cue("hit");bumpLock=.7;}
     }
-    if(backup.driveThrough(v,dt,oldX,oldZ,oldYaw)){
+    if(!v.jumpFlight&&backup.driveThrough(v,dt,oldX,oldZ,oldYaw)){
       const side=v.flatSide<0?"left":"right";
       note(tireStatus(v),"Pulling "+side+". Steer "+(v.flatSide<0?"right":"left")+" to hold your line.",3.3);
       lastHud=-10;
@@ -5881,7 +5968,13 @@
       Object.assign(v,{x:oldX,z:oldZ,yaw:oldYaw,vx:0,vz:0,speed:0,yawRate:0,brakes:1});
       if(elapsed>(tow.scrapeAt??-10)+3){tow.scrapeAt=elapsed;note("Trailer clearance","The car needs a wider turn. Ease back and straighten the truck.",2.5);}
     }
-    BayDriving.signedSpeed(v);skidMarks(v,surface);
+    BayDriving.signedSpeed(v);
+    // A loaded trailer stays grounded. On other cars the same physical deck works during jobs and in free roam.
+    if(!towing&&!(v===wrecker&&tow.target)){
+      const landing=jumps.step(v,{x:oldX,z:oldZ},dt,footLevel,!active&&!v.serviceCar&&!parking,hitVehicle||impact>1);
+      if(landing?.eligible)logPictureJump(v,landing);
+    }
+    if(v.jumpFlight)skidLast=null;else skidMarks(v,surface);
     if(v.indicator&&Number.isFinite(v.signalFrom)){
       if(angle(v.signalFrom,v.yaw)*v.indicator>.52)v.signalTurned=true;
       if(v.signalTurned&&Math.abs(v.steer)<.075){v.indicator=0;v.signalFrom=null;v.signalTurned=false;}
@@ -5910,7 +6003,10 @@
     note(garage.name,fixed+" tire replaced.",3);
   }
   function serviceLift(v){
-    const lift=v.hydraulic?.bodyLift||0;if(v!==serviceVehicle)return lift;
+    const squash=v.jumpCompression;
+    const lift=(v.hydraulic?.bodyLift||0)+(v.jumpFlight?v.jumpFlight.height-footLevel(v.x,v.z):0)-
+      (squash?squash.depth*Math.sin(squash.time/.44*Math.PI)*Math.exp(-4*squash.time):0);
+    if(v!==serviceVehicle)return lift;
     const p=serviceTime/repairSeconds,t=clamp(Math.min(p,1-p)*4.5,0,1);
     return lift+.15*t*t*(3-2*t);
   }
@@ -6704,6 +6800,19 @@
     const subject=cameraSubject();
     cameraRig.update(cam,subject,airLine.player&&!airLine.transfer?airLine.plane:transit.aboard?transit.bus:cabs.playerHeld?taxi:windowRide?.held?windowRide.vehicle:deckStep?.v||skiff||transfer?.v||car||motos.bike||cycles.riding||skate.rider,dt,elapsed,{flight:!!airLine.player,skate:!!skate.rider,rear:!motos.bike&&!airLine.aboard&&!skate.rider&&!transit.aboard&&!pickup&&held("KeyV"),court:!!pickup,swim,lift:pickup?pickup.human.lift:motion.lift,ground:airLine.aboard?(airLine.transfer?hero.y:airLine.plane.y):skiff?0:skate.rider?skate.rider.y+skate.rider.air*.42:boardwalk.player||roofs.raised?hero.y:cycles.riding?footLevel(subject.x,subject.z)+cycles.riding.air*.65:footLevel(subject.x,subject.z),
       seat:windowRide?.held?windowRide.seat:cycles.riding ? .53*cycles.riding.mount : cabs.playerHeld?cabs.booking.seat:transfer||deckStep?(motion.ride?.seat||0):undefined});
+    if(car?.jumpFlight&&!isTop()&&!insideSeat()){
+      const f=car.jumpFlight;cam.y+=f.height-footLevel(car.x,car.z);
+      if(held("KeyV")){
+        const target={x:car.x,y:f.height+.78,z:car.z};
+        const candidates=[-1,1].map(side=>({...BayDriving.world(f.site,side*10,f.site.min*.72),y:f.site.base+1.40}));
+        const options=candidates.map(eye=>({eye,gap:BayCamera.safeFraction(target,eye,cameraRig.obstacles)})).sort((a,b)=>b.gap-a.gap);
+        if(options[0].gap>.42){
+          const {eye,gap}=options[0];cam.x=target.x+(eye.x-target.x)*gap;cam.y=target.y+(eye.y-target.y)*gap;cam.z=target.z+(eye.z-target.z)*gap;
+          cam.yaw=Math.atan2(target.x-cam.x,target.z-cam.z);cam.pitch=Math.atan2(target.y-cam.y,dist(cam,target));cam.focal=1.12;
+          cameraRig.hideActor=false;
+        }
+      }
+    }
     if(palm.playerSeat?.amount>.72&&cameraRig.hideActor&&!isTop()){
       Object.assign(cam,{x:hero.x,y:palm.playerSeat.seat.seatY+.83,z:hero.z,yaw:cameraRig.yaw,pitch:-.08-cameraRig.elevation*.20,focal:1.35});
     }
@@ -6819,6 +6928,9 @@
     list.push([key,p.x,p.y,p.z,v.yaw,b.pitch,b.lean]);
   }
   function roadBody(v){
+    const f=v.jumpFlight,deck=jumps.deck(v.x,v.z);
+    if(f)return {...v,pitch:f.pitch,lean:v.lean+f.spin*.09,onDeck:true};
+    if(deck){const relative=v.yaw-deck.yaw;return {...v,pitch:v.pitch-Math.atan(deck.grade*Math.cos(relative)),lean:v.lean-Math.atan(deck.grade*Math.sin(relative)),onDeck:true};}
     if(BayButtonwoodYard.onRamp(v.x,v.z)){
       const s=BayDriving.world(v,0,1.4),b=BayDriving.world(v,0,-1.4),r=BayDriving.world(v,1,0),l=BayDriving.world(v,-1,0);
       return {...v,pitch:v.pitch-Math.atan((footLevel(s.x,s.z)-footLevel(b.x,b.z))/2.8),lean:v.lean+Math.atan((footLevel(r.x,r.z)-footLevel(l.x,l.z))/2)};
@@ -6850,8 +6962,9 @@
         const out=damaged&&phase>0 ? .33*Math.sin(Math.PI*clamp((phase-.22)/.54,0,1))**2 : 0;
         const w=BayDriving.world(v,side*(s.track-.085+out),axle);
         const drop=damaged?flat*s.wheel*.25:0,lift=h?.wheelLift[(axle===s.axles[0]?0:2)+(side>0?1:0)]||0;
-        const wheel=v.onLift?chassisPoint(v,side*(s.track-.085+out),s.wheel-drop,axle,ground):{...w,y:wheelBase+lift+s.wheel-drop};
-        list.push([rig.wheels[side],wheel.x,wheel.y,wheel.z,v.yaw+(axle>0?v.steer:0),v.wheelSpin+(v.onLift?v.pitch:0)]);
+        const tilted=v.onLift||v.onDeck;
+        const wheel=tilted?chassisPoint(v,side*(s.track-.085+out),s.wheel-drop,axle,ground):{...w,y:wheelBase+lift+s.wheel-drop};
+        list.push([rig.wheels[side],wheel.x,wheel.y,wheel.z,v.yaw+(axle>0?v.steer:0),v.wheelSpin+(tilted?v.pitch:0)]);
       }
     }
     if(v.brakes>.18||v.handbrake>.48)list.push([rig.brakes,v.x,bodyGround,v.z,v.yaw,v.pitch,v.lean,0,v]);
@@ -8160,7 +8273,7 @@
     const clock=nearbyClock();
     const localRun=greenHud();
     const curbObject=curbsideAction(),curbPrompt=curbObject&&curbsideHint(curbObject);
-    const showing=engineHint()||starliteHint();
+    const showing=jumpHint()||engineHint()||starliteHint();
     if(showing)contextHint(...showing);
     else if(atThreads())contextHint("F","Cora Vidal · Low Tide Exchange");
     else if(curbPrompt)contextHint(...curbPrompt);
@@ -8868,6 +8981,8 @@
     }else if(next==="wire-edition"){
       title="Neighborhood edition";kicker="Bay Wire  /  Picture desk";
       for(const story of neighbors.editions)editionPrint(b,story);
+    }else if(next==="picture-jumps"){
+      title="Romy’s location notebook";kicker="Picture cars / "+jumpPage.area;paintJumpPage(b);
     }else if(next==="engine-house"||next==="engine-book"||next==="jobs"&&active?.engineSeven){
       title="Station Seven";kicker=next==="engine-book"?"Engine company / Signed return":"Gantry Street / Duty board";engineBoard(b,next==="engine-book");
     }else if(next==="starlite-booth"||next==="starlite-tickets"){
@@ -9071,6 +9186,7 @@
         const row=document.createElement("p"),label=document.createElement("b");label.textContent=name;row.append(label,document.createTextNode(direction));controls.append(row);
       }
       b.append(controls,makeButton("Roll cameras","Land on the moving bed. Your longest clean jump gets the theater poster.","Start take",()=>startTake(false)));
+      b.append(makeButton("Romy’s location notebook","Three loading ramps around town. Bring your own car. I pay for the first clean landing at each.","Read notebook",()=>openJumpBook(jumps.sites[0])));
       if(save.stunt)b.append(makeButton("Use the long mark","A longer run-up for a bigger jump.","Long take",()=>startTake(true)));
     }else if(next==="take-poster"){
       title="One Good Take";kicker="Cine Luna  /  Poster case";
@@ -9179,6 +9295,7 @@
       if(save.threads.met)b.append(makeButton("Cora Vidal · Low Tide Exchange","Fitting mirror and window commissions on Ocean Drive.","Mark stall",()=>clockPin(threads.counter)));
       if(neighbors.people.some(p=>neighbors.known(unit.lead,p,"met")))b.prepend(makeButton("Word of mouth","People you’ve met, their favorite places and messages you’ve carried.","Contacts",()=>openPanel("neighbors")));
       if(save.engineSeven.log.length)b.prepend(makeButton("Engine 7 daybook",save.engineSeven.log.at(-1).title,"Read slip",()=>{sevenPage=save.engineSeven.log.length-1;openPanel("engine-book");}));
+      if(save.pictureJumps.known)b.prepend(makeButton("Romy’s location notebook",Object.keys(save.pictureJumps.best).length+" of 3 locations signed","Read notebook",()=>openJumpBook(jumpPage)));
       if(save.starlite.tickets.length)b.prepend(makeButton("Starlite ticket stubs",save.starlite.tickets.at(-1).title,"Look",()=>{ticketIndex=save.starlite.tickets.length-1;openPanel("starlite-tickets");}));
       if(pavement.archive.length)b.prepend(makeButton("Folded copies","Bay Wire papers you picked up on the street.","Read",()=>{paperIndex=pavement.archive.length-1;openPanel("pocket-papers");}));
       if(unit.met)b.prepend(makeButton("Second Unit · "+BaySecondUnit.names[unit.other],"Call for a Window Seat shoot, find your partner or browse your prints.","Call sheet",()=>openPanel("unit-sheet")));
@@ -9350,6 +9467,7 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyF"){const chalk=jumpChalk();if(chalk){openJumpBook(chalk);return;}}
     if(engineKey(ev.code)||starliteKey(ev.code))return;
     if(ev.code==="KeyF"&&atThreads()){visitThreads();return;}
     if(curbsideKey(ev.code))return;
