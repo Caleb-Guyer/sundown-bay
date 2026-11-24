@@ -22,7 +22,7 @@
     });
     for(const v of fleet){
       if(see(v,160)){
-        actors.push(["marina-"+v.kind,v.x,v.y,v.z,v.yaw,v.pitch,v.lean]);
+        if(v.kind!=="pip")actors.push(["marina-"+v.kind,v.x,v.y,v.z,v.yaw,v.pitch,v.lean]);
         if(v===rival)actors.push(["marina-rival-pilot",v.x,v.y,v.z,v.yaw,v.pitch,v.lean]);
         if(v.kind==="patrol")actors.push([lightPhase(v,t)?"marina-patrol-blue":"marina-patrol-red",v.x,v.y,v.z,v.yaw,v.pitch,v.lean]);
       }
@@ -105,7 +105,7 @@
         for(const w of v.wake){const age=opt.time-w.at;if(age>3.25||!visible(px(w.x),py(w.z),7*s))continue;
           const span=.7+age*(1.3+w.pace*.66),cs=Math.cos(w.yaw),sn=Math.sin(w.yaw);
           for(const side of [-1,1]){const x=w.x+side*cs*span,z=w.z-side*sn*span;c.moveTo(px(x),py(z));c.lineTo(px(x-sn*1.1+side*.33*cs),py(z-cs*1.1-side*.33*sn));}}
-        c.stroke();c.restore();art(v.kind,v,v.yaw,v.kind==="patrol"?lightPhase(v,opt.time):0);
+        c.stroke();c.restore();if(v.kind!=="pip")art(v.kind,v,v.yaw,v.kind==="patrol"?lightPhase(v,opt.time):0);
       }else if(v!==water.player&&visible(px(v.x),py(v.z))){
         if(v.kind==="patrol")patrolBlip(c,v,px(v.x),py(v.z),s,ui,opt.time);
         else dot(c,px(v.x),py(v.z),v===water.rival&&race?3.6*ui:1.7*ui,v===water.rival?gold:cream);

@@ -21,6 +21,10 @@
     <div id="vignette" aria-hidden="true"></div>
     <section id="hud" aria-label="Game dashboard" hidden>
       <div class="location"><span class="area-kicker">SUNDOWN BAY <time id="cityTime"></time></span><strong id="district">Ocean Drive</strong><span id="streetName" hidden></span></div>
+      <section id="potReadout" aria-label="Buttonwood deck gauge" hidden>
+        <span id="potName"></span><strong id="potStatus"></strong><small id="potGaugeLabel"></small>
+        <div id="potLoad" role="meter" aria-label="Deck gauge" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+      </section>
       <section id="brisasReadout" aria-label="Las Brisas switch box" hidden>
         <canvas width="104" height="65" id="brisasMeter" aria-hidden="true"></canvas>
         <div><small id="brisasLabel"></small><strong id="brisasCall"></strong><span id="brisasValue"></span></div>
@@ -276,6 +280,12 @@
   <script src="hydraulics.js"></script>
   <script src="brisas-club.js"></script>
   <script src="brisas-street.js"></script>
+  <script src="buttonwood-yard-art.js"></script>
+  <script src="buttonwood-rig-art.js"></script>
+  <script src="buttonwood-pot-art.js"></script>
+  <script src="slip-trailer.js"></script>
+  <script src="buttonwood.js"></script>
+  <script src="buttonwood-street.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

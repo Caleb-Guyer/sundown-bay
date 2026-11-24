@@ -35,7 +35,7 @@
     if(dt<=0)return;
     const spec=v.handling||cars[v.kind],shape=v.footprint||bayCarLayout(v.kind),sn=Math.sin(v.yaw),cs=Math.cos(v.yaw);
     const forward=v.vx*sn+v.vz*cs,lateral=v.vx*cs-v.vz*sn,speed=Math.hypot(v.vx,v.vz);
-    const d=v.damage,engine=Math.max(0,((d?.front||0)-.19)/.81)*.49,load=v.towLoad?1:0;
+    const d=v.damage,engine=Math.max(0,((d?.front||0)-.19)/.81)*.49,load=v.towLoad?1:v.trailerLoad||0;
     const gain=(tuned?1.18:1)*(1-engine)*(1-load*.30),top=spec.top*(tuned?1.18:1)*(1-engine*.87)*(1-load*.24)*(.55+.45*surface),ratio=Math.max(0,forward)/top;
     // A sideways slide can cross zero longitudinal speed while the car is still moving fast.
     // Only select reverse after the whole car has stopped under the brake pedal.
@@ -76,7 +76,7 @@
     const low=clamp(1-speed/4.5,0,1);
     nextYawRate=damp(nextYawRate,forward*Math.tan(v.steer)/wheelbase,low*10,dt);
     nextYawRate=clamp(nextYawRate,-2.35,2.35);
-    const shove=v.reversing?-6.4*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*
+    const shove=v.reversing?-6.4*(1-.17*load)*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*
       (v.shift>0?.39:1)*clamp((1.06-ratio)*5,0,1);
     const drag=.36+.00092*forward*forward+(gas||reverse?0:.63)+
       (1-surface)*2.5+v.handbrake*4.3+v.brakes*spec.brake*(1-.23*load)+flat*(.7+.045*speed);

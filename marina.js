@@ -12,6 +12,7 @@
     BayCut.dock
   ];
   const hulls={
+    pip:{name:"Pip 16",detail:"Flat-bottom work skiff",top:17.4,power:5.95,turn:1.43,grip:4.2},
     needle:{name:"Needle 19",detail:"Light hull · tight turns",top:25,power:8.8,turn:1.31,grip:3.7},
     mako:{name:"Mako 22",detail:"Deep V · higher top speed",top:30,power:7.8,turn:1.03,grip:3.0},
     rival:{name:"Yellowtail",top:27,power:8.1,turn:1.19,grip:3.5},
@@ -28,6 +29,7 @@
   }
   function landing(x,z,r=0){return docks.find(d=>deck(d,x,z,r))||(z>280&&BayDrawbridge.landingLevel(x,z,r)!=null?BayDrawbridge.iceDock:undefined)||BayGullKey.siteAt(x,z,r);}
   function berth(d,side){
+    if(d.guest&&side<0)return {...d.guest};
     if(d.skiff)return {...d.skiff};
     if(d===BayDrawbridge.iceDock)return {...BayDrawbridge.iceBerth,yaw:BayDrawbridge.heading+side*Math.PI/2};
     return {x:d.x+.7,z:d.z+side*(d.headD/2+1.65),yaw:Math.PI/2};
@@ -65,10 +67,11 @@
     const pace=clamp(Math.abs(f)/spec.top,0,1),oldSpeed=f;
     v.throttle=ease(v.throttle,gas?1:0,4.7,dt);
     v.trim=ease(v.trim,trim&&gas&&f>7?1:0,3.4,dt);
-    const top=spec.top*(1+.13*v.trim),drag=.22+.0013*f*f;
+    const cargo=v.kind==="pip"?1-.0038*(v.catchCount||0):1;
+    const top=spec.top*cargo*(1+.13*v.trim),drag=.22+.0013*f*f;
     if(back)f=Math.max(-4.6,f-(f>0?10.4:3.2)*dt);
     else{
-      f+=v.throttle*spec.power*clamp((top-f)/5.5,0,1)*dt;
+      f+=v.throttle*spec.power*cargo*clamp((top-f)/5.5,0,1)*dt;
       f=Math.sign(f)*Math.max(0,Math.abs(f)-(drag+(gas?0:.66))*dt);
     }
     v.steer=ease(v.steer,steer,5.6,dt);

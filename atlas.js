@@ -615,6 +615,7 @@
     if(street&&opt.submerged&&opt.swim){
       rect(ctx,-pad,-pad,w+pad*2,h+pad*2,"#377e80");
       BayReefArt.map(ctx,opt,px,py,s,visible);
+      if(opt.buttonwood)BayButtonwoodPots.map(ctx,px,py,s,visible,streetTime,opt.buttonwood,opt);
       BaySurfArt.mapLadders(ctx,opt,px,py,s,visible);
       if(opt.bridge){
         const packet=opt.bridge.packet,ladder=BayDrawbridge.ladder;
@@ -724,6 +725,15 @@
           ctx.scale(k,k);path(ctx,[[-2.9,8.4],[2.9,8.4],[3,-4.6],[0,-9],[-3,-4.6]],"#f0deaf",ink,.8);
           rect(ctx,-1.7,-3.2,3.4,6,"#31736e");disc(ctx,-3,3,.95,"#ffbe65");ctx.restore();
         }
+      }
+    }
+    if(opt.buttonwood){
+      const work=opt.buttonwood;
+      BayButtonwoodYard.map(ctx,px,py,s,visible,streetTime,work,opt);
+      if(street){
+        const t=work.trailer,b=work.skiff;
+        if(visible(px(t.x),py(t.z),6*s))BayButtonwoodRig.mapTrailer(ctx,t,px(t.x),py(t.z),s,streetTime);
+        if(visible(px(b.x),py(b.z),4*s))BayButtonwoodRig.mapHull(ctx,b,px(b.x),py(b.z),s,streetTime);
       }
     }
     BayMarinaView.map(ctx,opt,px,py,s,ui,visible);
@@ -1011,7 +1021,7 @@
         if(opt.plate&&!opt.swim&&!player.driving&&!player.inCabin&&!opt.aboard){
           const bag=BayDriving.world(player,.41,.08);rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
         }
-        if(opt.aboard){const v=opt.marina.player,helm=BayDriving.world(v,-.38,-.35);
+        if(opt.aboard){const v=opt.marina.player,helm=v.kind==="pip"?BayDriving.world(v,-.37,-.47):BayDriving.world(v,-.38,-.35);
           if(opt.airLine?.saved.bag){const q=BayDriving.world(v,.48,-.94);BayAirmailArt.bagMap(ctx,opt,px,py,s,q,v.yaw+.28,BayAirPost.tagFor(opt.airLine.saved.bag));}
           disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
         if(opt.wash)BayPalmaWash.mapActivity(ctx,opt,px,py,s,visible);
@@ -1032,6 +1042,7 @@
       const v=opt.story.ride,seat=BayDriving.world(v,bayCarLayout(v.kind).seatX,v.kind==="van"?1.24:.84);
       if(visible(px(seat.x),py(seat.z)))disc(ctx,px(seat.x),py(seat.z),s*.126,"#ad8366");
     }
+    if(opt.buttonwood)BayButtonwoodPots.map(ctx,px,py,s,visible,streetTime,opt.buttonwood,opt);
     if(street&&opt.brisas)BayBrisas.mapActors(ctx,opt,px,py,s,visible,streetTime);
     if(street&&opt.palmHouse)BayPalmRoom.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.dealerCrew&&(!atlas||!opt.marina?.bayChart))BayGullSales.mapPeople(ctx,opt,px,py,s,visible,streetTime);
