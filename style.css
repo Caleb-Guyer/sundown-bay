@@ -428,3 +428,5 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 #starliteGauge{position:absolute;left:50%;bottom:4.1rem;transform:translateX(-50%);width:min(33vw,325px);height:auto;pointer-events:none}.starlite-ticket{display:block;width:100%;height:auto;margin:8px auto 18px}
 #starliteGauge:not([hidden])~#speech{left:12px;top:18%;bottom:auto;transform:none;max-width:min(15rem,23vw);text-align:left}
 #starliteGauge:not([hidden])~#speech span{font-size:clamp(.75rem,1.55vw,.95rem)}
+
+.company-return{display:block;width:100%;height:auto;margin:8px auto 18px}

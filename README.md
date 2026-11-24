@@ -4,6 +4,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+Engine 7 runs out of **Station Seven on Gantry Street**, just east of the Starlite. The crew answers calls at the Marlin laundry cart, Mercado bread rack, and Port Sol float chest on its own. Follow the flashing pumper and meet Nel by the smoke, or choose a call at the station board and drive it yourself. **H** toggles the response lights. Pull up at the marked curb, press **F** to set the pump brake, then **E** to get out.
+
+On foot, **F** takes the hose from Nel. Hold **Space** and sweep with **A/D**. Let go to walk the line around the truck. **E** hands it back. The first completed call at each site pays **$105**. Read the signed slip under **J → Engine 7 daybook**, and look for the all-clear in the Bay Wire.
+
 The ivory **Caleta Spider** is parked on Ocean Drive south of the Marlin. Press **O** while stopped to raise or fold the canvas top. Find the **Starlite Motor Theatre** on Gantry Street, face the outdoor screen in a numbered space, and press **F** to clip on the speaker. A ticket from the showing goes in your pocket. At the booth, Ada pays **$65** for the first clean change to each print. Start the other projector with **Space** on the first cue dot and switch shutters with **F** on the second.
 
 Find the **Bay Wire** box on the beach-side curb of Ocean Drive, a few car lengths north of the Marlin’s coral coupe. Press **F** on foot to read the front page. The paper carries local stories you’ve uncovered and the actual Cine Luna bill. Keep an issue and reopen it under **J → Folded copies**.

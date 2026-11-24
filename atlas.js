@@ -750,6 +750,16 @@
     if(opt.palmHouse)BayPalmRoom.furniture(ctx,opt,px,py,s,visible,streetTime);
     if(opt.motorSales&&(!atlas||!opt.marina?.bayChart&&!opt.countyChart))BayGullMotors.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.motos&&(!atlas||!opt.marina?.bayChart&&!opt.countyChart))BayCoastCamera.map(ctx,opt,px,py,s,visible,streetTime);
+    if(opt.engineCompany){
+      const e=opt.engineCompany,house=BayEngineSeven.house;
+      if(street&&visible(px(house.x),py(house.z),s*10))BayEngineHouseArt.overhead(ctx,px,py,s,house,streetTime,e.phase!=="standby");
+      if(atlas){disc(ctx,px(house.x),py(house.z),3.3*ui,"#aa4c3e");ctx.save();ctx.fillStyle="#633e32";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.textAlign="center";ctx.fillText("STN 7",px(house.x),py(house.z)-5*ui);ctx.restore();}
+      for(const place of BayEngineSeven.calls){
+        const live=place===e.call&&e.burning;
+        if(street&&visible(px(place.x),py(place.z),s*(live?21:5)))BayEngineSceneArt.overhead(ctx,px,py,s,place,live?e.levels:null,streetTime,opt.sevenScene(place));
+        if(!street&&live&&visible(px(place.x),py(place.z),6))disc(ctx,px(place.x),py(place.z),2.8*ui,"#ee9a52");
+      }
+    }
     if(opt.rescue)BayPalmClinic.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.airLine)BayAirPost.mapPlaces(ctx,opt,px,py,s,visible,streetTime);
     if(opt.patrol){
@@ -1143,6 +1153,11 @@
     if(street&&opt.palmHouse)BayPalmRoom.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.dealerCrew&&(!atlas||!opt.marina?.bayChart))BayGullSales.mapPeople(ctx,opt,px,py,s,visible,streetTime);
     if(opt.motos&&(!atlas||!opt.marina?.bayChart&&!opt.countyChart))opt.motos.drawMap(ctx,opt,px,py,s,visible,streetTime);
+    if(street&&opt.engineCompany){
+      const e=opt.engineCompany,hand=e.holding?e.hand:e.phase==="working"?{...BayDriving.world(e.mate,.15,.38),y:1.12}:null;
+      if(hand&&visible(px(hand.x),py(hand.z),s*24))BayEngineSceneArt.hoseMap(ctx,px,py,s,e.socket,hand,streetTime);
+      if(e.water)BayEngineSceneArt.waterMap(ctx,px,py,s,e.water.from,e.water.to,streetTime);
+    }
     if(opt.rescue)opt.rescue.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.airLine){const l=opt.airLine;BayFloatplaneArt.map(ctx,opt,px,py,s,l.plane,streetTime,BayAirPost.flags(l,false,true));}
     if(opt.air){

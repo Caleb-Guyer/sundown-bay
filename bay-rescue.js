@@ -5,7 +5,7 @@
   const turn=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a)),ease=u=>u*u*(3-2*u);
   const lerp=(a,b,u)=>a+(b-a)*u;
   const cases=[
-    {id:"dani",name:"Dani Vela",role:"skater",place:"Marlin Motel",x:148.85,z:-34,dir:0,base:135,
+    {id:"dani",name:"Dani Vela",role:"skater",place:"Marlin Motel",x:148.85,z:-14,dir:0,base:135,
       ask:"I told Luz I could clear the last stair. Can somebody take my board? It keeps rolling into traffic.",road:"My brother painted those wheels with a toothbrush. Don't let him hear how I landed.",thanks:"Luz brought the board over. Not a scratch on it. Figures.",item:"skateboard"},
     {id:"tomas",name:"Tomás Ledo",role:"fishmonger",place:"Port Sol fish market",x:-139.05,z:-94,dir:0,base:148,
       ask:"Can you flag Anaïs? My stall's covered. My sister already put a CLOSED sign on the ice.",road:"I've opened that stall every morning since '82. My sister's been waiting all that time for a turn.",thanks:"My sister sold out before lunch. Please don't tell her I said that.",item:"fish crate"},
@@ -32,6 +32,51 @@
   function apron(v,ground){const p=BayDriving.world(v,-.14,-4.55);return {...p,y:ground(p.x,p.z)+.94,yaw:v.yaw};}
   const roadside=["ready","release","outbound","scene","rear","sceneRoll","toPatient","transfer","toTruck","loading","board"];
   const instructions={release:"Gil is handing over the driver’s seat",dock:"Park and meet Anaïs at the back",sceneRoll:"Lower the wheels",clinicRoll:"Lower the wheels at receiving",ready:"Sign on or let the regular crew take the call",outbound:"Bring Rescue 4 to the marked curb",scene:"Let the crew open the rear doors",rear:"Roll the stretcher out of the rear doors",toPatient:"Bring the stretcher alongside the patient",transfer:"Help Anaïs settle the patient",toTruck:"Return the stretcher to the rear doors",loading:"Secure the stretcher on its rails",board:"Take the driver’s seat",return:"Bring the patient to Palm County Clinic",clinic:"Meet the crew at the rear doors",clinicRear:"Take the stretcher into receiving",toBed:"Wheel the patient through the open receiving door",handoff:"Stay for the handover",rest:"The unit is back in service"};
+  function followResponse(service,dt,env){
+      const v=service.v,line=service.line,at=service.cursor,left=line.length-at,nearEnd=left<9;
+      const mid=line.sample(at),aim=line.sample(at+Math.min(9,left)),bend=Math.abs(turn(mid.yaw,aim.yaw));
+      const closeBay=gap(v,service.site.bay)<25;
+      const roadSpeed=nearEnd?Math.max(.8,left*.94):closeBay?6.2:bend>.45?7.9:17.8;
+      const ahead=line.sample(Math.min(line.length,at+6.6)),warn=env.obstacle(v,ahead,mid.yaw);
+      const passing=warn||Math.abs(service.lateral)>.15&&env.obstacle(v,line.sample(at+2.5),mid.yaw);
+      const desired=passing&&!nearEnd&&!closeBay?-2.67:0;
+      const offset=lerp(service.lateral,desired,1-Math.exp(-dt*2.4)),speed=lerp(Math.max(0,v.speed),roadSpeed,1-Math.exp(-dt*1.5));
+      const next=Math.min(line.length,at+speed*dt),q=line.sample(next);
+      const pose={kind:v.kind,x:q.x+Math.cos(q.yaw)*offset,z:q.z-Math.sin(q.yaw)*offset,yaw:v.yaw+turn(v.yaw,q.yaw)*(1-Math.exp(-dt*11))};
+      if(!env.carClear(v,pose)){
+        service.blocked+=dt;v.brakes=1;v.speed=Math.max(0,v.speed-15*dt);v.vx=v.vz=0;
+        if(service.phase==="outbound"&&nearEnd&&service.blocked>=(service.nextBerthTry||.72)){
+          service.nextBerthTry=service.blocked+.8;
+          const alt=service.freeBerth(env);if(alt){service.startDock(true,alt);return;}
+        }
+        // A yielding driver can be stopped halfway across our lane. Ease sideways on the open road.
+        if(!nearEnd&&!closeBay){for(const side of [-1,1]){
+          const l=service.lateral+side*dt*1.65;if(Math.abs(l)>3.7)continue;
+          const p={kind:v.kind,x:mid.x+Math.cos(mid.yaw)*l,z:mid.z-Math.sin(mid.yaw)*l,yaw:v.yaw};
+          if(env.carClear(v,p)){service.lateral=l;v.x=p.x;v.z=p.z;break;}
+        }}return;
+      }
+      service.blocked=0;service.nextBerthTry=0;v.vx=(pose.x-v.x)/dt;v.vz=(pose.z-v.z)/dt;v.brakes=roadSpeed+1<v.speed?1:0;
+      v.wheelSpin=(v.wheelSpin||0)+speed*dt/.382;Object.assign(v,pose,{speed});service.cursor=next;service.lateral=offset;
+      if(next>=line.length-.03)service.startDock(service.phase==="outbound");
+    }
+
+  function yieldTo(unit,key,v,ux,uz,remaining,offset,time){
+      const dx=v.x-unit.x,dz=v.z-unit.z,range=Math.hypot(dx,dz);
+      if(unit.responseLights&&range<48&&Math.abs(unit.speed)>1.1){
+        const sx=Math.sin(unit.yaw),sz=Math.cos(unit.yaw),along=dx*sx+dz*sz,across=Math.abs(dx*sz-dz*sx),alignment=ux*sx+uz*sz;
+        let style=null;
+        if(Math.abs(alignment)>.71&&along> -3.7&&across<7&&along<44)style="shoulder";
+        else if(Math.abs(alignment)<.5){const cross=-(dx*sz-dz*sx)/(ux*sz-uz*sx),ahead=along+cross*alignment;
+          if(cross>5.0&&cross<23&&ahead>1&&ahead<38)style="cross";}
+        if(style){v[key]={style,until:time+.75};}
+      }
+      const y=v[key];if(!y)return null;
+      if(!unit.responseLights||y.until<time){v[key]=null;return null;}
+      if(y.style==="cross")return {goal:0,max:Math.max(0,Math.min(4.3,(remaining-8)*.95)),cross:true};
+      const goal=2.03*limit((remaining-.8)/5,0,1);
+      return {goal,max:Math.abs(goal-offset)>.35?3.9:.18,cross:false};
+    }
   class Service{
     constructor(v,site,memory){
       this.v=v;this.site=site;this.saved=memory;this.index=memory.next;this.joined=false;this.holding=false;this.phase="ready";this.age=0;this.wait=10;
@@ -107,12 +152,17 @@
     }
     freeBerth(env){
       const c=this.call.berth,v=this.v;
-      for(const offset of [0,-6.6,6.6,-9.6,9.6]){
-        const p={...BayDriving.world(c,0,offset),kind:v.kind,yaw:c.yaw};
-        if(gap(v,p)>9.8)continue;
-        const clear=[.25,.5,.75,1].every(u=>env.carClear(v,{kind:v.kind,x:lerp(v.x,p.x,u),z:lerp(v.z,p.z,u),yaw:v.yaw+turn(v.yaw,c.yaw)*u}));
-        if(clear)return p;
-      }return null;
+      let best=null,score=Infinity,alternate=null,alternateScore=Infinity;
+      for(const side of [0,-1.45,-2,-2.7,1.2])for(const offset of [0,2.4,3.5,4.3,6.6,-3.3,-6.6,9.6,-9.6]){
+        const p={...BayDriving.world(c,side,offset),kind:v.kind,yaw:c.yaw};
+        if(gap(v,p)>10.8)continue;
+        const rear=BayDriving.world(p,-.14,-4.55),pickup=this.call.pickup;
+        const value=gap(rear,pickup)+Math.abs(side)*.28;
+        if(value>=score||![.25,.5,.75,1].every(u=>env.carClear(v,{kind:v.kind,x:lerp(v.x,p.x,u),z:lerp(v.z,p.z,u),yaw:v.yaw+turn(v.yaw,c.yaw)*u})))continue;
+        if(env.cartLane&&!env.cartLane(v,rear,pickup)){if(value<alternateScore){alternate=p;alternateScore=value;}continue;}
+        score=value;best=p;
+      }
+      return best||alternate;
     }
     startDock(out,end=out?this.call.berth:this.site.bay){
       this.dock={out,start:{x:this.v.x,z:this.v.z,yaw:this.v.yaw},end};
@@ -143,33 +193,7 @@
         Object.assign(r,{side:a.seatMode==="left"?-1:1,seat:1,seatY:rear?.88:s.seatY,floor:s.floorY,steer:v.steer||0,inner:1,outer:1,duck:0,latchDip:0,reach:0,pull:0,passenger:a.seatMode!=="left"});a.motion.step(dt,0,0);a.action="ride";
       }
     }
-    driveAI(dt,env){
-      const v=this.v,line=this.line,at=this.cursor,left=line.length-at,nearEnd=left<9;
-      const mid=line.sample(at),aim=line.sample(at+Math.min(9,left)),bend=Math.abs(turn(mid.yaw,aim.yaw));
-      const closeBay=gap(v,this.site.bay)<25;
-      const roadSpeed=nearEnd?Math.max(.8,left*.94):closeBay?6.2:bend>.45?7.9:17.8;
-      const ahead=line.sample(Math.min(line.length,at+6.6)),warn=env.obstacle(v,ahead,mid.yaw);
-      const passing=warn||Math.abs(this.lateral)>.15&&env.obstacle(v,line.sample(at+2.5),mid.yaw);
-      const desired=passing&&!nearEnd&&!closeBay?-2.67:0;
-      const offset=lerp(this.lateral,desired,1-Math.exp(-dt*2.4)),speed=lerp(Math.max(0,v.speed),roadSpeed,1-Math.exp(-dt*1.5));
-      const next=Math.min(line.length,at+speed*dt),q=line.sample(next);
-      const pose={kind:v.kind,x:q.x+Math.cos(q.yaw)*offset,z:q.z-Math.sin(q.yaw)*offset,yaw:v.yaw+turn(v.yaw,q.yaw)*(1-Math.exp(-dt*11))};
-      if(!env.carClear(v,pose)){
-        this.blocked+=dt;v.brakes=1;v.speed=Math.max(0,v.speed-15*dt);v.vx=v.vz=0;
-        if(this.phase==="outbound"&&nearEnd&&this.blocked>.7){
-          const alt=this.freeBerth(env);if(alt){this.startDock(true,alt);return;}
-        }
-        // A yielding driver can be stopped halfway across our lane. Ease sideways on the open road.
-        if(!nearEnd&&!closeBay){for(const side of [-1,1]){
-          const l=this.lateral+side*dt*1.65;if(Math.abs(l)>3.7)continue;
-          const p={kind:v.kind,x:mid.x+Math.cos(mid.yaw)*l,z:mid.z-Math.sin(mid.yaw)*l,yaw:v.yaw};
-          if(env.carClear(v,p)){this.lateral=l;v.x=p.x;v.z=p.z;break;}
-        }}return;
-      }
-      this.blocked=0;v.vx=(pose.x-v.x)/dt;v.vz=(pose.z-v.z)/dt;v.brakes=roadSpeed+1<v.speed?1:0;
-      v.wheelSpin=(v.wheelSpin||0)+speed*dt/.382;Object.assign(v,pose,{speed});this.cursor=next;this.lateral=offset;
-      if(next>=line.length-.03)this.startDock(this.phase==="outbound");
-    }
+    driveAI(dt,env){followResponse(this,dt,env);}
     getPatientSide(){return {...this.call.pickup};}
     cotGoal(env){return this.phase==="toPatient"?this.getPatientSide():this.phase==="toTruck"?apron(this.v,env.ground):this.site.bed;}
     latch(env){return BayRescueCrew.handler(this.cot,"foot",env.ground(this.cot.x,this.cot.z));}
@@ -422,22 +446,7 @@
       for(const a of actors)if(!a.seatMode&&!BayPalmClinic.occludesActor(a,opt.player)&&visible(px(a.x),py(a.z),3*s))BayRescueCrew.personMap(c,opt,px,py,s,a,t,a.role,a.action,cot,a.action==="transfer"?this.progress:a.progress||0);
       if(this.holding)BayRescueCrew.personMap(c,opt,px,py,s,opt.player,t,"player","push",cot);
     }
-    yielding(v,ux,uz,remaining,offset,time){
-      const unit=this.v,dx=v.x-unit.x,dz=v.z-unit.z,range=Math.hypot(dx,dz);
-      if(unit.responseLights&&range<48&&Math.abs(unit.speed)>1.1){
-        const sx=Math.sin(unit.yaw),sz=Math.cos(unit.yaw),along=dx*sx+dz*sz,across=Math.abs(dx*sz-dz*sx),alignment=ux*sx+uz*sz;
-        let style=null;
-        if(Math.abs(alignment)>.71&&along> -3.7&&across<7&&along<44)style="shoulder";
-        else if(Math.abs(alignment)<.5){const cross=-(dx*sz-dz*sx)/(ux*sz-uz*sx),ahead=along+cross*alignment;
-          if(cross>5.0&&cross<23&&ahead>1&&ahead<38)style="cross";}
-        if(style){v.rescueYield={style,until:time+.75};}
-      }
-      const y=v.rescueYield;if(!y)return null;
-      if(!unit.responseLights||y.until<time){v.rescueYield=null;return null;}
-      if(y.style==="cross")return {goal:0,max:Math.max(0,Math.min(4.3,(remaining-8)*.95)),cross:true};
-      const goal=2.03*limit((remaining-.8)/5,0,1);
-      return {goal,max:Math.abs(goal-offset)>.35?3.9:.18,cross:false};
-    }
+    yielding(v,ux,uz,remaining,offset,time){return yieldTo(this.v,"rescueYield",v,ux,uz,remaining,offset,time);}
   }
-  window.BayRescue={Service,read,cases,apron,track,instructions};
+  window.BayRescue={Service,followResponse,yieldTo,read,cases,apron,track,instructions};
 })();

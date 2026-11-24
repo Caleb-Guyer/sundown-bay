@@ -3,7 +3,7 @@
   "use strict";
   const tau=2*Math.PI, mix=(a,b,t)=>a+(b-a)*t, clamp=(v,low,high)=>Math.max(low,Math.min(high,v));
   const styles={
-    ...window.BayDealerCars?.cockpitStyles,...window.BaySolenaArt?.cockpitStyles,...window.BayBoulevardCars?.cockpitStyles,...window.BayCaletaArt?.cockpitStyles,
+    ...window.BayDealerCars?.cockpitStyles,...window.BaySolenaArt?.cockpitStyles,...window.BayBoulevardCars?.cockpitStyles,...window.BayCaletaArt?.cockpitStyles,...window.BayEngineSevenArt?.cockpitStyles,
     coupe:{trim:"#353f40",top:"#314345",pad:"#424946",cloth:"#866752",thread:"#bb9a78",edge:"#b1bbb1",face:"#243236",ink:"#f0dfb4",accent:"#d27650",rim:"#78533e",hub:"#343d3b",dash:"pair",spokes:3,stamp:"MARLIN GT",limit:100},
     hatch:{trim:"#505855",top:"#434e4e",pad:"#636863",cloth:"#927c64",thread:"#d0bd92",edge:"#abb29c",face:"#e5debd",ink:"#344440",accent:"#bd5e42",rim:"#414442",hub:"#69706a",dash:"single",spokes:2,stamp:"RIVA",limit:90},
     cab:{trim:"#8b7359",top:"#605b4e",pad:"#a18867",cloth:"#a38462",thread:"#ddbb85",edge:"#d5c5a2",face:"#313b38",ink:"#f5ddb0",accent:"#e6a755",rim:"#6a5543",hub:"#826c51",dash:"ribbon",spokes:2,stamp:"BAY CAB",limit:100},
@@ -34,7 +34,7 @@
     const kind=styles[v.kind]?v.kind:"coupe";
     if(layoutCache.has(kind))return layoutCache.get(kind);
     const s=bayCarLayout(kind),style=styles[kind],[rear,roofRear,roofFront,front,sill,roof,base,cap]=s.glass;
-    const high=kind==="van"||kind==="wrecker"||kind==="ambulance",ey={x:-s.seatX,y:Math.min(roof-.165,s.seatY+(high?.795:.716)),z:s.seatZ+(high?.07:.102)};
+    const high=kind==="van"||kind==="wrecker"||kind==="ambulance"||kind==="pumper",ey={x:-s.seatX,y:Math.min(roof-.165,s.seatY+(high?.795:.716)),z:s.seatZ+(high?.07:.102)};
     const wheel={x:ey.x,y:ey.y-(high?.262:.24),z:ey.z+(high?.44:.405),r:high?.175:kind==="hatch"?.147:.159,tilt:high?.62:.43};
     const dashZ=Math.min(front-.097,ey.z+(high?.67:.595)),clusterY=ey.y-(high?.257:.226);
     // Meet the raked glass from the inside. The van and hatch share almost no glass geometry.

@@ -51,7 +51,8 @@
       else if(save.edition){headline="Lot 14 notice reaches the bay";deck=save.edition==="print"?"Mara Vega’s photograph of the Port Sol notice is on the bill at Cine Luna.":"Mara Vega took the Port Sol story to Sol FM. Dockhands heard the report before the end of their shift.";}
       else if(stunt){headline="Romy lands it on the flatbed";deck="The car meet’s "+stunt.distance.toFixed(1)+" m jump has earned a place on the Cine Luna poster.";}
       const local=clock.rain>.3?"A shower is moving through town. Route 6 regulars are sharing the awnings along Ocean.":clock.market==="open"?"El Mercado is open for the evening. Look for the striped awnings on Mercado Street.":"El Mercado’s evening stalls open at six. Port Sol is taking deliveries down on Gantry.";
-      return {day,headline,deck,photo:story?.id||null,section:story?"Neighborhood edition":"City edition",local,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
+      const run=save.engineSeven?.log.at(-1),watch=run?.day===day?"Station Seven filed an all-clear for "+run.title+". "+run.crew+" signed the return slip.":local;
+      return {day,headline,deck,photo:story?.id||null,section:story?"Neighborhood edition":"City edition",local:watch,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
     }
     impact(p,v,env){
       const k=kinds[p.kind],speed=Math.abs(v.speed),dir=v.speed<0?-1:1;
