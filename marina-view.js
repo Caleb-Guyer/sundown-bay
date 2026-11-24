@@ -6,7 +6,9 @@
   function drawWorld(view,model,actors,boats,rival,patrol,race,see,t){
     const fleet=[...boats,rival,...patrol],north=bay.docks[1];
     if(!see(north,150)&&!see(bay.docks[0],150)&&!fleet.some(v=>see(v,150))&&!see(bay.beacon,175))return;
-    if(!drawWorld.installed){BayMarinaArt.install(model);drawWorld.installed=true;}
+    if(!drawWorld.installed){BayMarinaArt.install(model);BayMantaArt.install(model);drawWorld.installed=true;}
+    const k=BayManta.kicker;
+    if(see(k,135))actors.push(["manta-kicker",k.x,0,k.z,k.yaw]);
     if(see(north,150)){
       actors.push(["marina-gangway",215,0,north.z,0],["marina-dock",north.x,0,north.z,0]);
     }
@@ -59,11 +61,19 @@
     const water=opt.marina;if(!water)return;
     const street=opt.mode==="street",chart=opt.mode==="atlas",race=water.race;
     const art=(k,p,yaw=0,flash=0)=>{if(visible(px(p.x),py(p.z),12*s))BayMarinaArt.drawMap(c,k,px(p.x),py(p.z),s,yaw,flash);};
+    const k=BayManta.kicker;
+    if(street&&visible(px(k.x),py(k.z),5*s))BayMantaArt.drawKicker(c,px(k.x),py(k.z),s,k.yaw);
     if(street){art("gangway",{x:215,z:92});art("dock",bay.docks[1]);art("beacon",bay.beacon);}
     else if(visible(px(bay.beacon.x),py(bay.beacon.z)))dot(c,px(bay.beacon.x),py(bay.beacon.z),3.5*ui,cream);
     for(const d of bay.docks){
       const x=chart&&!water.bayChart?d.footX+1.4:d.x;
       if(visible(px(x),py(d.z),12*ui)&&!street)landingIcon(c,px(x),py(d.z),ui*.87,chart?d.name:"");
+    }
+    if(street&&water.mantaRide?.last){
+      c.save();water.mantaRide.spray(opt.time,(x,y,z,yaw,age)=>{
+        c.strokeStyle="rgba(220,244,230,"+(.9-age)+")";c.lineWidth=Math.max(1,.15*s);c.beginPath();c.moveTo(px(x),py(z));
+        c.lineTo(px(x-Math.sin(yaw)*.48),py(z-Math.cos(yaw)*.48)-y*s*.26);c.stroke();
+      });c.restore();
     }
     if(street&&opt.cx>208){
       const range=Math.hypot(c.canvas.width,c.canvas.height)/s*.53;
@@ -105,7 +115,10 @@
         for(const w of v.wake){const age=opt.time-w.at;if(age>3.25||!visible(px(w.x),py(w.z),7*s))continue;
           const span=.7+age*(1.3+w.pace*.66),cs=Math.cos(w.yaw),sn=Math.sin(w.yaw);
           for(const side of [-1,1]){const x=w.x+side*cs*span,z=w.z-side*sn*span;c.moveTo(px(x),py(z));c.lineTo(px(x-sn*1.1+side*.33*cs),py(z-cs*1.1-side*.33*sn));}}
-        c.stroke();c.restore();if(v.kind!=="pip")art(v.kind,v,v.yaw,v.kind==="patrol"?lightPhase(v,opt.time):0);
+        c.stroke();c.restore();
+        if(v.kind==="manta"){
+          if(visible(px(v.x),py(v.z),5*s))BayMantaArt.drawMap(c,px(v.x),py(v.z),s,v.yaw,water.player===v&&opt.aboard?water.lead:null,water.mantaRide.air?"air":Math.abs(v.steer)>.4?"carve":"cruise",water.mantaRide.height);
+        }else if(v.kind!=="pip")art(v.kind,v,v.yaw,v.kind==="patrol"?lightPhase(v,opt.time):0);
       }else if(v!==water.player&&visible(px(v.x),py(v.z))){
         if(v.kind==="patrol")patrolBlip(c,v,px(v.x),py(v.z),s,ui,opt.time);
         else dot(c,px(v.x),py(v.z),v===water.rival&&race?3.6*ui:1.7*ui,v===water.rival?gold:cream);

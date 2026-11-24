@@ -6,6 +6,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.
 
+Find the **Manta 90** tied to the seaward tip of **North Float**, east of the boardwalk. Walk to the saddle and press **E** to board. Open the throttle with **W** and aim east along the striped practice ramp. Hold **Space** on approach for more lift. **A/D** steer in the air. Land pointing along your flight path to keep your speed. You can also jump the whitewater behind moving boats. Press **F** on the Manta near North Float to take Paz’s timed **North Float Double**. Land the ramp and then cross Yellowtail’s wake. The game saves your clean jump distances and quickest double.
+
 At the **Marlin cab rank payphone**, press **Y** to take Frankie Prado’s call. You can also meet her at the folding desk outside **Cine Luna**. Afterward, **Y** switches between Frankie and the Marlin driver during free roam. Each stays where you leave them, including in a parked car.
 
 As Frankie, press **P** on foot to raise her rangefinder. Aim with the free mouse or arrow keys, use **Z** to zoom, and press **Space** for the shutter. **P** lowers it. Find your six latest frames under **J → Second Unit → Location prints**. At the Cine Luna desk, use **F** to choose a print for the house screen. Your selection stays on the bill when the roll turns over.

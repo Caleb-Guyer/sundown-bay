@@ -12,6 +12,7 @@
     BayCut.dock
   ];
   const hulls={
+    manta:{name:"Manta 90",detail:"North Float personal watercraft",top:29,power:11.8,turn:1.91,grip:5.5},
     pip:{name:"Pip 16",detail:"Flat-bottom work skiff",top:17.4,power:5.95,turn:1.43,grip:4.2},
     needle:{name:"Needle 19",detail:"Light hull · tight turns",top:25,power:8.8,turn:1.31,grip:3.7},
     mako:{name:"Mako 22",detail:"Deep V · higher top speed",top:30,power:7.8,turn:1.03,grip:3.0},
@@ -29,6 +30,7 @@
   }
   function landing(x,z,r=0){return docks.find(d=>deck(d,x,z,r))||(z>280&&BayDrawbridge.landingLevel(x,z,r)!=null?BayDrawbridge.iceDock:undefined)||BayGullKey.siteAt(x,z,r);}
   function berth(d,side){
+    if(d===docks[1]&&side===0)return {x:d.x+d.headW/2+2.75,z:d.z,yaw:Math.PI/2};
     if(d.guest&&side<0)return {...d.guest};
     if(d.skiff)return {...d.skiff};
     if(d===BayDrawbridge.iceDock)return {...BayDrawbridge.iceBerth,yaw:BayDrawbridge.heading+side*Math.PI/2};

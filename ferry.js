@@ -99,7 +99,7 @@
       }
     }
     reserveBoat(v,d,side){
-      if(this.phase!=="pier"||d!==this.dock||this.boat)return;
+      if(this.phase!=="pier"||d!==this.dock||this.boat||v.kind==="manta")return;
       this.boat=v;
       this.path.push({x:d.x+.7,z:d.z+side*(d.headD*.5-.76)});
     }

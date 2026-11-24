@@ -1062,7 +1062,7 @@
         if(opt.plate&&!opt.swim&&!player.driving&&!player.inCabin&&!opt.aboard){
           const bag=BayDriving.world(player,.41,.08);rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
         }
-        if(opt.aboard){const v=opt.marina.player,helm=v.kind==="pip"?BayDriving.world(v,-.37,-.47):BayDriving.world(v,-.38,-.35);
+        if(opt.aboard&&opt.marina.player.kind!=="manta"){const v=opt.marina.player,helm=v.kind==="pip"?BayDriving.world(v,-.37,-.47):BayDriving.world(v,-.38,-.35);
           if(opt.airLine?.saved.bag){const q=BayDriving.world(v,.48,-.94);BayAirmailArt.bagMap(ctx,opt,px,py,s,q,v.yaw+.28,BayAirPost.tagFor(opt.airLine.saved.bag));}
           disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
         if(opt.wash)BayPalmaWash.mapActivity(ctx,opt,px,py,s,visible);
