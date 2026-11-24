@@ -71,12 +71,13 @@
   BayWreckerArt.fit(shapes.wrecker);BayAmbulanceArt.fit(shapes.ambulance);
   for(const [kind,builder] of coachwork)builder.fit(shapes[kind]);
 
-  function bodyMesh(g, shape, paint, doors) {
+  function bodyMesh(g, shape, paint, doors, boot, lid) {
     const lower = tint(paint, "#273242", .27);
     const highlight = tint(paint, "#fff0cb", .19);
     const deck = tint(paint, "#ffefdc", .09);
     const sections=[];
     const cuts=[shape.glass[0],shape.back,shape.hingeZ];
+    if(boot)cuts.unshift(boot.tail,boot.hinge.z);
     for(let i=0;i<shape.sections.length;i++){
       const a=shape.sections[i],b=shape.sections[i+1];sections.push(a);
       if(b)for(const z of cuts)if(z>a[0]&&z<b[0]){
@@ -94,7 +95,9 @@
       const door=mid>shape.back&&mid<shape.hingeZ;
       const colors = [lower,highlight,deck,paint,lower];
       for (let k = 0; k < 5; k++) {
-        if(k===2&&mid>shape.glass[0]&&mid<shape.hingeZ){
+        if(k===2&&boot&&mid>boot.tail&&mid<boot.hinge.z){
+          BayLuggageBootArt.deckBand(g,lid,boot,a,b,deck);
+        }else if(k===2&&mid>shape.glass[0]&&mid<shape.hingeZ){
           for(const side of [-1,1]){
             const j=side<0?2:3,target=door?doors[side]:g;
             target.quad(a[j],b[j],[side*shape.glass[6],b[j][1],b[j][2]],[side*shape.glass[6],a[j][1],a[j][2]],deck);
@@ -304,7 +307,9 @@
     if(kind==="ambulance"){BayAmbulanceArt.build(g,shape,color,parts,interior);return;}
     if(kind==="wrecker"){BayWreckerArt.build(g,shape,color,parts,interior);return;}
     const doors=parts?parts.doors:{[-1]:g,1:g};
-    bodyMesh(g,shape,color,doors);
+    const boot=parts?.trunk&&window.BayLuggageBootArt?.layout(kind);
+    bodyMesh(g,shape,color,doors,boot,parts?.trunk);
+    if(boot)BayLuggageBootArt.finish(g,parts.trunk,boot);
     for (const side of [-1,1]) {
       if(parts)wheel(parts.wheels[side],side,.085,0,shape.wheel,kind==="cab");
       else for (const axle of shape.axles) wheel(g,side,shape.track,axle,shape.wheel,kind === "cab");

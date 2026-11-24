@@ -8288,12 +8288,13 @@ window.buildBayCity = function buildBayCity(g,water) {
   BayWreckerArt.fit(shapes.wrecker);BayAmbulanceArt.fit(shapes.ambulance);
   for(const [kind,builder] of coachwork)builder.fit(shapes[kind]);
 
-  function bodyMesh(g, shape, paint, doors) {
+  function bodyMesh(g, shape, paint, doors, boot, lid) {
     const lower = tint(paint, "#273242", .27);
     const highlight = tint(paint, "#fff0cb", .19);
     const deck = tint(paint, "#ffefdc", .09);
     const sections=[];
     const cuts=[shape.glass[0],shape.back,shape.hingeZ];
+    if(boot)cuts.unshift(boot.tail,boot.hinge.z);
     for(let i=0;i<shape.sections.length;i++){
       const a=shape.sections[i],b=shape.sections[i+1];sections.push(a);
       if(b)for(const z of cuts)if(z>a[0]&&z<b[0]){
@@ -8311,7 +8312,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       const door=mid>shape.back&&mid<shape.hingeZ;
       const colors = [lower,highlight,deck,paint,lower];
       for (let k = 0; k < 5; k++) {
-        if(k===2&&mid>shape.glass[0]&&mid<shape.hingeZ){
+        if(k===2&&boot&&mid>boot.tail&&mid<boot.hinge.z){
+          BayLuggageBootArt.deckBand(g,lid,boot,a,b,deck);
+        }else if(k===2&&mid>shape.glass[0]&&mid<shape.hingeZ){
           for(const side of [-1,1]){
             const j=side<0?2:3,target=door?doors[side]:g;
             target.quad(a[j],b[j],[side*shape.glass[6],b[j][1],b[j][2]],[side*shape.glass[6],a[j][1],a[j][2]],deck);
@@ -8521,7 +8524,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(kind==="ambulance"){BayAmbulanceArt.build(g,shape,color,parts,interior);return;}
     if(kind==="wrecker"){BayWreckerArt.build(g,shape,color,parts,interior);return;}
     const doors=parts?parts.doors:{[-1]:g,1:g};
-    bodyMesh(g,shape,color,doors);
+    const boot=parts?.trunk&&window.BayLuggageBootArt?.layout(kind);
+    bodyMesh(g,shape,color,doors,boot,parts?.trunk);
+    if(boot)BayLuggageBootArt.finish(g,parts.trunk,boot);
     for (const side of [-1,1]) {
       if(parts)wheel(parts.wheels[side],side,.085,0,shape.wheel,kind==="cab");
       else for (const axle of shape.axles) wheel(g,side,shape.track,axle,shape.wheel,kind === "cab");
@@ -8763,6 +8768,480 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(role==="photographer")BayExposureArt.dress(g,markPart);
     if(role==="ferry-engineer")BayFerryPassengerArt.dress(g,markPart);
   };
+})();
+
+;
+/* left-luggage.js */
+/* Marlin bell desk. A numbered claim belongs to exactly one rack, hand, trunk slot or receipt. */
+(() => {
+  "use strict";
+  const site={x:134.30,y:.077,z:-27.2,yaw:Math.PI/2};
+  const counter={x:135.36,z:site.z,kind:"luggage",name:"Marlin · Left luggage"};
+  const porter={x:133.55,z:-27.42,yaw:1.28,style:5,role:"local",name:"Alma León"};
+  const tags=[
+    {id:"band",label:"Blue tambourine case",number:"17",person:"Pip Reyes",place:"Marlin shuttle curb",pay:45,
+      x:153.55,z:-36.5,yaw:-1.3,style:3,role:"local",ask:"Pip's already at the shuttle curb. You'll know his case by the little crescent moon.",thanks:"There it is! Hear that rattle? That's half our rhythm section."},
+    {id:"reel",label:"Oxblood film case",number:"28",person:"Nora Vale",place:"Cine Luna stage door",pay:130,
+      x:11.75,z:44.8,yaw:1.4,style:2,role:"courier",ask:"Nora needs the film before the house lights go down. Go around to the stage door.",thanks:"Smell that leader? My dad shot this on the night the Marlin opened."},
+    {id:"reef",label:"Seafoam specimen case",number:"41",person:"Des Bell",place:"North Boardwalk",pay:160,
+      x:173.35,z:120.3,yaw:-1.2,style:4,role:"local",ask:"Des is waiting up on the boardwalk. Carry the green case by the handle. Those shells took years to find.",thanks:"The little pink one came from right under this pier. They never turn that color in deep water."}
+  ];
+  const ids=tags.map(t=>t.id);
+  const claim=(id)=>tags.find(t=>t.id===id);
+  const marker=t=>({x:t.x+.80*Math.sin(t.yaw),z:t.z+.80*Math.cos(t.yaw),name:t.person+" · "+t.place,kind:"claim"});
+  const foot=t=>({...marker(t),yaw:t.yaw});
+  const integer=n=>Number.isSafeInteger(n)&&n>=0?n:0;
+  const carKey=k=>typeof k==="string"&&/^(coupe|cab)@-?\d{1,3}\.\d\d,-?\d{1,3}\.\d\d$/.test(k);
+  function read(raw){
+    const b={rev:integer(raw?.rev),round:integer(raw?.round),bags:{},parks:{}},slots=new Set();
+    let carried=false;
+    for(const id of ids){
+      const s=raw?.bags?.[id];let bag={at:"rack"};
+      if(s?.at==="done")bag={at:"done"};
+      if(s?.at==="hand"&&!carried){bag={at:"hand"};carried=true;}
+      if(s?.at==="boot"&&carKey(s.car)&&[0,1].includes(s.slot)&&!slots.has(s.car+"/"+s.slot)){
+        bag={at:"boot",car:s.car,slot:s.slot};slots.add(s.car+"/"+s.slot);
+        const p=raw?.parks?.[s.car];
+        if(p&&[p.x,p.z,p.yaw].every(Number.isFinite)&&Math.abs(p.x)<600&&Math.abs(p.z)<650)b.parks[s.car]={x:p.x,z:p.z,yaw:p.yaw};
+      }
+      b.bags[id]=bag;
+    }
+    return b;
+  }
+  const hand=b=>ids.find(id=>b.bags[id].at==="hand");
+  const slots=(b,key)=>{const items=[null,null];for(const id of ids){const v=b.bags[id];if(v.at==="boot"&&v.car===key)items[v.slot]=id;}return items;};
+  const rack=b=>ids.filter(id=>b.bags[id].at==="rack");
+  const complete=b=>ids.every(id=>b.bags[id].at==="done");
+  function park(b,v){
+    if(!v||!slots(b,v.garageKey).some(Boolean))return false;
+    const prior=b.parks[v.garageKey];if(prior&&Math.hypot(v.x-prior.x,v.z-prior.z)<.04&&Math.abs(v.yaw-prior.yaw)<.01)return false;
+    b.parks[v.garageKey]={x:v.x,z:v.z,yaw:v.yaw};return true;
+  }
+  function change(b,id,from,to){
+    if(!claim(id))return false;
+    const s=b.bags[id];
+    if(s.at!==from.at||s.at==="boot"&&(s.car!==from.car||s.slot!==from.slot))return false;
+    if(to.at==="hand"&&hand(b)||to.at==="boot"&&(!carKey(to.car)||![0,1].includes(to.slot)||slots(b,to.car)[to.slot]))return false;
+    if(s.at==="done"||!["rack","hand","boot","done"].includes(to.at)||(s.at==="hand")===(to.at==="hand"))return false;
+    b.bags[id]={...to};if(s.at==="boot"&&!slots(b,s.car).some(Boolean))delete b.parks[s.car];
+    b.rev++;return true;
+  }
+  window.BayLeftLuggage={site,counter,porter,tags,claim,marker,foot,ids,read,hand,slots,rack,complete,change,park,
+    block:{...site,w:.744,d:1.292,bottom:0,top:1.79,streetProp:true}};
+})();
+
+;
+/* left-luggage-art.js */
+/* The Marlin's brass birdcage trolley, claim checks and overnight cases. */
+(() => {
+  "use strict";
+  const tau=2*Math.PI, brass="#ad905c", gold="#ccb17b", bronze="#776046", cream="#f6dfb4", ink="#354a46";
+  const jade="#426c5d", carpet="#416257", welt="#827350", gum="#453f3b", paper="#dcbf8c";
+  const styles={
+    reef:{body:"#78ad9e",dark:"#49796d",trim:cream,ticket:"#acc7aa",slot:[-.32,.153,-.04]},
+    reel:{body:"#755141",dark:"#4f3d35",trim:"#b34f43",ticket:"#e8b099",slot:[.27,.150,.045]},
+    band:{body:"#353d66",dark:"#293351",trim:"#8994b1",ticket:"#afbad5",slot:[-.01,-.159,-.05]}
+  };
+  const valid=style=>Object.hasOwn(styles,style);
+  const key=style=>"marlin-case-"+style;
+  const deck=.245, gripHeight=.266;
+  function local(site,x,y,z,turn=0){
+    const yaw=site.yaw||0,c=Math.cos(yaw),s=Math.sin(yaw);
+    return {x:site.x+x*c+z*s,y:(site.y??0)+y,z:site.z-x*s+z*c,yaw:yaw+turn};
+  }
+  function emit(list,id,at){
+    list.push([id,at.x,at.y??0,at.z,at.yaw||0,at.pitch||0,at.lean||0]);
+  }
+  function pipe(g,path,r,col,sides=5){
+    for(let i=1;i<path.length;i++)g.pole(path[i-1],path[i],r,col,sides);
+  }
+  // Clipped deck and lid corners catch the light without using a bevel texture.
+  function ring(w,d,y,cut){
+    const x=w/2,z=d/2;
+    return [[-x+cut,y,-z],[x-cut,y,-z],[x,y,-z+cut],[x,y,z-cut],
+      [x-cut,y,z],[-x+cut,y,z],[-x,y,z-cut],[-x,y,-z+cut]];
+  }
+  function layer(g,lo,hi,top,side=top){
+    const center=[0,hi[0][1],0];
+    for(let i=0;i<hi.length;i++){
+      const j=(i+1)%hi.length;
+      g.quad(lo[i],lo[j],hi[j],hi[i],side,.79+.17*(1+Math.cos(i*.79))*.5);
+      g.tri(center,hi[i],hi[j],top);
+    }
+  }
+  // Mark paths are reused on each owner's ticket and the corresponding receiving stand.
+  const emblems={
+    reef:[
+      [[-.79,-.29],[-.62,.34],[-.37,.60],[-.10,.52],[.12,.72],[.37,.50],[.56,.54],[.83,.11],[.72,-.29],[.17,-.68],[-.19,-.68],[-.79,-.29]],
+      [[-.13,-.50],[-.49,.22]],[[.01,-.50],[.10,.43]],[[.11,-.50],[.50,.23]]
+    ],
+    reel:[
+      [[-.68,.12],[-.63,.45],[-.36,.60],[-.10,.47],[-.03,.19],[-.16,-.11],[-.47,-.15],[-.68,.12]],
+      [[.00,.10],[.07,.43],[.36,.51],[.62,.30],[.59,-.04],[.39,-.19],[.13,-.12],[.00,.10]],
+      [[-.57,-.25],[-.48,-.53],[.40,-.54],[.76,-.32]]
+    ],
+    band:[
+      [[-.47,-.47],[-.28,-.53],[-.12,-.41],[-.12,.44],[.61,.60],[.61,-.16],[.40,-.29],[.24,-.17],[.38,-.03],[.61,.00]],
+      [[-.10,.20],[.60,.35]]
+    ]
+  };
+  function badge(g,style,x,y,z,size,col){
+    for(const line of emblems[style])
+      pipe(g,line.map(([u,v])=>[x+size*u,y+size*v,z]),size*.079,col,4);
+  }
+  function tag(g,style,x,y,z){
+    const p=styles[style];
+    g.box(x,y,z,.053,.065,.006,p.ticket);
+    g.box(x,y-.023,z+.004,.039,.005,.003,p.dark);
+    badge(g,style,x,y+.004,z+.005,.021,p.dark);
+    g.box(x,y+.026,z+.005,.008,.006,.003,bronze);
+  }
+  function handle(g,base,color,foot=.064){
+    pipe(g,[[-foot,base,0],[-foot,.245,0],[-.049,gripHeight,0],[.049,gripHeight,0],[foot,.245,0],[foot,base,0]],.009,color,6);
+    g.pole([-.047,gripHeight,0],[.047,gripHeight,0],.012,color,7);
+  }
+  function reefCase(g){
+    const p=styles.reef;
+    layer(g,ring(.400,.207,0,.030),ring(.441,.241,.037,.036),p.body,p.dark);
+    layer(g,ring(.441,.241,.037,.036),ring(.441,.241,.160,.035),p.body);
+    layer(g,ring(.442,.243,.145,.035),ring(.442,.243,.156,.035),p.dark);
+    layer(g,ring(.441,.241,.160,.035),ring(.409,.213,.203,.043),p.body);
+    for(const x of [-.157,.157]){
+      g.box(x,.147,.120,.037,.034,.008,brass);
+      g.box(x,.155,.125,.024,.007,.004,cream);
+    }
+    badge(g,"reef",-.036,.087,.122,.056,cream);
+    handle(g,.197,p.dark);tag(g,"reef",.098,.089,.123);
+  }
+  function reelCase(g){
+    const p=styles.reel;
+    layer(g,ring(.458,.210,0,.016),ring(.458,.210,.181,.016),p.body);
+    layer(g,ring(.460,.212,.162,.017),ring(.460,.212,.170,.017),p.dark);
+    for(const x of [-.202,.202]){
+      g.box(x,.020,.100,.040,.035,.018,brass);
+      g.box(x,.166,.100,.040,.029,.018,brass);
+    }
+    const beltX=-.080;
+    g.box(beltX,.092,0,.040,.184,.215,p.trim);
+    g.box(beltX,.105,.109,.044,.027,.006,brass);
+    g.box(beltX,.106,.114,.029,.015,.005,p.trim);
+    handle(g,.180,p.dark,.062);tag(g,"reel",.128,.103,.109);
+    badge(g,"reel",.056,.085,.108,.030,p.ticket);
+  }
+  function bandCase(g){
+    const p=styles.band;
+    // Broad oval bottom, sloped canvas shoulders and two narrow webbing loops.
+    const section=(x,wide,high)=>[[x,.014,wide*.70],[x,.036,wide],[x,high*.66,wide*.94],
+      [x,high,wide*.38],[x,high,-wide*.38],[x,high*.66,-wide*.94],[x,.036,-wide],[x,.014,-wide*.70]];
+    const sections=[section(-.234,.072,.113),section(-.203,.113,.166),section(-.130,.124,.190),
+      section(.130,.124,.190),section(.203,.113,.166),section(.234,.072,.113)];
+    for(let j=0;j<sections.length;j++){
+      const a=sections[j];
+      for(let i=0;i<a.length;i++){
+        const k=(i+1)%a.length;
+        if(j)g.quad(sections[j-1][i],a[i],a[k],sections[j-1][k],i===7?p.dark:p.body,.81+.13*(i%3)*.5);
+        if(j===0||j===sections.length-1)g.tri([a[0][0],.061,0],a[i],a[k],p.dark);
+      }
+    }
+    layer(g,ring(.397,.207,0,.045),ring(.425,.222,.019,.052),p.dark);
+    for(const sign of [-1,1]){
+      const z=sign*.121;
+      pipe(g,[[-.100,.036,z],[-.099,.116,z],[-.066,.180,z*.45],[-.053,.250,z*.09],[-.042,gripHeight,0],
+        [.042,gripHeight,0],[.053,.250,z*.09],[.066,.180,z*.45],[.10,.116,z],[.10,.036,z]],.008,p.trim,5);
+    }
+    g.pole([-.042,gripHeight,0],[.042,gripHeight,0],.012,p.dark,7);
+    g.box(.013,.083,.120,.148,.071,.012,p.dark);
+    g.box(.013,.108,.128,.134,.006,.005,p.trim);
+    tag(g,"band",.155,.099,.120);
+  }
+  const builders={reef:reefCase,reel:reelCase,band:bandCase};
+  function renderCase(list,model,style,at){
+    if(!valid(style)||!at)return;
+    model(key(style),builders[style]);emit(list,key(style),at);
+  }
+  function cart(g){
+    const lower=ring(1.260,.70,.168,.072),rim=ring(1.292,.744,.212,.078);
+    layer(g,lower,rim,brass,bronze);
+    layer(g,rim,ring(1.292,.744,.226,.078),gold);
+    layer(g,ring(1.265,.718,.226,.073),ring(1.249,.706,deck,.070),carpet,welt);
+    for(const x of [-.535,.535])for(const z of [-.257,.257]){
+      g.pole([x-.038,.076,z],[x+.038,.076,z],.075,gum,9);
+      g.pole([x-.043,.076,z],[x+.043,.076,z],.029,brass,7);
+      g.box(x,.136,z,.084,.053,.056,bronze);
+    }
+    // Matching pairs of tall arches spring from all four corners of the cart.
+    for(const z of [-.295,.295]){
+      const arch=[[-.561,deck,z],[-.561,.99,z],[-.531,1.173,z],[-.431,1.306,z],
+        [-.228,1.397,z],[0,1.419,z],[.228,1.397,z],[.431,1.306,z],[.531,1.173,z],[.561,.99,z],[.561,deck,z]];
+      pipe(g,arch,.022,brass,7);
+      for(const x of [-.561,.561]){
+        g.cyl(x,.269,z,.038,.043,.047,8,gold);
+        g.cyl(x,.727,z,.026,.026,.181,7,bronze);
+      }
+    }
+    pipe(g,[[0,1.419,-.295],[0,1.458,0],[0,1.419,.295]],.019,brass,6);
+    g.cyl(0,1.478,0,.039,.035,.042,8,gold);
+    g.cyl(0,1.513,0,.011,.038,.029,8,brass);
+    // The bell captain's envelope hangs off the left end. Two punched checks peek over the lip.
+    g.pole([-.562,.929,-.295],[-.562,.929,.295],.018,brass,6);
+    g.box(-.566,.785,0,.031,.201,.262,bronze);
+    g.box(-.567,.860,-.046,.030,.116,.080,paper);
+    g.box(-.568,.857,.039,.030,.104,.076,cream);
+    for(const z of [-.046,.039])g.box(-.584,.890,z,.005,.012,.014,ink);
+    g.box(-.585,.777,0,.019,.123,.253,jade);
+    g.tri([-.596,.834,-.122],[-.596,.834,.122],[-.596,.777,.008],carpet);
+    g.box(-.597,.776,.009,.006,.014,.020,brass);
+    // A punched brass room key fob marks the Marlin's cart without floating signage.
+    g.box(0,1.267,-.299,.197,.081,.019,jade);
+    pipe(g,[[-.065,1.247,-.312],[-.065,1.287,-.312],[-.032,1.258,-.312],[0,1.287,-.312],[0,1.247,-.312]],.005,gold,4);
+    g.box(.040,1.267,-.312,.037,.006,.005,gold);
+    for(const x of [-.077,.077])g.pole([x,1.305,-.296],[x,1.407,-.296],.005,bronze,4);
+  }
+  function rack(site,style){
+    if(!valid(style))return null;
+    const [x,z,turn]=styles[style].slot;return local(site,x,deck,z,turn);
+  }
+  function world(list,model,site,available=[]){
+    model("marlin-bell-cart",cart);emit(list,"marlin-bell-cart",site);
+    for(const style of available)renderCase(list,model,style,rack(site,style));
+  }
+  function stand(g,style){
+    const p=styles[style];
+    g.cyl(0,.034,0,.161,.186,.068,10,bronze);
+    g.cyl(0,.088,0,.049,.117,.042,10,brass);
+    g.cyl(0,.465,0,.022,.031,.739,8,brass);
+    g.cyl(0,.803,0,.047,.032,.050,8,gold);
+    g.box(0,.984,0,.294,.326,.031,jade);
+    g.box(0,.987,.018,.257,.285,.012,p.ticket);
+    // A clipped paper corner, punched hole and detachable perforated stub.
+    g.tri([-.130,1.130,.026],[-.097,1.130,.026],[-.130,1.097,.026],jade);
+    g.pole([-.088,1.085,.024],[-.088,1.085,.028],.012,jade,7);
+    badge(g,style,.015,1.014,.029,.067,p.dark);
+    for(let i=0;i<6;i++)g.box(-.102+i*.038,.919,.026,.017,.004,.003,p.dark);
+    g.box(-.029,.886,.026,.125,.008,.003,p.dark);
+    g.box(.075,.886,.026,.027,.015,.003,p.dark);
+  }
+  const stands=Object.fromEntries(Object.keys(styles).map(id=>[id,g=>stand(g,id)]));
+  function receiver(list,model,site,style){
+    if(!valid(style))return;
+    const id="marlin-claim-"+style;model(id,stands[style]);emit(list,id,site);
+  }
+  function mapAt(c,px,py,s,at,draw){
+    c.save();c.translate(px(at.x),py(at.z));c.rotate(at.yaw||0);c.scale(s,-s);draw();c.restore();
+  }
+  function rect(c,x,y,w,h,col){c.fillStyle=col;c.fillRect(x,y,w,h);}
+  function path(c,points,col,width){
+    c.beginPath();c.moveTo(...points[0]);
+    for(let i=1;i<points.length;i++)c.lineTo(...points[i]);
+    if(width){c.strokeStyle=col;c.lineWidth=width;c.stroke();}
+    else{c.closePath();c.fillStyle=col;c.fill();}
+  }
+  function oval(c,x,y,rx,ry,col){
+    c.beginPath();c.ellipse(x,y,rx,ry,0,0,tau);c.fillStyle=col;c.fill();
+  }
+  function caseSymbol(c,style){
+    if(!valid(style))return;
+    const p=styles[style];
+    if(style==="band"){
+      oval(c,0,0,.234,.121,p.dark);oval(c,0,.012,.211,.103,p.body);
+      for(const x of [-.090,.090])rect(c,x-.009,-.093,.018,.196,p.trim);
+    }else{
+      const points=ring(style==="reef"?.440:.459,style==="reef"?.242:.211,0,style==="reef"?.035:.016);
+      path(c,points.map(v=>[v[0],v[2]]),p.dark);
+      path(c,points.map(v=>[v[0]*.95,v[2]*.88]),p.body);
+      if(style==="reel")rect(c,-.102,-.107,.040,.214,p.trim);
+      else for(const x of [-.157,.157])rect(c,x-.018,.074,.036,.035,brass);
+    }
+    rect(c,.095,.024,.050,.063,p.ticket);rect(c,-.06,-.012,.12,.022,p.dark);
+  }
+  function caseMap(c,px,py,s,style,at){
+    if(at&&valid(style))mapAt(c,px,py,s,at,()=>caseSymbol(c,style));
+  }
+  function map(c,px,py,s,site,available=[]){
+    mapAt(c,px,py,s,site,()=>{
+      path(c,ring(1.292,.744,0,.078).map(v=>[v[0],v[2]]),brass);
+      path(c,ring(1.249,.706,0,.073).map(v=>[v[0],v[2]]),carpet);
+      rect(c,-.603,-.142,.043,.284,paper);
+    });
+    for(const style of available)caseMap(c,px,py,s,style,rack(site,style));
+    mapAt(c,px,py,s,site,()=>{
+      for(const z of [-.295,.295]){
+        path(c,[[-.561,z],[.561,z]],brass,.025);
+        for(const x of [-.561,.561])oval(c,x,z,.039,.039,gold);
+      }
+      path(c,[[0,-.295],[0,.295]],brass,.025);oval(c,0,0,.040,.040,gold);
+    });
+  }
+  function receiverMap(c,px,py,s,site,style){
+    if(!valid(style))return;
+    mapAt(c,px,py,s,site,()=>{
+      oval(c,0,0,.182,.182,bronze);oval(c,0,0,.116,.116,brass);
+      rect(c,-.149,-.055,.298,.112,jade);rect(c,-.129,-.037,.258,.069,styles[style].ticket);
+      for(const points of emblems[style])path(c,points.map(([x,y])=>[x*.047,y*.035]),styles[style].dark,.006);
+    });
+  }
+  const palm=[.238,.978,.053],overlays=new WeakMap();
+  // A loaded arm still follows the shoulder and part of the stride. The unladen arm is untouched.
+  function pose(mesh,amount=0){
+    if(!mesh?.sides?.[1])return false;
+    const arm=mesh.sides[1],rev=mesh.lastRevision,old=overlays.get(mesh),same=old?.rev===rev;
+    amount=Math.max(0,Math.min(1,amount));
+    if(same&&amount===old.amount)return false;
+    if(same){arm.arm.m.set(old.upper);arm.forearm.m.set(old.lower);}
+    if(!amount){overlays.delete(mesh);if(same)mesh.skin();return same;}
+    const state=same?old:{rev,upper:arm.arm.m.slice(),lower:arm.forearm.m.slice()};
+    const shoulder=mesh.chest.map(arm.arm.pivot,[]),elbow=arm.arm.map(arm.forearm.pivot,[]),wrist=arm.forearm.map(arm.handPivot,[]);
+    const mix=(a,b)=>a+(b-a)*amount;
+    const lower=(y,length)=>shoulder[1]-length+.13*(y-shoulder[1]+length);
+    const e=[mix(elbow[0],shoulder[0]+.089),mix(elbow[1],lower(elbow[1],.208)),mix(elbow[2],shoulder[2]-.022+.19*(elbow[2]-shoulder[2]))];
+    const w=[mix(wrist[0],shoulder[0]+.151),mix(wrist[1],lower(wrist[1],.374)),mix(wrist[2],shoulder[2]+.035+.19*(wrist[2]-shoulder[2]))];
+    arm.arm.aim(shoulder,e);arm.forearm.aim(e,w);mesh.skin();
+    state.amount=amount;overlays.set(mesh,state);return true;
+  }
+  function hand(actor,feet,mesh){
+    const m=actor.motion,phase=(m?.phase||0)*tau,weight=m?.weight||0;
+    const grip=mesh?.sides?.[1]?.forearm.map(palm,[])||[.358,.995-.065*weight+.015*weight*Math.sin(2*phase),.043+.063*weight*Math.cos(phase)];
+    return local({x:actor.x,y:feet??((actor.y||0)+(m?.lift||0)),z:actor.z,yaw:actor.yaw},grip[0],grip[1]-gripHeight,grip[2],-Math.PI/2);
+  }
+  function carry(list,model,actor,style,feet,mesh){
+    renderCase(list,model,style,hand(actor,feet,mesh));
+  }
+  function carryMap(c,px,py,s,actor,style){caseMap(c,px,py,s,style,hand(actor));}
+  window.BayLeftLuggageArt=Object.freeze({world,map,rack,case:renderCase,caseMap,caseSymbol,hand,carry,carryMap,pose,receiver,receiverMap});
+})();
+
+;
+/* luggage-boot-art.js */
+/* The Marlin and the cab retain their original deck profiles, including the crease above each tail lamp. */
+(() => {
+  "use strict";
+  const boots = new Map();
+  const supports = kind => kind === "coupe" || kind === "cab";
+  const clamp = n => Math.min(1,Math.max(0,n));
+  const angle = amount => 1.33 * clamp(amount);
+
+  function layout(kind) {
+    if (!supports(kind)) return null;
+    if (boots.has(kind)) return boots.get(kind);
+    const shape = bayCarLayout(kind);
+    const tail = shape.sections[0][0]+.095, nose = shape.glass[0]-.065;
+    const floor = kind === "coupe" ? .458 : .510;
+    function deckY(z) {
+      const i = shape.sections.findIndex(section => section[0]>=z);
+      const a = shape.sections[i-1], b = shape.sections[i];
+      return a[2]+(b[2]-a[2])*(z-a[0])/(b[0]-a[0]);
+    }
+    const boot = {
+      tail, floor, deckY, crease:shape.sections[1][0], hinge: {y:deckY(nose),z:nose},
+      width: z => .665+.04*(z-tail)/(nose-tail),
+      slots: [-.30,.30].map(x => ({x,y:floor+.002,z:(tail+nose)*.5})),
+    };
+    boots.set(kind,boot);
+    return boot;
+  }
+
+  function lidQuad(lid,boot,color,...points) {
+    lid.quad(...points.map(([x,y,z]) => [x,y-boot.hinge.y,z-boot.hinge.z]),color);
+  }
+
+  // Keep both quarter panels on the car. Their inner edges match the pressed top of the hinged lid.
+  function deckBand(shell,lid,boot,a,b,paint) {
+    const [,,leftA,rightA] = a, [,,leftB,rightB] = b;
+    const edge = ([x,y,z]) => [Math.sign(x)*boot.width(z),y,z];
+    const la=edge(leftA), lb=edge(leftB), ra=edge(rightA), rb=edge(rightB);
+    shell.quad(leftA,leftB,lb,la,paint);
+    shell.quad(ra,rb,rightB,rightA,paint);
+    lidQuad(lid,boot,paint,la,lb,rb,ra);
+    const underside = ([x,y,z]) => [x,y-.031,z];
+    lidQuad(lid,boot,"#445153",underside(la),underside(ra),underside(rb),underside(lb));
+    for (const [p,q] of [[la,lb],[ra,rb]]) {
+      lidQuad(lid,boot,"#384448",p,q,underside(q),underside(p));
+    }
+    if (la[2]===boot.tail) lidQuad(lid,boot,"#394445",la,ra,underside(ra),underside(la));
+    if (lb[2]===boot.hinge.z) lidQuad(lid,boot,"#424c4a",lb,rb,underside(rb),underside(lb));
+  }
+
+  function finish(shell,lid,boot) {
+    const {tail,floor,hinge,deckY,width,crease} = boot;
+    const front = hinge.z;
+    const stations = [[-1,tail],[1,tail],[1,crease],[1,front],[-1,front],[-1,crease]];
+    const rim = stations.map(([s,z]) => [s*width(z),deckY(z)-.009,z]);
+    const insetZ=(z,inset) => z===tail ? z+inset : z===front ? z-inset : z;
+    const lip = stations.map(([s,z]) => {
+      const innerZ=insetZ(z,.026);
+      return [s*(width(z)-.029),deckY(innerZ)-.042,innerZ];
+    });
+    const bed = stations.map(([s,z]) => [s*.6,floor,insetZ(z,.052)]);
+    const lining = ["#474a44","#373d3d","#373d3d","#303535","#414747","#414747"];
+    for (let i=0;i<stations.length;i++) {
+      const j=(i+1)%stations.length;
+      shell.quad(rim[i],rim[j],lip[j],lip[i],"#232f32");
+      shell.quad(lip[i],lip[j],bed[j],bed[i],lining[i]);
+    }
+    shell.quad(bed[0],bed[1],bed[3],bed[4],"#4e514b");
+    const middle=(tail+front)*.5;
+    shell.quad([-.014,floor+.001,tail+.059],[.014,floor+.001,tail+.059],
+      [.014,floor+.001,front-.059],[-.014,floor+.001,front-.059],"#414641");
+    shell.box(0,deckY(tail)-.04,tail+.019,.108,.026,.034,"#aeb4a0");
+    shell.box(.602,floor+.145,middle,.024,.047,.09,"#f1c782");
+
+    // The two shallow stampings and the lock tongue travel with the deck.
+    for (const side of [-1,1]) {
+      const stamp = [
+        [side*.51,tail+.068],[side*.547,tail+.081],
+        [side*.22,front-.08],[side*.164,front-.073],
+      ].map(([x,z]) => [x,deckY(z)-.048,z]);
+      // Follow the original sheet-metal crease so the inset never passes through the panel.
+      const atCrease=(p,q) => [p[0]+(q[0]-p[0])*(crease-p[2])/(q[2]-p[2]),deckY(crease)-.048,crease];
+      const p=atCrease(stamp[0],stamp[3]),q=atCrease(stamp[1],stamp[2]);
+      lidQuad(lid,boot,"#65706a",stamp[0],stamp[1],q,p);
+      lidQuad(lid,boot,"#65706a",p,q,stamp[2],stamp[3]);
+      // A folded edge returns the rib to the lid skin, catching light as the deck rises.
+      for(const [a,b] of [[stamp[0],p],[p,stamp[3]]]){
+        const seam=([x,y,z])=>[x-side*.014,y+.017,z];
+        lidQuad(lid,boot,"#535f5a",a,b,seam(b),seam(a));
+      }
+      const pinX=side*.48;
+      shell.box(pinX,hinge.y-.026,front+.003,.105,.045,.045,"#5a6866");
+      lidQuad(lid,boot,"#8b9182",
+        [pinX-.025,hinge.y-.019,front],[pinX+.025,hinge.y-.019,front],
+        [pinX+.025,deckY(front-.09)-.036,front-.09],[pinX-.025,deckY(front-.09)-.036,front-.09]);
+    }
+    lid.box(0,deckY(tail+.045)-hinge.y-.045,tail+.045-front,.095,.036,.038,"#868e81");
+  }
+
+  function map(ctx,px,py,scale,vehicle,amount,items) {
+    if (!vehicle || !(amount>.001)) return;
+    const boot=layout(vehicle.kind);
+    if (!boot) return;
+    const {tail,hinge,width,deckY} = boot, front=hinge.z;
+    const theta=angle(amount), cos=Math.cos(theta), sin=Math.sin(theta);
+    const outline=(points,fill) => {
+      ctx.beginPath();ctx.moveTo(...points[0]);
+      for (let i=1;i<points.length;i++) ctx.lineTo(...points[i]);
+      ctx.closePath();ctx.fillStyle=fill;ctx.fill();
+    };
+    ctx.save();ctx.translate(px(vehicle.x),py(vehicle.z));ctx.rotate(vehicle.yaw||0);ctx.scale(scale,-scale);
+    outline([[-width(tail),tail],[width(tail),tail],[width(front),front],[-width(front),front]],"#273638");
+    ctx.fillStyle="#55594f";ctx.fillRect(-.6,tail+.052,1.2,front-tail-.104);
+    for (let i=0;i<2;i++) {
+      const style=items?.[i];
+      if (!style) continue;
+      const slot=boot.slots[i];
+      ctx.save();ctx.translate(slot.x,slot.z);
+      BayLeftLuggageArt.caseSymbol(ctx,style);ctx.restore();
+    }
+    const projected = z => front+(z-front)*cos+(deckY(z)-hinge.y)*sin;
+    const backEdge=projected(tail);
+    outline([[-width(tail),backEdge],[width(tail),backEdge],[width(front),front],[-width(front),front]],
+      vehicle.color||bayCarLayout(vehicle.kind).paint);
+    ctx.fillStyle="#414b49";
+    ctx.fillRect(-width(tail),backEdge-.031*sin,2*width(tail),.031*sin);
+    ctx.restore();
+  }
+
+  window.BayLuggageBootArt = {supports,layout,hinge:kind=>layout(kind)?.hinge,
+    angle,slots:kind=>layout(kind)?.slots||[],deckBand,finish,map};
 })();
 
 ;
@@ -11936,6 +12415,9 @@ window.buildBayCity = function buildBayCity(g,water) {
           ctx.save();ctx.textAlign="right";ctx.font="bold "+8*ui+"px system-ui";ctx.fillStyle="#f6eace";ctx.strokeStyle=ink;ctx.lineWidth=2.3*ui;
           ctx.strokeText("Beach patrol",x-8*ui,y-5*ui);ctx.fillText("Beach patrol",x-8*ui,y-5*ui);ctx.restore();
         }
+      }else if(!street&&place.kind==="luggage"&&visible(x,y)){
+        ctx.save();ctx.translate(x,y);ctx.scale(ui,ui);disc(ctx,0,0,5.8,ink);disc(ctx,0,0,4.9,"#9fb99f");
+        rect(ctx,-3,-1.3,6,3.7,ink);ctx.strokeStyle=ink;ctx.lineWidth=.85;ctx.strokeRect(-1.25,-2.45,2.5,1.6);ctx.restore();
       }else if(!street&&(place.kind==="room"||place.kind==="counter")&&visible(x,y)){
         const k=ui*(radar?.84:1);ctx.save();ctx.translate(x,y);ctx.scale(k,k);
         disc(ctx,0,0,6.2,ink);disc(ctx,0,0,5.1,place.kind==="room"?"#abdbcd":opt.weather?.market==="open"?"#ffbc75":"#aeae9b");
@@ -11986,6 +12468,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     const passedPop=street&&opt.campana?.passing();if(passedPop)BayCampanaArt.treatMap(ctx,px,py,s,passedPop,passedPop.flavor,streetTime,true);
     if(street&&opt.coffee&&visible(px(BayPalmCoffee.site.x),py(BayPalmCoffee.site.z),3*s))BayPalmCoffeeArt.map(ctx,px,py,s,BayPalmCoffee.site,opt.coffee.lifts);
+    if(street&&opt.luggage){
+      const site=BayLeftLuggage.site;
+      if(visible(px(site.x),py(site.z),3*s))BayLeftLuggageArt.map(ctx,px,py,s,site,opt.luggage.rack);
+      for(const t of BayLeftLuggage.tags)if(visible(px(t.x),py(t.z),3*s)){
+        BayLeftLuggageArt.receiverMap(ctx,px,py,s,BayLeftLuggage.foot(t),t.id);
+      }
+    }
     if(street&&opt.curbWire&&visible(px(BayCurbWire.desk.x),py(BayCurbWire.desk.z),4*s)){
       BayCurbDeskArt.map(ctx,px,py,s,BayCurbWire.desk,streetTime);
       if(opt.wireTV)BayCurbDeskArt.mapScreen(ctx,px,py,s,BayCurbWire.desk,opt.wireTV);
@@ -12032,6 +12521,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(street){
         carSprite(ctx,car,x,y,s,streetTime);
         BayStreetCars.map(ctx,car,x,y,s,streetTime);
+        if(car===opt.luggage?.lid)BayLuggageBootArt.map(ctx,px,py,s,car,opt.luggage.amount,opt.luggage.items);
         if(car.soil)BayRoadGlass.map(ctx,car,x,y,s,streetTime);
         if(car===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,car,opt.campana.open,opt.campana.bell,streetTime);
         if(opt.crew?.afternoon?.seated&&opt.crew.afternoon.vehicle===car){
@@ -12189,11 +12679,14 @@ window.buildBayCity = function buildBayCity(g,water) {
             BayRainCanopies.map(ctx,px,py,s,player,opt.rainWalk.amount,opt.rainWalk.book.style,streetTime);ctx.restore();
           }
           if(opt.paletaHeld)BayCampanaArt.treatMap(ctx,px,py,s,player,opt.paletaHeld,streetTime);
+          if(opt.luggage?.hand)BayLeftLuggageArt.carryMap(ctx,px,py,s,player,opt.luggage.hand);
           if(opt.airCarried)BayAirmailArt.carryMap(ctx,opt,px,py,s,opt.airCarried,streetTime,BayAirPost.tagFor(opt.airLine.saved.bag));
           if(opt.deckHand)BaySkateArt.carryMap(ctx,opt,px,py,s,opt.deckHand,streetTime,opt.skate.saved.deck);
           if(opt.boardwalk?.run?.phase==="deliver"){const hand=BayDriving.world(player,.28,.08);rect(ctx,px(hand.x)-.12*s,py(hand.z)-.08*s,.24*s,.16*s,"#bd5347");}
           if(opt.field?.phase==="listen")BayCutWildlife.mapMic(ctx,x,y,s,opt.field.yaw,streetTime,!!opt.field.slice);
         }
+        if(opt.luggage?.pass)BayLeftLuggageArt.caseMap(ctx,px,py,s,opt.luggage.pass.id,opt.luggage.pass.at);
+        if(opt.luggage)for(const t of BayLeftLuggage.tags)if(opt.luggage.book.bags[t.id].at==="done"&&visible(px(t.x),py(t.z)))BayLeftLuggageArt.carryMap(ctx,px,py,s,t,t.id);
         if(opt.plate&&!opt.swim&&!player.driving&&!player.inCabin&&!opt.aboard){
           const bag=BayDriving.world(player,.41,.08);rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
         }
@@ -55909,6 +56402,9 @@ window.buildBayCity = function buildBayCity(g,water) {
   const gullSite=BayGullMotors.site,palmSite=BayPalmDiner.site,brisasSite=BayBrisas.site;let gull=null,works=null;
   const boatYard=BayButtonwoodYard.site,potJob={id:"pot-run",name:"Pot Run",by:"Alda Santana"};
   const solids=city.solids, sound=window.BaySound,garage=city.garage;
+  const luggage=BayLeftLuggage,bagArt=BayLeftLuggageArt,bootArt=BayLuggageBootArt;
+  const bell={lid:null,open:false,amount:0,pass:null};
+  solids.push(luggage.block);
   solids.push(...BayOffClock.sites.map(s=>s.block),BayCurbWire.desk.block,BayPalmCoffee.block);
   for(const prop of BayExposure.props)solids.push({...prop,bottom:0,streetProp:true});
   for(const prop of BayMercadoArt.blocks)solids.push({...prop,bottom:0,top:prop.h,streetProp:true});
@@ -56013,7 +56509,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     result.band=BaySessions.read(null);result.palma=BayPalma.read(null);result.bridge=BayDrawbridge.read(null);result.neon=BayMarlinNeon.read(null);
     result.campana=BayCampana.read(null);result.windowBest={};result.windowJobs=0;result.transit=BayTransit.read(null);result.airwaves=BayAirwaves.read(null);
     result.buttonwood=BayButtonwood.read(null);result.brisas=BayBrisasClub.read(null);result.palm=BayPalmLeague.read(null);result.gull=BayGullSales.read(null);result.moto=BaySecondSeat.read(null);result.rescue=BayRescue.read(null);result.skate=BaySkate.read(null);result.airmail=BayPelicanAir.read(null);
+    result.luggage=luggage.read(null);
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
+      result.luggage=luggage.read(raw.luggage);
       for(const k of ["wallet","paid","best","rides"])if(Number.isFinite(raw[k])&&raw[k]>=0)result[k]=raw[k];
       result.windowJobs=Number.isSafeInteger(raw.windowJobs)&&raw.windowJobs>=0?raw.windowJobs:0;
       for(const b of BayWindowSeat.briefs){const score=raw.windowBest?.[b.id];if(Number.isInteger(score)&&score>0&&score<=100)result.windowBest[b.id]=score;}
@@ -56050,6 +56548,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }catch{return result;}
   }
   const save=readSave();
+  locations.push(luggage.counter);
   const rainWalk=new BayRainWalk.Walk(),negatives=new BayWindowSeat.Negatives();
   const unit=new BaySecondUnit.Unit(),scoutDesk=BaySecondUnit.desk,otherMotion=new BayPlayerMotion();
   const unitPin={...BaySecondUnit.home.frankie,kind:"scout",name:"Cine Luna · Location desk"};
@@ -56164,6 +56663,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    if(Number.isSafeInteger(latest?.luggage?.rev)&&latest.luggage.rev>save.luggage.rev){
+      save.luggage=luggage.read(latest.luggage);bell.pass=null;lastHud=lastMap=-10;
+      if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
+      if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
+    }
     if(Number.isSafeInteger(latest?.campana?.rev)&&latest.campana.rev>save.campana.rev){
       if(play&&active?.campana){
         active=null;campana.abandon();lastMap=lastHud=-10;
@@ -56213,10 +56717,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     const pair=()=>({[-1]:new BayMesh(),1:new BayMesh()});
     const parts={doors:pair(),wheels:pair(),brakes:new BayMesh(),reverse:new BayMesh()},shell=new BayMesh();
     if(v.serviceCar)parts.windshield=new BayMesh();
+    if(bootArt.supports(v.kind))parts.trunk=new BayMesh();
     buildBayCar(shell,v.kind,v.color,parts);
     const install=(name,mesh)=>{const key=v.model+"/"+name;view.add(key,mesh);return key;};
     const rig={shell:install("body",shell),brakes:install("brake",parts.brakes),reverse:install("reverse",parts.reverse),doors:{},wheels:{}};
     if(parts.windshield)rig.windshield=install("windshield",parts.windshield);
+    if(parts.trunk)rig.trunk=install("trunk",parts.trunk);
     for(const side of [-1,1]){
       rig.doors[side]=install("door"+side,parts.doors[side]);
       rig.wheels[side]=install("wheel"+side,parts.wheels[side]);
@@ -56431,6 +56937,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(save.campana.shift&&!active){active={campana:true,job:iceJob};Object.assign(hero,{x:campana.station.stand.x,z:campana.station.z-2.6});resetFeet();cameraSnap();}
     else if(active&&save.campana.shift){campana.abandon();commitPaletas();}
     if(unit.met)restoreCrew();
+    restoreBaggageCars();markClaim();
     if(save.shore.carried&&!active)waypoint={...BaySurfPatrol.tower};
     try{if(localStorage.getItem("sundownBay.audio")==="on"){radio=sound.setEnabled(true);$("audioKey").querySelector("span").textContent=radio?"Sound on":"Sound off";}}catch{}
     if(active?.campana){note("Nina Rojas","Your keys and route card are at the last curb. Two stops to a sheet.",3.8);return;}
@@ -59919,7 +60426,184 @@ window.buildBayCity = function buildBayCity(g,water) {
     const b=cycles.riding;if(!b||b.bell>0)return;b.bell=.68;sound.cue("cycle-bell");
     for(const w of walkers){if(w.palmPassenger||dist(w,b)>8)continue;const p=BayDriving.local(b,w.x,w.z);if(p.z>0&&Math.abs(p.x)<3.2){w.alert=1.0;w.gesture=1;w.yaw=Math.atan2(b.x-w.x,b.z-w.z);}}
   }
+  function bellFree(){
+    return onStreetFeet()&&!active&&!heat&&!unit.eye&&!unit.transition&&!windowRide&&!afternoon.active&&!coffee.stage&&!rainWalk.trip&&
+      !cabs.booking&&!transit.engaged&&!watchCrew.towing&&!valet.onDuty&&!gull.engaged&&!save.airmail.bag&&!wash.hasWand()&&!exchangingKey();
+  }
+  const atBellDesk=()=>dist(hero,luggage.counter)<1.75;
+  const bootCar=v=>unitRoadCar(v)&&bootArt.supports(v.kind)&&!v.stockId&&v!==otherCar&&v!==meet.jules&&v!==meet.rival&&!v.brisasLead&&!v.onLift;
+  function tailCar(){
+    if(!bellFree())return null;
+    for(const v of cars){
+      if(Math.abs(v.x-hero.x)>5||Math.abs(v.z-hero.z)>5||!bootCar(v)||v.path||Math.abs(v.speed)>.35)continue;
+      const p=BayDriving.local(v,hero.x,hero.z),rear=-bayCarLayout(v.kind).halfLength;
+      if(Math.abs(p.x)<1.5&&p.z<rear+.23&&p.z>rear-1.85)return v;
+    }
+    return null;
+  }
+  function trunkContents(v){
+    return luggage.slots(save.luggage,v.garageKey).map(id=>bell.pass&&bell.pass.id===id?null:id);
+  }
+  function inBoot(v,i){
+    const s=bootArt.slots(v.kind)[i],ground=footLevel(v.x,v.z)+.008;
+    return {...chassisPoint(v,s.x,s.y,s.z,ground),yaw:v.yaw,pitch:v.pitch,lean:v.lean};
+  }
+  function markClaim(preferred){
+    if(waypoint&&!["claim","claim-car"].includes(waypoint.kind)&&!preferred)return;
+    const id=preferred||luggage.hand(save.luggage)||luggage.ids.find(i=>save.luggage.bags[i].at==="boot");
+    if(id)waypoint=luggage.marker(luggage.claim(id));else if(["claim","claim-car"].includes(waypoint?.kind))waypoint=null;
+    lastHud=lastMap=-10;
+  }
+  function rememberCargoCar(v){
+    if(!luggage.slots(save.luggage,v.garageKey).some(Boolean))return;
+    syncProgress(readSave());
+    if(luggage.park(save.luggage,v)){save.luggage.rev++;persist();}
+  }
+  function restoreBaggageCars(){
+    for(const [key,p] of Object.entries(save.luggage.parks)){
+      const v=cars.find(c=>c.garageKey===key);if(!v||!bootCar(v)||v===car||v===personalCar)continue;
+      const pose={...v,...p};
+      if(fitsCar(v,p.x,p.z,p.yaw)&&!cars.some(c=>c!==v&&dist(c,p)<7&&BayDriving.contact(pose,c)))Object.assign(v,p);
+      v.path=null;v.used=true;BayDriving.settle(v);
+    }
+  }
+  function transferSpot(loc,id,mesh){
+    if(loc.at==="rack")return bagArt.rack(luggage.site,id);
+    if(loc.at==="hand")return bagArt.hand(hero,hero.y+motion.lift,mesh);
+    if(loc.at==="boot")return inBoot(bell.lid,loc.slot);
+    const guest=luggage.claim(id);return bagArt.hand(guest,footLevel(guest.x,guest.z));
+  }
+  function passingCase(mesh){
+    const p=bell.pass;if(!p)return null;
+    const a=transferSpot(p.from,p.id,mesh),b=transferSpot(p.to,p.id,mesh);
+    const t=clamp(p.time/.8,0,1),f=t*t*(3-2*t);
+    return {x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f+.16*Math.sin(Math.PI*t),z:a.z+(b.z-a.z)*f,yaw:a.yaw+angle(a.yaw,b.yaw)*f};
+  }
+  function beginBag(id,to){
+    syncProgress(readSave());
+    if(!bellFree()||bell.pass)return;
+    const from=save.luggage.bags[id];
+    if(!from||from.at==="done"||to.at==="hand"&&luggage.hand(save.luggage))return;
+    const test=luggage.read(save.luggage);if(!luggage.change(test,id,from,to))return;
+    if(from.at==="boot"||to.at==="boot"){
+      const at=from.at==="boot"?from:to;
+      if(!bell.open||bell.amount<.92||bell.lid!==tailCar()||bell.lid.garageKey!==at.car)return;
+    }
+    bell.pass={id,from:{...from},to,time:0};keys.clear();
+    const aim=transferSpot(to.at==="hand"?from:to,id);
+    hero.yaw=Math.atan2(aim.x-hero.x,aim.z-hero.z);lastHud=-10;
+  }
+  function bellStep(dt){
+    const p=bell.pass;
+    if(p){
+      p.time+=dt;
+      const destination=transferSpot(p.from.at==="hand"?p.to:p.from,p.id);
+      const reach=BayDriving.local(hero,destination.x,destination.z),w=p.from.at==="hand"?p.time/.8:1-p.time/.8;
+      motion.handTarget={bell:true,x:clamp(reach.x,-.10,.48),z:clamp(reach.z,.12,.54),y:clamp(destination.y+.266-hero.y,.56,1.12),weight:clamp(w*1.5,0,1)};
+      if(!bellFree()){bell.pass=null;}
+      else if(p.time>=.8){
+        syncProgress(readSave());
+        if(bell.pass===p&&luggage.change(save.luggage,p.id,p.from,p.to)){
+          const tag=luggage.claim(p.id);
+          if(p.to.at==="boot")luggage.park(save.luggage,bell.lid);
+          if(p.to.at==="done"){save.wallet+=tag.pay;save.paid++;speak(tag.person,tag.thanks);note("Claim "+tag.number+" signed","+"+cash(tag.pay)+"  ·  "+tag.label,3.5);}
+          else if(p.to.at==="hand"){if(p.from.at==="rack")speak(luggage.porter.name,tag.ask);note("Check "+tag.number,tag.person+" · "+tag.place,3.6);}
+          else if(p.to.at==="boot")note("Trunk · "+formatVehicle(bell.lid),tag.label+" in slot "+(p.to.slot+1),2.3);
+          persist();markClaim(["boot","hand"].includes(p.to.at)?p.id:null);
+        }
+        bell.pass=null;lastHud=lastMap=-10;
+      }
+    }
+    if(!bell.pass&&motion.handTarget?.bell)motion.handTarget=null;
+    if(!bell.lid)return;
+    if(!bell.pass&&(car||transfer||dist(hero,bell.lid)>5.1||!onStreetFeet()))bell.open=false;
+    bell.amount=clamp(bell.amount+(bell.open?1:-1)*dt*1.6,0,1);
+    if(!bell.open&&bell.amount===0)bell.lid=null;
+  }
+  function takeClaim(tag){
+    if(panel!=="bell-desk"||!atBellDesk())return;
+    const s=save.luggage.bags[tag.id];
+    if(s.at==="boot"){
+      const v=cars.find(c=>c.garageKey===s.car);if(v){closePanel();waypoint={x:v.x,z:v.z,kind:"claim-car",name:formatVehicle(v)+" · "+tag.label};lastMap=lastHud=-10;}
+      return;
+    }
+    if(s.at!=="rack"||luggage.hand(save.luggage))return;
+    closePanel();beginBag(tag.id,{at:"hand"});
+  }
+  function bellPanel(b){
+    const book=save.luggage;
+    signedNote(b,"Pick up one handle at a time. Two cases fit behind the back seat of a Marlin GT or a regular cab. Match the number on the tag to the guest’s stub.",luggage.porter.name);
+    for(const [i,t] of luggage.tags.entries()){
+      const s=book.bags[t.id],v=s.at==="boot"&&cars.find(v=>v.garageKey===s.car);
+      const detail=s.at==="done"?"Signed by "+t.person:s.at==="rack"?t.person+" · "+t.place:s.at==="hand"?"In your hand":(v?formatVehicle(v):"Car")+" · slot "+(s.slot+1)+" · mark car";
+      const row=makeButton((i+1)+"  ·  "+t.label,detail,"№ "+t.number+" / "+cash(t.pay),()=>takeClaim(t));
+      row.disabled=s.at==="done"||s.at==="hand";b.append(row);
+    }
+    if(luggage.complete(book))b.append(makeButton("Ring for the next cart","Alma brings out the next set of cases.","Next shift",()=>{
+      syncProgress(readSave());if(!atBellDesk()||!luggage.complete(save.luggage))return;
+      save.luggage=luggage.read({round:save.luggage.round+1,rev:save.luggage.rev+1});persist();openPanel("bell-desk",true);
+    }));
+  }
+  const nearbyGuest=()=>luggage.tags.find(t=>dist(hero,luggage.foot(t))<1.7);
+  function bellHint(){
+    if(!bellFree())return null;
+    if(bell.pass)return ["","Passing "+luggage.claim(bell.pass.id).label.toLowerCase()];
+    const hand=luggage.hand(save.luggage),v=tailCar();
+    if(v){if(!bell.open||bell.lid!==v)return ["K","Open trunk · "+formatVehicle(v)];
+      const items=luggage.slots(save.luggage,v.garageKey);
+      return ["1 / 2",items.map((id,i)=>(i+1)+" "+(id?luggage.claim(id).label:"empty")).join("  ·  ")+(hand?"  ·  F stow":"  ·  F take")+"  ·  K close"];
+    }
+    if(atBellDesk())return ["F",hand?"Return "+luggage.claim(hand).label:"Alma León · Left luggage"];
+    const guest=nearbyGuest();
+    if(guest)return ["F",guest.person+" · Claim "+guest.number+(hand===guest.id?" · Give case":"")];
+    if(hand)return ["",luggage.claim(hand).label+" · "+luggage.claim(hand).place+" · K at a car trunk"];
+    return null;
+  }
+  function bellKey(code){
+    if(bell.pass&&["KeyE","KeyF","KeyK","KeyY","KeyP","Space"].includes(code))return true;
+    if(!bellFree())return false;
+    const hand=luggage.hand(save.luggage);
+    if(!["KeyF","KeyE","KeyK","KeyY","KeyP","KeyG","Space","Digit1","Digit2","Numpad1","Numpad2"].includes(code))return false;
+    const v=tailCar();
+    if(code==="KeyK"&&v){
+      if(bell.lid&&bell.lid!==v)bell.amount=0;
+      bell.open=bell.lid!==v||!bell.open;bell.lid=v;lastHud=-10;return true;
+    }
+    if(v&&bell.lid===v&&bell.open&&(code==="KeyF"||/^(Digit|Numpad)[12]$/.test(code))){
+      if(bell.amount<.92)return true;
+      const items=luggage.slots(save.luggage,v.garageKey);
+      const i=code==="KeyF"?items.findIndex(id=>hand?!id:!!id):Number(code.slice(-1))-1;
+      if(hand&&i>=0&&!items[i])beginBag(hand,{at:"boot",car:v.garageKey,slot:i});
+      else if(!hand&&i>=0&&items[i])beginBag(items[i],{at:"hand"});
+      else note("Marlin trunk",hand?"Choose an empty slot.":"That slot is empty.",2);
+      return true;
+    }
+    if(code==="KeyF"){
+      if(atBellDesk()){if(hand)beginBag(hand,{at:"rack"});else openPanel("bell-desk");return true;}
+      const guest=nearbyGuest();
+      if(guest){
+        if(hand===guest.id)beginBag(hand,{at:"done"});
+        else speak(guest.person,save.luggage.bags[guest.id].at==="done"?"We’re square. Alma has the signed stub.":"I’ve got check "+guest.number+". "+guest.label+".");
+        return true;
+      }
+    }
+    if(hand&&["KeyE","KeyY","KeyK","KeyG","KeyP","KeyF","Space"].includes(code)){
+      note("Claim "+luggage.claim(hand).number,"Stow this case or take it to "+luggage.claim(hand).person+".",2);return true;
+    }
+    return false;
+  }
+  const rackContents=()=>luggage.rack(save.luggage).filter(id=>id!==bell.pass?.id);
+  function drawLuggage(list,see){
+    if(see(luggage.site,66))bagArt.world(list,model,luggage.site,rackContents());
+    for(const a of [luggage.porter,...luggage.tags])if(see(a,56)){
+      list.push([personSkin(a.style,a.role,0),a.x,footLevel(a.x,a.z),a.z,a.yaw]);
+      if(a.id){const p=luggage.foot(a);p.y=footLevel(p.x,p.z);bagArt.receiver(list,model,p,a.id);
+        if(save.luggage.bags[a.id].at==="done")bagArt.carry(list,model,a,a.id,footLevel(a.x,a.z));}
+    }
+    if(bell.pass)bagArt.case(list,model,bell.pass.id,passingCase(playerMesh));
+  }
   function switchCar(){
+    if(!car&&(bell.pass||luggage.hand(save.luggage))){note("Marlin claim check","Stow the case in the trunk before you get in.",2.5);return;}
     if(gull.exchange||motos.player||motos.job?.swapping)return;
     if(rescue.holding||roofs.raised||airLine.aboard||transit.aboard||skate.rider)return;
     if(active?.rescue&&!car&&!rescue.access())return;
@@ -60029,6 +60713,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(a.exiting?a.p>0:a.p<1)return;
     if(a.passenger)v.passengerDoor=0;else v.doorAngle=0;
     transfer=null;lastHud=-10;lastMap=-10;skidLast=null;
+    if(a.exiting)rememberCargoCar(v);
     if(a.exiting){if(unit.met&&unitRoadCar(v))unit.remember(v,v);car=null;works.rearView=false;resetFeet();BayDriving.settle(v);if(v===workTruck||v===works.trailer.hitched)writeButtonwood();valet.leftCar(v,motorEnv);if(gull.record(v)||gull.saved.loan?.kind===v.stockId&&v.stockId){gull.remember(v);persist();}if(v===personalCar)BayMotelParking.write(v);flushRoadDirt();return;}
     const borrowed=!!(a.owner||v.path);v.path=null;v.roadside=v.wantsCurb=false;v.pullOver=null;v.used=true;car=v;
     if(a.passenger){beginMeet("photo");return;}
@@ -60634,6 +61319,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(footClear(p.x,p.z+dz,r))p.z+=dz;else hit=true;return hit;
   }
   function walk(dt){
+    if(bell.pass){motion.vx=motion.vz=0;motion.step(dt,0,0);return;}
     if(coffee.stage==="sip"){
       if(held("KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"))coffee.leave();
       else{motion.vx=motion.vz=0;if(!coffee.approach?.length)motion.step(dt,0,0);return;}
@@ -61569,6 +62255,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const p=transfer||deckStep||cabs.playerHeld?hero:pos();
     if(exchangingKey())Object.assign(keyMapActor,{x:hero.x,y:hero.y,z:hero.z,yaw:hero.yaw,kit:save.courts.equipped});
     const peds=[];
+    if(play&&modeName==="street")for(const p of [luggage.porter,...luggage.tags])peds.push({...p,shirt:personColors[p.style][1],skin:personColors[p.style][0]});
     if(modeName==="street"){
       const people=play?walkers.concat(jobContacts.filter(c=>c.style!==undefined&&c.id!==active?.job.id&&!(meet.rival&&c.id==="getaway"))):walkers;
       for(const w of people)if((!play||w!==band.local&&!w.palmManaged)&&(!take||!BayTake.onSet(w)))peds.push({x:w.x,z:w.z,yaw:w.yaw,shirt:personColors[w.style][1],skin:personColors[w.style][0],startle:w.startle,sprayPose:w.sprayPose,gesture:w.gesture,curbAim:w.curbAim,canopy:w.canopy,canopyStyle:w.canopyStyle,iceBox:w.fieldSource==="trawler"&&w.index<=6&&w.index>0});
@@ -61594,6 +62281,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
       personal:carPin(),
+      luggage:play?{book:save.luggage,rack:rackContents(),hand:onStreetFeet()&&!bell.pass?luggage.hand(save.luggage):null,
+        lid:bell.lid,amount:bell.amount,items:bell.lid?trunkContents(bell.lid):null,pass:bell.pass?{id:bell.pass.id,at:passingCase()}:null}:null,
       photograph:shooting(),take,stuntRecord:save.stunt,
       searchPoint:heat&&chase.searching?chase.lastSeen:null,
       roadblock:skiff?null:backup.roadblock,air:backup.air,ferry:ferryScene,ferryActive:!!active?.ferry,inez:play?ferryScene?.rider||BayFerry.pickup:null,
@@ -61647,6 +62336,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     const h=v.hydraulic,wheelBase=ground-(h?.bodyLift||0),bodyGround=ground-flat*.045;
     if(v.kind==="solena")BaySolenaArt.runningGear(list,model,v,wheelBase,h);
     list.push([rig.shell,v.x,bodyGround,v.z,v.yaw,v.pitch,v.lean,0,v]);
+    if(rig.trunk){
+      const pivot=bootArt.hinge(v.kind),p=chassisPoint(v,0,pivot.y,pivot.z,bodyGround);
+      const opened=bell.lid?.garageKey===v.garageKey?bell.amount:0;
+      list.push([rig.trunk,p.x,p.y,p.z,v.yaw,(v.pitch||0)+bootArt.angle(opened),v.lean,0,v]);
+      if(opened>.01)for(const [i,id] of trunkContents(v).entries())if(id)bagArt.case(list,model,id,inBoot(v,i));
+    }
     if(rig.windshield&&(v!==taxi||!cabWindow()))list.push([rig.windshield,v.x,bodyGround,v.z,v.yaw,v.pitch,v.lean,0,v]);
     if(v===taxi&&cabWindow())list.push([BayCabArt.dashboard(model,cabs.booking.price),v.x,bodyGround,v.z,v.yaw,v.pitch,v.lean,.28]);
     for(const side of [-1,1]){
@@ -62274,7 +62969,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const rigBody=v===owned&&paintPreview?paintPreview:body;
       const nativeWheels=(v.brisasLead||v.kind==="estate"||v.kind==="stepside")&&see(v,29);
       const split=v===owned||nativeWheels||v.hydraulic&&!v.hydraulic.rest&&see(v,85)||v===otherCar||v===afternoon.vehicle||v===windowRide?.vehicle||v===story?.ride||v===active?.ferry?.ride||v===active?.cabFare?.ride||v===band.june.ride||v===unit4&&(dist(cam,v)<72||v.rearOpen>.01)||v===taxi||v===wrecker||v.onLift||v.doorAngle>.01;
-      if(split)addRig(visible,rigBody,ground);
+      if(split||v===bell.lid)addRig(visible,rigBody,ground);
       else{
         visible.push([v.model,v.x,ground,v.z,v.yaw,body.pitch,body.lean,0,v]);
         if((v.path&&!v.recoveryOwner||v===meet.rival&&meet.phase!=="idle")&&see(v,52)){
@@ -62298,6 +62993,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(play)for(const rack of BayRainWalk.racks)if(see(rack,58))BayRainCanopies.worldRack(visible,model,rack,rainWalk.book.borrowed===rack.id);
     if(see(wireDesk,76))BayCurbDeskArt.world(visible,model,wireDesk,t);
     if(see(BayPalmCoffee.site,56))BayPalmCoffeeArt.world(visible,model,BayPalmCoffee.site,coffee.lifts);
+    if(play)drawLuggage(visible,see);
     for(const p of walkers){
       if(play&&(p===band.local||p.palmManaged)||!see(p,91)||film&&BayTake.onSet(p))continue;
       const feet=p.fieldSource?footLevel(p.x,p.z)+.055:.15;
@@ -62392,7 +63088,13 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(coffee.stage==="sip"||hero.hadCoffeePose){
           changed=BayPalmCoffeeArt.pose(playerMesh,0,coffee.stage==="sip"?coffee.lifts[0]:null)||changed;hero.hadCoffeePose=coffee.stage==="sip";
         }
-        if(unit.lead==="frankie"&&onStreetFeet()&&!active)BayScoutArt.cameraProp(visible,model,hero,playerMesh,t,0);
+        if(luggage.hand(save.luggage)||bell.pass||hero.hadLuggage){
+          const carrying=!!luggage.hand(save.luggage)||!!bell.pass;
+          const grip=bell.pass?1-(motion.handTarget?.weight||0):carrying?1:0;
+          changed=bagArt.pose(playerMesh,grip)||changed;hero.hadLuggage=carrying;
+          if(onStreetFeet()&&!bell.pass&&carrying)bagArt.carry(visible,model,hero,luggage.hand(save.luggage),hero.y+motion.lift,playerMesh);
+        }
+        if(unit.lead==="frankie"&&onStreetFeet()&&!active&&!hero.hadLuggage)BayScoutArt.cameraProp(visible,model,hero,playerMesh,t,0);
         if(changed)view.updateAnimated(playerModel);
         if(skiff&&!deckStep){
           if(skiff===manta)visible.push([BayMantaArt.riderModel(unit.lead,mantaRide.air?"air":Math.abs(manta.steer)>.4?"carve":"cruise"),manta.x,manta.y,manta.z,manta.yaw,manta.pitch,manta.lean]);
@@ -62883,7 +63585,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     const pastCaller=!active&&!heat&&onStreetFeet()?recovery.people.find(p=>p.phase==="home"&&dist(p,hero)<2.7):null;
     courtHud();drumHud();
     const drain=curbDrain(),corner=cornerAction();
-    if(coffee.stage&&corner)contextHint(corner.startsWith("Walk light")||corner.startsWith("Flashing hand")?"":"F",corner);
+    const luggageHint=bellHint();
+    if(luggageHint)contextHint(...luggageHint);
+    else if(coffee.stage&&corner)contextHint(corner.startsWith("Walk light")||corner.startsWith("Flashing hand")?"":"F",corner);
     else if(coffee.stage==="walk"||coffee.stage==="table")contextHint("",coffee.stage==="table"?"Bea’s at the coffee shelf · Come around to the green cup":coffee.bea.coffeePause?"Bea’s waiting on the sidewalk":"Walk with Bea to the Palm Diner");
     else if(paletaHint()){ /* Nina or the next customer has the window. */ }
     else if(drain){contextHint(drain.cleared?"":"L",drain.cleared?"Curb drain clear · "+drain.name:drain.work?"Lifting leaves · "+Math.round(drain.work*100)+"%":"Hold to lift the leaves from the curb drain");}
@@ -63479,6 +64183,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
     }else if(next==="paletas"){title="La Campana";kicker="Nina Rojas  /  Paletas de fruta";paletaPanel(b);
     }else if(next==="window-orders"){title="Window Seat";kicker="Cine Luna  /  Location department";windowBoard(b);
+    }else if(next==="bell-desk"){
+      title="Left luggage";kicker="Marlin Motor Court  /  Claim checks";bellPanel(b);
     }else if(next==="curb-wire"){
       title="On the Curb";kicker="Bay Wire  /  Street clips";wirePanel(b);
     }else if(next==="free-afternoon"||next==="foto-album"){
@@ -63928,15 +64634,17 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(ev.ctrlKey||ev.metaKey||ev.altKey)return;
     if(!play){if(ev.code==="Enter"&&!ev.repeat){ev.preventDefault();playStart();}return;}
     if(panel){
+      if(panel==="bell-desk"&&!ev.repeat&&/^Digit[1-3]$/.test(ev.code)){ev.preventDefault();takeClaim(luggage.tags[Number(ev.code.slice(-1))-1]);return;}
       if(panel==="take-result"&&ev.code==="KeyT"&&!ev.repeat){ev.preventDefault();startTake();return;}
       if((ev.code==="Escape"||ev.code==="KeyM"||ev.code==="KeyJ")&&!ev.repeat){ev.preventDefault();if(ev.code==="Escape"){closePanel();}else openPanel(ev.code==="KeyM"?"map":"jobs");return;}
       if(ev.code==="Tab"){const controls=[...$("panel").querySelectorAll("button:not(:disabled),select:not(:disabled),[tabindex='0']")];if(!controls.length)return;
         if((ev.shiftKey&&document.activeElement===controls[0])||(!ev.shiftKey&&document.activeElement===controls.at(-1))){ev.preventDefault();controls[ev.shiftKey?controls.length-1:0].focus();}}
       return;
     }
-    if(!handled.has(ev.code)&&!((active?.campana||afternoon.photo)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
+    if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(bellKey(ev.code))return;
     if(afternoon.photo&&afternoonKey(ev.code))return;
     if(paletaKey(ev.code))return;
     if(ev.code==="KeyF"&&!unit.eye&&!unit.transition&&!windowRide&&byCinema()&&!crewDeskNear()){cabAction();return;}
@@ -64099,7 +64807,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(windowRide)windowRide.step(d,windowEnv,windowRideEvent);recovery.step(d,recoveryEnv,recoveryEvent);pursuit(d);stepMeet(d);advanceJob(d);serviceGarage(d);stepBeach(d);left-=d;
       }
       if(!pickup&&!room&&!boardwalk.player&&!cabs.playerHeld&&!windowRide?.held&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??(transit.aboard?transit.bus.speed:null)??motos.bike?.speed??skiff?.speed??car?.speed??(windowRide?.held?windowRide.vehicle.speed:cabs.playerHeld?taxi.speed:0));
-      if(!panel){curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();stepField(dt);}
+      if(!panel){bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();stepField(dt);}
       for(const v of cars)BayPalma.weatherCar(v,dt,hours.wet);
       if(car)driverSeat.wipers(car,dt,Math.max(hours.rain,glassWater()));
       const spray=wash.spraying&&!room&&!swim?.underwater&&wash.target,sprayRange=spray?dist(p,spray):Infinity;

@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+Find **Alma León’s brass luggage cart** on the motel side of Ocean Drive, between Room 14 and the Marlin valet. Press **F** and choose one of the three numbered cases. Carry it to its guest, or go to the back of a parked Marlin GT or regular cab and press **K** to open the trunk. **1** and **2** load or lift a case from that slot. **F** uses the first available slot. **K** closes the lid. Each case stays with that vehicle when you leave or reload. Alma’s ledger can mark the car on your map. Give the matching case to its guest with **F** to collect the fare.
+
 Meet **Bea Serrano** on the beach-side corner of Ocean Drive and Marquee, just north of the Marlin. Walk up and press **F** to join her diner break. Watch the far corner for the pale walk figure, cross both streets together, and press **F** by the Palm’s green cup. Bea remembers your shared coffees. The four signalized junctions accept pedestrian calls from any corner. Press **F** beside a button to stop traffic for a walk phase.
 
 Press **Play** to start on foot at the Marlin Motel. Amber **!** marks on the radar and city map lead to jobs. Walk up and press **F** to talk, or call a contact from your phone with **J**.

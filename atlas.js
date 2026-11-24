@@ -820,6 +820,9 @@
           ctx.save();ctx.textAlign="right";ctx.font="bold "+8*ui+"px system-ui";ctx.fillStyle="#f6eace";ctx.strokeStyle=ink;ctx.lineWidth=2.3*ui;
           ctx.strokeText("Beach patrol",x-8*ui,y-5*ui);ctx.fillText("Beach patrol",x-8*ui,y-5*ui);ctx.restore();
         }
+      }else if(!street&&place.kind==="luggage"&&visible(x,y)){
+        ctx.save();ctx.translate(x,y);ctx.scale(ui,ui);disc(ctx,0,0,5.8,ink);disc(ctx,0,0,4.9,"#9fb99f");
+        rect(ctx,-3,-1.3,6,3.7,ink);ctx.strokeStyle=ink;ctx.lineWidth=.85;ctx.strokeRect(-1.25,-2.45,2.5,1.6);ctx.restore();
       }else if(!street&&(place.kind==="room"||place.kind==="counter")&&visible(x,y)){
         const k=ui*(radar?.84:1);ctx.save();ctx.translate(x,y);ctx.scale(k,k);
         disc(ctx,0,0,6.2,ink);disc(ctx,0,0,5.1,place.kind==="room"?"#abdbcd":opt.weather?.market==="open"?"#ffbc75":"#aeae9b");
@@ -870,6 +873,13 @@
     }
     const passedPop=street&&opt.campana?.passing();if(passedPop)BayCampanaArt.treatMap(ctx,px,py,s,passedPop,passedPop.flavor,streetTime,true);
     if(street&&opt.coffee&&visible(px(BayPalmCoffee.site.x),py(BayPalmCoffee.site.z),3*s))BayPalmCoffeeArt.map(ctx,px,py,s,BayPalmCoffee.site,opt.coffee.lifts);
+    if(street&&opt.luggage){
+      const site=BayLeftLuggage.site;
+      if(visible(px(site.x),py(site.z),3*s))BayLeftLuggageArt.map(ctx,px,py,s,site,opt.luggage.rack);
+      for(const t of BayLeftLuggage.tags)if(visible(px(t.x),py(t.z),3*s)){
+        BayLeftLuggageArt.receiverMap(ctx,px,py,s,BayLeftLuggage.foot(t),t.id);
+      }
+    }
     if(street&&opt.curbWire&&visible(px(BayCurbWire.desk.x),py(BayCurbWire.desk.z),4*s)){
       BayCurbDeskArt.map(ctx,px,py,s,BayCurbWire.desk,streetTime);
       if(opt.wireTV)BayCurbDeskArt.mapScreen(ctx,px,py,s,BayCurbWire.desk,opt.wireTV);
@@ -916,6 +926,7 @@
       if(street){
         carSprite(ctx,car,x,y,s,streetTime);
         BayStreetCars.map(ctx,car,x,y,s,streetTime);
+        if(car===opt.luggage?.lid)BayLuggageBootArt.map(ctx,px,py,s,car,opt.luggage.amount,opt.luggage.items);
         if(car.soil)BayRoadGlass.map(ctx,car,x,y,s,streetTime);
         if(car===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,car,opt.campana.open,opt.campana.bell,streetTime);
         if(opt.crew?.afternoon?.seated&&opt.crew.afternoon.vehicle===car){
@@ -1073,11 +1084,14 @@
             BayRainCanopies.map(ctx,px,py,s,player,opt.rainWalk.amount,opt.rainWalk.book.style,streetTime);ctx.restore();
           }
           if(opt.paletaHeld)BayCampanaArt.treatMap(ctx,px,py,s,player,opt.paletaHeld,streetTime);
+          if(opt.luggage?.hand)BayLeftLuggageArt.carryMap(ctx,px,py,s,player,opt.luggage.hand);
           if(opt.airCarried)BayAirmailArt.carryMap(ctx,opt,px,py,s,opt.airCarried,streetTime,BayAirPost.tagFor(opt.airLine.saved.bag));
           if(opt.deckHand)BaySkateArt.carryMap(ctx,opt,px,py,s,opt.deckHand,streetTime,opt.skate.saved.deck);
           if(opt.boardwalk?.run?.phase==="deliver"){const hand=BayDriving.world(player,.28,.08);rect(ctx,px(hand.x)-.12*s,py(hand.z)-.08*s,.24*s,.16*s,"#bd5347");}
           if(opt.field?.phase==="listen")BayCutWildlife.mapMic(ctx,x,y,s,opt.field.yaw,streetTime,!!opt.field.slice);
         }
+        if(opt.luggage?.pass)BayLeftLuggageArt.caseMap(ctx,px,py,s,opt.luggage.pass.id,opt.luggage.pass.at);
+        if(opt.luggage)for(const t of BayLeftLuggage.tags)if(opt.luggage.book.bags[t.id].at==="done"&&visible(px(t.x),py(t.z)))BayLeftLuggageArt.carryMap(ctx,px,py,s,t,t.id);
         if(opt.plate&&!opt.swim&&!player.driving&&!player.inCabin&&!opt.aboard){
           const bag=BayDriving.world(player,.41,.08);rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
         }
