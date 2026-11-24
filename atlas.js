@@ -892,6 +892,14 @@
         carSprite(ctx,car,x,y,s,streetTime);
         BayStreetCars.map(ctx,car,x,y,s,streetTime);
         if(car.soil)BayRoadGlass.map(ctx,car,x,y,s,streetTime);
+        if(opt.crew?.ride===car){
+          const layout=bayCarLayout(car.kind);
+          for(const side of [-1,1]){
+            if(side===1&&!(opt.crew.outing?.seat>.72))continue;
+            const head=BayDriving.world(car,side*layout.seatX,layout.seatZ+.38);
+            disc(ctx,px(head.x),py(head.z),Math.max(.65,s*.13),(opt.crew.lead==="guest")===(side===-1)?"#71523f":"#564a43");
+          }
+        }
         if(car.roadside&&!car.onLift&&streetTime%1.05<.49){
           const shape=bayCarLayout(car.kind);ctx.save();ctx.translate(x,y);ctx.rotate(car.yaw);
           for(const side of [-1,1])for(const end of [-1,1])disc(ctx,side*(shape.track-.12)*s,end*(shape.halfLength-.12)*s,.12*s,"#ffbd53");

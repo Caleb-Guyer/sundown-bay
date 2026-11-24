@@ -29,6 +29,7 @@
   function frame(ctx,width,height,state={}){
     if(!ctx||width<1||height<1)return;
     ctx.save();ctx.clearRect(0,0,width,height);
+    if(Number.isFinite(state.windowPan))BayWindowSlip.glass(ctx,width,height,state.windowPan,1,state.time);
     const ratio=Number.isFinite(state.aspect)?bound(state.aspect,.55,2.4):1.5;
     const w=Math.min(width,height*ratio),h=w/ratio,x=(width-w)*.5,y=(height-h)*.5;
     const unit=bound(Math.min(w/460,h/275),.70,1.7),inset=7*unit;

@@ -30,15 +30,15 @@
     }
     get other(){return this.lead==="guest"?"frankie":"guest";}
     save(){const s={met:this.met,lead:this.lead,motors:this.motors,...this.places},signature=JSON.stringify(s);if(signature!==this.lastSave&&put(key,s))this.lastSave=signature;}
-    remember(p,v){
-      const where=place({x:p.x,z:p.z,yaw:p.yaw,ride:v?.garageKey,flat:v?.flatSide,axle:v?.flatAxle},this.lead);
-      this.places[this.lead]=where;
-      if(v){this.motors[this.lead]={...where};if(this.motors[this.other]?.ride===where.ride)delete this.motors[this.other];}
+    remember(p,v,id=this.lead){
+      const where=place({x:p.x,z:p.z,yaw:p.yaw,ride:v?.garageKey,flat:v?.flatSide,axle:v?.flatAxle},id);
+      const other=id==="guest"?"frankie":"guest";this.places[id]=where;
+      if(v){this.motors[id]={...where};if(this.motors[other]?.ride===where.ride)delete this.motors[other];}
     }
     expose(image,info){
       if(!image)return null;
       const disk=loadFilm();if(disk.number>this.film.number||disk.number===this.film.number&&this.filmStored!==false)this.film=disk;
-      const frames=this.film.frames,r={...info,by:names.frankie,image,number:this.film.number+1};
+      const frames=this.film.frames,r={by:names.frankie,...info,image,number:this.film.number+1};
       if(!record(r))return null;
       this.film={frames:[...frames.slice(-5),r],number:r.number,pinned:this.film.pinned};
       this.filmStored=put(filmKey,this.film);return r;
@@ -59,7 +59,7 @@
       if(x<.05||x>.95||y<.07||y>.93||!clear(eye,o))continue;
       const composition=1-Math.min(1,Math.hypot((x-.5)*1.62,(y-.50)*1.45));
       const score=Math.round(46+36*composition+18*(1-Math.min(1,Math.abs(d-o.ideal)/o.range)));
-      if(!best||score>best.score)best={id:o.id,title:briefs[o.id],score};
+      if(!best||score>best.score)best={id:o.id,title:o.title||briefs[o.id],score};
     }
     return best;
   }

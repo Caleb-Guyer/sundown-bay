@@ -540,7 +540,7 @@
     });
   }
 
-  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard;
+  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -549,11 +549,14 @@
     const second=!!options?.second;
     const delivery=second&&typeof options?.deliveredBy==="string"?options.deliveredBy.trim().slice(0,48):"";
     const location=window.BaySecondUnit?.record(options?.location)?options.location:null;
-    if(schedule&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const windows=options?.windows||null;
+    if(schedule&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    if(listedWindows!==windows){listedWindows=windows;windowImages=null;}
     if(listedLocation!==location){listedLocation=location;locationCard=null;}
     listedRecord=saved;listedSkate=skate;listedPrint=print;listedSecond=second;listedDelivery=delivery;
     const list=[];
-    if(location)list.push(slot("location",location.title,"Second Unit · Frankie Prado · Frame "+location.number,5));
+    if(location)list.push(slot("location",location.title,"Second Unit · "+location.by+" · Frame "+location.number,5));
+    if(windows?.length===3)list.push(slot("windows",BayWindowSeat.filmTitle,"Cine Luna · Second Unit",12));
     if(skate)list.push(slot("skate","Curb Cut",film.title(skate.site)+" · "+skate.score+" pts",film.duration(skate)));
     if(saved)list.push(slot("stunt","One Good Take","Romy Vale & Jules · "+saved.distance.toFixed(1)+" m",5));
     if(print)list.push(slot("edition","Bay Wire","Mara Vega · Lot 14, Port Sol",4));
@@ -569,7 +572,7 @@
     const raw=Number.isFinite(time)?Math.floor(time*fps+.000001):0;
     const tick=((raw%programFrames)+programFrames)%programFrames;
     const decode=decodedStamp+(window.BaySkateFilm?.revision||0);
-    if(program===lastProgram&&tick===lastTick&&(projection.id!=="stunt"&&projection.id!=="skate"||lastDecode===decode))return projection;
+    if(program===lastProgram&&tick===lastTick&&(projection.id!=="stunt"&&projection.id!=="skate"&&projection.id!=="windows"||lastDecode===decode))return projection;
     let inSlot=tick,item=program[0];
     for(const entry of program){
       item=entry;
@@ -586,7 +589,15 @@
     else if(item.id==="tram")showTram(context,elapsed,item.credit);
     else if(item.id==="stunt")showStunt(context,listedRecord);
     else if(item.id==="skate")window.BaySkateFilm.draw(context,listedSkate,elapsed,width,height);
-    else if(item.id==="location"){
+    else if(item.id==="windows"){
+      if(!windowImages)windowImages=listedWindows.map(r=>{const im=new Image();im.onload=()=>decodedStamp++;im.src=r.image;return im;});
+      const i=Math.min(2,Math.floor(elapsed/4)),im=windowImages[i],r=listedWindows[i];
+      rect(context,0,0,width,height,"#262b2b");
+      if(im.naturalWidth){const w=height*1.5;context.drawImage(im,(width-w)/2,0,w,height);}
+      rect(context,0,height-28,width,28,"rgba(34,39,38,.9)");
+      label(context,BayWindowSeat.briefs[i].title,14,height-11,"italic bold 14px Georgia,serif",paper);
+      label(context,r.by+"   /   "+String(r.number).padStart(2,"0"),width-14,height-11,"bold 9px monospace",chalk,"right");
+    }else if(item.id==="location"){
       if(!locationCard){locationCard=surface(720,610);window.BayScoutPrints.print(locationCard,listedLocation);}
       rect(context,0,0,width,height,"#222825");const w=height*720/610;
       context.drawImage(locationCard,(width-w)*.5,0,w,height);

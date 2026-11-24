@@ -122,9 +122,44 @@
       stand:point(axis.x+dz*8.3,axis.z-dx*8.3),work:point(axis.x+dz*8.9,axis.z-dx*8.9)};
   }
   const stopped=v=>v&&Math.abs(v.speed)<1&&Math.hypot(v.vx,v.vz)<1;
-  class Service{
+  class StreetDriver{
+    constructor(vehicle){this.vehicle=vehicle;this.leg=null;this.berth=null;}
+    newLeg(path,stop){return {route:path,end:stop,at:0,offset:0,block:0,scan:0,space:Infinity,passing:false};}
+    drive(dt,environment){
+      const l=this.leg,v=this.vehicle;if(!l)return false;
+      const limit=l.stopAt??l.route.length,remaining=limit-l.at,look=l.route.sample(Math.min(limit,l.at+3.5));
+      l.scan-=dt;
+      if(l.scan<=0){
+        if(!l.stopAt&&remaining<25&&this.berth&&Math.abs(turn(v.yaw,l.end.yaw))<.70){
+          const available=this.berth(l.end,v);
+          if(gap(available,l.end)>.4){
+            l.route=pullIn(v,available);l.end=available;l.at=l.offset=l.block=l.passUntil=0;
+            return false;
+          }
+        }
+        l.scan=.14;const clear=environment.clearance(v,look.yaw,l,remaining);
+        l.space=clear.gap;l.passing=clear.pass;
+      }
+      l.block=l.space<2?l.block+dt:0;
+      const corner=Math.abs(turn(v.yaw,l.route.sample(Math.min(limit,l.at+8)).yaw));
+      const target=Math.min(l.pace??13.7,Math.sqrt(7.3*remaining),Math.sqrt(6.8*l.space),14/(1+2.3*corner));
+      const before=v.speed;v.speed+=clamp(target-v.speed,-6.4*dt,3.9*dt);
+      const step=Math.min(remaining,l.space,v.speed*dt);l.at+=step;
+      const q=l.route.sample(l.at),desired=l.stopAt?2.55*clamp(1-(limit-l.at)/10,0,1):0;
+      l.offset+=clamp((l.passing?-2.38:desired)-l.offset,-2.4*dt,2.4*dt);
+      const x=q.x+Math.cos(q.yaw)*l.offset,z=q.z-Math.sin(q.yaw)*l.offset,oldYaw=v.yaw;
+      v.vx=(x-v.x)/dt;v.vz=(z-v.z)/dt;v.x=x;v.z=z;
+      if(step>.0001)v.yaw+=turn(v.yaw,Math.atan2(v.vx,v.vz))*-Math.expm1(-9*dt);
+      v.steer=clamp(turn(oldYaw,v.yaw)/dt*.25,-.40,.40);v.lean=-v.steer*Math.min(.12,v.speed*.014);
+      v.brakes=target<before-.12||remaining<4?1:0;v.wheelSpin=(v.wheelSpin||0)+step/.32;
+      if(limit-l.at>.035)return false;
+      this.location=l.end;Object.assign(v,{x:l.end.x,z:l.end.z,yaw:l.end.yaw,speed:0,vx:0,vz:0,lean:0,steer:0,brakes:1});
+      this.leg=null;return true;
+    }
+  }
+  class Service extends StreetDriver{
     constructor(vehicle,memory){
-      this.vehicle=vehicle;this.memory=memory;this.location=stops.marlin;this.phase="idle";this.wait=27;this.trip=null;this.booking=null;this.leg=null;this.cursor=0;this.privateFare=null;
+      super(vehicle);this.memory=memory;this.location=stops.marlin;this.phase="idle";this.wait=27;this.trip=null;this.booking=null;this.leg=null;this.cursor=0;this.privateFare=null;
       this.people=cast.map((c,i)=>{
         const at=memory.at[c.id]||c.home,from=stops[at],settled=!!memory.at[c.id],away=at===c.job;
         const booth=settled&&c.id==="walt"&&at==="luna";
@@ -164,7 +199,6 @@
       this.leg=this.newLeg(route(this.location,stop),stop);
       return true;
     }
-    newLeg(path,stop){return {route:path,end:stop,at:0,offset:0,block:0,scan:0,space:Infinity,passing:false};}
     dispatch(){
       if(this.leg||this.trip||this.playerHeld)return;
       if(this.booking){
@@ -205,37 +239,6 @@
           stand:point(q.x+dz*5.6,q.z-dx*5.6)};return true;
       }
       return false;
-    }
-    drive(dt,environment){
-      const l=this.leg,v=this.vehicle;if(!l)return false;
-      const limit=l.stopAt??l.route.length,remaining=limit-l.at,look=l.route.sample(Math.min(limit,l.at+3.5));
-      l.scan-=dt;
-      if(l.scan<=0){
-        if(!l.stopAt&&remaining<25&&this.berth&&Math.abs(turn(v.yaw,l.end.yaw))<.70){
-          const available=this.berth(l.end,v);
-          if(gap(available,l.end)>.4){
-            l.route=pullIn(v,available);l.end=available;l.at=l.offset=l.block=l.passUntil=0;
-            return false;
-          }
-        }
-        l.scan=.14;const clear=environment.clearance(v,look.yaw,l,remaining);
-        l.space=clear.gap;l.passing=clear.pass;
-      }
-      l.block=l.space<2?l.block+dt:0;
-      const corner=Math.abs(turn(v.yaw,l.route.sample(Math.min(limit,l.at+8)).yaw));
-      const target=Math.min(13.7,Math.sqrt(7.3*remaining),Math.sqrt(6.8*l.space),14/(1+2.3*corner));
-      const before=v.speed;v.speed+=clamp(target-v.speed,-6.4*dt,3.9*dt);
-      const step=Math.min(remaining,l.space,v.speed*dt);l.at+=step;
-      const q=l.route.sample(l.at),desired=l.stopAt?2.55*clamp(1-(limit-l.at)/10,0,1):0;
-      l.offset+=clamp((l.passing?-2.38:desired)-l.offset,-2.4*dt,2.4*dt);
-      const x=q.x+Math.cos(q.yaw)*l.offset,z=q.z-Math.sin(q.yaw)*l.offset,oldYaw=v.yaw;
-      v.vx=(x-v.x)/dt;v.vz=(z-v.z)/dt;v.x=x;v.z=z;
-      if(step>.0001)v.yaw+=turn(v.yaw,Math.atan2(v.vx,v.vz))*-Math.expm1(-9*dt);
-      v.steer=clamp(turn(oldYaw,v.yaw)/dt*.25,-.40,.40);v.lean=-v.steer*Math.min(.12,v.speed*.014);
-      v.brakes=target<before-.12||remaining<4?1:0;v.wheelSpin=(v.wheelSpin||0)+step/.32;
-      if(limit-l.at>.035)return false;
-      this.location=l.end;Object.assign(v,{x:l.end.x,z:l.end.z,yaw:l.end.yaw,speed:0,vx:0,vz:0,lean:0,steer:0,brakes:1});
-      this.leg=null;return true;
     }
     leaveFare(){
       const p=this.privateFare;if(!p)return;
@@ -340,5 +343,5 @@
       if(!this.trip&&!this.leg&&!this.booking){this.wait-=dt;if(this.wait<=0)this.dispatch();}
     }
   }
-  window.BayCab={stops,cinema,cast,read,route,track:streetTrack,streetStop,stopped,Service};
+  window.BayCab={stops,cinema,cast,read,route,track:streetTrack,streetStop,stopped,StreetDriver,Service};
 })();
