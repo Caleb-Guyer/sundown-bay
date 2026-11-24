@@ -851,6 +851,19 @@
       if(visible(x,y)) cassette(ctx,x,y,(street?4.6:radar?3.7:4.75)*ui);
     }
     if(street&&opt.rainWalk)for(const r of BayRainWalk.racks)if(visible(px(r.x),py(r.z),2*s))BayRainCanopies.mapRack(ctx,px,py,s,r,opt.rainWalk.book.borrowed===r.id);
+    if(opt.campana){
+      const truck=opt.campana,v=truck.vehicle,x=px(v.x),y=py(v.z);
+      if(!street&&truck.book.met&&visible(x,y)){
+        ctx.save();ctx.translate(x,y);disc(ctx,0,0,5.6*ui,ink);disc(ctx,0,0,4.6*ui,"#df8267");
+        rect(ctx,-1.65*ui,-2.45*ui,3.3*ui,3.2*ui,"#fff2c9");rect(ctx,-.45*ui,.65*ui,.90*ui,1.7*ui,"#f6cc80");ctx.restore();
+      }
+      if(street)for(const [i,p] of BayCampana.stops.entries())if(visible(px(p.x),py(p.z)))BayCampanaArt.curbMap(ctx,px,py,s,p,truck.manual&&truck.phase==="drive"&&i===truck.next);
+      if(street)for(const person of truck.people)if(visible(px(person.x),py(person.z))){
+        personSprite(ctx,{...person,shirt:["#d1906c","#358b87","#e6b26f","#858bb6","#bb7976","#81a190"][person.style],skin:"#a77b64"},px(person.x),py(person.z),Math.max(2.3,s*1.42),false,rotation);
+        if(person.treat&&truck.exchange?.p!==person)BayCampanaArt.treatMap(ctx,px,py,s,person,person.treat,streetTime);
+      }
+    }
+    const passedPop=street&&opt.campana?.passing();if(passedPop)BayCampanaArt.treatMap(ctx,px,py,s,passedPop,passedPop.flavor,streetTime,true);
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){
@@ -893,6 +906,7 @@
         carSprite(ctx,car,x,y,s,streetTime);
         BayStreetCars.map(ctx,car,x,y,s,streetTime);
         if(car.soil)BayRoadGlass.map(ctx,car,x,y,s,streetTime);
+        if(car===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,car,opt.campana.open,opt.campana.bell,streetTime);
         if(opt.crew?.ride===car){
           const layout=bayCarLayout(car.kind);
           for(const side of [-1,1]){
@@ -1018,7 +1032,7 @@
       const rider=opt.boardwalk?.player;
       const projected=street&&rider?BayCoastWheelArt.mapPoint(rider):player,x=px(projected.x),y=py(projected.z);
       if(street) {
-        if(player.driving && !playerCar){carSprite(ctx,opt.streetCar||player,x,y,s,streetTime);if(opt.streetCar){BayStreetCars.map(ctx,opt.streetCar,x,y,s,streetTime);BayRoadGlass.map(ctx,opt.streetCar,x,y,s,streetTime);}}
+        if(player.driving && !playerCar){carSprite(ctx,opt.streetCar||player,x,y,s,streetTime);if(opt.streetCar){BayStreetCars.map(ctx,opt.streetCar,x,y,s,streetTime);BayRoadGlass.map(ctx,opt.streetCar,x,y,s,streetTime);if(opt.streetCar===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,opt.streetCar,opt.campana.open,opt.campana.bell,streetTime);}}
         for(const a of opt.motorists||empty)if(visible(px(a.x),py(a.z),4*s))BayMotorists.mapActor(ctx,a,px(a.x),py(a.z),s,streetTime,a===opt.valet?.staff?opt.valet.staffJob:null);
         if(opt.band)for(const p of opt.band.performers)if(visible(px(p.x),py(p.z),3*s))BayBandPlayers.mapActor(ctx,p,px(p.x),py(p.z),s,streetTime,opt.band);
         if(opt.cabService)for(const p of opt.cabService.people){
@@ -1039,6 +1053,7 @@
             ctx.save();if(opt.rainWalk.trip)ctx.globalAlpha*=.65;
             BayRainCanopies.map(ctx,px,py,s,player,opt.rainWalk.amount,opt.rainWalk.book.style,streetTime);ctx.restore();
           }
+          if(opt.paletaHeld)BayCampanaArt.treatMap(ctx,px,py,s,player,opt.paletaHeld,streetTime);
           if(opt.airCarried)BayAirmailArt.carryMap(ctx,opt,px,py,s,opt.airCarried,streetTime,BayAirPost.tagFor(opt.airLine.saved.bag));
           if(opt.deckHand)BaySkateArt.carryMap(ctx,opt,px,py,s,opt.deckHand,streetTime,opt.skate.saved.deck);
           if(opt.boardwalk?.run?.phase==="deliver"){const hand=BayDriving.world(player,.28,.08);rect(ctx,px(hand.x)-.12*s,py(hand.z)-.08*s,.24*s,.16*s,"#bd5347");}

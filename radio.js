@@ -676,6 +676,13 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="campana-bell"){
+      const gain=.095*Math.max(0,1-(source.distance||0)/56);if(gain<.001)return;
+      for(const [delay,hz] of [[0,784],[.17,988],[.38,784]]){
+        tone(effects,hz,at+delay,.34,gain,"sine",hz*.99,.003);
+        tone(effects,hz*2.04,at+delay,.09,gain*.28,"sine",hz*2,.002);
+      }return;
+    }
     if(name==="fm-tune"){
       // A preset key latches mechanically. The receiver passes through a short band of noise.
       tone(effects,285,at,.026,.027,"triangle",87,.002);
