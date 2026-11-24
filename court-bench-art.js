@@ -486,6 +486,11 @@
   function roomWorld(view,state,model,t){
     roomArt(model);view.draw("court-room-rail",rackX,0,rackZ,0,0,0,.52);
     for(const [k,id] of garments.entries())if(hanging(state,id))view.draw("court-room-"+id,rackX+hooks[k],0,rackZ,0,0,0,.52);
+    for(const [k,id] of (state.owned||[]).entries())if(id!==state.equipped){
+      const name="low-tide-fold/"+id;
+      model(name,g=>{const col=BayThreadsArt.colors[id];g.box(0,.035,0,.28,.07,.23,col);g.box(.023,.079,-.03,.17,.02,.15,col,.06);g.box(-.094,.072,.036,.040,.007,.055,"#e5d5ab");});
+      view.draw(name,rackX+(k-1.5)*.32,.11,rackZ+.047,0);
+    }
   }
   function append(out,make,x=0,y=0,z=0,pitch=0){
     const at=out.vertices.length;make(out);
@@ -611,6 +616,11 @@
       rackStamps.set(key,bake(g,(x,y,z)=>[x,-.94*z-.34*y,.94*y-.34*z],180));
     }
     drawStamp(ctx,rackStamps.get(key),px(rackX),py(rackZ),s);
+    for(const [k,id] of (state.owned||[]).entries())if(id!==state.equipped){
+      const x=px(rackX+(k-1.5)*.32),y=py(rackZ+.047)-.06*s;
+      ctx.fillStyle=BayThreadsArt.colors[id];ctx.fillRect(x-.14*s,y-.09*s,.28*s,.18*s);
+      ctx.fillStyle="#e5d5ab";ctx.fillRect(x-.10*s,y-.065*s,.045*s,.04*s);
+    }
   }
   const stations=new Map(),lastPanels=new Map();
   function projectAt(o){

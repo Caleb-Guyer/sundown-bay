@@ -4,6 +4,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+**Low Tide Exchange** is the striped clothing stall on the beach side of Ocean Drive, a few steps from the starting coupe. Press **F** beside Cora Vidal. Select a garment, turn in the fitting mirror, then take the free Tideline polo or spend job money on the No. 13 pit jacket (**$55**), Blue Hour jumpsuit (**$65**) or Netter’s work set (**$85**). Both leads share what you buy and remember what each is wearing. Change back at the stall or the clothes rail in Room 14.
+
+Cora buys three **Foto Bahía window prints**. For her first **$65**, wear the polo to the booth outside Room 14. Press **F**, choose three different poses with **1/2/3** between the flashes, then bring your strip to **Cora’s window commissions** at the stall. The booths work solo or with your hangout partner. Cora also pays for a Cine Luna jumpsuit strip and a two-person North Boardwalk workwear shoot. The picture you hand her goes on the front of the stall. Outfit changes leave developed prints intact.
+
 **On Green** runs start at real traffic lights. From the Marlin, take the coral coupe north on Ocean Drive. Ease up before the first crosswalk, brake with **S**, and tap **H** when Lena Ríos pulls alongside in her teal No. 13 hatch. Hold still until your signal turns green, then press **W**. First bumper to the clock past the Palm wins **$65**. Mo Lyle runs north on Luna Boulevard and Caro Pike runs west on Gantry Street. Each driver circles back through traffic for another run. **J → On Green · Timing slips** keeps your finish times, reactions, plates and results. On foot, press **F** at any of the three roadside clocks to mark its starting light.
 
 After a run, open a timing slip and choose **View replay** to watch the finish camera in slow motion. Drag the slider to check both front bumpers at the stripe. The phone keeps the latest finish and your personal-best replay for each starting light.

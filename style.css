@@ -404,3 +404,14 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .timing-film-controls{display:flex;gap:1rem;align-items:center;padding:.6rem 0 .9rem}
 .timing-film-controls button{min-width:5rem;padding:.35rem .7rem;border:1px solid #3d6153;background:#294d40;color:#f5ecd6;font:700 .85rem system-ui;cursor:pointer}
 .timing-film-controls input{flex:1;min-width:0;accent-color:#316754}
+.threads-fitting{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(110px,.9fr);gap:14px;align-items:center;margin:4px 0 12px}
+.threads-mirror{min-width:0;background:#344844;border:3px solid #8d7250;border-radius:5px;overflow:hidden}
+.threads-glass{width:100%;height:auto;display:block}
+.threads-rod{display:flex;border-top:1px solid #708074}
+.threads-rod button{flex:1;padding:5px 1px;cursor:pointer;background:#344844;color:#f6e6c4;border:0;font:600 12px system-ui}
+.threads-rod button+button{border-left:1px solid #708074}
+.threads-rail{display:grid;gap:6px}
+.threads-choice{border:1px solid #b6a98c;border-left:9px solid var(--cloth);background:#ecdec0;color:#34433e;cursor:pointer;text-align:left;font:650 14px system-ui;padding:9px 8px}
+.threads-choice[aria-pressed=true]{background:#364b43;color:#fff2d3}
+.threads-buy em{white-space:nowrap}
+@media(max-height:620px){.threads-glass{height:min(33vh,210px);object-fit:contain}.threads-rail{gap:3px}.threads-choice{padding:6px}}

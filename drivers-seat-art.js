@@ -400,6 +400,11 @@
     tube(.36,.74,.046,.035,.034,.027,"#b27e60");
     tube(.74,1.00,.034,.027,.026,.022,"#b47d5e");
     if(kit==="street")tube(0,.12,.049,.040,.049,.039,"#438e83");
+    if(window.BayThreadsArt?.colors[kit]){
+      const long=kit!=="tideline",end=long?.76:.25;
+      tube(0,end,.051,.043,long?.039:.050,long?.034:.042,BayThreadsArt.colors[kit]);
+      tube(end-.06,end+.01,long?.040:.051,long?.035:.044,long?.039:.051,long?.034:.043,kit==="tideline"?"#417b77":kit==="netter"?"#705b46":kit==="pitlane"?"#e1cba4":"#d89665");
+    }
     if(gloved)tube(.84,.985,.034,.027,.030,.024,"#635c4c");
     else if(side<0){tube(.66,.755,.038,.031,.037,.030,"#48524b");tube(.70,.732,.039,.032,.039,.032,"#a9b2a4");}
   }
@@ -502,7 +507,7 @@
       cache.set(body,true);
     }
     if(!cache.has(skin)){model(skin,g=>paintedHood(g,a,paint));cache.set(skin,true);}
-    const gloved=state.gloves??a.kind==="wrecker",kit=["sol","mercado"].includes(state.kit)?state.kit:"street",pose=key+"/wheel/"+(gloved?"work":"street")+"/"+kit;
+    const gloved=state.gloves??a.kind==="wrecker",kit=["sol","mercado"].includes(state.kit)||window.BayThreadsArt?.colors[state.kit]?state.kit:"street",pose=key+"/wheel/"+(gloved?"work":"street")+"/"+kit;
     let r=cache.get(pose);
     if(!r){r=buildMotion(a,gloved,kit);animate(r,a,v,state);view.add(pose,r,true);cache.set(pose,r);}
     else if(animate(r,a,v,state))view.updateAnimated(pose);

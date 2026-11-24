@@ -32,9 +32,10 @@
       }
       this.records.sort((a,b)=>b.stamp-a.stamp);
     }
-    keep(site,poses,lead,day,minute){
+    keep(site,poses,lead,day,minute,looks,solo=false){
       this.refresh();
       const r={site:site.id,poses:[...poses],lead,day,minute,stamp:Math.max(Date.now(),(this.records[0]?.stamp||0)+1)};
+      if(looks){r.looks={guest:looks.guest,frankie:looks.frankie};r.solo=solo;}
       if(!valid(r,site.id))return null;
       const local=this.records.filter(q=>q.site===site.id).slice(0,3).reverse().concat(r);
       this.records=[r,...this.records.filter(q=>q.site!==site.id||local.includes(q))];
@@ -110,5 +111,5 @@
       }
     }
   }
-  window.BayOffClock={sites,Album,Sitting,Afternoon,near(p){return sites.find(s=>gap(s.stand,p)<1.75);}};
+  window.BayOffClock={sites,Album,Sitting,Afternoon,valid,near(p){return sites.find(s=>gap(s.stand,p)<1.75);}};
 })();

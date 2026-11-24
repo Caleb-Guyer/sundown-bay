@@ -823,6 +823,9 @@
           ctx.save();ctx.textAlign="right";ctx.font="bold "+8*ui+"px system-ui";ctx.fillStyle="#f6eace";ctx.strokeStyle=ink;ctx.lineWidth=2.3*ui;
           ctx.strokeText("Beach patrol",x-8*ui,y-5*ui);ctx.fillText("Beach patrol",x-8*ui,y-5*ui);ctx.restore();
         }
+      }else if(!street&&place.kind==="threads"&&visible(x,y)){
+        ctx.save();ctx.translate(x,y);ctx.scale(ui,ui);disc(ctx,0,0,5.8,ink);disc(ctx,0,0,4.9,"#efb479");
+        ctx.strokeStyle=ink;ctx.lineWidth=.95;ctx.beginPath();ctx.moveTo(-.8,-2.5);ctx.quadraticCurveTo(1,-4,1,-2);ctx.lineTo(0,-1);ctx.lineTo(3.3,1.6);ctx.lineTo(-3.3,1.6);ctx.lineTo(0,-1);ctx.stroke();ctx.restore();
       }else if(!street&&place.kind==="luggage"&&visible(x,y)){
         ctx.save();ctx.translate(x,y);ctx.scale(ui,ui);disc(ctx,0,0,5.8,ink);disc(ctx,0,0,4.9,"#9fb99f");
         rect(ctx,-3,-1.3,6,3.7,ink);ctx.strokeStyle=ink;ctx.lineWidth=.85;ctx.strokeRect(-1.25,-2.45,2.5,1.6);ctx.restore();
@@ -876,6 +879,7 @@
     }
     const passedPop=street&&opt.campana?.passing();if(passedPop)BayCampanaArt.treatMap(ctx,px,py,s,passedPop,passedPop.flavor,streetTime,true);
     if(street&&opt.coffee&&visible(px(BayPalmCoffee.site.x),py(BayPalmCoffee.site.z),3*s))BayPalmCoffeeArt.map(ctx,px,py,s,BayPalmCoffee.site,opt.coffee.lifts);
+    if(street&&opt.threads&&visible(px(opt.threads.site.x),py(opt.threads.site.z),4*s))BayThreadsStall.map(ctx,px,py,s,opt.threads.site,streetTime,opt.threads.strip);
     if(street&&opt.luggage){
       const site=BayLeftLuggage.site;
       if(visible(px(site.x),py(site.z),3*s))BayLeftLuggageArt.map(ctx,px,py,s,site,opt.luggage.rack);
@@ -1053,8 +1057,9 @@
       const q=opt.crew,a=q.other;
       if(visible(px(q.desk.x),py(q.desk.z),4*s))BayScoutArt.mapDesk(ctx,px,py,s,q.desk,streetTime,q.print);
       for(const site of BayOffClock.sites)if(visible(px(site.x),py(site.z),4*s))BayFotoBoothArt.map(ctx,site,px,py,s,q.afternoon?.photo?.site===site,q.afternoon?.photo?.flash||0);
-      if(!q.afternoon?.photo&&!q.afternoon?.seated&&(!q.ride||q.afternoon?.phase==="out")&&visible(px(a.x),py(a.z),3*s)){
-        if(q.lead==="guest")BayScoutArt.mapPerson(ctx,px,py,s,a,streetTime,a.raised||0);
+      if((!q.afternoon?.photo||q.afternoon.photo.solo)&&!q.afternoon?.seated&&(!q.ride||q.afternoon?.phase==="out")&&visible(px(a.x),py(a.z),3*s)){
+        if(BayLowTide.custom(q.otherLook))BayThreadsArt.map(ctx,px(a.x),py(a.z),Math.max(3,s*1.8),{...a,lead:q.lead==="guest"?"frankie":"guest"},q.otherLook,rotation);
+        else if(q.lead==="guest")BayScoutArt.mapPerson(ctx,px,py,s,a,streetTime,a.raised||0);
         else personSprite(ctx,a,px(a.x),py(a.z),Math.max(3,s*1.8),true,rotation);
       }
     }
@@ -1084,6 +1089,7 @@
           else if(opt.band?.player){const p=opt.band.player;p.kit=player.kit;BayBandPlayers.mapActor(ctx,p,x,y,s,streetTime,opt.band);}
           else if(opt.keyMapActor)BayMotorists.mapActor(ctx,opt.keyMapActor,x,y,s,streetTime,opt.valet.focus);
           else if(opt.airwaves?.mixing)BayAirwavesBooth.mapOperator(ctx,px,py,s,player,streetTime,opt.airwaves);
+          else if(BayLowTide.custom(player.kit))BayThreadsArt.map(ctx,x,y,Math.max(3,s*1.8),player,player.kit,rotation);
           else if(opt.crew?.lead==="frankie")BayScoutArt.mapPerson(ctx,px,py,s,player,streetTime);
           else personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
           if(opt.rainWalk?.amount>.01){
