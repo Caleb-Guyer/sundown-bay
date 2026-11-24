@@ -61164,7 +61164,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return {rev:Number.isSafeInteger(raw?.rev)&&raw.rev>=0?raw.rev:0,number:Number.isSafeInteger(raw?.number)&&raw.number>=0?raw.number:0,log,records};
   }
   const block=c=>({x:c.x,z:c.z,w:Math.abs(Math.cos(c.yaw))*3+Math.abs(Math.sin(c.yaw))*1.22,d:Math.abs(Math.sin(c.yaw))*3+Math.abs(Math.cos(c.yaw))*1.22,bottom:0,top:1.56,streetProp:true});
-  function crew(name,p,role){return {...p,name,role,y:.1,yaw:0,seat:0,stride:0,speed:0};}
+  function crew(name,p,role){return {x:p.x,z:p.z,y:p.y??.1,yaw:p.yaw||0,name,role,seat:0,stride:0,speed:0};}
   function move(actor,target,dt,speed){
     const dx=target.x-actor.x,dz=target.z-actor.z,len=Math.hypot(dx,dz),d=Math.min(speed*dt,len);
     actor.speed=d/dt;
@@ -61178,7 +61178,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   class Company {
     constructor(v,book){
       this.v=v;this.site={bay:house};this.yieldKey="sevenYield";this.phase="standby";this.age=0;this.idle=15;
-      this.next=book.number%calls.length;this.call=calls[this.next];this.recent=null;this.joined=false;this.manual=false;this.holding=false;
+      this.next=book.number%calls.length;this.call=calls[this.next];this.recent=null;this.reserved=null;this.joined=false;this.manual=false;this.holding=false;
       this.mate=crew("Nel Baptiste",v,"mate");this.mate.seat=1;this.owners=calls.map(c=>crew(c.owner,c.start,"owner"));
       this.levels=[...zero];this.water=null;this.nozzleSide=0;this.fed=0;this.tank=320;this.pump=1;this.spent=0;this.hits=0;
     }
@@ -61293,7 +61293,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       if(this.phase==="working"){
         this.workTime+=dt;
-        if(this.holding){this.spray(dt,env);if(gap(env.hero,this.v)>21){this.handBack();env.line("Nel Baptiste","You’re at the end of the line. I’ll hold it here.");}}
+        if(this.holding){
+          const support=here(this.call,2.45,-2.38);
+          if(gap(this.mate,support)>.35)this.goFeet(support,dt,env);
+          else{this.mate.speed=0;this.mate.yaw+=turn(this.mate.yaw,Math.atan2(this.call.x-this.mate.x,this.call.z-this.mate.z))*Math.min(1,dt*6);}
+          this.spray(dt,env);if(gap(env.hero,this.v)>21){this.handBack();env.line("Nel Baptiste","You’re at the end of the line. I’ll hold it here.");}
+        }
         else if(!this.joined&&this.age>6){if(gap(this.mate,this.mateStand)>.45)this.goFeet(this.mateStand,dt,env);else this.spray(dt,env);}
         if(this.levels.every(n=>n<=.001)){
           this.recent=this.call;this.holding=false;this.water=null;this.v.pumpWorking=false;env.done(this.joined&&this.fed>.18);this.joined=false;this.go("stow");this.path=null;
@@ -62970,19 +62975,31 @@ window.buildBayCity = function buildBayCity(g,water) {
     axis:()=>Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),
     spray:()=>held("Space")&&!panel,
     clearJet(a,b){
-      for(let i=1;i<9;i++){const f=i/9,p={x:a.x+(b.x-a.x)*f,z:a.z+(b.z-a.z)*f};
-        if(BayDriving.clearance(engine7,p)<.03)return false;}
+      const site=company.call;
+      if(this.coverSite!==site){
+        this.coverSite=site;this.cover=solids.filter(o=>(o.x!==site.x||o.z!==site.z)&&Math.abs(o.x-site.x)<15+o.w*.5&&Math.abs(o.z-site.z)<15+o.d*.5);
+      }
+      if(BayCamera.safeFraction(a,b,this.cover)<.98)return false;
+      const nearby=cars.filter(v=>Math.abs(v.x-site.x)<16&&Math.abs(v.z-site.z)<16);
+      const steps=Math.max(2,Math.ceil(dist(a,b)/.44));
+      for(let i=1;i<steps;i++){const f=i/steps,p={x:a.x+(b.x-a.x)*f,z:a.z+(b.z-a.z)*f};
+        if(nearby.some(v=>BayDriving.clearance(v,p)<.03))return false;}
       return true;
     },
-    delay:()=>panel==="engine-house"||panel==="engine-book",
+    delay:()=>panel==="engine-house"||panel==="engine-book"||company.reserved!==null&&company.age<90,
     walkway:(a,b,v)=>recoveryWalkway(a,b,v,[company.call.stand,company.call.safe],cars.filter(c=>c!==v&&dist(c,b)<12&&!c.path)),
     line:speak,done:engineReward
   };
   function sevenStep(dt){
     const c=company;
     if(active?.engineSeven&&(heat||!c.manual&&!c.holding&&!car&&dist(hero,c.call)>140&&dist(hero,engine7)>85)){dropJob();}
+    if(c.phase==="standby"&&c.reserved!==null){
+      if(!panel&&sevenFree()&&onStreetFeet()&&dist(hero,BayEngineSeven.desk)<11)signForEngine(c.reserved);
+      else if(c.age>=90)c.reserved=null;
+    }
     const before=c.phase;c.step(dt,sevenEnv);
     if(before==="standby"&&c.phase==="outbound")broadcastDesk.queue.unshift("Traffic desk · Engine 7 is responding to "+c.call.title+". Watch for the red cab at the crossings.");
+    if(before==="return"&&c.phase==="standby"&&c.reserved!==null)note("Station Seven","Your driver’s seat is ready at the Gantry Street board.",5);
     if(c.holding&&!onStreetFeet())c.handBack();
     if(c.holding){
       const aim=BayDriving.world(hero,.24,.46);c.hand={...aim,y:hero.y+1.04};
@@ -63003,6 +63020,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   function joinSeven(){
     if(active&&!active.engineSeven)return false;
     active={engineSeven:true,job:sevenJob};company.joined=true;lastHud=lastMap=-10;return true;
+  }
+  function signForEngine(i){
+    company.reserved=null;company.dispatch(i,true);joinSeven();
+    speak("Nel Baptiste","Keys are in Seven. I’ll call the block when we turn onto it.");
   }
   function sevenWitness(){
     return company.owners.find((o,i)=>dist(hero,o)<2.35&&save.engineSeven.log.some(r=>r.kind===BayEngineSeven.calls[i].kind));
@@ -63041,7 +63062,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(c.holding){
       if(!c.tank)return ["F","Reserve tank · Walk to the pump panel"];
       const q=BayDriving.local(c.call,hero.x,hero.z);
-      return ["Space",q.z>-.72||dist(hero,c.call)>13||c.obstructed?"Walk around to the smoky side · E hand line back":"Hold to spray · A / D sweep · "+Math.round(c.tank)+" gal · E hand line back"];
+      return ["Space",q.z>-.72||dist(hero,c.call)>13||c.obstructed?"Walk around to the smoky side · E hand line back":"Hold to spray · Mouse or A / D to sweep · "+Math.round(c.tank)+" gal · E hand line back"];
     }
     if(active?.engineSeven&&car===engine7)return c.working?["E","Step out · Meet Nel at the line"]:c.canPark()?["F","Set the pump brake"]:["H","Response lights "+(engine7.responseLights?"on":"off")+" · Head for "+c.call.title];
     if(near==="line")return ["F","Take the branch line from Nel"];
@@ -63066,13 +63087,15 @@ window.buildBayCity = function buildBayCity(g,water) {
       signedNote(body,"Pick a radio call and take the driver’s seat. Nel rides alongside. At the smoking cart, stop by the curb and press F to set the pump brake.","Station Seven · Duty board");
       for(const [i,call] of BayEngineSeven.calls.entries()){
         body.append(makeButton(call.title,call.owner+" · "+district(call)+(saveBook.records[call.kind]?" · Best "+saveBook.records[call.kind]+"/100":""),"Take the wheel",()=>{
-          if(c.phase!=="standby"||!sevenFree())return;closePanel();c.dispatch(i,true);joinSeven();
-          speak("Nel Baptiste","Keys are in Seven. I’ll call the block when we turn onto it.");
+          if(c.phase!=="standby"||!sevenFree())return;closePanel();signForEngine(i);
         }));
       }
     }else{
       signedNote(body,c.phase==="standby"?"Engine 7 is on the apron.":c.phase==="return"||c.phase==="stow"?"The smoke is down. Seven is coming back in.":"Engine 7 is out on "+c.call.title+". You can meet Nel on foot and take the line.","Gantry Street watch");
       if(c.burning)body.append(makeButton(c.call.title,c.call.owner+" · "+district(c.call),"Mark the call",()=>clockPin({...c.call.stand,name:c.call.title,kind:"company-call"})));
+      if(!active&&c.phase!=="standby")body.append(makeButton(c.reserved===null?"Reserve the next driver’s seat":"Release the driver’s seat",
+        c.reserved===null?"Seven’s next run is "+BayEngineSeven.calls[c.next].title+". Meet the crew at this board when they return.":"The regular driver can take the next run.",
+        c.reserved===null?"Sign up":"Cancel",()=>{c.reserved=c.reserved===null?c.next:null;closePanel();if(c.reserved!==null)clockPin(BayEngineSeven.desk);}));
     }
     if(saveBook.log.length)body.append(makeButton("Company daybook",saveBook.log.at(-1).title,"Read slip",()=>{sevenPage=saveBook.log.length-1;openPanel("engine-book");}));
     if(active?.engineSeven)body.append(makeButton("Return the shift","The regular crew will finish the call.","Sign off",()=>{closePanel();dropJob();}));
@@ -63112,7 +63135,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       list.push(["company/seated/"+side,p.x,ground,p.z,engine7.yaw]);
     }
     const hand=c.holding?c.hand:c.phase==="working"?{...BayDriving.world(m,.15,.38),y:footLevel(m.x,m.z)+1.03}:null;
-    if(hand)BayEngineSceneArt.hose(list,model,c.socket,hand,t);
+    if(hand){
+      BayEngineSceneArt.hose(list,model,c.socket,hand,t);
+      model("seven-nozzle",g=>{
+        g.pole([0,0,-.13],[0,0,.23],.039,"#927447",7);g.pole([0,0,.15],[0,0,.26],.046,"#4b5a53",8);
+        g.pole([-.044,0,-.034],[-.044,.08,.021],.014,"#ac6544",5);g.pole([-.044,.08,.021],[.044,.08,.021],.014,"#ac6544",5);
+      });
+      list.push(["seven-nozzle",hand.x,hand.y,hand.z,c.holding?hero.yaw:m.yaw]);
+    }
     if(c.water)BayEngineSceneArt.water(list,model,c.water.from,c.water.to,t);
   }
 
@@ -67918,9 +67948,17 @@ window.buildBayCity = function buildBayCity(g,water) {
   const coffeeObstacles=solids.filter(o=>o!==BayPalmCoffee.block&&Math.abs(o.x-BayPalmCoffee.site.x)<o.w*.5+7&&Math.abs(o.z-BayPalmCoffee.site.z)<o.d*.5+7);
   function moveCamera(dt,t){
     if(company.holding&&held("Space")){
-      const aim=BayDriving.world(company.call,company.aimX,-.43),yaw=Math.atan2(aim.x-hero.x,aim.z-hero.z);
-      const eye=BayDriving.world({...hero,yaw},-.66,-1.92),yy=hero.y+1.78;
-      Object.assign(cam,{x:eye.x,z:eye.z,y:yy,yaw:Math.atan2(aim.x-eye.x,aim.z-eye.z),pitch:Math.atan2(1.06-yy,dist(eye,aim)),focal:1.44});return;
+      const site=company.call,aim=BayDriving.world(site,company.aimX*.48,-.5),face={...hero,yaw:Math.atan2(site.x-hero.x,site.z-hero.z)};
+      const anchor={x:hero.x,z:hero.z,y:hero.y+1.54},cover=sevenEnv.coverSite===site?sevenEnv.cover:cameraRig.obstacles;
+      let eye=BayDriving.world(face,-.15,.49),yy=anchor.y+.04;
+      for(const [side,back] of [[-1.22,-2.2],[-1.56,-.73],[1.5,-.82],[-1.58,.04],[1.46,.04]]){
+        const q={...BayDriving.world(face,side,back),y:hero.y+2.10};
+        if(BayDriving.clearance(engine7,q)<.36||BayCamera.safeFraction(anchor,q,cover)<.99)continue;
+        if([.24,.5,.76].some(f=>BayDriving.clearance(engine7,{x:q.x+(aim.x-q.x)*f,z:q.z+(aim.z-q.z)*f})<.19))continue;
+        eye=q;yy=q.y;break;
+      }
+      const focus={x:aim.x*.76+hero.x*.24,z:aim.z*.76+hero.z*.24};
+      Object.assign(cam,{x:eye.x,z:eye.z,y:yy,yaw:Math.atan2(focus.x-eye.x,focus.z-eye.z),pitch:Math.atan2(1.08-yy,dist(eye,focus)),focal:1.26});return;
     }
     if(theatre.run||theatre.visit){
       const watching=!!theatre.visit,shape=watching&&bayCarLayout(car.kind);
@@ -70643,6 +70681,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(e.target!==lookSurface()){resetPointer();return;}
     const dx=pointer.x===null?0:e.clientX-pointer.x,dy=pointer.y===null?0:e.clientY-pointer.y;
     pointer.x=e.clientX;pointer.y=e.clientY;
+    if(company.holding&&held("Space")){pointer.edgeX=0;company.aimX=clamp(company.aimX+dx*.009*cameraRig.sensitivity,-1.8,1.8);return;}
     // Edge turning allows a full orbit with the pointer free to leave the window.
     const edge=18;pointer.edgeX=e.clientX<edge?-(1-e.clientX/edge):e.clientX>innerWidth-edge?1-(innerWidth-e.clientX)/edge:0;
     if(unit.eye){scoutLook(dx*.003*cameraRig.sensitivity,-dy*.0026*cameraRig.sensitivity);return;}

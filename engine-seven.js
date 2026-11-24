@@ -23,7 +23,7 @@
     return {rev:Number.isSafeInteger(raw?.rev)&&raw.rev>=0?raw.rev:0,number:Number.isSafeInteger(raw?.number)&&raw.number>=0?raw.number:0,log,records};
   }
   const block=c=>({x:c.x,z:c.z,w:Math.abs(Math.cos(c.yaw))*3+Math.abs(Math.sin(c.yaw))*1.22,d:Math.abs(Math.sin(c.yaw))*3+Math.abs(Math.cos(c.yaw))*1.22,bottom:0,top:1.56,streetProp:true});
-  function crew(name,p,role){return {...p,name,role,y:.1,yaw:0,seat:0,stride:0,speed:0};}
+  function crew(name,p,role){return {x:p.x,z:p.z,y:p.y??.1,yaw:p.yaw||0,name,role,seat:0,stride:0,speed:0};}
   function move(actor,target,dt,speed){
     const dx=target.x-actor.x,dz=target.z-actor.z,len=Math.hypot(dx,dz),d=Math.min(speed*dt,len);
     actor.speed=d/dt;
@@ -37,7 +37,7 @@
   class Company {
     constructor(v,book){
       this.v=v;this.site={bay:house};this.yieldKey="sevenYield";this.phase="standby";this.age=0;this.idle=15;
-      this.next=book.number%calls.length;this.call=calls[this.next];this.recent=null;this.joined=false;this.manual=false;this.holding=false;
+      this.next=book.number%calls.length;this.call=calls[this.next];this.recent=null;this.reserved=null;this.joined=false;this.manual=false;this.holding=false;
       this.mate=crew("Nel Baptiste",v,"mate");this.mate.seat=1;this.owners=calls.map(c=>crew(c.owner,c.start,"owner"));
       this.levels=[...zero];this.water=null;this.nozzleSide=0;this.fed=0;this.tank=320;this.pump=1;this.spent=0;this.hits=0;
     }
@@ -152,7 +152,12 @@
       }
       if(this.phase==="working"){
         this.workTime+=dt;
-        if(this.holding){this.spray(dt,env);if(gap(env.hero,this.v)>21){this.handBack();env.line("Nel Baptiste","You’re at the end of the line. I’ll hold it here.");}}
+        if(this.holding){
+          const support=here(this.call,2.45,-2.38);
+          if(gap(this.mate,support)>.35)this.goFeet(support,dt,env);
+          else{this.mate.speed=0;this.mate.yaw+=turn(this.mate.yaw,Math.atan2(this.call.x-this.mate.x,this.call.z-this.mate.z))*Math.min(1,dt*6);}
+          this.spray(dt,env);if(gap(env.hero,this.v)>21){this.handBack();env.line("Nel Baptiste","You’re at the end of the line. I’ll hold it here.");}
+        }
         else if(!this.joined&&this.age>6){if(gap(this.mate,this.mateStand)>.45)this.goFeet(this.mateStand,dt,env);else this.spray(dt,env);}
         if(this.levels.every(n=>n<=.001)){
           this.recent=this.call;this.holding=false;this.water=null;this.v.pumpWorking=false;env.done(this.joined&&this.fed>.18);this.joined=false;this.go("stow");this.path=null;
