@@ -26,15 +26,21 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,mode+"-"+name+".jpg"),Buffer.from(image.data,"base64"));
   }
   const hooks=`
-    window.phases=new Set();window.crossed=new Set();window.peaks=[0,0];
+    window.phases=new Set();window.crossed=new Set();window.peaks=[0,0];window.framed=false;window.minScale=1;
     window.seenGreen=false;window.seenRed=false;window.badLight=false;
     const originalMap=window.drawBayMap;window.drawBayMap=function(c,o){
       if(o.mode==="radar"&&o.coffee){
-        window.me=o.player;window.trip=o.coffee;window.simTime=o.streetTime;
+        window.me=o.player;window.trip=o.coffee;window.simTime=o.time;
         const r=trip.bea.crossing;if(r?.entered&&trip.stage==="walk")crossed.add(r.axis);
-      }return originalMap(c,o);
+      }if(o.mode==="street"&&o.coffee?.stage==="sip"&&c.canvas.height/o.scale<7)framed=true;
+      return originalMap(c,o);
     };
     const updateCamera=BayCamera.prototype.update;BayCamera.prototype.update=function(...a){const result=updateCamera.apply(this,a);window.head=this.yaw;return result;};
+    const beginView=BayView.prototype.begin;BayView.prototype.begin=function(eye,...rest){
+      minScale=Math.min(minScale,this.scale);
+      if(window.trip?.stage==="sip"&&eye.y<2.3&&Math.hypot(eye.x-BayPalmCoffee.site.x,eye.z-BayPalmCoffee.site.z)<3.4)framed=true;
+      return beginView.call(this,eye,...rest);
+    };
     const art=window.BayCrosswalkArt,method=${JSON.stringify(mode==="street"?"world":"map")};
     window.BayCrosswalkArt={...art,[method](...a){
       const sig=a[method==="world"?1:4],phase=a[method==="world"?2:5],time=a[method==="world"?3:6];
@@ -50,18 +56,20 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
   try{
     await js(hooks);await waitFor("window.me&&Number.isFinite(window.head)");
     await walk("BayPalmCoffee.home",1.5);await tap("KeyF");await waitFor("trip.stage==='walk'");
-    await walk("trip.bea",1.25,"trip.stage==='table'",265);await snap("window");
+    await walk("trip.bea",1.25,"trip.stage==='table'",350);await snap("window");
     const stats=await js("({phases:[...phases],crossed:[...crossed],seenGreen,seenRed,badLight})");
     assert.deepEqual(stats.crossed.sort(),["x","z"]);assert(stats.phases.includes("walk")&&stats.phases.includes("finish")&&stats.seenGreen&&stats.seenRed&&!stats.badLight,JSON.stringify(stats));
     await walk("({x:BayPalmCoffee.site.x+.1,z:BayPalmCoffee.site.z-1.35})",.55);
     await walk("({x:BayPalmCoffee.guest.x,z:BayPalmCoffee.site.z-1.32})",.55);
     await walk("BayPalmCoffee.guest",.44);await tap("KeyF");await waitFor("trip.stage==='sip'");
-    await waitFor("peaks[0]>.8&&peaks[1]>.35",30000);await snap("coffee");
+    await waitFor("peaks[0]>.8&&peaks[1]>.35&&framed",30000);
+    assert((await js("document.querySelector('#context').textContent")).includes("Put the cup down"));await snap("coffee");
     await waitFor("trip.cups===1&&trip.stage===''",30000);
+    const scale=await js("minScale");
     assert.equal(await js("audioStarts+cursorRequests"),0);
     await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayPalmCoffee==='object'");
     assert.equal(await js("new BayPalmCoffee.Break({}).cups"),1);
     assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
-    console.log("PASS live",mode,"walked from the Marlin, crossed both streets with Bea, watched both lights hold traffic, lifted both cups and recovered the visit after reload.");
+    console.log("PASS live",mode,"walked from the Marlin, crossed both streets with Bea, watched both lights hold traffic, lifted both cups and recovered the visit after reload. Minimum render scale",scale);
   }finally{await controls([]);}
 };

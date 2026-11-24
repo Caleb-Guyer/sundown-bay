@@ -61406,10 +61406,16 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(works.rearView&&car&&works.trailer.hitched===car){span=25;ahead=-3;beside=0;}
     if(club.show){span=club.show.wide?15:23;ahead=beside=0;}
     if(!car&&BayPalmDiner.contains(hero.x,hero.z)){span=palm.playerSeat?20:26;ahead=1.2;}
+    if(coffee.stage==="walk"||coffee.stage==="table"){span=coffee.stage==="walk"?29:16;ahead=1.5;}
     f.span=ease(f.span,span,4.7,dt);f.ahead=ease(f.ahead,ahead,4.7,dt);f.beside=ease(f.beside,beside,5.5,dt);
   }
   const keyView={mix:0,x:0,z:0};
+  const coffeeFrame={mix:0,active:false,yaw:0,tilt:0};
+  const coffeeObstacles=solids.filter(o=>o!==BayPalmCoffee.block&&Math.abs(o.x-BayPalmCoffee.site.x)<o.w*.5+7&&Math.abs(o.z-BayPalmCoffee.site.z)<o.d*.5+7);
   function moveCamera(dt,t){
+    const drinking=coffee.stage==="sip";
+    if(drinking&&!coffeeFrame.active){coffeeFrame.yaw=cameraRig.yaw;coffeeFrame.tilt=cameraRig.elevation;}
+    coffeeFrame.active=drinking;coffeeFrame.mix=ease(coffeeFrame.mix,drinking?1:0,drinking?4.8:5.6,dt);
     if(unit.transition&&!unit.transition.braking&&!panel){crewAerial(dt);return;}
     if(unit.eye?.window&&!panel){const l=unit.eye;Object.assign(cam,windowEye(),{yaw:l.yaw,pitch:l.pitch,focal:1.50*l.zoom});return;}
     if(unit.eye&&!panel){const lens=unit.eye;Object.assign(cam,{x:hero.x+.12*Math.cos(lens.yaw),y:hero.y+1.61,z:hero.z-.12*Math.sin(lens.yaw),yaw:lens.yaw,pitch:lens.pitch,focal:1.55*lens.zoom});return;}
@@ -61542,6 +61548,16 @@ window.buildBayCity = function buildBayCity(g,water) {
       cam.x+=(eye.x-cam.x)*f;cam.z+=(eye.z-cam.z)*f;cam.y+=(y-cam.y)*f;
       cam.yaw+=angle(cam.yaw,Math.atan2(keyView.x-eye.x,keyView.z-eye.z))*f;
       cam.pitch+=(-.13-cam.pitch)*f;cam.focal+=(1.60-cam.focal)*f;
+    }
+    if(coffeeFrame.mix>.002&&!isTop()){
+      const f=coffeeFrame.mix,site=BayPalmCoffee.site,aim={x:site.x,y:site.y+1.15,z:site.z};
+      const yaw=-.32+angle(coffeeFrame.yaw,cameraRig.yaw),tilt=clamp(.16+cameraRig.elevation-coffeeFrame.tilt,-.11,.86);
+      const range=2.7*cameraRig.zoom,flat=range*Math.cos(tilt);
+      const eye={x:aim.x-Math.sin(yaw)*flat,y:aim.y+Math.sin(tilt)*range,z:aim.z-Math.cos(yaw)*flat};
+      const space=BayCamera.safeFraction(aim,eye,coffeeObstacles);
+      cam.x+=(aim.x+(eye.x-aim.x)*space-cam.x)*f;cam.z+=(aim.z+(eye.z-aim.z)*space-cam.z)*f;
+      cam.y+=(aim.y+(eye.y-aim.y)*space-cam.y)*f;cam.yaw+=angle(cam.yaw,yaw)*f;
+      cam.pitch+=(-tilt-cam.pitch)*f;cam.focal+=(1.66-cam.focal)*f;
     }
   }
   function collectMap(modeName,cx,cz,scale){
@@ -62110,6 +62126,11 @@ window.buildBayCity = function buildBayCity(g,water) {
         state.cx+=(keyView.x-state.cx)*keyView.mix;state.cz+=(keyView.z-state.cz)*keyView.mix;
         state.scale+=(h/(5.9*cameraRig.zoom)-state.scale)*keyView.mix;
       }
+      if(coffeeFrame.mix>.002){
+        const f=coffeeFrame.mix,site=BayPalmCoffee.site;
+        state.cx+=(site.x-state.cx)*f;state.cz+=(site.z-state.cz)*f;
+        state.scale+=(h/(5.6*cameraRig.zoom)-state.scale)*f;
+      }
       if(pickup){
         const ball=BayCourtPlaces.mapPoint(pickup.ball,pickup.site),focus=pickup.at(0,3.35);
         state.cx=focus.x*.50+hero.x*.32+ball.x*.18;state.cz=focus.z*.50+hero.z*.32+ball.z*.18;
@@ -62382,13 +62403,14 @@ window.buildBayCity = function buildBayCity(g,water) {
         }else visible.push([playerModel,hero.x,hero.y+motion.lift,hero.z,hero.yaw]);
       }
     }
-    if(view.beginShadow()){
+    if(view.scale>.74&&view.beginShadow()){
       for(const a of visible)if(Math.abs(a[1]-eye.x)<65&&Math.abs(a[3]-eye.z)<65)view.draw(...a);
       BayStreetArt.draw(view,streetTime,cam,true);
       view.endShadow();
     }else{
       for(const v of cars)if(see(v,83)&&!(film&&BayTake.onSet(v)))view.draw("shadowCar",v.x,v.z>181?footLevel(v.x,v.z)+.05:.145,v.z,v.yaw);
       for(const v of patrol)if(see(v,83))view.draw("shadowCar",v.x,v.z>181?footLevel(v.x,v.z)+.05:.145,v.z,v.yaw);
+      for(const w of walkers)if(!w.palmPassenger&&!w.onTour&&see(w,38))view.draw("shadowFoot",w.x,footLevel(w.x,w.z)+.067,w.z,w.yaw);
       if(!airLine.aboard&&!car&&!skiff&&!swim&&!film)view.draw("shadowFoot",hero.x,hero.y+.025,hero.z,hero.yaw);
     }
     if(atSea){shorePeople(visible,see,t,false);if(swim)BaySwimmerArt.world(visible,swim.actor(hero),t,hours);}
@@ -62861,11 +62883,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     const pastCaller=!active&&!heat&&onStreetFeet()?recovery.people.find(p=>p.phase==="home"&&dist(p,hero)<2.7):null;
     courtHud();drumHud();
     const drain=curbDrain(),corner=cornerAction();
-    if(paletaHint()){ /* Nina or the next customer has the window. */ }
+    if(coffee.stage&&corner)contextHint(corner.startsWith("Walk light")||corner.startsWith("Flashing hand")?"":"F",corner);
+    else if(coffee.stage==="walk"||coffee.stage==="table")contextHint("",coffee.stage==="table"?"Bea’s at the coffee shelf · Come around to the green cup":coffee.bea.coffeePause?"Bea’s waiting on the sidewalk":"Walk with Bea to the Palm Diner");
+    else if(paletaHint()){ /* Nina or the next customer has the window. */ }
     else if(drain){contextHint(drain.cleared?"":"L",drain.cleared?"Curb drain clear · "+drain.name:drain.work?"Lifting leaves · "+Math.round(drain.work*100)+"%":"Hold to lift the leaves from the curb drain");}
     else if(!active&&!unit.eye&&!afternoon.photo&&(wireDeskNear()||wireWitnessNear()))contextHint("F",wireDeskNear()?"Bay Wire · Meli’s curb desk":"Watch the clip with "+(curbWire.author.curbName||curbWire.author.name));
     else if(corner)contextHint(corner.startsWith("Walk light")||corner.startsWith("Flashing hand")?"":"F",corner);
-    else if(coffee.stage==="walk"||coffee.stage==="table")contextHint("",coffee.stage==="table"?"Bea’s at the coffee shelf · Come around to the green cup":coffee.bea.coffeePause?"Bea’s waiting on the sidewalk":"Walk with Bea to the Palm Diner");
     else if(crewHint()){ /* The character on location supplies the prompt. */ }
     else if(broadcastDesk.mix)contextHint("E",broadcastDesk.mix.result?"Step away · Space try again · F sleeve book":"Step away · V change view");
     else if(umbrellaHint()){ /* Loan stand or companion. */ }
@@ -64029,18 +64052,20 @@ window.buildBayCity = function buildBayCity(g,water) {
   });
   addEventListener("blur",()=>{keys.clear();resetPointer();if(play&&!panel)openPanel("pause");});
   document.addEventListener("visibilitychange",()=>{if(document.hidden){keys.clear();if(play)saveTime();if(play&&!panel)openPanel("pause");}});
-  let last=performance.now(),lateSeconds=0,spareSeconds=0,lastIntroPaint=0,lastMenuPaint=0;
+  let last=performance.now(),lateSeconds=0,spareSeconds=0,verySlowFrames=0,lastIntroPaint=0,lastMenuPaint=0;
   function tuneStreetResolution(seconds,streetView){
-    if(!streetView||seconds<=0||seconds>.16){lateSeconds=spareSeconds=0;return;}
+    if(!streetView||seconds<=0||seconds>2.5){lateSeconds=spareSeconds=verySlowFrames=0;return;}
+    verySlowFrames=seconds>.13?Math.min(8,verySlowFrames+1):Math.max(0,verySlowFrames-2);
+    const floor=verySlowFrames>=6?.52:.64;
     if(seconds>1/29){
-      lateSeconds=Math.min(1,lateSeconds+seconds*(seconds>.048?1.5:1));
+      lateSeconds=Math.min(1,lateSeconds+Math.min(.09,seconds)*(seconds>.048?1.5:1));
       spareSeconds=0;
     }else{
       lateSeconds=Math.max(0,lateSeconds-seconds*.7);
       spareSeconds=seconds<1/48?Math.min(9,spareSeconds+seconds):0;
     }
-    if(lateSeconds>=.82&&view.scale>.64){
-      view.scale=Math.max(.64,Math.round((view.scale-.12)*100)/100);
+    if(lateSeconds>=.82&&view.scale>floor){
+      view.scale=Math.max(floor,Math.round((view.scale-.12)*100)/100);
       lateSeconds=spareSeconds=0;
     }else if(spareSeconds>=9&&view.scale<1){
       view.scale=Math.min(1,Math.round((view.scale+.06)*100)/100);
