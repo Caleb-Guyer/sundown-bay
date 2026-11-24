@@ -1,7 +1,7 @@
 /* The shop takes a rubbing from both rear tires after a closed turn on its apron. */
 (() => {
   "use strict";
-  const pad={x:-93,z:21,yaw:0,name:"Portside Tire · Chalk circle"};
+  const pad={x:-93,z:21,yaw:0,name:"Portside Tire · Chalk circle"},apronY=.116;
   const rail={x:pad.x,z:pad.z+6.9,w:2.45,d:.45,top:1.72,bottom:0};
   const sides=["left","right"],tau=Math.PI*2,round=x=>Math.round(x*100)/100;
   function read(raw){
@@ -53,6 +53,11 @@
     surface.push({color,points:[[x+a,z+b],[xx+a,zz+b],[xx-a,zz-b],[x-a,z-b]]});
   }
   // Fragments of old line paint and short chalk strokes stay legible through fresh rubber.
+  for(const [x,z,xx,zz] of [[-6.1,-3.7,-4.6,-3.1],[-4.6,-3.1,-3.7,-3.24],
+    [2.5,5.98,2.7,4.95],[2.7,4.95,3.15,4.1],[3.15,4.1,2.98,3.87],[-5.91,2.6,-5.04,2.24]])
+    stripe(x,z,xx,zz,.035,"#555b59");
+  for(const side of [-1,1])for(const x of [2.6,3.5,4.4,5.3])
+    stripe(side*x,-5.9,side*(x+.49),-5.9,.11,"#b8a275");
   for(let i=0;i<64;i++){
     if(i%8>=5||i===17)continue;
     const a=i*tau/64,b=a+tau/64;
@@ -75,7 +80,7 @@
   }
   function install(model){
     model("carbon-apron",g=>{
-      g.box(0,-.036,0,12.25,.06,12.45,"#686969");
+      g.box(0,-.031,0,12.25,.062,12.45,"#656969");
       for(const q of surface)g.quad(...q.points.map(([x,z])=>[x,.006,z]),q.color);
       for(const x of [-1,1]){
         g.box(x,.77,6.92,.07,1.54,.08,"#62766d");g.box(x,.06,6.92,.42,.12,.47,"#675b4e");
@@ -84,7 +89,8 @@
     });
     model("carbon-print",g=>{for(const [x,y,u,w] of [[-.53,-.30,0,1],[.53,-.30,1,1],[.53,.30,1,0],[-.53,-.30,0,1],[.53,.30,1,0],[-.53,.30,0,0]])g.vertices.push(x,y,0,u,w,0);});
   }
-  function world(view,book,y){
+  function world(view,book){
+    const y=apronY;
     view.draw("carbon-apron",pad.x,y,pad.z,0);
     if(!view.drawPrint||view.basis.camera.z>rail.z)return;
     for(const [i,side] of sides.entries()){
@@ -100,5 +106,5 @@
     for(const [i,side] of sides.entries())ctx.drawImage(poster(book,side).canvas,-1.1+i*1.14,-6.87,1.06,.60);
     ctx.restore();
   }
-  window.BayCarbonCopies={pad,rail,sides,read,contacts,step,file,install,world,map};
+  window.BayCarbonCopies={pad,rail,apronY,sides,read,contacts,step,file,install,world,map};
 })();

@@ -618,6 +618,7 @@
   const district=(p)=>BayGullKey.siteAt(p.x,p.z)?.name??(BayCut.area(p)?(p.x>BayCut.coast(p.z)+2?"Pelican Sound":"Pelican Cut"):p.x>335?"Outer Sound":p.x>216?"Breakwater Bay":p.x>158?"Sol Beach":p.x>112?"Ocean Drive":p.x< -102&&p.z<10?"Port Sol":p.z< -92?"El Mercado":p.z>96&&p.x>43?"Boardwalk":p.x< -65?"Old Palms":"Neon Mile");
   const formatVehicle=v=>v===iceVan?"La Campana":genres[v.kind].name;
   function footLevel(x,z){
+    if(Math.abs(x-carbon.pad.x)<6.13&&Math.abs(z-carbon.pad.z)<6.23)return carbon.apronY;
     const deck=jumps.deck(x,z);if(deck)return deck.base+jumps.elevation(deck,x,z);
     const yard=BayButtonwoodYard.surface(x,z);if(yard!=null)return yard;
     const lot=BayBrisas.floor(x,z);if(lot!=null)return lot;
@@ -3530,7 +3531,7 @@
     }
   }
   function greenStep(dt){
-    const old=green.run,event=green.step(dt,streetTime,car,greenFree(),held("KeyW","ArrowUp")),a=green.run;
+    const old=green.run,event=green.step(dt,streetTime,car,greenFree(),held("KeyW","ArrowUp")&&!held("KeyS","ArrowDown")),a=green.run;
     for(const s of green.sites)if(s.runOut)greenPassing(s.runOut,dt);
     if(old&&old!==a)old.s.v.greenGesture=0;
     if(a){a.s.v.greenGesture=a.phase==="running"?0:clamp(a.age*3,0,1)*(.79+.19*Math.cos(a.age*5.2));greenPassing(a,dt);}
@@ -3545,7 +3546,7 @@
     if(event==="armed"){note("On Green · "+r.driver,"Hold here. Watch the traffic light.",2.3);return;}
     if(event==="go"){note("Green","First to the "+r.landmark+".",1.35);return;}
     const winner=event==="first",early=event==="early";
-    const slip={token:a.token,result:event,time:early?null:a.clock,reaction:early?null:a.react,car:formatVehicle(car),plate:BayStreetCars.plateFor(car),film:a.film||null};
+    const slip={token:a.token,result:event,time:early?null:a.clock,reaction:early?null:a.react,launch:a.launch||null,toThirty:a.toThirty??null,car:formatVehicle(car),plate:BayStreetCars.plateFor(car),film:a.film||null};
     syncProgress(readSave());
     if(BayOnGreen.file(save.green,r.id,slip)){if(winner){save.wallet+=r.pay;save.paid++;}persist();}
     if(early)a.s.clock=0;
@@ -3579,7 +3580,8 @@
       const walk=BayCrosswalk.phase(t,streetTime);
       $("objectiveText").textContent="Hold the line";
       $("roadTurn").textContent=["clear","walk","finish"].includes(walk)?"Pedestrian crossing · Wait for the green light":a.sawRed?"Light is red · Wait for green":"Wait for the next green";
-      return ["","Watch the signal  ·  W to launch"];
+      if(car.burn>.25)return ["S","Release brake on green · "+tireFeedback(car)];
+      return ["",BayDriving.rearDrive.has(car.kind)?"W to launch · Hold W + S to warm the rear tires":"Watch the signal · W to launch"];
     }
     const diff=BayOnGreen.nose(r,car)-BayOnGreen.nose(r,a.s.v);
     $("objectiveText").textContent=r.landmark+"  ·  "+Math.max(0,Math.ceil(r.finish-BayOnGreen.nose(r,car)))+" m";
@@ -3599,6 +3601,7 @@
       line("strong","slip-time",slip.time==null?"RED":slip.time.toFixed(2)+" s");
       line("span","slip-car",slip.car+"  /  "+slip.plate);
       line("span","slip-launch",slip.reaction==null?"No launch time":"Reaction "+slip.reaction.toFixed(2)+" s");
+      if(slip.toThirty!=null)line("span","slip-split","0–30 MPH   "+slip.toThirty.toFixed(2)+" s"+(slip.launch?"   /   "+({cold:"Cold start",ready:"Warm tires",hot:"Hot tires"})[slip.launch]:""));
       line("span","slip-signed","Timed against "+r.driver);b.append(paper);
       if(slip.film)b.append(makeButton("Finish camera","The last second at the timing line.","View replay",()=>openPanel("green-film-"+r.id)));
       if(c.bestSlip?.film)b.append(makeButton("Personal best · "+c.best.toFixed(2)+" s",c.bestSlip.car+" · "+c.bestSlip.plate,"View best",()=>openPanel("green-best-"+r.id)));
@@ -5884,6 +5887,9 @@
     copySide=side;save.copies.known=true;persist();openPanel("carbon-copies",true);
   }
   function atCopyRail(){return !active&&onStreetFeet()&&!unit.eye&&!roofs.raised&&dist(hero,carbon.rail)<3.25;}
+  function tireFeedback(v){
+    return {cold:"Rear tires warming",ready:"Rear tires ready",hot:"Rear tires overheated"}[BayDriving.tireState(v)];
+  }
   function copyHint(){
     if(atCopyRail())return ["F","Read Romy’s carbon copies"];
     if(!car||transfer||active||heat||dist(car,carbon.pad)>7)return null;
@@ -7618,7 +7624,7 @@
       model(name,g=>g.box(0,0,0,.87,.25,.05,color));
       view.draw(name,garage.x-3.70,4.28,garage.z+garage.halfDepth+.42);
     }
-    if(see(carbon.pad,77))carbon.world(view,save.copies,.085);
+    if(see(carbon.pad,77))carbon.world(view,save.copies);
     drawSkids();
     const visible=[],owned=transfer?.v||car;
     if(play){
@@ -8183,6 +8189,7 @@
     const damaged=car&&BayRecovery.worst(car);
     $("tireCall").hidden=(!car?.flatSide&&(!damaged||car.damage[damaged]<.17))||!!transfer;
     if(!$("tireCall").hidden)$("tireCall").textContent=car.flatSide?tireStatus(car):BayRecovery.faultText(car);
+    else if(car&&!transfer&&car.burn>.20){$("tireCall").hidden=false;$("tireCall").textContent=tireFeedback(car);}
     $("speed").innerHTML=skiff&&!deckStep?'<em class="gear">'+(skiff.speed<-.6?"ASTERN":skiff.trim>.35?"TRIM UP":"AHEAD")+'</em>'+Math.round(Math.abs(skiff.speed)*1.944)+"<small>KN</small>":
       car&&!transfer?'<em class="gear">'+(car.reversing?"R":"D"+car.gear)+'</em>'+Math.round(Math.abs(car.speed)*2.237)+"<small>MPH</small>":"";
     if(skiff===manta&&mantaRide.air)$("speed").innerHTML='<em class="gear">AIR</em>'+mantaRide.height.toFixed(1)+"<small>M</small>";
@@ -9750,7 +9757,7 @@
       if(!pickup&&!room&&!boardwalk.player&&!cabs.playerHeld&&!windowRide?.held&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??(transit.aboard?transit.bus.speed:null)??motos.bike?.speed??skiff?.speed??car?.speed??(windowRide?.held?windowRide.vehicle.speed:cabs.playerHeld?taxi.speed:0));
       if(!panel){bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();stepField(dt);}
       if(!panel){theatreStep(dt);neighborStep();stepPavement(dt);}
-      for(const v of cars)BayPalma.weatherCar(v,dt,hours.wet);
+      for(const v of cars){BayPalma.weatherCar(v,dt,hours.wet);if(v!==car&&v.rubberHeat>0)BayDriving.cool(v,dt);}
       if(car)driverSeat.wipers(car,dt,Math.max(hours.rain,glassWater()));
       const spray=wash.spraying&&!room&&!swim?.underwater&&wash.target,sprayRange=spray?dist(p,spray):Infinity;
       const heading=isTop()?cameraRig.yaw:cam.yaw;

@@ -44,6 +44,7 @@
   function readSlip(s){
     if(!s||!["first","second","early"].includes(s.result))return null;
     return {result:s.result,time:finite(s.time,1,50)?s.time:null,reaction:finite(s.reaction,0,45)?s.reaction:null,
+      launch:["cold","ready","hot"].includes(s.launch)?s.launch:null,toThirty:finite(s.toThirty,.1,45)?s.toThirty:null,
       car:typeof s.car==="string"?s.car.slice(0,26):"",plate:typeof s.plate==="string"?s.plate.slice(0,10):"",
       token:typeof s.token==="string"?s.token.slice(0,60):"",film:readFilm(s.film)};
   }
@@ -158,7 +159,7 @@
         }
         if(!green&&!v.path)a.sawRed=true;
         if(green&&a.sawRed&&!v.path){
-          a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;
+          a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;a.lastSpeed=Math.max(0,p.speed);
           a.frame=exposure(r,p,v,0);a.shots=[a.frame];a.nextPhoto=90;
           leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;v.greenRacing=true;
           return "go";
@@ -181,7 +182,11 @@
         }
         a.frame=frame;
       }
-      if(a.react===null&&gas)a.react=before;
+      if(a.react===null&&gas){a.react=before;a.launch=BayDriving.tireState(p);}
+      const speed=Math.max(0,p.speed),thirty=30/2.237;
+      if(a.react!==null&&a.toThirty==null&&a.lastSpeed<thirty&&speed>=thirty)
+        a.toThirty=before+(thirty-a.lastSpeed)/(speed-a.lastSpeed)*dt-a.react;
+      a.lastSpeed=speed;
       if(a.opponent===null&&rivalCross!==null)a.opponent=before+dt*rivalCross;
       a.prev=now;a.rivalPrev=other;
       if(driverCross!==null&&cleanCross){

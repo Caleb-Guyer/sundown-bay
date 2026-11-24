@@ -46,15 +46,24 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     await waitFor("club.run?.phase==='armed'&&driverSeen",130000);
     const staged=await js("({x:site.v.x,z:site.v.z,dx:Math.abs(ride.x-site.v.x),gap:Math.abs(ride.z-site.v.z)})");
     assert(staged.dx>2&&staged.dx<5.6&&staged.gap<3.1,JSON.stringify(staged));await snap("grid");
-    await waitFor("club.run?.phase==='running'&&onGreen",210000);await controls("KeyW");
+    const brakeLaunch=process.argv.includes("--brake-launch");
+    if(brakeLaunch)await controls("KeyS","KeyW");
+    await waitFor("club.run?.phase==='running'&&onGreen",210000);
+    if(brakeLaunch){
+      await waitFor("club.run.clock>.24&&ride.burn>.6");
+      assert.equal(await js("club.run.react"),null);assert(Math.abs(await js("ride.speed"))<.5);
+    }
+    await controls("KeyW");
     await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1",45000);
     await controls("KeyS");await waitFor("Math.abs(ride.speed)<1.5",40000);await controls();
     assert(await js("finishSeen"));const card=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).green.cards.ocean");
     assert(["first","second"].includes(card.slip.result)&&card.slip.time>1&&card.slip.reaction>=0);assert.equal(card.runs,1);
+    if(brakeLaunch)assert(card.slip.reaction>=.24&&card.slip.toThirty>.4&&card.slip.toThirty<3.8&&["cold","ready","hot"].includes(card.slip.launch));
     await waitFor("!site.runOut&&Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>48",65000);
     await tap("KeyJ");await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('On Green · Timing slips')).click()");
     await waitFor("document.querySelector('.green-slip .slip-time')?.textContent.includes(' s')");await snap("slip");
     const paper=await js("document.querySelector('.green-slip').innerText");assert(paper.includes(card.slip.plate)&&paper.includes("Lena Ríos"));
+    if(brakeLaunch)assert(paper.includes("0–30 MPH")&&paper.includes(card.slip.toThirty.toFixed(2)));
     await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('View replay')).click()");
     await waitFor("!!document.querySelector('.timing-film-controls input')");
     const last=card.slip.film.shots.at(-1),k=card.slip.result==="first"?1:4;
@@ -69,6 +78,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayOnGreen==='object'");
     const restored=await js("BayOnGreen.read(JSON.parse(localStorage.getItem('sundownBay.v1')).green).cards.ocean");
     assert.equal(restored.best,card.slip.time);assert.deepEqual(restored.slip.film.shots,card.slip.film.shots);
+    if(brakeLaunch){assert.equal(restored.slip.toThirty,card.slip.toThirty);console.log("Brake release",restored.slip.reaction.toFixed(2),"s, 0–30 mph",restored.slip.toThirty.toFixed(2),"s on",restored.slip.launch,"rear tires. Audio starts 0, cursor locks 0.");}
     assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
     console.log("PASS live",mode,"drove from the Marlin, staged alongside the numbered hatch, launched on the working green, crossed the timing clock and recovered the printed slip after reload.",card.slip.result,card.slip.time.toFixed(2));
   }catch(error){

@@ -6,6 +6,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 For a burnout, stop a rear-drive car such as the Marlin GT on pavement. Hold **W + S** together. The rear tires spin against the front brakes. Add **A** or **D** to turn a donut, or release **S** to drive out. Bay Wire contributors can film a full turn from the sidewalk.
 
+At an **On Green** starting light, hold both pedals with the wheels straight to warm the rear tires. When the light goes green, release **S** and keep **W** down. Warm tires bite harder for the first car lengths. Overheat them and the car takes longer to get up to speed. Your timing slip shows the brake-release reaction and the measured **0–30 MPH** split.
+
 Look across Tideway from Portside Tire for Romy’s chalk circle. For **Carbon Copies**, drive inside the chalk and close a full circle each way. Hold **V** to watch from the rail. Romy pays **$60** for the first direction and **$95** for its mate. Both spaces on the rail display the paths your actual rear wheels took. Press **F** at the rail to read them up close, or open **J → Carbon Copies** after discovering the job. A faster closed loop replaces that direction’s rubbing.
 
 Across from the Marlin, **Salt Print** is a camera trailer pointed north along Sol Promenade. Walk to the low end and press **F** to read Romy’s chalk, or drive straight up it in your own car. A longer run-up gives you more distance. **A/D** trims the car’s heading in the air. In chase view, hold **V** during the jump for the roadside camera. Land all four wheels between the painted stripes.

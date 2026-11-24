@@ -21,6 +21,12 @@
   };
   const shiftAt=[.25,.46,.68,.86],pull=[1,.82,.68,.56,.46];
   const rearDrive=new Set(["coupe","caleta","cayo","solena","stepside","cab","cruiser"]);
+  function tireState(v){
+    const heat=v.rubberHeat||0;return heat<.42?"cold":heat<=1?"ready":"hot";
+  }
+  function cool(v,dt){
+    if(v.rubberHeat>0)v.rubberHeat=Math.max(0,v.rubberHeat-(.039+.0038*Math.abs(v.speed||0))*dt);
+  }
   function settle(v){
     Object.assign(v,{speed:0,vx:0,vz:0,steer:0,yawRate:0,throttle:0,brakes:0,handbrake:0,
       reverseWait:0,reversing:false,gear:1,shift:0,wheelSpin:v.wheelSpin||0,burn:0,rearSpin:0,lean:0,rollRate:0,pitch:0,pitchRate:0,slip:0});
@@ -47,6 +53,8 @@
       surface>.65&&rearDrive.has(v.kind)&&speed<(v.burn>.2?4.4:1.35);
     v.burn=damp(v.burn||0,spin?1:0,spin?3.8:5.5,dt);
     if(spin){
+      const heating=(tuned ? .21 : .185)*(v.upgrades?.tires ? .88 : 1);
+      v.rubberHeat=Math.min(1.55,(v.rubberHeat||0)+dt*v.burn*heating);
       v.reversing=false;v.reverseWait=0;v.gear=1;v.shift=0;
       v.brakes=damp(v.brakes,.91,13,dt);v.throttle=damp(v.throttle,1,8,dt);v.handbrake=damp(v.handbrake,0,14,dt);
       v.steer=damp(v.steer,spec.steer*steerInput,spec.response,dt);
@@ -66,6 +74,7 @@
       spring(v,"pitch","pitchRate",.013*v.burn,11,dt);spring(v,"lean","rollRate",-rate*.011,8,dt);
       return;
     }
+    cool(v,dt);
     // A sideways slide can cross zero longitudinal speed while the car is still moving fast.
     // Only select reverse after the whole car has stopped under the brake pedal.
     if(parking||(gas&&forward>=-.18))v.reversing=false;
@@ -107,7 +116,10 @@
     const low=clamp(1-speed/4.5,0,1);
     nextYawRate=damp(nextYawRate,forward*Math.tan(v.steer)/wheelbase,low*10,dt);
     nextYawRate=clamp(nextYawRate,-2.35,2.35);
-    const shove=v.reversing?-6.4*(1-.17*load)*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*
+    // Warm rubber bites on the first car lengths. An overheated tire spins away some of the launch.
+    const temperature=v.rubberHeat||0,warm=clamp(temperature/.42,0,1),greasy=clamp((temperature-.98)/.42,0,1);
+    const launchGrip=1+(warm*.13-greasy*.43)*clamp(1-Math.max(0,forward)/15,0,1)*surface;
+    const shove=v.reversing?-6.4*(1-.17*load)*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*launchGrip*
       (v.shift>0?.39:1)*clamp((1.06-ratio)*5,0,1);
     const drag=.36+.00092*forward*forward+(gas||reverse?0:.63)+
       (1-surface)*2.5+v.handbrake*4.3+v.brakes*spec.brake*(1-.23*load)+flat*(.7+.045*speed)+
@@ -173,5 +185,5 @@
     }
     return {nx,nz,depth};
   }
-  window.BayDriving={cars,rearDrive,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact};
+  window.BayDriving={cars,rearDrive,tireState,cool,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact};
 })();

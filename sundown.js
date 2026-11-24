@@ -10025,6 +10025,12 @@ window.buildBayCity = function buildBayCity(g,water) {
   };
   const shiftAt=[.25,.46,.68,.86],pull=[1,.82,.68,.56,.46];
   const rearDrive=new Set(["coupe","caleta","cayo","solena","stepside","cab","cruiser"]);
+  function tireState(v){
+    const heat=v.rubberHeat||0;return heat<.42?"cold":heat<=1?"ready":"hot";
+  }
+  function cool(v,dt){
+    if(v.rubberHeat>0)v.rubberHeat=Math.max(0,v.rubberHeat-(.039+.0038*Math.abs(v.speed||0))*dt);
+  }
   function settle(v){
     Object.assign(v,{speed:0,vx:0,vz:0,steer:0,yawRate:0,throttle:0,brakes:0,handbrake:0,
       reverseWait:0,reversing:false,gear:1,shift:0,wheelSpin:v.wheelSpin||0,burn:0,rearSpin:0,lean:0,rollRate:0,pitch:0,pitchRate:0,slip:0});
@@ -10051,6 +10057,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       surface>.65&&rearDrive.has(v.kind)&&speed<(v.burn>.2?4.4:1.35);
     v.burn=damp(v.burn||0,spin?1:0,spin?3.8:5.5,dt);
     if(spin){
+      const heating=(tuned ? .21 : .185)*(v.upgrades?.tires ? .88 : 1);
+      v.rubberHeat=Math.min(1.55,(v.rubberHeat||0)+dt*v.burn*heating);
       v.reversing=false;v.reverseWait=0;v.gear=1;v.shift=0;
       v.brakes=damp(v.brakes,.91,13,dt);v.throttle=damp(v.throttle,1,8,dt);v.handbrake=damp(v.handbrake,0,14,dt);
       v.steer=damp(v.steer,spec.steer*steerInput,spec.response,dt);
@@ -10070,6 +10078,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       spring(v,"pitch","pitchRate",.013*v.burn,11,dt);spring(v,"lean","rollRate",-rate*.011,8,dt);
       return;
     }
+    cool(v,dt);
     // A sideways slide can cross zero longitudinal speed while the car is still moving fast.
     // Only select reverse after the whole car has stopped under the brake pedal.
     if(parking||(gas&&forward>=-.18))v.reversing=false;
@@ -10111,7 +10120,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     const low=clamp(1-speed/4.5,0,1);
     nextYawRate=damp(nextYawRate,forward*Math.tan(v.steer)/wheelbase,low*10,dt);
     nextYawRate=clamp(nextYawRate,-2.35,2.35);
-    const shove=v.reversing?-6.4*(1-.17*load)*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*
+    // Warm rubber bites on the first car lengths. An overheated tire spins away some of the launch.
+    const temperature=v.rubberHeat||0,warm=clamp(temperature/.42,0,1),greasy=clamp((temperature-.98)/.42,0,1);
+    const launchGrip=1+(warm*.13-greasy*.43)*clamp(1-Math.max(0,forward)/15,0,1)*surface;
+    const shove=v.reversing?-6.4*(1-.17*load)*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*launchGrip*
       (v.shift>0?.39:1)*clamp((1.06-ratio)*5,0,1);
     const drag=.36+.00092*forward*forward+(gas||reverse?0:.63)+
       (1-surface)*2.5+v.handbrake*4.3+v.brakes*spec.brake*(1-.23*load)+flat*(.7+.045*speed)+
@@ -10177,7 +10189,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     return {nx,nz,depth};
   }
-  window.BayDriving={cars,rearDrive,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact};
+  window.BayDriving={cars,rearDrive,tireState,cool,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact};
 })();
 
 ;
@@ -10228,6 +10240,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function readSlip(s){
     if(!s||!["first","second","early"].includes(s.result))return null;
     return {result:s.result,time:finite(s.time,1,50)?s.time:null,reaction:finite(s.reaction,0,45)?s.reaction:null,
+      launch:["cold","ready","hot"].includes(s.launch)?s.launch:null,toThirty:finite(s.toThirty,.1,45)?s.toThirty:null,
       car:typeof s.car==="string"?s.car.slice(0,26):"",plate:typeof s.plate==="string"?s.plate.slice(0,10):"",
       token:typeof s.token==="string"?s.token.slice(0,60):"",film:readFilm(s.film)};
   }
@@ -10342,7 +10355,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         }
         if(!green&&!v.path)a.sawRed=true;
         if(green&&a.sawRed&&!v.path){
-          a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;
+          a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;a.lastSpeed=Math.max(0,p.speed);
           a.frame=exposure(r,p,v,0);a.shots=[a.frame];a.nextPhoto=90;
           leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;v.greenRacing=true;
           return "go";
@@ -10365,7 +10378,11 @@ window.buildBayCity = function buildBayCity(g,water) {
         }
         a.frame=frame;
       }
-      if(a.react===null&&gas)a.react=before;
+      if(a.react===null&&gas){a.react=before;a.launch=BayDriving.tireState(p);}
+      const speed=Math.max(0,p.speed),thirty=30/2.237;
+      if(a.react!==null&&a.toThirty==null&&a.lastSpeed<thirty&&speed>=thirty)
+        a.toThirty=before+(thirty-a.lastSpeed)/(speed-a.lastSpeed)*dt-a.react;
+      a.lastSpeed=speed;
       if(a.opponent===null&&rivalCross!==null)a.opponent=before+dt*rivalCross;
       a.prev=now;a.rivalPrev=other;
       if(driverCross!==null&&cleanCross){
@@ -62255,7 +62272,7 @@ window.buildBayCity = function buildBayCity(g,water) {
 /* The shop takes a rubbing from both rear tires after a closed turn on its apron. */
 (() => {
   "use strict";
-  const pad={x:-93,z:21,yaw:0,name:"Portside Tire · Chalk circle"};
+  const pad={x:-93,z:21,yaw:0,name:"Portside Tire · Chalk circle"},apronY=.116;
   const rail={x:pad.x,z:pad.z+6.9,w:2.45,d:.45,top:1.72,bottom:0};
   const sides=["left","right"],tau=Math.PI*2,round=x=>Math.round(x*100)/100;
   function read(raw){
@@ -62307,6 +62324,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     surface.push({color,points:[[x+a,z+b],[xx+a,zz+b],[xx-a,zz-b],[x-a,z-b]]});
   }
   // Fragments of old line paint and short chalk strokes stay legible through fresh rubber.
+  for(const [x,z,xx,zz] of [[-6.1,-3.7,-4.6,-3.1],[-4.6,-3.1,-3.7,-3.24],
+    [2.5,5.98,2.7,4.95],[2.7,4.95,3.15,4.1],[3.15,4.1,2.98,3.87],[-5.91,2.6,-5.04,2.24]])
+    stripe(x,z,xx,zz,.035,"#555b59");
+  for(const side of [-1,1])for(const x of [2.6,3.5,4.4,5.3])
+    stripe(side*x,-5.9,side*(x+.49),-5.9,.11,"#b8a275");
   for(let i=0;i<64;i++){
     if(i%8>=5||i===17)continue;
     const a=i*tau/64,b=a+tau/64;
@@ -62329,7 +62351,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function install(model){
     model("carbon-apron",g=>{
-      g.box(0,-.036,0,12.25,.06,12.45,"#686969");
+      g.box(0,-.031,0,12.25,.062,12.45,"#656969");
       for(const q of surface)g.quad(...q.points.map(([x,z])=>[x,.006,z]),q.color);
       for(const x of [-1,1]){
         g.box(x,.77,6.92,.07,1.54,.08,"#62766d");g.box(x,.06,6.92,.42,.12,.47,"#675b4e");
@@ -62338,7 +62360,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     });
     model("carbon-print",g=>{for(const [x,y,u,w] of [[-.53,-.30,0,1],[.53,-.30,1,1],[.53,.30,1,0],[-.53,-.30,0,1],[.53,.30,1,0],[-.53,.30,0,0]])g.vertices.push(x,y,0,u,w,0);});
   }
-  function world(view,book,y){
+  function world(view,book){
+    const y=apronY;
     view.draw("carbon-apron",pad.x,y,pad.z,0);
     if(!view.drawPrint||view.basis.camera.z>rail.z)return;
     for(const [i,side] of sides.entries()){
@@ -62354,7 +62377,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const [i,side] of sides.entries())ctx.drawImage(poster(book,side).canvas,-1.1+i*1.14,-6.87,1.06,.60);
     ctx.restore();
   }
-  window.BayCarbonCopies={pad,rail,sides,read,contacts,step,file,install,world,map};
+  window.BayCarbonCopies={pad,rail,apronY,sides,read,contacts,step,file,install,world,map};
 })();
 
 ;
@@ -63066,6 +63089,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const district=(p)=>BayGullKey.siteAt(p.x,p.z)?.name??(BayCut.area(p)?(p.x>BayCut.coast(p.z)+2?"Pelican Sound":"Pelican Cut"):p.x>335?"Outer Sound":p.x>216?"Breakwater Bay":p.x>158?"Sol Beach":p.x>112?"Ocean Drive":p.x< -102&&p.z<10?"Port Sol":p.z< -92?"El Mercado":p.z>96&&p.x>43?"Boardwalk":p.x< -65?"Old Palms":"Neon Mile");
   const formatVehicle=v=>v===iceVan?"La Campana":genres[v.kind].name;
   function footLevel(x,z){
+    if(Math.abs(x-carbon.pad.x)<6.13&&Math.abs(z-carbon.pad.z)<6.23)return carbon.apronY;
     const deck=jumps.deck(x,z);if(deck)return deck.base+jumps.elevation(deck,x,z);
     const yard=BayButtonwoodYard.surface(x,z);if(yard!=null)return yard;
     const lot=BayBrisas.floor(x,z);if(lot!=null)return lot;
@@ -65978,7 +66002,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   function greenStep(dt){
-    const old=green.run,event=green.step(dt,streetTime,car,greenFree(),held("KeyW","ArrowUp")),a=green.run;
+    const old=green.run,event=green.step(dt,streetTime,car,greenFree(),held("KeyW","ArrowUp")&&!held("KeyS","ArrowDown")),a=green.run;
     for(const s of green.sites)if(s.runOut)greenPassing(s.runOut,dt);
     if(old&&old!==a)old.s.v.greenGesture=0;
     if(a){a.s.v.greenGesture=a.phase==="running"?0:clamp(a.age*3,0,1)*(.79+.19*Math.cos(a.age*5.2));greenPassing(a,dt);}
@@ -65993,7 +66017,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(event==="armed"){note("On Green · "+r.driver,"Hold here. Watch the traffic light.",2.3);return;}
     if(event==="go"){note("Green","First to the "+r.landmark+".",1.35);return;}
     const winner=event==="first",early=event==="early";
-    const slip={token:a.token,result:event,time:early?null:a.clock,reaction:early?null:a.react,car:formatVehicle(car),plate:BayStreetCars.plateFor(car),film:a.film||null};
+    const slip={token:a.token,result:event,time:early?null:a.clock,reaction:early?null:a.react,launch:a.launch||null,toThirty:a.toThirty??null,car:formatVehicle(car),plate:BayStreetCars.plateFor(car),film:a.film||null};
     syncProgress(readSave());
     if(BayOnGreen.file(save.green,r.id,slip)){if(winner){save.wallet+=r.pay;save.paid++;}persist();}
     if(early)a.s.clock=0;
@@ -66027,7 +66051,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       const walk=BayCrosswalk.phase(t,streetTime);
       $("objectiveText").textContent="Hold the line";
       $("roadTurn").textContent=["clear","walk","finish"].includes(walk)?"Pedestrian crossing · Wait for the green light":a.sawRed?"Light is red · Wait for green":"Wait for the next green";
-      return ["","Watch the signal  ·  W to launch"];
+      if(car.burn>.25)return ["S","Release brake on green · "+tireFeedback(car)];
+      return ["",BayDriving.rearDrive.has(car.kind)?"W to launch · Hold W + S to warm the rear tires":"Watch the signal · W to launch"];
     }
     const diff=BayOnGreen.nose(r,car)-BayOnGreen.nose(r,a.s.v);
     $("objectiveText").textContent=r.landmark+"  ·  "+Math.max(0,Math.ceil(r.finish-BayOnGreen.nose(r,car)))+" m";
@@ -66047,6 +66072,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       line("strong","slip-time",slip.time==null?"RED":slip.time.toFixed(2)+" s");
       line("span","slip-car",slip.car+"  /  "+slip.plate);
       line("span","slip-launch",slip.reaction==null?"No launch time":"Reaction "+slip.reaction.toFixed(2)+" s");
+      if(slip.toThirty!=null)line("span","slip-split","0–30 MPH   "+slip.toThirty.toFixed(2)+" s"+(slip.launch?"   /   "+({cold:"Cold start",ready:"Warm tires",hot:"Hot tires"})[slip.launch]:""));
       line("span","slip-signed","Timed against "+r.driver);b.append(paper);
       if(slip.film)b.append(makeButton("Finish camera","The last second at the timing line.","View replay",()=>openPanel("green-film-"+r.id)));
       if(c.bestSlip?.film)b.append(makeButton("Personal best · "+c.best.toFixed(2)+" s",c.bestSlip.car+" · "+c.bestSlip.plate,"View best",()=>openPanel("green-best-"+r.id)));
@@ -68332,6 +68358,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     copySide=side;save.copies.known=true;persist();openPanel("carbon-copies",true);
   }
   function atCopyRail(){return !active&&onStreetFeet()&&!unit.eye&&!roofs.raised&&dist(hero,carbon.rail)<3.25;}
+  function tireFeedback(v){
+    return {cold:"Rear tires warming",ready:"Rear tires ready",hot:"Rear tires overheated"}[BayDriving.tireState(v)];
+  }
   function copyHint(){
     if(atCopyRail())return ["F","Read Romy’s carbon copies"];
     if(!car||transfer||active||heat||dist(car,carbon.pad)>7)return null;
@@ -70066,7 +70095,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       model(name,g=>g.box(0,0,0,.87,.25,.05,color));
       view.draw(name,garage.x-3.70,4.28,garage.z+garage.halfDepth+.42);
     }
-    if(see(carbon.pad,77))carbon.world(view,save.copies,.085);
+    if(see(carbon.pad,77))carbon.world(view,save.copies);
     drawSkids();
     const visible=[],owned=transfer?.v||car;
     if(play){
@@ -70631,6 +70660,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const damaged=car&&BayRecovery.worst(car);
     $("tireCall").hidden=(!car?.flatSide&&(!damaged||car.damage[damaged]<.17))||!!transfer;
     if(!$("tireCall").hidden)$("tireCall").textContent=car.flatSide?tireStatus(car):BayRecovery.faultText(car);
+    else if(car&&!transfer&&car.burn>.20){$("tireCall").hidden=false;$("tireCall").textContent=tireFeedback(car);}
     $("speed").innerHTML=skiff&&!deckStep?'<em class="gear">'+(skiff.speed<-.6?"ASTERN":skiff.trim>.35?"TRIM UP":"AHEAD")+'</em>'+Math.round(Math.abs(skiff.speed)*1.944)+"<small>KN</small>":
       car&&!transfer?'<em class="gear">'+(car.reversing?"R":"D"+car.gear)+'</em>'+Math.round(Math.abs(car.speed)*2.237)+"<small>MPH</small>":"";
     if(skiff===manta&&mantaRide.air)$("speed").innerHTML='<em class="gear">AIR</em>'+mantaRide.height.toFixed(1)+"<small>M</small>";
@@ -72198,7 +72228,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(!pickup&&!room&&!boardwalk.player&&!cabs.playerHeld&&!windowRide?.held&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??(transit.aboard?transit.bus.speed:null)??motos.bike?.speed??skiff?.speed??car?.speed??(windowRide?.held?windowRide.vehicle.speed:cabs.playerHeld?taxi.speed:0));
       if(!panel){bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();stepField(dt);}
       if(!panel){theatreStep(dt);neighborStep();stepPavement(dt);}
-      for(const v of cars)BayPalma.weatherCar(v,dt,hours.wet);
+      for(const v of cars){BayPalma.weatherCar(v,dt,hours.wet);if(v!==car&&v.rubberHeat>0)BayDriving.cool(v,dt);}
       if(car)driverSeat.wipers(car,dt,Math.max(hours.rain,glassWater()));
       const spray=wash.spraying&&!room&&!swim?.underwater&&wash.target,sprayRange=spray?dist(p,spray):Infinity;
       const heading=isTop()?cameraRig.yaw:cam.yaw;
