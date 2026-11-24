@@ -3755,6 +3755,12 @@
     return dist({x,z},transit.bus)>7||BayDriving.clearance(transit.bus,{x,z})>.4;
   }
   const pavementEnv={ground:footLevel,clear:(x,z,r)=>valid(x,z,r),safe:workerSafe,issue:()=>pavement.edition(hours,neighbors.editions,save,BayCineProgram.describe(filmOptions())),
+    dodge(w,dt){
+      const driver=car||motos.bike||windowRide?.vehicle;
+      if(!driver&&!w.startle)return false;
+      const wait=w.wait,away=BayStreetReactions.startlePerson(w,dt,driver,cars,walkers,valid,streetTime);
+      w.wait=wait;return away;
+    },
     path(w,target,r){
       const yaw=Math.atan2(w.x-target.x,w.z-target.z);
       for(const a of [0,.85,-.85,1.7,-1.7,Math.PI]){
@@ -3806,7 +3812,7 @@
     const page=document.createElement("canvas");page.className="bay-front-page";page.setAttribute("role","img");
     page.setAttribute("aria-label",[issue.headline,issue.deck,issue.local,issue.listing].join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
     if(!archive)body.append(makeButton("Fold a copy for later","Keep this front page with your last five papers.","Keep paper",()=>{
-      pavement.keep(issue);paperIndex=pavement.archive.findIndex(p=>p.day===issue.day&&p.headline===issue.headline&&p.deck===issue.deck&&p.listing===issue.listing&&p.local===issue.local);
+      pavement.keep(issue);paperIndex=pavement.indexOf(issue);
       openPanel("pocket-papers");
     }));
     body.append(makeButton("Cine Luna listings",issue.listing,"Mark cinema",()=>clockPin(BayCab.cinema)));
@@ -6362,7 +6368,7 @@
     const p=transfer||deckStep||cabs.playerHeld?hero:pos();
     if(exchangingKey())Object.assign(keyMapActor,{x:hero.x,y:hero.y,z:hero.z,yaw:hero.yaw,kit:worn()});
     const peds=[];
-    if(play&&modeName==="street")for(const {worker:w} of pavement.props)peds.push({x:w.x,z:w.z,yaw:w.yaw,gesture:w.motion.handTarget?4:0,shirt:personColors[w.style][1],skin:personColors[w.style][0]});
+    if(play&&modeName==="street")for(const {worker:w} of pavement.props)peds.push({x:w.x,z:w.z,yaw:w.yaw,startle:w.startle,gesture:w.motion.handTarget?4:0,shirt:personColors[w.style][1],skin:personColors[w.style][0]});
     if(play&&modeName==="street")peds.push({...threads.cora,shirt:personColors[4][1],skin:personColors[4][0]});
     if(play&&modeName==="street")for(const p of [luggage.porter,...luggage.tags])peds.push({...p,shirt:personColors[p.style][1],skin:personColors[p.style][0]});
     if(modeName==="street"){
@@ -7024,7 +7030,9 @@
       for(const p of pavement.props){
         const w=p.worker;if(!see(w,55))continue;
         const key="stand-worker/"+p.id;if(!w.mesh){w.mesh=new BayPlayerMesh(personColors[w.style],p.kind==="board"?"courier":"local");view.add(key,w.mesh,true);}
-        if(w.mesh.update(w.motion))view.updateAnimated(key);visible.push([key,w.x,footLevel(w.x,w.z),w.z,w.yaw]);
+        if(w.startle){w.mesh.startle(w.startle);view.updateAnimated(key);}
+        else if(w.mesh.update(w.motion))view.updateAnimated(key);
+        visible.push([key,w.x,footLevel(w.x,w.z)+(w.startle?.lift||0),w.z,w.yaw]);
       }
       drawCrew(visible,see,t);drawCampana(visible,see,t);
     }
@@ -8452,7 +8460,9 @@
       title="Neighborhood edition";kicker="Bay Wire  /  Picture desk";
       for(const story of neighbors.editions)editionPrint(b,story);
     }else if(next==="street-paper"||next==="pocket-papers"){
-      title="Bay Wire";kicker=next==="street-paper"?"Street edition":"Folded copies";paperPanel(b,next==="pocket-papers");
+      const pocket=next==="pocket-papers",stand=pavement.hand?.p||pavement.near(hero)?.p;
+      title=pocket?"Folded copies":BayStreetNames.through(stand||hero,(stand?.home.yaw||0)+Math.PI/2)||district(hero);
+      kicker=pocket?"From your pocket":(stand?.worker.name||"Bay Wire")+"’s news box";paperPanel(b,pocket);
     }else if(next==="curb-bill"){
       title="Tonight at Cine Luna";kicker="Sidewalk bill";
       for(const f of BayCineProgram.describe(filmOptions()))signedNote(b,f.title,f.credit);

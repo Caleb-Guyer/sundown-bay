@@ -56,7 +56,25 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayPavement==='object'");
     await js("document.querySelector('#play').click()");await tap("KeyJ");await waitFor(row("Folded copies"));await js(row("Folded copies")+".click()");
     assert.equal(await js(page+".toDataURL()"),paper);assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
-    console.log("PASS",mode,"starter car spills four papers, attendant gathers the stock, front page opens at the box, and the folded issue survives reload. Audio starts 0, cursor locks 0.");
+    // A returning driver's parked coupe on North Boardwalk. Drive from the saved
+    // spot using the same controls, observing the worker and the five loose oranges.
+    await js(`(() => {
+      const u=new BaySecondUnit.Unit();u.met=true;
+      u.remember({x:151.57,z:80,yaw:0},{garageKey:"coupe@149.00,-22.80"});u.save();
+    })()`);
+    await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayPavement==='object'");
+    await js(`window.fruitTest={hop:0,spilled:0};
+      const work=BayPavement.Street.prototype.attendants;
+      BayPavement.Street.prototype.attendants=function(...a){const res=work.apply(this,a),p=this.props.find(p=>p.id==='boardwalk');
+        fruitTest.hop=Math.max(fruitTest.hop,p.worker.startle?.lift||0);
+        const loose=this.bits.filter(b=>b.p===p&&b.kind==='orange');fruitTest.spilled=Math.max(fruitTest.spilled,loose.length);
+        fruitTest.rest=loose.filter(b=>b.rest).length;return res;};
+      document.querySelector('#play').click();`);
+    await waitFor("!document.querySelector('#hud').hidden");await hold(["KeyW"]);
+    await waitFor("fruitTest.spilled===5&&fruitTest.hop>.12",50000);await hold([]);
+    await snap("fruit");await waitFor("fruitTest.rest>=3",35000);
+    assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
+    console.log("PASS",mode,"news box spill, real restock, daily and folded paper; five bouncing oranges and a Boardwalk vendor jumping clear. Audio starts 0, cursor locks 0.");
   }catch(err){
     const state=await js("window.nav?.p&&JSON.stringify({p:[nav.p.x,nav.p.z,nav.p.phase,nav.p.stock],w:[nav.p.worker.x,nav.p.worker.z],bits:nav.st.bits.map(b=>[b.x,b.z,b.rest,!!b.carrier]),held:!!nav.st.hand,at:nav.map.player.x+','+nav.map.player.z,hint:document.querySelector('#context').innerText,car:nav.car&&[nav.car.x,nav.car.z,nav.car.speed]})");
     throw Error(err.message+" Playtest state "+state);

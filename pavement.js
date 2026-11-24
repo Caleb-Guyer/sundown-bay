@@ -30,7 +30,7 @@
     constructor(){
       this.props=sites.map(([id,kind,x,z,yaw,wx,wz,name,style])=>{
         const k=kinds[kind],motion=new BayPlayerMotion();
-        const worker={x:wx,z:wz,yaw:yaw+.4,home:{x:wx,z:wz},name,style,motion,path:[],wait:0,pace:0};
+        const worker={x:wx,z:wz,yaw:yaw+.4,home:{x:wx,z:wz},name,style,motion,path:[],wait:0,pace:0,side:style%2?1:-1,role:"local"};
         return {id,kind,x,z,y:.07,yaw,tilt:0,home:{x,z,yaw},height:k.height,phase:"upright",stock:k.stock,worker,cool:0};
       });
       this.bits=[];this.hand=null;this.lift=null;this.serial=0;this.archive=[];this.readArchive();
@@ -38,8 +38,9 @@
     readArchive(){
       try{const raw=JSON.parse(localStorage.getItem(archiveKey));if(Array.isArray(raw))this.archive=raw.filter(validIssue).slice(-5);}catch{}
     }
+    indexOf(q){const id=issueId(q);return this.archive.findIndex(p=>issueId(p)===id);}
     keep(q){
-      this.readArchive();if(!validIssue(q)||this.archive.some(p=>issueId(p)===issueId(q)))return false;
+      this.readArchive();if(!validIssue(q)||this.indexOf(q)>=0)return false;
       this.archive=[...this.archive.slice(-4),q];try{localStorage.setItem(archiveKey,JSON.stringify(this.archive));}catch{}
       return true;
     }
@@ -98,7 +99,7 @@
         p.y=env.ground(p.x,p.z)+k.depth*Math.abs(Math.sin(p.tilt))+(p.hop||0);
       }
       for(const b of this.bits){
-        if(b.carrier){const a=b.carrier,q=BayDriving.world(a,.27,.32);b.x=q.x;b.z=q.z;b.y=env.ground(q.x,q.z)+.98;b.yaw=a.yaw;b.tilt=-.22;continue;}
+        if(b.carrier){const a=b.carrier,q=BayDriving.world(a,.27,.32);b.x=q.x;b.z=q.z;b.y=env.ground(q.x,q.z)+.98+(a.startle?.lift||0);b.yaw=a.yaw;b.tilt=-.22;continue;}
         if(b.rest)continue;
         b.age+=dt;
         const paper=b.kind==="paper",floor=env.ground(b.x,b.z)+(paper?.018:.10),x=b.x+b.vx*dt,z=b.z+b.vz*dt;
@@ -165,6 +166,7 @@
       for(const p of this.props){
         const w=p.worker;if(gap(focus,p)>95)continue;
         w.wait=Math.max(0,w.wait-dt);w.pace=0;let reaching=false;
+        if(env.dodge?.(w,dt)){w.path=[];w.target=null;continue;}
         if(w.wait||p.phase==="moving"||this.lift===p){w.yaw+=turn(w.yaw,Math.atan2(p.x-w.x,p.z-w.z))*(1-Math.exp(-3*dt));}
         else if(p.phase==="lifting"){reaching=true;this.lifting(p,dt);}
         else if(p.phase==="down"){if(this.walk(w,p,1.04,dt,env))this.beginLift(p,false);}
