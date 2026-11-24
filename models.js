@@ -402,7 +402,8 @@
       }
       shoe(g,ankle,shoeTop,shoeHeel,dock?"#5b534c":"#dcceb0",dock?"#a68867":"#c0ba9d");
       markPart?.("arm",side);
-      const shoulder=[side*.204,1.410+bob,-.004], sleeveEnd=[side*.237,1.268+bob,-swing*.065];
+      const shoulder=[side*.204,1.410+bob,-.004];
+      let sleeveEnd=[side*.237,1.268+bob,-swing*.065];
       let elbow=[side*.249,1.185+bob,-swing*.089],hand=[side*.235,1.004+bob,.039-swing*.155];
       if(gesture===4&&side===1){
         sleeveEnd=[.278,1.413+bob,.014];elbow=[.330,1.426+bob,.045];hand=[.345+.052*Math.cos(phase),1.632+bob,.11];

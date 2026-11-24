@@ -8619,7 +8619,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       shoe(g,ankle,shoeTop,shoeHeel,dock?"#5b534c":"#dcceb0",dock?"#a68867":"#c0ba9d");
       markPart?.("arm",side);
-      const shoulder=[side*.204,1.410+bob,-.004], sleeveEnd=[side*.237,1.268+bob,-swing*.065];
+      const shoulder=[side*.204,1.410+bob,-.004];
+      let sleeveEnd=[side*.237,1.268+bob,-swing*.065];
       let elbow=[side*.249,1.185+bob,-swing*.089],hand=[side*.235,1.004+bob,.039-swing*.155];
       if(gesture===4&&side===1){
         sleeveEnd=[.278,1.413+bob,.014];elbow=[.330,1.426+bob,.045];hand=[.345+.052*Math.cos(phase),1.632+bob,.11];
@@ -9510,7 +9511,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       return null;
     }
     approach(s,p){
-      const r=s.route,local=relative(r,p),lane=local.x>=3.55?1.45:5.55;
+      // Join from the curb whenever there is room for both cars. This also keeps
+      // the approach clear of the traffic queue forming behind the player.
+      const r=s.route,local=relative(r,p),lane=local.x<4.45?Math.max(5.55,local.x+2.46):1.45;
       const stop=roadPoint(r,lane,line);
       leg(s.v,[roadPoint(r,lane,line-5.7),stop],5.6,r.yaw);
       this.run={s,p,lane,stop,phase:"offer",accepted:false,age:0,staged:0,clock:0,react:null,opponent:null,rolled:0,
@@ -9520,7 +9523,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     leave(){
       const a=this.run;if(!a)return;
       const s=a.s,v=s.v;
-      if(a.phase!=="running")leg(v,homeward(s,a.lane),6.3,s.route.yaw);
+      if(a.phase!=="running"){
+        // Clear the player at the light, then merge before the first curb parking.
+        const r=s.route,through=2.55;
+        leg(v,[roadPoint(r,a.lane,2),roadPoint(r,through,15),...homeward(s,through)],6.3,r.yaw);
+      }
       s.runOut=a.phase==="running"&&a.film&&nose(s.route,v)<s.route.finish+2?a:null;
       v.greenRacing=!!s.runOut;v.pace=s.runOut?s.route.pace:7.7;s.out=true;this.run=null;this.cooldown=3;
     }
