@@ -915,6 +915,9 @@
       const [skin,shirt]=BayCabArt.colors[p.id];personSprite(ctx,{...p,skin,shirt},px(p.x),py(p.z),Math.max(2.3,s*1.42),false,rotation);
     }
     let playerCar;
+    if(street&&opt.green)for(const site of opt.green.sites){
+      const p=site.route.post;if(visible(px(p.x),py(p.z),12*s))BayOnGreenArt.finishMap(ctx,px,py,s,p,site.route.id,Math.min(1,site.flash),site.clock);
+    }
     if(opt.valet)BayValetPlaces.map(ctx,opt,px,py,s,visible);
     if(opt.band)BaySoundShell.map(ctx,opt,px,py,s,visible);
     if(opt.wash)BayPalmaWash.map(ctx,opt,px,py,s,visible);
@@ -926,6 +929,7 @@
       if(street){
         carSprite(ctx,car,x,y,s,streetTime);
         BayStreetCars.map(ctx,car,x,y,s,streetTime);
+        if(car.greenId)BayOnGreenArt.carMap(ctx,px,py,s,car,car.greenGesture||0);
         if(car===opt.luggage?.lid)BayLuggageBootArt.map(ctx,px,py,s,car,opt.luggage.amount,opt.luggage.items);
         if(car.soil)BayRoadGlass.map(ctx,car,x,y,s,streetTime);
         if(car===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,car,opt.campana.open,opt.campana.bell,streetTime);

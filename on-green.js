@@ -1,0 +1,140 @@
+/* Three neighborhood timing crews share a rule: the junction gives the start. */
+(() => {
+  "use strict";
+  const routes=[
+    {id:"ocean",street:"Ocean Drive",driver:"Lena Ríos",kind:"hatch",color:"#388f90",plate:"SURF 13",x:144,z:0,yaw:0,finish:54,landmark:"Palm timing clock",pay:65,pace:27,pull:16.4,delay:.26,
+      invite:"See the little clock past the Palm? My brother says a hatch can beat anything to that post.",win:"Okay, he owes me lunch. Keep that slip.",lose:"That's lunch on my brother. Come back around and we'll swap stories."},
+    {id:"luna",street:"Luna Boulevard",driver:"Mo Lyle",kind:"coupe",color:"#994a46",plate:"ROW 24",x:0,z:0,yaw:0,finish:45,landmark:"Cine Luna clock",pay:85,pace:28.7,pull:19.5,delay:.19,
+      invite:"From this light to the stage door. The early show lets out in a minute.",win:"Photo finish? No need. I saw your bumper.",lose:"That coupe was an usher's car before it was mine. Still makes the early show."},
+    {id:"port",street:"Gantry Street",driver:"Caro Pike",kind:"stepside",color:"#cc9954",plate:"DOCK 38",x:-72,z:-72,yaw:-Math.PI/2,finish:59,landmark:"Foundry clock",pay:105,pace:31,pull:22,delay:.14,
+      invite:"Bet you didn't expect a dock truck. First nose to the yard clock.",win:"That's a proper launch. I'll chalk your time on my lunch pail.",lose:"All that dock work'll teach you to catch a green. See you on the next one."}
+  ];
+  const line=-12.80;
+  const roadPoint=(r,lane,f)=>({...BayDriving.world(r,lane,f),yaw:r.yaw});
+  for(const r of routes){
+    r.home=roadPoint(r,7.6,-31);r.grid=roadPoint(r,3.1,line);
+    r.post={...roadPoint(r,7.90,r.finish),name:r.landmark,kind:"timing-clock"};
+    r.target={...roadPoint(r,3.1,r.finish),name:r.landmark,kind:"green-finish"};
+  }
+  const route=id=>routes.find(r=>r.id===id);
+  const finite=(n,min,max)=>Number.isFinite(n)&&n>=min&&n<=max;
+  const count=n=>Number.isSafeInteger(n)&&n>=0?n:0;
+  function read(raw){
+    const book={rev:count(raw?.rev),last:"",cards:{}};
+    for(const r of routes){
+      const c=raw?.cards?.[r.id];if(!c||!count(c.runs))continue;
+      const runs=count(c.runs),wins=Math.min(runs,count(c.wins)),faults=Math.min(runs-wins,count(c.faults));
+      const slip=c.slip,valid=slip&&["first","second","early"].includes(slip.result);
+      book.cards[r.id]={runs,wins,faults,best:finite(c.best,1,50)?c.best:null,
+        reaction:finite(c.reaction,0,45)?c.reaction:null,slip:valid?{
+          result:slip.result,time:finite(slip.time,1,50)?slip.time:null,reaction:finite(slip.reaction,0,45)?slip.reaction:null,
+          car:typeof slip.car==="string"?slip.car.slice(0,26):"",plate:typeof slip.plate==="string"?slip.plate.slice(0,10):"",
+          token:typeof slip.token==="string"?slip.token.slice(0,60):""}:null};
+    }
+    if(Object.hasOwn(book.cards,raw?.last))book.last=raw.last;
+    return book;
+  }
+  function file(book,id,slip){
+    const card=book.cards[id]||{runs:0,wins:0,faults:0,best:null,reaction:null,slip:null};
+    if(!route(id)||card.slip?.token===slip.token)return false;
+    card.runs++;if(slip.result==="first")card.wins++;if(slip.result==="early")card.faults++;
+    if(slip.time!=null)card.best=Math.min(card.best??Infinity,slip.time);
+    if(slip.reaction!=null)card.reaction=Math.min(card.reaction??Infinity,slip.reaction);
+    card.slip={...slip};book.cards[id]=card;book.last=id;book.rev++;return true;
+  }
+  function leg(v,points,pace,yaw){
+    v.path=[{x:v.x,z:v.z},...points];v.corner=1;v.finiteRoute=true;v.finiteYaw=yaw;v.pace=pace;
+    v.reaction=null;v.pullOver=null;v.wantsCurb=false;v.wait=0;v.blocked=0;
+  }
+  // Turn around the adjacent city block and pull back into the original parking place.
+  // Square corners stay on the correct side of each successive two-way street.
+  function homeward(s,lane){
+    const r=s.route,p=(d,f)=>roadPoint(r,d,f);
+    return [p(lane,65),p(lane,69),p(lane-1.2,72.7),p(-2.7,74.5),p(-69,74.5),p(-72.8,73.1),p(-74.5,69),
+      p(-74.5,-68.5),p(-73,-72.9),p(-69,-74.5),p(-2,-74.5),p(1,-73.2),p(2.5,-69),
+      p(5.8,-65),p(7.6,-53),r.home];
+  }
+  function relative(r,v){return BayDriving.local(r,v.x,v.z);}
+  function lined(r,p){
+    const q=relative(r,p);
+    return Math.abs(Math.atan2(Math.sin(p.yaw-r.yaw),Math.cos(p.yaw-r.yaw)))<.44&&q.x>.45&&q.x<6.8&&Math.abs(q.z-line)<2.55&&Math.abs(p.speed)<1.5;
+  }
+  const nose=(r,v)=>relative(r,v).z+bayCarLayout(v.kind).halfLength*Math.cos(v.yaw-r.yaw);
+  const crossed=(x0,x1,at)=>x0<at&&x1>=at?(at-x0)/(x1-x0):null;
+  class Club{
+    constructor(make,signals){
+      this.sites=routes.map(r=>{
+        const v=make(r.kind,r.color,r.home.x,r.home.z,r.yaw);
+        v.greenId=r.id;v.plate=r.plate;
+        return {route:r,v,signal:signals.find(s=>s.x===r.x&&s.z===r.z),out:false,flash:0,clock:0};
+      });
+      this.run=null;this.cooldown=0;
+    }
+    challenge(p){
+      if(!p||this.cooldown)return null;
+      for(const s of this.sites){
+        if(s.out||s.v.path||Math.abs(p.x-s.route.x)>30||Math.abs(p.z-s.route.z)>30)continue;
+        const q=relative(s.route,p);
+        if(q.x>.3&&q.x<7.1&&q.z>=-21&&q.z<line+2.6&&Math.abs(p.speed)<5&&Math.cos(p.yaw-s.route.yaw)>.9)return s;
+      }
+      return null;
+    }
+    approach(s,p){
+      const r=s.route,local=relative(r,p),lane=local.x>=3.55?1.45:5.55;
+      const stop=roadPoint(r,lane,line);
+      leg(s.v,[roadPoint(r,lane,line-5.7),stop],5.6,r.yaw);
+      this.run={s,p,lane,stop,phase:"offer",accepted:false,age:0,staged:0,clock:0,react:null,opponent:null,rolled:0,
+        token:Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,10)};
+    }
+    accept(){const a=this.run;if(!a||a.phase!=="offer"||a.accepted)return false;a.accepted=true;return true;}
+    leave(){
+      const a=this.run;if(!a)return;
+      const s=a.s,v=s.v;
+      if(a.phase!=="running")leg(v,homeward(s,a.lane),6.3,s.route.yaw);
+      v.pace=7.7;s.out=true;this.run=null;this.cooldown=3;
+    }
+    step(dt,t,p,eligible,gas=false){
+      this.cooldown=Math.max(0,this.cooldown-dt);
+      for(const s of this.sites){
+        s.flash=Math.max(0,s.flash-dt);
+        if(s.out&&!s.v.path)s.out=false;
+      }
+      const a=this.run;
+      if(!a){const s=eligible&&this.challenge(p);if(s){this.approach(s,p);return "offer";}return;}
+      const {s}=a,r=s.route,v=s.v;a.age+=dt;
+      if(!eligible||p!==a.p){this.leave();return "cancel";}
+      const q=relative(r,p);
+      if(a.phase!=="running"){
+        if(Math.abs(q.x)>10||q.z< -35||q.z>line+5.2||a.age>70){this.leave();return "cancel";}
+        const green=BayCrosswalk.lamps(s.signal,t)===(Math.abs(Math.cos(r.yaw))>.7?"ns":"ew");
+        if(a.phase==="offer"){
+          if(v.path&&Math.hypot(v.x-a.stop.x,v.z-a.stop.z)<.20){v.path=null;BayDriving.settle(v);v.brakes=1;}
+          if(!a.accepted||v.path||!lined(r,p)||Math.abs(q.x-a.lane)<2)return;
+          a.staged+=dt;if(a.staged<.20)return;
+          a.start=nose(r,p);a.phase="armed";a.sawRed=!green;return "armed";
+        }
+        if(!green)a.sawRed=true;
+        if(green&&a.sawRed){
+          a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;
+          leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;
+          return "go";
+        }
+        if(nose(r,p)>a.start+.85||q.z>line+3)return "early";
+        if(q.z<line-4||Math.abs(q.x-a.lane)<1.6){this.leave();return "cancel";}
+        return;
+      }
+      const before=a.clock;a.clock+=dt;s.clock=a.clock;
+      v.pace=Math.min(r.pace,Math.max(0,a.clock-r.delay)*r.pull);
+      const now=nose(r,p),other=nose(r,v),driverCross=crossed(a.prev,now,r.finish),rivalCross=crossed(a.rivalPrev,other,r.finish);
+      if(a.react===null&&gas)a.react=before;
+      if(a.opponent===null&&rivalCross!==null)a.opponent=before+dt*rivalCross;
+      a.prev=now;a.rivalPrev=other;
+      if(driverCross!==null&&q.x>=-6.6&&q.x<=7.2&&Math.cos(p.yaw-r.yaw)>.65){
+        a.clock=before+dt*driverCross;s.clock=a.clock;s.flash=1.7;
+        return a.opponent===null||a.clock<=a.opponent?"first":"second";
+      }
+      if(Math.abs(q.x)>12||q.z<line-8||q.z>r.finish+6||a.clock>45){this.leave();return "cancel";}
+    }
+  }
+  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,read,file,Club};
+})();

@@ -4,7 +4,8 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const corner = process.argv.includes("--corner");
 const luggage = process.argv.includes("--luggage");
-const play = require(luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
+const green = process.argv.includes("--on-green");
+const play = require(green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
 
 const mode = process.argv[2];
 const site = "https://caleb-guyer.github.io/sundown-bay/";
@@ -100,7 +101,7 @@ async function run() {
     await js("document.querySelector('#play').click()");
     await waitFor("!document.querySelector('#hud').hidden");
     assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
-    if (!corner && !luggage) await tap("KeyM");
+    if (!corner && !luggage && !green) await tap("KeyM");
     await play({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
     console.log("Verified public bundle " + asset);
