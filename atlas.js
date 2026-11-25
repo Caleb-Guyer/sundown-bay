@@ -409,6 +409,9 @@
           ax=ax*(1-w)+Math.max(-.46,Math.min(.46,r.handle[0]))*w;
           az=az*(1-w)-Math.max(-.41,Math.min(.41,r.handle[2]))*w;
         }
+        if(side===1&&m.handTarget?.streetWave){
+          const w=m.handTarget.weight;ax+=(m.handTarget.x-ax)*w;az+=(-.56-az)*w;
+        }
         line(c,side*.206,0,ax,az,p.kit&&p.kit!=="street"?"#b68160":"#357d75",.11);disc(c,ax,az,.061,"#b68160");
       }
       c.save();c.rotate(-.13*swing);

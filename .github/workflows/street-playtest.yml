@@ -27,6 +27,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - if: matrix.view == 'street'
+        run: node .github/playtests/city-update.cjs
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --street-action --frames
       - uses: actions/upload-artifact@v4
         if: always()

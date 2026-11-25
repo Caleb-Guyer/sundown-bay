@@ -272,6 +272,7 @@
         this.ends.push(this.parts.length);
       }
       this.states=new Int8Array(this.parts.length).fill(-2);
+      this.offsets=new Uint32Array(this.parts.length+1);
       this.indices=new model.indices.constructor(model.count);
       this.buffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.DYNAMIC_DRAW);
@@ -280,7 +281,7 @@
     draw(view,model){
       const gl=view.gl,{camera:eye,horizontal,vertical}=view.basis;
       const near=.13*Math.hypot(1,horizontal,vertical)+.01;
-      let changed=false;
+      let firstChange=this.parts.length,lastChange=-1;
       for(let s=0,i=0;s<model.sections.length;s++){
         const parent=model.sections[s].bounds,visible=view.inFrame(parent,0,0,0,0,0,0);
         const far=visible&&model.farKeep&&view.farFromCamera(parent);
@@ -295,13 +296,17 @@
                 (dy>b.hh+near?4:dy< -b.hh-near?8:0)|(dz>b.hd+near?16:dz< -b.hd-near?32:0);
             }
           }
-          if(state!==this.states[i]){this.states[i]=state;changed=true;}
+          if(state!==this.states[i]){this.states[i]=state;firstChange=Math.min(firstChange,i);lastChange=i;}
         }
       }
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
-      if(changed){
-        let n=0;
-        for(let i=0;i<this.parts.length;i++){
+      if(lastChange>=0){
+        // The prefix is already on the GPU. Keep the suffix too whenever the
+        // changed range still ends at the same index in the packed city.
+        const start=this.offsets[firstChange];let n=start,i=firstChange;
+        for(;i<this.parts.length;i++){
+          if(i>lastChange&&this.offsets[i]===n)break;
+          this.offsets[i]=n;
           const state=this.states[i];if(state<0)continue;
           const part=this.parts[i],far=(state&64)!==0,faces=far?this.farFaces:this.faces;
           for(let j=part.first,t=j/3;j<part.end;j+=3,t++){
@@ -309,8 +314,8 @@
             this.indices[n++]=model.indices[j];this.indices[n++]=model.indices[j+1];this.indices[n++]=model.indices[j+2];
           }
         }
-        this.count=n;
-        if(n)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,0,this.indices.subarray(0,n));
+        if(i===this.parts.length)this.count=this.offsets[i]=n;
+        if(n>start)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,start*this.indices.BYTES_PER_ELEMENT,this.indices.subarray(start,n));
       }
       if(this.count)gl.drawElements(gl.TRIANGLES,this.count,model.elementType,0);
     }

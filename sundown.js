@@ -273,6 +273,7 @@
         this.ends.push(this.parts.length);
       }
       this.states=new Int8Array(this.parts.length).fill(-2);
+      this.offsets=new Uint32Array(this.parts.length+1);
       this.indices=new model.indices.constructor(model.count);
       this.buffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.DYNAMIC_DRAW);
@@ -281,7 +282,7 @@
     draw(view,model){
       const gl=view.gl,{camera:eye,horizontal,vertical}=view.basis;
       const near=.13*Math.hypot(1,horizontal,vertical)+.01;
-      let changed=false;
+      let firstChange=this.parts.length,lastChange=-1;
       for(let s=0,i=0;s<model.sections.length;s++){
         const parent=model.sections[s].bounds,visible=view.inFrame(parent,0,0,0,0,0,0);
         const far=visible&&model.farKeep&&view.farFromCamera(parent);
@@ -296,13 +297,17 @@
                 (dy>b.hh+near?4:dy< -b.hh-near?8:0)|(dz>b.hd+near?16:dz< -b.hd-near?32:0);
             }
           }
-          if(state!==this.states[i]){this.states[i]=state;changed=true;}
+          if(state!==this.states[i]){this.states[i]=state;firstChange=Math.min(firstChange,i);lastChange=i;}
         }
       }
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
-      if(changed){
-        let n=0;
-        for(let i=0;i<this.parts.length;i++){
+      if(lastChange>=0){
+        // The prefix is already on the GPU. Keep the suffix too whenever the
+        // changed range still ends at the same index in the packed city.
+        const start=this.offsets[firstChange];let n=start,i=firstChange;
+        for(;i<this.parts.length;i++){
+          if(i>lastChange&&this.offsets[i]===n)break;
+          this.offsets[i]=n;
           const state=this.states[i];if(state<0)continue;
           const part=this.parts[i],far=(state&64)!==0,faces=far?this.farFaces:this.faces;
           for(let j=part.first,t=j/3;j<part.end;j+=3,t++){
@@ -310,8 +315,8 @@
             this.indices[n++]=model.indices[j];this.indices[n++]=model.indices[j+1];this.indices[n++]=model.indices[j+2];
           }
         }
-        this.count=n;
-        if(n)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,0,this.indices.subarray(0,n));
+        if(i===this.parts.length)this.count=this.offsets[i]=n;
+        if(n>start)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,start*this.indices.BYTES_PER_ELEMENT,this.indices.subarray(start,n));
       }
       if(this.count)gl.drawElements(gl.TRIANGLES,this.count,model.elementType,0);
     }
@@ -1215,7 +1220,7 @@
       for(const cell of this.used){cell.cars.length=0;cell.walkers.length=0;}
       this.used.length=0;
       for(const v of cars)this.cell(this.key(v)).cars.push(v);
-      for(const p of walkers)if(!p.palmPassenger&&p!==passenger)this.cell(this.key(p)).walkers.push(p);
+      for(const p of walkers)if(!p.down?.inCare&&!p.palmPassenger&&p!==passenger)this.cell(this.key(p)).walkers.push(p);
     }
     moved(car,from){
       const key=this.key(car);if(key===from)return;
@@ -14876,6 +14881,9 @@ window.buildBayCity = function buildBayCity(g,water) {
           const r=m.ride,w=side===r.side?r.pull:r.reach;
           ax=ax*(1-w)+Math.max(-.46,Math.min(.46,r.handle[0]))*w;
           az=az*(1-w)-Math.max(-.41,Math.min(.41,r.handle[2]))*w;
+        }
+        if(side===1&&m.handTarget?.streetWave){
+          const w=m.handTarget.weight;ax+=(m.handTarget.x-ax)*w;az+=(-.56-az)*w;
         }
         line(c,side*.206,0,ax,az,p.kit&&p.kit!=="street"?"#b68160":"#357d75",.11);disc(c,ax,az,.061,"#b68160");
       }
@@ -49450,7 +49458,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const dir=end==="head"?1:-1;
     return [-1,1].map(side=>point(c,-side*dir*spec.gripX,spec.gripY,dir*spec.headGrip));
   }
-  const roleOf=c=>patientRoles.includes(c.patient?.role)?c.patient.role:patientRoles.includes(c.patientRole)?c.patientRole:"skater";
+  const roleOf=c=>c.patient?.palette?"street":patientRoles.includes(c.patient?.role)?c.patient.role:patientRoles.includes(c.patientRole)?c.patientRole:"skater";
   const key=n=>"rescue-crew/"+n;
   function box(g,x,y,z,w,h,d,color){g.box(x,y,z,w,h,d,color);}
   function rod(g,a,b,r,col,n=7){g.pole(a,b,r,col,n);}
@@ -49858,7 +49866,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(action==="rise")f=blendForms(seated(a,role,t),standing(t),smooth(0,1,progress));
     if(action==="check")f=checking(t);
     if(action==="desk")f=atDesk(t);
-    if(c&&action==="transfer")f=transfer(a,c,role,clamp(progress),t);
+    if(c&&action==="transfer"){
+      if(a.source&&a.source.down?.inCare&&Math.hypot(a.x-a.source.x,a.z-a.source.z)<2){
+        const start=reclined(a,{x:a.x,y:a.y+.09,z:a.z,yaw:a.yaw});
+        f=blendForms(start,reclined(a,c),smooth(0,1,clamp(progress)));
+      }else f=transfer(a,c,role,clamp(progress),t);
+    }
     if(c&&action==="lying")f=reclined(a,c);
     if(role==="gardener"&&c&&(action==="lying"||action==="transfer"))setHat(f,a,c,action==="lying"?1:clamp(progress));
     if(c&&["push","guide","side"].includes(action))f=pushing(a,c,action==="push"?"foot":action==="guide"?"head":"side",t);
@@ -49928,14 +49941,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       rod(g,[s*.32,.071,-.35],[s*.32,.071,.43],.02,graphite,4);
     }
   }
-  function modelPatient(g,role){
-    const m=new BayPlayerMesh(colors[role],"local");dress(m,role);
+  function modelPatient(g,role,palette=colors[role]){
+    const m=new BayPlayerMesh(palette,"local");dress(m,role);
     const a={x:0,y:0,z:0,yaw:0},c={...a,patientRole:role};
     pose(m,a,0,role,"lying",c);
     for(const n of m.vertices)g.vertices.push(n);
   }
-  function lowRider(g,role){
-    const [skin,shirt,pants]=colors[role];
+  function lowRider(g,role,palette=colors[role]){
+    const [skin,shirt,pants]=palette;
     const sections=[[-.70,.19,.17],[-.39,.24,.34],[-.08,.22,.263],[.18,.210,.301]];
     const cloth=sections.map(([z,w,h])=>[[-w,.048,z],[-w+.050,h,z],[w-.052,h+.006,z],[w,.048,z]]);
     for(let j=1;j<cloth.length;j++)for(let k=1;k<4;k++)g.quad(cloth[j-1][k-1],cloth[j-1][k],cloth[j][k],cloth[j][k-1],k===2?blanket:"#95ac97");
@@ -49952,12 +49965,18 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const role of patientRoles){model(key("patient-"+role),g=>modelPatient(g,role));model(key("rider-"+role),g=>lowRider(g,role));}
   }
   function item(list,id,p,yaw=0,pitch=0,roll=0){list.push([key(id),p.x,p.y,p.z,yaw,pitch,roll]);}
+  function streetCot(model,a){
+    const id="street-"+a.style;
+    model(key("patient-"+id),g=>modelPatient(g,"street",a.palette));
+    model(key("rider-"+id),g=>lowRider(g,"street",a.palette));
+  }
   function cotWorld(list,c,t=0,near=true){
     if(!c||c.hidden)return;
+    const rider=c.patient?.palette?"street-"+c.patient.style:roleOf(c);
     const y=c.yaw||0,g=geometry(c),put=(n,x,h,z,rot=0,tilt=0)=>item(list,n,point(c,x,h,z),y+rot,tilt);
     if(near===false){
       put(c.fold>.5?"low-folded":"low-open",0,0,0);
-      if(c.occupied)put("rider-"+roleOf(c),0,0,0);return;
+      if(c.occupied)put("rider-"+rider,0,0,0);return;
     }
     else{
       put("frame",0,0,0);put("brace",0,upperPivot,-g.half,0,g.pitch);put("link",0,upperPivot,g.half,pi,g.pitch);
@@ -49968,7 +49987,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         put("tires",0,g.axle,e*g.half+.018,0,spin%tau);
       }
     }
-    if(c.occupied){put("patient-"+roleOf(c),0,0,0);put("cover",0,0,0);}
+    if(c.occupied){put("patient-"+rider,0,0,0);put("cover",0,0,0);}
   }
   function propPlan(a,role,action,mesh){
     if(role==="dispatcher"&&action==="desk"&&mesh){
@@ -50032,7 +50051,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function personMap(ctx,opt,px,py,s,a,t=0,role="medic",action=a?.action||"idle",c,progress=a?.progress??0){
     if(!a||a.hidden||!street(opt))return;
     const mesh=mapRig();pose(mesh,a,t,role,action,c,progress);
-    const ground=c?groundOf(c):(a.ground??a.y??0),I=ink(ctx,opt,px,py,s,ground),[skin,shirt,pants]=colors[role]||colors.player;
+    const ground=c?groundOf(c):(a.ground??a.y??0),I=ink(ctx,opt,px,py,s,ground),[skin,shirt,pants]=a.palette||colors[role]||colors.player;
     const world=v=>actorWorld(a,v),joint=(b,x,y,z)=>world(b.map([x,y,z],[]));
     const head=(x,y,z)=>joint(mesh.head,x,y,z),top=(x,y,z)=>joint(mesh.chest,x,y,z);
     const lifted=action==="lying"||action==="transfer"&&progress>.60;
@@ -50097,7 +50116,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         I.line(p(side*.157,.052,z),p(side*.257,.052,z),.047,rubber);}
     }
     if(c.occupied){
-      const a={x:c.x,y:c.y,z:c.z,yaw:c.yaw||0,ground};
+      const a={x:c.x,y:c.y,z:c.z,yaw:c.yaw||0,ground,palette:c.patient?.palette};
       personMap(ctx,opt,px,py,s,a,t,roleOf(c),"lying",c,1);
       const rings=coverSections.map(row=>clothRing(row[0]));
       I.polygon([...rings.map(r=>p(...r[0])),...rings.slice().reverse().map(r=>p(...r[8]))],blanket);
@@ -50115,7 +50134,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     ctx.restore();
   }
   window.BayRescueCrew=Object.freeze({install,spec,point,handler,handles,colors,palette:role=>colors[role]||colors.player,
-    dress,pose,props,cotWorld,cotMap,personMap});
+    dress,pose,props,streetCot,cotWorld,cotMap,personMap});
 })();
 
 ;
@@ -50144,7 +50163,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       count[c.id]=Number.isSafeInteger(raw?.count?.[c.id])?limit(raw.count[c.id],0,99999):0;
       best[c.id]=Number.isSafeInteger(raw?.best?.[c.id])?limit(raw.best[c.id],0,100):0;
     }
-    return {count,best,next:Number.isInteger(raw?.next)?limit(raw.next,0,cases.length-1):0,last:cases.some(c=>c.id===raw?.last)?raw.last:null};
+    const slip=raw?.streetSlip;
+    const streetSlip=slip&&typeof slip.name==="string"&&typeof slip.place==="string"&&["traffic","shots"].includes(slip.reason)?
+      {name:slip.name.slice(0,56),place:slip.place.slice(0,64),reason:slip.reason,assisted:slip.assisted===true}:null;
+    return {...(streetSlip?{streetSlip}:{}),count,best,next:Number.isInteger(raw?.next)?limit(raw.next,0,cases.length-1):0,last:cases.some(c=>c.id===raw?.last)?raw.last:null};
   }
   const track=BayCab.track;
   const actor=(role,name,p)=>Object.assign(BayMotorCourt.actor(role,p,"out"),{role,name,y:p.y??.077,action:"idle",seat:0,seatMode:null});
@@ -50154,8 +50176,54 @@ window.buildBayCity = function buildBayCity(g,water) {
   function apron(v,ground){const p=BayDriving.world(v,-.14,-4.55);return {...p,y:ground(p.x,p.z)+.94,yaw:v.yaw};}
   const roadside=["ready","release","outbound","scene","rear","sceneRoll","toPatient","transfer","toTruck","loading","board"];
   const instructions={release:"Gil is handing over the driver’s seat",dock:"Park and meet Anaïs at the back",sceneRoll:"Lower the wheels",clinicRoll:"Lower the wheels at receiving",ready:"Sign on or let the regular crew take the call",outbound:"Bring Rescue 4 to the marked curb",scene:"Let the crew open the rear doors",rear:"Roll the stretcher out of the rear doors",toPatient:"Bring the stretcher alongside the patient",transfer:"Help Anaïs settle the patient",toTruck:"Return the stretcher to the rear doors",loading:"Secure the stretcher on its rails",board:"Take the driver’s seat",return:"Bring the patient to Palm County Clinic",clinic:"Meet the crew at the rear doors",clinicRear:"Take the stretcher into receiving",toBed:"Wheel the patient through the open receiving door",handoff:"Stay for the handover",rest:"The unit is back in service"};
+  // Search a short corridor around the current route only after a traffic standstill.
+  // Work is spread across simulation ticks. Moving cars are checked again at each wheel step.
+  function workAround(s,dt,env){
+    const v=s.v,l=s.line;
+    if(!s.detour&&!s.search&&s.blocked<2.2)return false;
+    if(!s.detour&&!s.search){
+      if((s.retryIn=(s.retryIn||0)-dt)>0)return false;
+      const first={i:0,j:0,cost:0,via:null,x:v.x,z:v.z,yaw:v.yaw,at:s.cursor,offset:s.lateral};
+      s.search={start:s.cursor,side:s.lateral,open:[first],best:new Map([["0/0",0]]),seen:0};
+    }
+    if(s.search){
+      const g=s.search;
+      for(let k=0;k<4&&g.open.length;k++){
+        let best=0;
+        for(let n=1;n<g.open.length;n++)if(g.open[n].cost-g.open[n].i<g.open[best].cost-g.open[best].i)best=n;
+        const p=g.open.splice(best,1)[0];g.seen++;
+        if(p.i>=5&&Math.abs(p.offset)<1.2){
+          s.detour=[];for(let a=p;a.via;a=a.via)s.detour.unshift(a);
+          s.search=null;break;
+        }
+        for(const dir of [1,-1])for(const shift of [0,-1,1]){
+          const i=p.i+dir,j=p.j+shift,off=g.side+j*1.2,at=g.start+i*2.7;
+          if(i< -4||i>8||Math.abs(off)>5.8||at<0||at>=l.length-.4)continue;
+          const cost=p.cost+(dir<0?2.5:1)+Math.abs(shift)*.25+Math.abs(off)*.04,key=i+"/"+j;
+          if(cost>=(g.best.get(key)??Infinity))continue;
+          const mid=l.sample(at),x=mid.x+Math.cos(mid.yaw)*off,z=mid.z-Math.sin(mid.yaw)*off;
+          const yaw=mid.yaw+limit(turn(mid.yaw,Math.atan2((x-p.x)*dir,(z-p.z)*dir)),-.36,.36);
+          let clear=true;
+          for(let u=.25;u<=1;u+=.25)if(!env.carClear(v,{kind:v.kind,x:lerp(p.x,x,u),z:lerp(p.z,z,u),yaw:p.yaw+turn(p.yaw,yaw)*u})){clear=false;break;}
+          if(clear){g.best.set(key,cost);g.open.push({i,j,at,offset:off,x,z,yaw,cost,via:p});}
+        }
+      }
+      if(s.search&&(!g.open.length||g.seen>150)){s.search=null;s.retryIn=1.4;}
+      if(!s.detour){v.speed=v.vx=v.vz=0;return !!s.search;}
+    }
+    if(!s.detour)return false;
+    const p=s.detour[0],d=gap(v,p),u=Math.min(1,dt*2.8/Math.max(.01,d));
+    const q={kind:v.kind,x:lerp(v.x,p.x,u),z:lerp(v.z,p.z,u),yaw:v.yaw+turn(v.yaw,p.yaw)*u};
+    if(!env.carClear(v,q)){s.detour=null;s.search=null;s.retryIn=.4;v.speed=v.vx=v.vz=0;return true;}
+    v.vx=(q.x-v.x)/dt;v.vz=(q.z-v.z)/dt;v.speed=(p.i<p.via.i?-1:1)*d*u/dt;
+    v.reversing=v.speed<0;v.wheelSpin=(v.wheelSpin||0)+v.speed*dt/.382;
+    Object.assign(v,q);s.cursor=lerp(s.cursor,p.at,u);s.lateral=lerp(s.lateral,p.offset,u);
+    if(u===1){s.detour.shift();if(!s.detour.length){s.detour=null;s.blocked=0;v.reversing=false;}}
+    return true;
+  }
   function followResponse(service,dt,env){
       const v=service.v,line=service.line,at=service.cursor,left=line.length-at,nearEnd=left<9;
+      if(service.call?.source&&workAround(service,dt,env))return;
       const mid=line.sample(at),aim=line.sample(at+Math.min(9,left)),bend=Math.abs(turn(mid.yaw,aim.yaw));
       const closeBay=gap(v,service.site.bay)<25;
       const routine=!v.responseLights&&service.phase==="return"&&env.returningGap;
@@ -50214,10 +50282,41 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(last){this.waiting=actor(last.role,last.name,waitingSeat);this.waiting.seatHeight=.51;this.waiting.action="sit";}
       this.cot={...loaded(v,()=>.077),fold:1,occupied:false,travel:0};this.baySeats();this.startCase();
     }
-    startCase(){
-      this.call=cases[this.index];this.patient=actor(this.call.role,this.call.name,this.call.wait);this.patient.action="sit";this.patient.seatHeight=.39;
+    startCase(call=cases[this.index]){
+      this.call=call;this.patient=(!call.source&&this.deferredPerson)||actor(call.role,call.name,call.wait);
+      if(!call.source)this.deferredPerson=null;this.patient.action="sit";this.patient.seatHeight=.39;
       this.grade=100;this.previousSpeed=0;this.talked=false;this.cot.patient=this.patient;this.cot.patientRole=this.call.role;this.cot.occupied=false;
       this.cot.fold=1;this.rail=null;this.holding=false;this.rolling=0;this.v.rearOpen=0;this.v.responseLights=false;this.go("ready");
+    }
+    requestStreet(person,reason,place,berth,palette){
+      if(!berth||!person.down||person.down.assigned||this.pendingStreet||this.call.source===person||gap(person,berth)>24)return false;
+      const name=person.name||person.curbName||place+" "+(person.role==="runner"?"runner":person.role==="courier"?"courier":"local");
+      // Park with the rear doors facing the pickup. The cot stays alongside the patient's body.
+      const yaw=berth.yaw,side=BayDriving.local(berth,person.x,person.z).x<0?1:-1;
+      const pickup={...BayDriving.world({...person,yaw},side*.65,.40),yaw};
+      const call={...berth,berth,wait:{x:person.x,z:person.z,yaw:person.yaw},pickup,id:"street",name,role:"street",
+        source:person,palette,style:person.style,place,reason,ask:"I can hear the siren. Would you stay until they get here?",
+        road:"The window rattles every time we take a corner. How much farther is the clinic?",
+        thanks:reason==="traffic"?"Somebody brought my shoe in. It was still in the road when they closed the doors.":"I remember Gil asking my name. That was the first quiet minute I'd had all night."};
+      person.down.assigned=true;this.pendingStreet=call;this.streetAge=0;return true;
+    }
+    takeStreet(dt,env){
+      const next=this.pendingStreet;if(!next)return;
+      this.streetAge+=dt;
+      if(!next.source.down||this.streetAge>150){if(next.source.down)next.source.down.assigned=false;this.pendingStreet=null;return;}
+      if(this.joined||this.manual||this.reclaim||this.queued)return;
+      let from=null,lead=null;
+      if(this.phase==="outbound"&&!this.call.source&&gap(this.v,this.call)>22){
+        // Keep the unit on the current lane until a straight section allows a new route.
+        const q=this.line.sample(this.cursor+3),dir=(Math.round(q.yaw/(Math.PI/2))+4)%4;
+        if(!env.street(this.v)||Math.abs(turn(q.yaw,dir*Math.PI/2))>.20||gap(q,this.v)<1)return;
+        from={...q,dir};lead={x:this.v.x,z:this.v.z};
+      }else if(this.phase!=="rest"&&this.phase!=="ready")return;
+      if(!this.call.source&&this.phase!=="rest")this.deferredPerson=this.patient;
+      this.pendingStreet=null;this.startCase(next);this.patient.palette=next.palette;this.patient.style=next.style;
+      this.patient.careThanks=next.thanks;this.patient.source=next.source;this.patient.seatHeight=.03;
+      this.dispatch(true);
+      if(from)this.line=track([lead,...BayCab.route(from,next.berth).pts]);
     }
     baySeats(){this.seat(this.medic,"right");this.seat(this.driver,"left");}
     seat(a,side){a.seatMode=side;a.seat=1;a.path=[];a.action="ride";a.door=null;}
@@ -50226,7 +50325,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     get goal(){return this.phase==="outbound"?this.call.berth:this.site.bay;}
     get pushing(){return ["toPatient","toTruck","toBed"].includes(this.phase);}
     get atScene(){return roadside.includes(this.phase)||this.phase==="dock"&&this.dock.out;}
-    get bodyVisible(){return !this.cot.occupied&&(this.atScene||this.phase==="handoff");}
+    get bodyVisible(){if(this.call.source&&this.atScene&&this.phase!=="transfer")return false;return !this.cot.occupied&&(this.atScene||this.phase==="handoff");}
     get progress(){return this.phase==="transfer"?limit(this.age/2,0,1):this.phase==="handoff"?1-limit(this.age/2.3,0,1):0;}
     get instruction(){return instructions[this.phase];}
     guide(){
@@ -50251,12 +50350,13 @@ window.buildBayCity = function buildBayCity(g,water) {
       return track(out?[this.v,...exit,...BayCab.route(start,curb).pts]:[this.v,...BayCab.route(curb,end).pts,...entry]);
     }
     dispatch(out,manual=false){
+      this.detour=this.search=null;this.retryIn=0;this.v.reversing=false;
       this.line=this.route(out);this.cursor=0;this.lateral=0;this.blocked=0;this.manual=manual;this.v.responseLights=true;this.previousSpeed=0;this.go(out?"outbound":"return");
       if(manual){this.lastRoad=null;this.trace=[{x:this.v.x,z:this.v.z}];}
     }
     recruit(atDesk){
       if(this.joined||!(atDesk?this.phase==="ready"||this.phase==="rest":["ready","outbound","scene","rear","sceneRoll","toPatient"].includes(this.phase)))return false;
-      if(this.phase==="rest"){this.index=(this.index+1)%cases.length;this.startCase();}
+      if(this.phase==="rest"){if(!this.call.source)this.index=(this.index+1)%cases.length;this.startCase();}
       this.joined=true;
       if(this.phase==="ready"&&atDesk){this.manual=true;this.go("release");}
       else if(this.phase==="ready")this.dispatch(true);
@@ -50362,9 +50462,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       const from={x:a.x,z:a.z,y:a.y,yaw:a.yaw};this.holding=false;this.rolling=0;
       this.snap={from,to:{...dest,y:env.ground(dest.x,dest.z)+.94}};env.motion.handTarget=null;
       if(this.phase==="toTruck"){this.beginRail(true,env);return true;}
-      if(this.phase==="toPatient"){this.go("transfer");this.patient.action="transfer";}
+      if(this.phase==="toPatient"){if(this.call.source?.down)this.call.source.down.inCare=true;this.go("transfer");this.patient.action="transfer";}
       else{
-        this.go("handoff");this.cot.occupied=false;this.recovering=null;
+        this.go("handoff");this.cot.occupied=false;this.releaseStreet(this.recovering);this.recovering=null;
         Object.assign(this.patient,this.site.cot,{y:env.ground(this.site.cot.x,this.site.cot.z)});this.patient.seatHeight=this.site.cot.y-this.patient.y;this.patient.action="transfer";
       }return true;
     }
@@ -50398,7 +50498,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       const c=this.call;this.patient.action="sit";this.recovering=this.patient;
       this.discharge=0;
       const participated=this.joined;
-      if(participated){
+      if(c.source){
+        this.saved.streetSlip={name:c.name,place:c.place,reason:c.reason,assisted:participated};
+        env.admitted(c,participated);
+      }else if(participated){
         const grade=Math.round(this.grade),pay=c.base+Math.round(grade*.55);
         this.saved.count[c.id]=Math.min(99999,this.saved.count[c.id]+1);this.saved.best[c.id]=Math.max(this.saved.best[c.id],grade);
         this.saved.last=c.id;this.saved.next=(this.index+1)%cases.length;env.paid(c,pay,grade);
@@ -50444,6 +50547,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }return false;
     }
     step(dt,env){
+      this.takeStreet(dt,env);
       this.age+=dt;const v=this.v,a=this.cot,p=this.phase;this.placeSeats(dt,env);
       if(a.fold===1&&!this.rail)Object.assign(a,loaded(v,env.ground));
       if(this.recovering)this.dischargePatient(dt,env);
@@ -50546,7 +50650,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(p==="stow"){const u=limit(this.age/1.55,0,1);this.slide(this.rail.from,this.rail.to,ease(u));a.fold=ease(u);
         if(u===1){this.rail=null;this.go("close");}return;}
       if(p==="close"){if(this.boardCrew(dt,env)){v.rearOpen=Math.max(0,v.rearOpen-dt*1.4);if(v.rearOpen===0)this.go("rest");}return;}
-      if(p==="rest"&&this.age>this.wait){this.index=(this.index+1)%cases.length;this.startCase();this.wait=4;}
+      if(p==="rest"&&this.age>this.wait){if(!this.call.source)this.index=(this.index+1)%cases.length;this.startCase();this.wait=4;}
+    }
+    releaseStreet(a){
+      if(a?.source?.down){a.source.down=null;a.source.wait=1;a.source.moving=false;}
     }
     dischargePatient(dt,env){
       const a=this.recovering;this.discharge+=dt;
@@ -50555,19 +50662,19 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(!a.dischargePath)a.dischargePath=dischargeWalk.slice();
       const stop=a.dischargePath[0];if(!this.walk(a,stop,dt,env,1.2))return;
       a.dischargePath.shift();if(a.dischargePath.length)return;
-      Object.assign(a,waitingSeat,{seatHeight:.51,action:"sit"});this.waiting=a;this.recovering=null;
+      Object.assign(a,waitingSeat,{seatHeight:.51,action:"sit"});this.releaseStreet(this.waiting);this.waiting=a;this.recovering=null;
     }
     map(c,opt,px,py,s,visible,t){
       const v=this.v,isStreet=opt.mode==="street",cot=this.cot;
       if(!isStreet){
         if(visible(px(v.x),py(v.z),11))BayAmbulanceArt.map(c,opt,px,py,s,v,t);
-        if(!this.joined&&this.bodyVisible&&this.atScene&&visible(px(this.patient.x),py(this.patient.z),10)){
+        if(!this.joined&&(this.bodyVisible||this.call.source)&&this.atScene&&visible(px(this.patient.x),py(this.patient.z),10)){
           const x=px(this.patient.x),y=py(this.patient.z);c.save();c.fillStyle="#3c6966";c.strokeStyle="#ead9b6";c.lineWidth=1.1;
           c.beginPath();c.arc(x,y,4.2,0,Math.PI*2);c.fill();c.stroke();c.fillStyle="#f2dfac";c.fillRect(x-.7,y-2.5,1.4,2.8);c.fillRect(x-.7,y+1,1.4,1.2);c.restore();
         }return;
       }
       if((cot.fold<.995||v.rearOpen>.01)&&visible(px(cot.x),py(cot.z),5*s))BayRescueCrew.cotMap(c,opt,px,py,s,cot,t);
-      const actors=[this.dispatcher,this.nurse,this.medic,this.driver];
+      const actors=[this.dispatcher,this.nurse,this.medic,this.driver];if(this.deferredPerson)actors.push(this.deferredPerson);
       if(this.bodyVisible)actors.push(this.patient);
       if(this.recovering&&(!this.bodyVisible||this.recovering!==this.patient))actors.push(this.recovering);
       if(this.waiting&&!actors.includes(this.waiting))actors.push(this.waiting);
@@ -68971,7 +69078,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const eligible=p=>!p.onTour&&!p.palmManaged&&!p.palmPassenger&&!p.down;
   class Action {
     constructor(){this.slot=0;this.rounds=[0,8,3];this.cool=0;this.loading=0;this.flash=0;
-      this.traces=[];this.marks=[];this.count=0;this.report=0;this.witness=0;}
+      this.traces=[];this.marks=[];this.count=0;this.lastFalls=[];this.report=0;this.witness=0;}
     equip(slot){if(this.slot===slot)return;this.slot=slot;this.loading=slot&&!this.rounds[slot]?weapons[slot].reload:0;this.flash=0;}
     tick(dt){
       this.cool=Math.max(0,this.cool-dt);this.flash=Math.max(0,this.flash-dt);
@@ -68984,7 +69091,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     fall(p,yaw){
       if(!eligible(p))return false;
       p.down={age:0,duration:12,slide:1.9};p.yaw=yaw;p.moving=false;p.startle=p.sprayPose=null;p.flee=null;
-      this.count++;if(this.marks.length>=20)this.marks.shift();
+      this.lastFalls.push(p);this.count++;if(this.marks.length>=20)this.marks.shift();
       this.marks.push({x:p.x+.36*Math.sin(yaw),z:p.z+.36*Math.cos(yaw),yaw,life:19});
       return true;
     }
@@ -68996,6 +69103,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     fire(hero,yaw,people,cars,obstacles,ground){
       const w=weapons[this.slot];if(!w||this.cool||this.loading)return null;
+      this.lastFalls.length=0;
       this.cool=w.cycle;this.flash=.16;this.rounds[this.slot]--;
       if(!this.rounds[this.slot])this.loading=w.reload;
       let hits=0;
@@ -69028,6 +69136,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     bumper(v,people,ground){
       if(!v||v.jumpFlight||Math.abs(v.speed)<5.6)return 0;
+      this.lastFalls.length=0;
       const body=bayCarLayout(v.kind),reach=body.halfLength+1;let hits=0;
       for(const p of people){
         if(!eligible(p)||Math.abs(v.x-p.x)>reach||Math.abs(v.z-p.z)>reach)continue;
@@ -69040,7 +69149,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function stepPerson(p,dt,valid){
     if(p.down){
-      const v=p.down;v.age+=dt;const step=v.slide*dt*Math.exp(-v.age*4);
+      const v=p.down;if(v.inCare)return true;
+      v.age=v.assigned?Math.min(v.duration-1,v.age+dt):v.age+dt;const step=v.slide*dt*Math.exp(-v.age*4);
       const x=p.x+Math.sin(p.yaw)*step,z=p.z+Math.cos(p.yaw)*step;
       if(step>.001&&valid(x,z,.24)){p.x=x;p.z=z;}
       if(v.age>=v.duration){p.down=null;p.wait=.9;}return true;
@@ -71208,15 +71318,19 @@ window.buildBayCity = function buildBayCity(g,water) {
       (transfer?.v===v||car||room||roofs.raised||Math.abs(p.x-hero.x)>5||Math.abs(p.z-hero.z)>5||BayDriving.clearance(p,hero)>.29);},
     cotClear(x,z,v){return valid(x,z,.23)&&BayDriving.clearance(v,{x,z})>.15&&
       !cars.some(c=>c!==v&&Math.abs(c.x-x)<4.7&&Math.abs(c.z-z)<4.7&&BayDriving.clearance(c,{x,z})<.24);},
-    cartLane(v,a,b){
+    cartLane(v,a,b,omit=null){
       const steps=Math.ceil(dist(a,b)/.32);
       for(let i=0;i<=steps;i++){
         const u=i/Math.max(1,steps),q={x:a.x+(b.x-a.x)*u,z:a.z+(b.z-a.z)*u};
-        if(!valid(q.x,q.z,.23)||cars.some(c=>c!==v&&dist(c,q)<5.2&&BayDriving.clearance(c,q)<.26))return false;
+        if(!valid(q.x,q.z,.23)||cars.some(c=>c!==v&&c!==omit&&dist(c,q)<5.2&&BayDriving.clearance(c,q)<.26))return false;
       }
       return true;
     },
     say:(speaker,line)=>speak(speaker,line),
+    admitted(c,joined){
+      if(joined&&active?.rescue){active=null;waypoint=null;speak("Anaïs Park","Ora has "+c.name+" in receiving. I've signed us off.");}
+      persist();lastMap=lastHud=-10;
+    },
     paid(c,pay,grade){
       active=null;waypoint=null;save.wallet+=pay;save.paid++;persist();lastHud=lastMap=-10;sound.cue("paid");
       speak(c.name,c.thanks);note("Palm County Clinic",cash(pay)+" · Ride comfort "+grade+"/100 · Handoff signed",5);
@@ -72473,6 +72587,14 @@ window.buildBayCity = function buildBayCity(g,water) {
   function stepRescue(dt){
     if(rescue.joined&&heat){dropJob();speak("Anaïs Park","We'll take it from here. Leave the unit by the curb.");}
     rescue.step(dt,rescueEnv);
+    if(waypoint?.kind==="street-response"){
+      const c=waypoint.call;
+      if(rescue.recovering?.source===c.source||rescue.waiting?.source===c.source){
+        Object.assign(waypoint,clinic.desk,{name:"Palm County Clinic · "+c.name,kind:"receiving-visit"});delete waypoint.call;
+      }else if(rescue.call===c||rescue.pendingStreet===c){
+        waypoint.x=unit4.x;waypoint.z=unit4.z;waypoint.name=rescue.call===c&&rescue.cot.occupied?"Rescue 4 · To receiving":"Rescue 4 · "+c.place;
+      }else waypoint=null;
+    }
     if(rescue.queued&&["ready","rest"].includes(rescue.phase)){
       if(!active&&!heat&&onStreetFeet()&&dist(hero,clinic.desk)<26){rescue.queued=false;joinRescue(true);}
       else rescue.queued=false;
@@ -72484,6 +72606,20 @@ window.buildBayCity = function buildBayCity(g,water) {
     if([rescue.recovering,rescue.waiting].some(a=>a&&dist(hero,a)<2.35))return "recovered";
     if(["ready","outbound","scene","rear","sceneRoll","toPatient"].includes(rescue.phase)&&dist(hero,rescue.call.wait)<3.25)return "rescue-call";
     return "";
+  }
+  function streetCallNear(){
+    const call=(rescue.call.source&&!rescue.call.source.down?.inCare&&dist(hero,rescue.call.wait)<5)?rescue.call:rescue.pendingStreet;
+    return call&&call.source.down&&!call.source.down.inCare&&dist(hero,call.wait)<5&&onStreetFeet()&&!streetAction.slot&&!active&&!projector&&!unit.eye?call:null;
+  }
+  function flagRescue(call){
+    if(elapsed<(call.flagUntil||0))return;
+    call.flagUntil=elapsed+2.4;streetAction.wave=1.45;
+    waypoint={kind:"street-response",x:unit4.x,z:unit4.z,name:"Rescue 4 · "+call.place,call};
+    const nearby=dist(unit4,call.wait)<42&&call===rescue.call;
+    if(nearby&&rescue.traveling)trafficHonk(unit4);
+    speak(nearby?"Gil Navarro":"Cleo Moss",nearby?"I see your hand. Anaïs has the passenger side. Give her room to get the cot around.":
+      call===rescue.pendingStreet?"We've got the corner. I'll call Gil as soon as his stretcher is clear.":"Four is turning for "+call.place+". Watch for the red and white doors.");
+    lastHud=lastMap=-10;
   }
   function joinRescue(desk){
     if(active||heat||!rescue.recruit(desk))return;
@@ -72504,6 +72640,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     signedNote(b,"The truck comes back through our north drive. Bring the stretcher straight through the big door. I'll be right here when you come in.","Cleo Moss · Receiving");
     if(l.phase==="ready"||l.phase==="rest")b.append(makeButton("Take the next call","Drive out with Anaïs and bring the patient back to receiving.","Join the crew",()=>joinRescue(true)));
     else b.append(makeButton(l.queued?"Release your place":"Wait for the next shift",l.queued?"Gil will keep the next shift.":"Rescue 4 is working at "+c.place+". Stay near the desk until it gets back.",l.queued?"Cancel":"Wait at the clinic",()=>{l.queued=!l.queued;closePanel();lastHud=-10;}));
+    const slip=save.rescue.streetSlip;
+    if(slip)signedNote(b,slip.name+" · "+slip.place+" · "+(slip.reason==="traffic"?"Traffic injury":"Street injury")+". Received by Ora Bell."+(slip.assisted?" You helped with the handoff.":""),"Latest street admission · Rescue 4");
     for(const q of BayRescue.cases)if(save.rescue.count[q.id]){
       signedNote(b,q.thanks,q.name+" · "+save.rescue.count[q.id]+" signed · Best ride "+save.rescue.best[q.id]+"/100");
     }
@@ -72517,7 +72655,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function rescueKeys(code){
     if(!active?.rescue){
       if(code!=="KeyF")return false;const here=rescueContact();if(!here)return false;
-      if(here==="recovered"){const a=[rescue.recovering,rescue.waiting].find(a=>a&&dist(hero,a)<2.35),c=BayRescue.cases.find(p=>p.role===a.role);speak(a.name,c.thanks);}
+      if(here==="recovered"){const a=[rescue.recovering,rescue.waiting].find(a=>a&&dist(hero,a)<2.35),c=BayRescue.cases.find(p=>p.role===a.role);speak(a.name,a.careThanks||c.thanks);}
       else openPanel(here);return true;
     }
     if(code==="KeyH"&&car===unit4&&rescue.traveling){unit4.responseLights=!unit4.responseLights;lastHud=-10;return true;}
@@ -72554,18 +72692,20 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!unitArtReady&&see(unit4,165)){BayAmbulanceArt.install(model);unitArtReady=true;}
     const l=rescue,crew=BayRescueCrew,patient=l.patient;
     const actors=[l.medic,l.driver,l.dispatcher,l.nurse];
+    if(l.deferredPerson)actors.push(l.deferredPerson);
     if(l.bodyVisible)actors.push(patient);
     if(l.recovering&&(!l.bodyVisible||l.recovering!==patient))actors.push(l.recovering);
     if(l.waiting&&!actors.includes(l.waiting))actors.push(l.waiting);
     const cot=l.cot,visibleCot=(cot.fold<.995||unit4.rearOpen>.01)&&see(cot,49);
     if(!visibleCot&&!actors.some(a=>a&&see(a,59)))return;
     if(!l.artReady){crew.install(model);l.artReady=true;}
+    if(visibleCot&&cot.patient?.palette)crew.streetCot(model,cot.patient);
     if(visibleCot)crew.cotWorld(list,cot,t,see(cot,26));
     for(const a of actors){
       if(!a||!see(a,59)||a.seatMode==="back"&&unit4.rearOpen<.2||a.seatMode&&insideSeat()&&car===unit4&&a.seatMode==="left")continue;
-      const key="bay-rescue/"+a.role+(a===l.recovering?"/receiving":a===l.nurse?"/nurse":""),action=a.action||"idle";
+      const key="bay-rescue/"+a.role+(a.palette?"/"+a.style:"")+(a===l.recovering?"/receiving":a===l.nurse?"/nurse":""),action=a.action||"idle";
       let mesh=rescueMeshes.get(key);
-      if(!mesh){mesh=new BayPlayerMesh(crew.colors[a.role],"local");crew.dress(mesh,a.role);view.add(key,mesh,true);rescueMeshes.set(key,mesh);}
+      if(!mesh){mesh=new BayPlayerMesh(a.palette||crew.colors[a.role],"local");crew.dress(mesh,a.role);view.add(key,mesh,true);rescueMeshes.set(key,mesh);}
       if(crew.pose(mesh,a,t,a.role,action,cot,action==="transfer"?l.progress:a.progress||0))view.updateAnimated(key);
       list.push([key,a.x,a.y,a.z,a.yaw]);crew.props(list,a,t,a.role,action,cot,mesh);
     }
@@ -75302,6 +75442,19 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function streetIncident(hits,vehicle){
     if(hits||!streetAction.report){addHeat(hits&&!heat?2:1);streetAction.report=4;}
+    if(hits)for(const p of streetAction.lastFalls){
+      // Choose a clear curb on the actual street, on the rear-door side of the response vehicle.
+      const curb=rescueEnv.street(p);if(!curb)continue;
+      const yaw=curb.yaw;
+      for(const offset of [4.8,0,-4.8,8.5,-8.5]){
+        const b={...curb,...BayDriving.world(curb,0,offset),kind:unit4.kind};
+        if(!rescueEnv.carClear(unit4,b))continue;
+        const rear=BayDriving.world(b,-.14,-4.55);
+        if(!rescueEnv.cartLane(unit4,rear,p,vehicle?car:null))continue;
+        if(rescue.requestStreet(p,vehicle?"traffic":"shots",BayStreetNames.through(b,yaw),b,personColors[p.style]))break;
+      }
+      if(rescue.pendingStreet)break;
+    }
     if(hits&&!streetAction.witness){streetAction.witness=5;speak("Emergency dispatch",vehicle?"Person down. Caller saw the car.":"Shots reported. Send a unit and an ambulance.");}
   }
   function streetFire(){
@@ -75312,7 +75465,15 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function actionPose(dt){
     const armed=streetAction.slot&&actionFeet();
-    if(!armed){if(streetAction.slot)streetAction.equip(0);if(motion.handTarget?.streetGun)motion.handTarget=null;return;}
+    if(!armed){
+      if(streetAction.slot)streetAction.equip(0);
+      if(streetAction.wave>0&&onStreetFeet()){
+        streetAction.wave=Math.max(0,streetAction.wave-dt);const reach=Math.min(1,(1.45-streetAction.wave)*5,streetAction.wave*4);
+        hero.yaw+=angle(hero.yaw,Math.atan2(unit4.x-hero.x,unit4.z-hero.z))*-Math.expm1(-6*dt);
+        motion.handTarget={streetWave:true,x:.26+.18*Math.sin(streetAction.wave*12),y:1.91,z:.19,weight:reach};
+      }else{streetAction.wave=0;if(motion.handTarget?.streetGun||motion.handTarget?.streetWave)motion.handTarget=null;}
+      return;
+    }
     hero.yaw+=angle(hero.yaw,cameraRig.yaw)*-Math.expm1(-20*dt);
     motion.handTarget={streetGun:true,x:.22,y:1.22+streetAction.flash*.26,z:.44,weight:1};
   }
@@ -75942,7 +76103,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(waypoint?.kind==="june"){waypoint.x=band.june.x;waypoint.z=band.june.z;}
       if(waypoint?.kind==="neighbor"){const who=neighbors.byId(waypoint.id);if(who){waypoint.x=who.x;waypoint.z=who.z;}}
       if(waypoint?.kind==="neighbor-place"&&onStreetFeet()&&dist(hero,waypoint)<2.55&&neighbors.known(unit.lead,neighbors.byId(waypoint.id),"visited"))waypoint=null;
-      if(waypoint&&!["dive-site","neighbor","neighbor-place"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
+      if(waypoint&&!["dive-site","neighbor","neighbor-place","street-response"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
         if(waypoint.kind!=="garage"||!car?.flatSide)note("City map","Waypoint reached.",1.7);
         waypoint=null;
       }
@@ -76724,6 +76885,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(v.finiteRoute&&v.corner===v.path.length-1)heading+=angle(heading,v.finiteYaw)*clamp(1-remaining/3.8,0,1);
       const turn=step>.00001?angle(v.yaw,heading)*-Math.expm1(-8*dt):0;
       v.yaw+=turn;v.lean=ease(v.lean||0,clamp(turn/Math.max(dt,.001)*v.speed*.017,-.09,.09),7,dt);
+      if(rescue.call.source&&Math.abs(v.x-unit4.x)<8&&Math.abs(v.z-unit4.z)<8){
+        const hit=BayDriving.contact(v,unit4);
+        if(hit){const prior=BayDriving.contact({kind:v.kind,x:oldX,z:oldZ,yaw:oldYaw},unit4);
+          if(!prior||hit.depth>prior.depth+.000001){v.x=oldX;v.z=oldZ;v.yaw=oldYaw;v.speed=0;v.brakes=1;}}
+      }
       if(Math.abs(v.x-transit.bus.x)<8&&Math.abs(v.z-transit.bus.z)<8){
         const hit=BayDriving.contact(v,transit.bus);
         if(hit){
@@ -77619,7 +77785,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(play&&modeName==="street")for(const p of [luggage.porter,...luggage.tags])peds.push({...p,shirt:personColors[p.style][1],skin:personColors[p.style][0]});
     if(modeName==="street"){
       const people=play?walkers.concat(jobContacts.filter(c=>c.style!==undefined&&c.id!==active?.job.id&&!(meet.rival&&c.id==="getaway"))):walkers;
-      for(const w of people)if((!play||w!==band.local&&!w.palmManaged)&&(!take||!BayTake.onSet(w)))peds.push({x:w.x,z:w.z,yaw:w.yaw,down:w.down,shirt:personColors[w.style][1],skin:personColors[w.style][0],startle:w.startle,sprayPose:w.sprayPose,gesture:w.gesture,neighborPose:w.neighborPose,curbAim:w.curbAim,canopy:w.canopy,canopyStyle:w.canopyStyle,iceBox:w.fieldSource==="trawler"&&w.index<=6&&w.index>0});
+      for(const w of people)if(!w.down?.inCare&&(!play||w!==band.local&&!w.palmManaged)&&(!take||!BayTake.onSet(w)))peds.push({x:w.x,z:w.z,yaw:w.yaw,down:w.down,shirt:personColors[w.style][1],skin:personColors[w.style][0],startle:w.startle,sprayPose:w.sprayPose,gesture:w.gesture,neighborPose:w.neighborPose,curbAim:w.curbAim,canopy:w.canopy,canopyStyle:w.canopyStyle,iceBox:w.fieldSource==="trawler"&&w.index<=6&&w.index>0});
       if(play)for(const w of BayPlates.regulars)if(dinerIsOut(w))peds.push({x:w.x,z:w.z,yaw:w.yaw,shirt:personColors[w.style][1],skin:personColors[w.style][0]});
       if(play&&airLine.reader.stage!=="ride"){const r=airLine.reader;peds.push({x:r.x,z:r.z,yaw:r.yaw,shirt:"#d1ae74",skin:"#a37857"});}
       if(play)peds.push({...BayCut.station,yaw:-2.3,shirt:"#bea56b",skin:"#91654b"});
@@ -78512,7 +78678,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       BayOnGreenArt.finish(visible,model,at,s.route.id,clamp(s.flash,0,1),s.clock);
     }
     for(const p of walkers){
-      if(play&&(p===band.local||p.palmManaged)||!see(p,91)||film&&BayTake.onSet(p))continue;
+      if(p.down?.inCare||play&&(p===band.local||p.palmManaged)||!see(p,91)||film&&BayTake.onSet(p))continue;
       const feet=p.fieldSource?footLevel(p.x,p.z)+.055:.15;
       if(p.down){visible.push([personSkin(p.style,p.role,0,0),p.x,feet+.12,p.z,p.yaw,BayStreetAction.tilt(p)]);continue;}
       const recoil=p.startle||p.sprayPose;
@@ -78641,7 +78807,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }else{
       for(const v of cars)if(see(v,83)&&!(film&&BayTake.onSet(v)))view.draw("shadowCar",v.x,v.z>181?footLevel(v.x,v.z)+.05:.145,v.z,v.yaw);
       for(const v of patrol)if(see(v,83))view.draw("shadowCar",v.x,v.z>181?footLevel(v.x,v.z)+.05:.145,v.z,v.yaw);
-      for(const w of walkers)if(!w.palmPassenger&&!w.onTour&&see(w,38))view.draw("shadowFoot",w.x,footLevel(w.x,w.z)+.067,w.z,w.yaw);
+      for(const w of walkers)if(!w.palmPassenger&&!w.onTour&&!w.down?.inCare&&see(w,38))view.draw("shadowFoot",w.x,footLevel(w.x,w.z)+.067,w.z,w.yaw);
       if(!airLine.aboard&&!car&&!skiff&&!swim&&!film)view.draw("shadowFoot",hero.x,hero.y+.025,hero.z,hero.yaw);
     }
     if(atSea){shorePeople(visible,see,t,false);if(swim)BaySwimmerArt.world(visible,swim.actor(hero),t,hours);}
@@ -79216,7 +79382,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         meter.hidden=false;meter.style.setProperty("--hold",n+"%");meter.setAttribute("aria-valuenow",String(n));meter.setAttribute("aria-label",winding?"Casting power":"Line tension");
       }
     }
-    const showing=atLaundry()?["F","Talk to Romy · Last Collection"]:angler?(angler.phase==="miss"||angler.phase==="landed"?["Space","Cast again · E put the rod back"]:["E","Put the rod back"]):rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
+    const showing=streetCallNear()?["H",heat||rescue.pendingStreet?"Flag Rescue 4 · Track the ambulance":"Flag Rescue 4 · F to help with the stretcher"]:atLaundry()?["F","Talk to Romy · Last Collection"]:angler?(angler.phase==="miss"||angler.phase==="landed"?["Space","Cast again · E put the rod back"]:["E","Put the rod back"]):rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
     const freightHint=spurHint();
     if(spur.trip||spur.aboard){
       const r=spur.trip;const st=r?.phase==="board"?r.start:r?.target||spur.destination;
@@ -80666,6 +80832,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(ev.code==="Escape")openPanel("pause");if(ev.code==="KeyM")openPanel("map");if(ev.code==="KeyR")radioToggle();
       return;
     }
+    if(ev.code==="KeyF"&&rescue.call.source&&streetCallNear()===rescue.call&&!heat){openPanel("rescue-call");return;}
+    if(ev.code==="KeyH"){const call=streetCallNear();if(call){flagRescue(call);return;}}
     if(ev.code==="KeyF"&&atLaundry()){startJob("collection");return;}
     if(ev.code==="KeyF"){const act=chapterAction();if(act){doChapter(act);return;}}
     if(sandKey(ev.code))return;

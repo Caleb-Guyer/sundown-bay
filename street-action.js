@@ -6,7 +6,7 @@
   const eligible=p=>!p.onTour&&!p.palmManaged&&!p.palmPassenger&&!p.down;
   class Action {
     constructor(){this.slot=0;this.rounds=[0,8,3];this.cool=0;this.loading=0;this.flash=0;
-      this.traces=[];this.marks=[];this.count=0;this.report=0;this.witness=0;}
+      this.traces=[];this.marks=[];this.count=0;this.lastFalls=[];this.report=0;this.witness=0;}
     equip(slot){if(this.slot===slot)return;this.slot=slot;this.loading=slot&&!this.rounds[slot]?weapons[slot].reload:0;this.flash=0;}
     tick(dt){
       this.cool=Math.max(0,this.cool-dt);this.flash=Math.max(0,this.flash-dt);
@@ -19,7 +19,7 @@
     fall(p,yaw){
       if(!eligible(p))return false;
       p.down={age:0,duration:12,slide:1.9};p.yaw=yaw;p.moving=false;p.startle=p.sprayPose=null;p.flee=null;
-      this.count++;if(this.marks.length>=20)this.marks.shift();
+      this.lastFalls.push(p);this.count++;if(this.marks.length>=20)this.marks.shift();
       this.marks.push({x:p.x+.36*Math.sin(yaw),z:p.z+.36*Math.cos(yaw),yaw,life:19});
       return true;
     }
@@ -31,6 +31,7 @@
     }
     fire(hero,yaw,people,cars,obstacles,ground){
       const w=weapons[this.slot];if(!w||this.cool||this.loading)return null;
+      this.lastFalls.length=0;
       this.cool=w.cycle;this.flash=.16;this.rounds[this.slot]--;
       if(!this.rounds[this.slot])this.loading=w.reload;
       let hits=0;
@@ -63,6 +64,7 @@
     }
     bumper(v,people,ground){
       if(!v||v.jumpFlight||Math.abs(v.speed)<5.6)return 0;
+      this.lastFalls.length=0;
       const body=bayCarLayout(v.kind),reach=body.halfLength+1;let hits=0;
       for(const p of people){
         if(!eligible(p)||Math.abs(v.x-p.x)>reach||Math.abs(v.z-p.z)>reach)continue;
@@ -75,7 +77,8 @@
   }
   function stepPerson(p,dt,valid){
     if(p.down){
-      const v=p.down;v.age+=dt;const step=v.slide*dt*Math.exp(-v.age*4);
+      const v=p.down;if(v.inCare)return true;
+      v.age=v.assigned?Math.min(v.duration-1,v.age+dt):v.age+dt;const step=v.slide*dt*Math.exp(-v.age*4);
       const x=p.x+Math.sin(p.yaw)*step,z=p.z+Math.cos(p.yaw)*step;
       if(step>.001&&valid(x,z,.24)){p.x=x;p.z=z;}
       if(v.age>=v.duration){p.down=null;p.wait=.9;}return true;

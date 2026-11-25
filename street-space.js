@@ -29,7 +29,7 @@
       for(const cell of this.used){cell.cars.length=0;cell.walkers.length=0;}
       this.used.length=0;
       for(const v of cars)this.cell(this.key(v)).cars.push(v);
-      for(const p of walkers)if(!p.palmPassenger&&p!==passenger)this.cell(this.key(p)).walkers.push(p);
+      for(const p of walkers)if(!p.down?.inCare&&!p.palmPassenger&&p!==passenger)this.cell(this.key(p)).walkers.push(p);
     }
     moved(car,from){
       const key=this.key(car);if(key===from)return;

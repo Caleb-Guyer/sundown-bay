@@ -2099,15 +2099,19 @@
       (transfer?.v===v||car||room||roofs.raised||Math.abs(p.x-hero.x)>5||Math.abs(p.z-hero.z)>5||BayDriving.clearance(p,hero)>.29);},
     cotClear(x,z,v){return valid(x,z,.23)&&BayDriving.clearance(v,{x,z})>.15&&
       !cars.some(c=>c!==v&&Math.abs(c.x-x)<4.7&&Math.abs(c.z-z)<4.7&&BayDriving.clearance(c,{x,z})<.24);},
-    cartLane(v,a,b){
+    cartLane(v,a,b,omit=null){
       const steps=Math.ceil(dist(a,b)/.32);
       for(let i=0;i<=steps;i++){
         const u=i/Math.max(1,steps),q={x:a.x+(b.x-a.x)*u,z:a.z+(b.z-a.z)*u};
-        if(!valid(q.x,q.z,.23)||cars.some(c=>c!==v&&dist(c,q)<5.2&&BayDriving.clearance(c,q)<.26))return false;
+        if(!valid(q.x,q.z,.23)||cars.some(c=>c!==v&&c!==omit&&dist(c,q)<5.2&&BayDriving.clearance(c,q)<.26))return false;
       }
       return true;
     },
     say:(speaker,line)=>speak(speaker,line),
+    admitted(c,joined){
+      if(joined&&active?.rescue){active=null;waypoint=null;speak("Anaïs Park","Ora has "+c.name+" in receiving. I've signed us off.");}
+      persist();lastMap=lastHud=-10;
+    },
     paid(c,pay,grade){
       active=null;waypoint=null;save.wallet+=pay;save.paid++;persist();lastHud=lastMap=-10;sound.cue("paid");
       speak(c.name,c.thanks);note("Palm County Clinic",cash(pay)+" · Ride comfort "+grade+"/100 · Handoff signed",5);
@@ -3364,6 +3368,14 @@
   function stepRescue(dt){
     if(rescue.joined&&heat){dropJob();speak("Anaïs Park","We'll take it from here. Leave the unit by the curb.");}
     rescue.step(dt,rescueEnv);
+    if(waypoint?.kind==="street-response"){
+      const c=waypoint.call;
+      if(rescue.recovering?.source===c.source||rescue.waiting?.source===c.source){
+        Object.assign(waypoint,clinic.desk,{name:"Palm County Clinic · "+c.name,kind:"receiving-visit"});delete waypoint.call;
+      }else if(rescue.call===c||rescue.pendingStreet===c){
+        waypoint.x=unit4.x;waypoint.z=unit4.z;waypoint.name=rescue.call===c&&rescue.cot.occupied?"Rescue 4 · To receiving":"Rescue 4 · "+c.place;
+      }else waypoint=null;
+    }
     if(rescue.queued&&["ready","rest"].includes(rescue.phase)){
       if(!active&&!heat&&onStreetFeet()&&dist(hero,clinic.desk)<26){rescue.queued=false;joinRescue(true);}
       else rescue.queued=false;
@@ -3375,6 +3387,20 @@
     if([rescue.recovering,rescue.waiting].some(a=>a&&dist(hero,a)<2.35))return "recovered";
     if(["ready","outbound","scene","rear","sceneRoll","toPatient"].includes(rescue.phase)&&dist(hero,rescue.call.wait)<3.25)return "rescue-call";
     return "";
+  }
+  function streetCallNear(){
+    const call=(rescue.call.source&&!rescue.call.source.down?.inCare&&dist(hero,rescue.call.wait)<5)?rescue.call:rescue.pendingStreet;
+    return call&&call.source.down&&!call.source.down.inCare&&dist(hero,call.wait)<5&&onStreetFeet()&&!streetAction.slot&&!active&&!projector&&!unit.eye?call:null;
+  }
+  function flagRescue(call){
+    if(elapsed<(call.flagUntil||0))return;
+    call.flagUntil=elapsed+2.4;streetAction.wave=1.45;
+    waypoint={kind:"street-response",x:unit4.x,z:unit4.z,name:"Rescue 4 · "+call.place,call};
+    const nearby=dist(unit4,call.wait)<42&&call===rescue.call;
+    if(nearby&&rescue.traveling)trafficHonk(unit4);
+    speak(nearby?"Gil Navarro":"Cleo Moss",nearby?"I see your hand. Anaïs has the passenger side. Give her room to get the cot around.":
+      call===rescue.pendingStreet?"We've got the corner. I'll call Gil as soon as his stretcher is clear.":"Four is turning for "+call.place+". Watch for the red and white doors.");
+    lastHud=lastMap=-10;
   }
   function joinRescue(desk){
     if(active||heat||!rescue.recruit(desk))return;
@@ -3395,6 +3421,8 @@
     signedNote(b,"The truck comes back through our north drive. Bring the stretcher straight through the big door. I'll be right here when you come in.","Cleo Moss · Receiving");
     if(l.phase==="ready"||l.phase==="rest")b.append(makeButton("Take the next call","Drive out with Anaïs and bring the patient back to receiving.","Join the crew",()=>joinRescue(true)));
     else b.append(makeButton(l.queued?"Release your place":"Wait for the next shift",l.queued?"Gil will keep the next shift.":"Rescue 4 is working at "+c.place+". Stay near the desk until it gets back.",l.queued?"Cancel":"Wait at the clinic",()=>{l.queued=!l.queued;closePanel();lastHud=-10;}));
+    const slip=save.rescue.streetSlip;
+    if(slip)signedNote(b,slip.name+" · "+slip.place+" · "+(slip.reason==="traffic"?"Traffic injury":"Street injury")+". Received by Ora Bell."+(slip.assisted?" You helped with the handoff.":""),"Latest street admission · Rescue 4");
     for(const q of BayRescue.cases)if(save.rescue.count[q.id]){
       signedNote(b,q.thanks,q.name+" · "+save.rescue.count[q.id]+" signed · Best ride "+save.rescue.best[q.id]+"/100");
     }
@@ -3408,7 +3436,7 @@
   function rescueKeys(code){
     if(!active?.rescue){
       if(code!=="KeyF")return false;const here=rescueContact();if(!here)return false;
-      if(here==="recovered"){const a=[rescue.recovering,rescue.waiting].find(a=>a&&dist(hero,a)<2.35),c=BayRescue.cases.find(p=>p.role===a.role);speak(a.name,c.thanks);}
+      if(here==="recovered"){const a=[rescue.recovering,rescue.waiting].find(a=>a&&dist(hero,a)<2.35),c=BayRescue.cases.find(p=>p.role===a.role);speak(a.name,a.careThanks||c.thanks);}
       else openPanel(here);return true;
     }
     if(code==="KeyH"&&car===unit4&&rescue.traveling){unit4.responseLights=!unit4.responseLights;lastHud=-10;return true;}
@@ -3445,18 +3473,20 @@
     if(!unitArtReady&&see(unit4,165)){BayAmbulanceArt.install(model);unitArtReady=true;}
     const l=rescue,crew=BayRescueCrew,patient=l.patient;
     const actors=[l.medic,l.driver,l.dispatcher,l.nurse];
+    if(l.deferredPerson)actors.push(l.deferredPerson);
     if(l.bodyVisible)actors.push(patient);
     if(l.recovering&&(!l.bodyVisible||l.recovering!==patient))actors.push(l.recovering);
     if(l.waiting&&!actors.includes(l.waiting))actors.push(l.waiting);
     const cot=l.cot,visibleCot=(cot.fold<.995||unit4.rearOpen>.01)&&see(cot,49);
     if(!visibleCot&&!actors.some(a=>a&&see(a,59)))return;
     if(!l.artReady){crew.install(model);l.artReady=true;}
+    if(visibleCot&&cot.patient?.palette)crew.streetCot(model,cot.patient);
     if(visibleCot)crew.cotWorld(list,cot,t,see(cot,26));
     for(const a of actors){
       if(!a||!see(a,59)||a.seatMode==="back"&&unit4.rearOpen<.2||a.seatMode&&insideSeat()&&car===unit4&&a.seatMode==="left")continue;
-      const key="bay-rescue/"+a.role+(a===l.recovering?"/receiving":a===l.nurse?"/nurse":""),action=a.action||"idle";
+      const key="bay-rescue/"+a.role+(a.palette?"/"+a.style:"")+(a===l.recovering?"/receiving":a===l.nurse?"/nurse":""),action=a.action||"idle";
       let mesh=rescueMeshes.get(key);
-      if(!mesh){mesh=new BayPlayerMesh(crew.colors[a.role],"local");crew.dress(mesh,a.role);view.add(key,mesh,true);rescueMeshes.set(key,mesh);}
+      if(!mesh){mesh=new BayPlayerMesh(a.palette||crew.colors[a.role],"local");crew.dress(mesh,a.role);view.add(key,mesh,true);rescueMeshes.set(key,mesh);}
       if(crew.pose(mesh,a,t,a.role,action,cot,action==="transfer"?l.progress:a.progress||0))view.updateAnimated(key);
       list.push([key,a.x,a.y,a.z,a.yaw]);crew.props(list,a,t,a.role,action,cot,mesh);
     }
@@ -6193,6 +6223,19 @@
   }
   function streetIncident(hits,vehicle){
     if(hits||!streetAction.report){addHeat(hits&&!heat?2:1);streetAction.report=4;}
+    if(hits)for(const p of streetAction.lastFalls){
+      // Choose a clear curb on the actual street, on the rear-door side of the response vehicle.
+      const curb=rescueEnv.street(p);if(!curb)continue;
+      const yaw=curb.yaw;
+      for(const offset of [4.8,0,-4.8,8.5,-8.5]){
+        const b={...curb,...BayDriving.world(curb,0,offset),kind:unit4.kind};
+        if(!rescueEnv.carClear(unit4,b))continue;
+        const rear=BayDriving.world(b,-.14,-4.55);
+        if(!rescueEnv.cartLane(unit4,rear,p,vehicle?car:null))continue;
+        if(rescue.requestStreet(p,vehicle?"traffic":"shots",BayStreetNames.through(b,yaw),b,personColors[p.style]))break;
+      }
+      if(rescue.pendingStreet)break;
+    }
     if(hits&&!streetAction.witness){streetAction.witness=5;speak("Emergency dispatch",vehicle?"Person down. Caller saw the car.":"Shots reported. Send a unit and an ambulance.");}
   }
   function streetFire(){
@@ -6203,7 +6246,15 @@
   }
   function actionPose(dt){
     const armed=streetAction.slot&&actionFeet();
-    if(!armed){if(streetAction.slot)streetAction.equip(0);if(motion.handTarget?.streetGun)motion.handTarget=null;return;}
+    if(!armed){
+      if(streetAction.slot)streetAction.equip(0);
+      if(streetAction.wave>0&&onStreetFeet()){
+        streetAction.wave=Math.max(0,streetAction.wave-dt);const reach=Math.min(1,(1.45-streetAction.wave)*5,streetAction.wave*4);
+        hero.yaw+=angle(hero.yaw,Math.atan2(unit4.x-hero.x,unit4.z-hero.z))*-Math.expm1(-6*dt);
+        motion.handTarget={streetWave:true,x:.26+.18*Math.sin(streetAction.wave*12),y:1.91,z:.19,weight:reach};
+      }else{streetAction.wave=0;if(motion.handTarget?.streetGun||motion.handTarget?.streetWave)motion.handTarget=null;}
+      return;
+    }
     hero.yaw+=angle(hero.yaw,cameraRig.yaw)*-Math.expm1(-20*dt);
     motion.handTarget={streetGun:true,x:.22,y:1.22+streetAction.flash*.26,z:.44,weight:1};
   }
@@ -6833,7 +6884,7 @@
       if(waypoint?.kind==="june"){waypoint.x=band.june.x;waypoint.z=band.june.z;}
       if(waypoint?.kind==="neighbor"){const who=neighbors.byId(waypoint.id);if(who){waypoint.x=who.x;waypoint.z=who.z;}}
       if(waypoint?.kind==="neighbor-place"&&onStreetFeet()&&dist(hero,waypoint)<2.55&&neighbors.known(unit.lead,neighbors.byId(waypoint.id),"visited"))waypoint=null;
-      if(waypoint&&!["dive-site","neighbor","neighbor-place"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
+      if(waypoint&&!["dive-site","neighbor","neighbor-place","street-response"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
         if(waypoint.kind!=="garage"||!car?.flatSide)note("City map","Waypoint reached.",1.7);
         waypoint=null;
       }
@@ -7615,6 +7666,11 @@
       if(v.finiteRoute&&v.corner===v.path.length-1)heading+=angle(heading,v.finiteYaw)*clamp(1-remaining/3.8,0,1);
       const turn=step>.00001?angle(v.yaw,heading)*-Math.expm1(-8*dt):0;
       v.yaw+=turn;v.lean=ease(v.lean||0,clamp(turn/Math.max(dt,.001)*v.speed*.017,-.09,.09),7,dt);
+      if(rescue.call.source&&Math.abs(v.x-unit4.x)<8&&Math.abs(v.z-unit4.z)<8){
+        const hit=BayDriving.contact(v,unit4);
+        if(hit){const prior=BayDriving.contact({kind:v.kind,x:oldX,z:oldZ,yaw:oldYaw},unit4);
+          if(!prior||hit.depth>prior.depth+.000001){v.x=oldX;v.z=oldZ;v.yaw=oldYaw;v.speed=0;v.brakes=1;}}
+      }
       if(Math.abs(v.x-transit.bus.x)<8&&Math.abs(v.z-transit.bus.z)<8){
         const hit=BayDriving.contact(v,transit.bus);
         if(hit){
@@ -8510,7 +8566,7 @@
     if(play&&modeName==="street")for(const p of [luggage.porter,...luggage.tags])peds.push({...p,shirt:personColors[p.style][1],skin:personColors[p.style][0]});
     if(modeName==="street"){
       const people=play?walkers.concat(jobContacts.filter(c=>c.style!==undefined&&c.id!==active?.job.id&&!(meet.rival&&c.id==="getaway"))):walkers;
-      for(const w of people)if((!play||w!==band.local&&!w.palmManaged)&&(!take||!BayTake.onSet(w)))peds.push({x:w.x,z:w.z,yaw:w.yaw,down:w.down,shirt:personColors[w.style][1],skin:personColors[w.style][0],startle:w.startle,sprayPose:w.sprayPose,gesture:w.gesture,neighborPose:w.neighborPose,curbAim:w.curbAim,canopy:w.canopy,canopyStyle:w.canopyStyle,iceBox:w.fieldSource==="trawler"&&w.index<=6&&w.index>0});
+      for(const w of people)if(!w.down?.inCare&&(!play||w!==band.local&&!w.palmManaged)&&(!take||!BayTake.onSet(w)))peds.push({x:w.x,z:w.z,yaw:w.yaw,down:w.down,shirt:personColors[w.style][1],skin:personColors[w.style][0],startle:w.startle,sprayPose:w.sprayPose,gesture:w.gesture,neighborPose:w.neighborPose,curbAim:w.curbAim,canopy:w.canopy,canopyStyle:w.canopyStyle,iceBox:w.fieldSource==="trawler"&&w.index<=6&&w.index>0});
       if(play)for(const w of BayPlates.regulars)if(dinerIsOut(w))peds.push({x:w.x,z:w.z,yaw:w.yaw,shirt:personColors[w.style][1],skin:personColors[w.style][0]});
       if(play&&airLine.reader.stage!=="ride"){const r=airLine.reader;peds.push({x:r.x,z:r.z,yaw:r.yaw,shirt:"#d1ae74",skin:"#a37857"});}
       if(play)peds.push({...BayCut.station,yaw:-2.3,shirt:"#bea56b",skin:"#91654b"});
@@ -9403,7 +9459,7 @@
       BayOnGreenArt.finish(visible,model,at,s.route.id,clamp(s.flash,0,1),s.clock);
     }
     for(const p of walkers){
-      if(play&&(p===band.local||p.palmManaged)||!see(p,91)||film&&BayTake.onSet(p))continue;
+      if(p.down?.inCare||play&&(p===band.local||p.palmManaged)||!see(p,91)||film&&BayTake.onSet(p))continue;
       const feet=p.fieldSource?footLevel(p.x,p.z)+.055:.15;
       if(p.down){visible.push([personSkin(p.style,p.role,0,0),p.x,feet+.12,p.z,p.yaw,BayStreetAction.tilt(p)]);continue;}
       const recoil=p.startle||p.sprayPose;
@@ -9532,7 +9588,7 @@
     }else{
       for(const v of cars)if(see(v,83)&&!(film&&BayTake.onSet(v)))view.draw("shadowCar",v.x,v.z>181?footLevel(v.x,v.z)+.05:.145,v.z,v.yaw);
       for(const v of patrol)if(see(v,83))view.draw("shadowCar",v.x,v.z>181?footLevel(v.x,v.z)+.05:.145,v.z,v.yaw);
-      for(const w of walkers)if(!w.palmPassenger&&!w.onTour&&see(w,38))view.draw("shadowFoot",w.x,footLevel(w.x,w.z)+.067,w.z,w.yaw);
+      for(const w of walkers)if(!w.palmPassenger&&!w.onTour&&!w.down?.inCare&&see(w,38))view.draw("shadowFoot",w.x,footLevel(w.x,w.z)+.067,w.z,w.yaw);
       if(!airLine.aboard&&!car&&!skiff&&!swim&&!film)view.draw("shadowFoot",hero.x,hero.y+.025,hero.z,hero.yaw);
     }
     if(atSea){shorePeople(visible,see,t,false);if(swim)BaySwimmerArt.world(visible,swim.actor(hero),t,hours);}
@@ -10107,7 +10163,7 @@
         meter.hidden=false;meter.style.setProperty("--hold",n+"%");meter.setAttribute("aria-valuenow",String(n));meter.setAttribute("aria-label",winding?"Casting power":"Line tension");
       }
     }
-    const showing=atLaundry()?["F","Talk to Romy · Last Collection"]:angler?(angler.phase==="miss"||angler.phase==="landed"?["Space","Cast again · E put the rod back"]:["E","Put the rod back"]):rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
+    const showing=streetCallNear()?["H",heat||rescue.pendingStreet?"Flag Rescue 4 · Track the ambulance":"Flag Rescue 4 · F to help with the stretcher"]:atLaundry()?["F","Talk to Romy · Last Collection"]:angler?(angler.phase==="miss"||angler.phase==="landed"?["Space","Cast again · E put the rod back"]:["E","Put the rod back"]):rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
     const freightHint=spurHint();
     if(spur.trip||spur.aboard){
       const r=spur.trip;const st=r?.phase==="board"?r.start:r?.target||spur.destination;
@@ -11557,6 +11613,8 @@
       if(ev.code==="Escape")openPanel("pause");if(ev.code==="KeyM")openPanel("map");if(ev.code==="KeyR")radioToggle();
       return;
     }
+    if(ev.code==="KeyF"&&rescue.call.source&&streetCallNear()===rescue.call&&!heat){openPanel("rescue-call");return;}
+    if(ev.code==="KeyH"){const call=streetCallNear();if(call){flagRescue(call);return;}}
     if(ev.code==="KeyF"&&atLaundry()){startJob("collection");return;}
     if(ev.code==="KeyF"){const act=chapterAction();if(act){doChapter(act);return;}}
     if(sandKey(ev.code))return;

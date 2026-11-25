@@ -22,7 +22,10 @@
       count[c.id]=Number.isSafeInteger(raw?.count?.[c.id])?limit(raw.count[c.id],0,99999):0;
       best[c.id]=Number.isSafeInteger(raw?.best?.[c.id])?limit(raw.best[c.id],0,100):0;
     }
-    return {count,best,next:Number.isInteger(raw?.next)?limit(raw.next,0,cases.length-1):0,last:cases.some(c=>c.id===raw?.last)?raw.last:null};
+    const slip=raw?.streetSlip;
+    const streetSlip=slip&&typeof slip.name==="string"&&typeof slip.place==="string"&&["traffic","shots"].includes(slip.reason)?
+      {name:slip.name.slice(0,56),place:slip.place.slice(0,64),reason:slip.reason,assisted:slip.assisted===true}:null;
+    return {...(streetSlip?{streetSlip}:{}),count,best,next:Number.isInteger(raw?.next)?limit(raw.next,0,cases.length-1):0,last:cases.some(c=>c.id===raw?.last)?raw.last:null};
   }
   const track=BayCab.track;
   const actor=(role,name,p)=>Object.assign(BayMotorCourt.actor(role,p,"out"),{role,name,y:p.y??.077,action:"idle",seat:0,seatMode:null});
@@ -32,8 +35,54 @@
   function apron(v,ground){const p=BayDriving.world(v,-.14,-4.55);return {...p,y:ground(p.x,p.z)+.94,yaw:v.yaw};}
   const roadside=["ready","release","outbound","scene","rear","sceneRoll","toPatient","transfer","toTruck","loading","board"];
   const instructions={release:"Gil is handing over the driver’s seat",dock:"Park and meet Anaïs at the back",sceneRoll:"Lower the wheels",clinicRoll:"Lower the wheels at receiving",ready:"Sign on or let the regular crew take the call",outbound:"Bring Rescue 4 to the marked curb",scene:"Let the crew open the rear doors",rear:"Roll the stretcher out of the rear doors",toPatient:"Bring the stretcher alongside the patient",transfer:"Help Anaïs settle the patient",toTruck:"Return the stretcher to the rear doors",loading:"Secure the stretcher on its rails",board:"Take the driver’s seat",return:"Bring the patient to Palm County Clinic",clinic:"Meet the crew at the rear doors",clinicRear:"Take the stretcher into receiving",toBed:"Wheel the patient through the open receiving door",handoff:"Stay for the handover",rest:"The unit is back in service"};
+  // Search a short corridor around the current route only after a traffic standstill.
+  // Work is spread across simulation ticks. Moving cars are checked again at each wheel step.
+  function workAround(s,dt,env){
+    const v=s.v,l=s.line;
+    if(!s.detour&&!s.search&&s.blocked<2.2)return false;
+    if(!s.detour&&!s.search){
+      if((s.retryIn=(s.retryIn||0)-dt)>0)return false;
+      const first={i:0,j:0,cost:0,via:null,x:v.x,z:v.z,yaw:v.yaw,at:s.cursor,offset:s.lateral};
+      s.search={start:s.cursor,side:s.lateral,open:[first],best:new Map([["0/0",0]]),seen:0};
+    }
+    if(s.search){
+      const g=s.search;
+      for(let k=0;k<4&&g.open.length;k++){
+        let best=0;
+        for(let n=1;n<g.open.length;n++)if(g.open[n].cost-g.open[n].i<g.open[best].cost-g.open[best].i)best=n;
+        const p=g.open.splice(best,1)[0];g.seen++;
+        if(p.i>=5&&Math.abs(p.offset)<1.2){
+          s.detour=[];for(let a=p;a.via;a=a.via)s.detour.unshift(a);
+          s.search=null;break;
+        }
+        for(const dir of [1,-1])for(const shift of [0,-1,1]){
+          const i=p.i+dir,j=p.j+shift,off=g.side+j*1.2,at=g.start+i*2.7;
+          if(i< -4||i>8||Math.abs(off)>5.8||at<0||at>=l.length-.4)continue;
+          const cost=p.cost+(dir<0?2.5:1)+Math.abs(shift)*.25+Math.abs(off)*.04,key=i+"/"+j;
+          if(cost>=(g.best.get(key)??Infinity))continue;
+          const mid=l.sample(at),x=mid.x+Math.cos(mid.yaw)*off,z=mid.z-Math.sin(mid.yaw)*off;
+          const yaw=mid.yaw+limit(turn(mid.yaw,Math.atan2((x-p.x)*dir,(z-p.z)*dir)),-.36,.36);
+          let clear=true;
+          for(let u=.25;u<=1;u+=.25)if(!env.carClear(v,{kind:v.kind,x:lerp(p.x,x,u),z:lerp(p.z,z,u),yaw:p.yaw+turn(p.yaw,yaw)*u})){clear=false;break;}
+          if(clear){g.best.set(key,cost);g.open.push({i,j,at,offset:off,x,z,yaw,cost,via:p});}
+        }
+      }
+      if(s.search&&(!g.open.length||g.seen>150)){s.search=null;s.retryIn=1.4;}
+      if(!s.detour){v.speed=v.vx=v.vz=0;return !!s.search;}
+    }
+    if(!s.detour)return false;
+    const p=s.detour[0],d=gap(v,p),u=Math.min(1,dt*2.8/Math.max(.01,d));
+    const q={kind:v.kind,x:lerp(v.x,p.x,u),z:lerp(v.z,p.z,u),yaw:v.yaw+turn(v.yaw,p.yaw)*u};
+    if(!env.carClear(v,q)){s.detour=null;s.search=null;s.retryIn=.4;v.speed=v.vx=v.vz=0;return true;}
+    v.vx=(q.x-v.x)/dt;v.vz=(q.z-v.z)/dt;v.speed=(p.i<p.via.i?-1:1)*d*u/dt;
+    v.reversing=v.speed<0;v.wheelSpin=(v.wheelSpin||0)+v.speed*dt/.382;
+    Object.assign(v,q);s.cursor=lerp(s.cursor,p.at,u);s.lateral=lerp(s.lateral,p.offset,u);
+    if(u===1){s.detour.shift();if(!s.detour.length){s.detour=null;s.blocked=0;v.reversing=false;}}
+    return true;
+  }
   function followResponse(service,dt,env){
       const v=service.v,line=service.line,at=service.cursor,left=line.length-at,nearEnd=left<9;
+      if(service.call?.source&&workAround(service,dt,env))return;
       const mid=line.sample(at),aim=line.sample(at+Math.min(9,left)),bend=Math.abs(turn(mid.yaw,aim.yaw));
       const closeBay=gap(v,service.site.bay)<25;
       const routine=!v.responseLights&&service.phase==="return"&&env.returningGap;
@@ -92,10 +141,41 @@
       if(last){this.waiting=actor(last.role,last.name,waitingSeat);this.waiting.seatHeight=.51;this.waiting.action="sit";}
       this.cot={...loaded(v,()=>.077),fold:1,occupied:false,travel:0};this.baySeats();this.startCase();
     }
-    startCase(){
-      this.call=cases[this.index];this.patient=actor(this.call.role,this.call.name,this.call.wait);this.patient.action="sit";this.patient.seatHeight=.39;
+    startCase(call=cases[this.index]){
+      this.call=call;this.patient=(!call.source&&this.deferredPerson)||actor(call.role,call.name,call.wait);
+      if(!call.source)this.deferredPerson=null;this.patient.action="sit";this.patient.seatHeight=.39;
       this.grade=100;this.previousSpeed=0;this.talked=false;this.cot.patient=this.patient;this.cot.patientRole=this.call.role;this.cot.occupied=false;
       this.cot.fold=1;this.rail=null;this.holding=false;this.rolling=0;this.v.rearOpen=0;this.v.responseLights=false;this.go("ready");
+    }
+    requestStreet(person,reason,place,berth,palette){
+      if(!berth||!person.down||person.down.assigned||this.pendingStreet||this.call.source===person||gap(person,berth)>24)return false;
+      const name=person.name||person.curbName||place+" "+(person.role==="runner"?"runner":person.role==="courier"?"courier":"local");
+      // Park with the rear doors facing the pickup. The cot stays alongside the patient's body.
+      const yaw=berth.yaw,side=BayDriving.local(berth,person.x,person.z).x<0?1:-1;
+      const pickup={...BayDriving.world({...person,yaw},side*.65,.40),yaw};
+      const call={...berth,berth,wait:{x:person.x,z:person.z,yaw:person.yaw},pickup,id:"street",name,role:"street",
+        source:person,palette,style:person.style,place,reason,ask:"I can hear the siren. Would you stay until they get here?",
+        road:"The window rattles every time we take a corner. How much farther is the clinic?",
+        thanks:reason==="traffic"?"Somebody brought my shoe in. It was still in the road when they closed the doors.":"I remember Gil asking my name. That was the first quiet minute I'd had all night."};
+      person.down.assigned=true;this.pendingStreet=call;this.streetAge=0;return true;
+    }
+    takeStreet(dt,env){
+      const next=this.pendingStreet;if(!next)return;
+      this.streetAge+=dt;
+      if(!next.source.down||this.streetAge>150){if(next.source.down)next.source.down.assigned=false;this.pendingStreet=null;return;}
+      if(this.joined||this.manual||this.reclaim||this.queued)return;
+      let from=null,lead=null;
+      if(this.phase==="outbound"&&!this.call.source&&gap(this.v,this.call)>22){
+        // Keep the unit on the current lane until a straight section allows a new route.
+        const q=this.line.sample(this.cursor+3),dir=(Math.round(q.yaw/(Math.PI/2))+4)%4;
+        if(!env.street(this.v)||Math.abs(turn(q.yaw,dir*Math.PI/2))>.20||gap(q,this.v)<1)return;
+        from={...q,dir};lead={x:this.v.x,z:this.v.z};
+      }else if(this.phase!=="rest"&&this.phase!=="ready")return;
+      if(!this.call.source&&this.phase!=="rest")this.deferredPerson=this.patient;
+      this.pendingStreet=null;this.startCase(next);this.patient.palette=next.palette;this.patient.style=next.style;
+      this.patient.careThanks=next.thanks;this.patient.source=next.source;this.patient.seatHeight=.03;
+      this.dispatch(true);
+      if(from)this.line=track([lead,...BayCab.route(from,next.berth).pts]);
     }
     baySeats(){this.seat(this.medic,"right");this.seat(this.driver,"left");}
     seat(a,side){a.seatMode=side;a.seat=1;a.path=[];a.action="ride";a.door=null;}
@@ -104,7 +184,7 @@
     get goal(){return this.phase==="outbound"?this.call.berth:this.site.bay;}
     get pushing(){return ["toPatient","toTruck","toBed"].includes(this.phase);}
     get atScene(){return roadside.includes(this.phase)||this.phase==="dock"&&this.dock.out;}
-    get bodyVisible(){return !this.cot.occupied&&(this.atScene||this.phase==="handoff");}
+    get bodyVisible(){if(this.call.source&&this.atScene&&this.phase!=="transfer")return false;return !this.cot.occupied&&(this.atScene||this.phase==="handoff");}
     get progress(){return this.phase==="transfer"?limit(this.age/2,0,1):this.phase==="handoff"?1-limit(this.age/2.3,0,1):0;}
     get instruction(){return instructions[this.phase];}
     guide(){
@@ -129,12 +209,13 @@
       return track(out?[this.v,...exit,...BayCab.route(start,curb).pts]:[this.v,...BayCab.route(curb,end).pts,...entry]);
     }
     dispatch(out,manual=false){
+      this.detour=this.search=null;this.retryIn=0;this.v.reversing=false;
       this.line=this.route(out);this.cursor=0;this.lateral=0;this.blocked=0;this.manual=manual;this.v.responseLights=true;this.previousSpeed=0;this.go(out?"outbound":"return");
       if(manual){this.lastRoad=null;this.trace=[{x:this.v.x,z:this.v.z}];}
     }
     recruit(atDesk){
       if(this.joined||!(atDesk?this.phase==="ready"||this.phase==="rest":["ready","outbound","scene","rear","sceneRoll","toPatient"].includes(this.phase)))return false;
-      if(this.phase==="rest"){this.index=(this.index+1)%cases.length;this.startCase();}
+      if(this.phase==="rest"){if(!this.call.source)this.index=(this.index+1)%cases.length;this.startCase();}
       this.joined=true;
       if(this.phase==="ready"&&atDesk){this.manual=true;this.go("release");}
       else if(this.phase==="ready")this.dispatch(true);
@@ -240,9 +321,9 @@
       const from={x:a.x,z:a.z,y:a.y,yaw:a.yaw};this.holding=false;this.rolling=0;
       this.snap={from,to:{...dest,y:env.ground(dest.x,dest.z)+.94}};env.motion.handTarget=null;
       if(this.phase==="toTruck"){this.beginRail(true,env);return true;}
-      if(this.phase==="toPatient"){this.go("transfer");this.patient.action="transfer";}
+      if(this.phase==="toPatient"){if(this.call.source?.down)this.call.source.down.inCare=true;this.go("transfer");this.patient.action="transfer";}
       else{
-        this.go("handoff");this.cot.occupied=false;this.recovering=null;
+        this.go("handoff");this.cot.occupied=false;this.releaseStreet(this.recovering);this.recovering=null;
         Object.assign(this.patient,this.site.cot,{y:env.ground(this.site.cot.x,this.site.cot.z)});this.patient.seatHeight=this.site.cot.y-this.patient.y;this.patient.action="transfer";
       }return true;
     }
@@ -276,7 +357,10 @@
       const c=this.call;this.patient.action="sit";this.recovering=this.patient;
       this.discharge=0;
       const participated=this.joined;
-      if(participated){
+      if(c.source){
+        this.saved.streetSlip={name:c.name,place:c.place,reason:c.reason,assisted:participated};
+        env.admitted(c,participated);
+      }else if(participated){
         const grade=Math.round(this.grade),pay=c.base+Math.round(grade*.55);
         this.saved.count[c.id]=Math.min(99999,this.saved.count[c.id]+1);this.saved.best[c.id]=Math.max(this.saved.best[c.id],grade);
         this.saved.last=c.id;this.saved.next=(this.index+1)%cases.length;env.paid(c,pay,grade);
@@ -322,6 +406,7 @@
       }return false;
     }
     step(dt,env){
+      this.takeStreet(dt,env);
       this.age+=dt;const v=this.v,a=this.cot,p=this.phase;this.placeSeats(dt,env);
       if(a.fold===1&&!this.rail)Object.assign(a,loaded(v,env.ground));
       if(this.recovering)this.dischargePatient(dt,env);
@@ -424,7 +509,10 @@
       if(p==="stow"){const u=limit(this.age/1.55,0,1);this.slide(this.rail.from,this.rail.to,ease(u));a.fold=ease(u);
         if(u===1){this.rail=null;this.go("close");}return;}
       if(p==="close"){if(this.boardCrew(dt,env)){v.rearOpen=Math.max(0,v.rearOpen-dt*1.4);if(v.rearOpen===0)this.go("rest");}return;}
-      if(p==="rest"&&this.age>this.wait){this.index=(this.index+1)%cases.length;this.startCase();this.wait=4;}
+      if(p==="rest"&&this.age>this.wait){if(!this.call.source)this.index=(this.index+1)%cases.length;this.startCase();this.wait=4;}
+    }
+    releaseStreet(a){
+      if(a?.source?.down){a.source.down=null;a.source.wait=1;a.source.moving=false;}
     }
     dischargePatient(dt,env){
       const a=this.recovering;this.discharge+=dt;
@@ -433,19 +521,19 @@
       if(!a.dischargePath)a.dischargePath=dischargeWalk.slice();
       const stop=a.dischargePath[0];if(!this.walk(a,stop,dt,env,1.2))return;
       a.dischargePath.shift();if(a.dischargePath.length)return;
-      Object.assign(a,waitingSeat,{seatHeight:.51,action:"sit"});this.waiting=a;this.recovering=null;
+      Object.assign(a,waitingSeat,{seatHeight:.51,action:"sit"});this.releaseStreet(this.waiting);this.waiting=a;this.recovering=null;
     }
     map(c,opt,px,py,s,visible,t){
       const v=this.v,isStreet=opt.mode==="street",cot=this.cot;
       if(!isStreet){
         if(visible(px(v.x),py(v.z),11))BayAmbulanceArt.map(c,opt,px,py,s,v,t);
-        if(!this.joined&&this.bodyVisible&&this.atScene&&visible(px(this.patient.x),py(this.patient.z),10)){
+        if(!this.joined&&(this.bodyVisible||this.call.source)&&this.atScene&&visible(px(this.patient.x),py(this.patient.z),10)){
           const x=px(this.patient.x),y=py(this.patient.z);c.save();c.fillStyle="#3c6966";c.strokeStyle="#ead9b6";c.lineWidth=1.1;
           c.beginPath();c.arc(x,y,4.2,0,Math.PI*2);c.fill();c.stroke();c.fillStyle="#f2dfac";c.fillRect(x-.7,y-2.5,1.4,2.8);c.fillRect(x-.7,y+1,1.4,1.2);c.restore();
         }return;
       }
       if((cot.fold<.995||v.rearOpen>.01)&&visible(px(cot.x),py(cot.z),5*s))BayRescueCrew.cotMap(c,opt,px,py,s,cot,t);
-      const actors=[this.dispatcher,this.nurse,this.medic,this.driver];
+      const actors=[this.dispatcher,this.nurse,this.medic,this.driver];if(this.deferredPerson)actors.push(this.deferredPerson);
       if(this.bodyVisible)actors.push(this.patient);
       if(this.recovering&&(!this.bodyVisible||this.recovering!==this.patient))actors.push(this.recovering);
       if(this.waiting&&!actors.includes(this.waiting))actors.push(this.waiting);

@@ -29,7 +29,7 @@
     const dir=end==="head"?1:-1;
     return [-1,1].map(side=>point(c,-side*dir*spec.gripX,spec.gripY,dir*spec.headGrip));
   }
-  const roleOf=c=>patientRoles.includes(c.patient?.role)?c.patient.role:patientRoles.includes(c.patientRole)?c.patientRole:"skater";
+  const roleOf=c=>c.patient?.palette?"street":patientRoles.includes(c.patient?.role)?c.patient.role:patientRoles.includes(c.patientRole)?c.patientRole:"skater";
   const key=n=>"rescue-crew/"+n;
   function box(g,x,y,z,w,h,d,color){g.box(x,y,z,w,h,d,color);}
   function rod(g,a,b,r,col,n=7){g.pole(a,b,r,col,n);}
@@ -437,7 +437,12 @@
     if(action==="rise")f=blendForms(seated(a,role,t),standing(t),smooth(0,1,progress));
     if(action==="check")f=checking(t);
     if(action==="desk")f=atDesk(t);
-    if(c&&action==="transfer")f=transfer(a,c,role,clamp(progress),t);
+    if(c&&action==="transfer"){
+      if(a.source&&a.source.down?.inCare&&Math.hypot(a.x-a.source.x,a.z-a.source.z)<2){
+        const start=reclined(a,{x:a.x,y:a.y+.09,z:a.z,yaw:a.yaw});
+        f=blendForms(start,reclined(a,c),smooth(0,1,clamp(progress)));
+      }else f=transfer(a,c,role,clamp(progress),t);
+    }
     if(c&&action==="lying")f=reclined(a,c);
     if(role==="gardener"&&c&&(action==="lying"||action==="transfer"))setHat(f,a,c,action==="lying"?1:clamp(progress));
     if(c&&["push","guide","side"].includes(action))f=pushing(a,c,action==="push"?"foot":action==="guide"?"head":"side",t);
@@ -507,14 +512,14 @@
       rod(g,[s*.32,.071,-.35],[s*.32,.071,.43],.02,graphite,4);
     }
   }
-  function modelPatient(g,role){
-    const m=new BayPlayerMesh(colors[role],"local");dress(m,role);
+  function modelPatient(g,role,palette=colors[role]){
+    const m=new BayPlayerMesh(palette,"local");dress(m,role);
     const a={x:0,y:0,z:0,yaw:0},c={...a,patientRole:role};
     pose(m,a,0,role,"lying",c);
     for(const n of m.vertices)g.vertices.push(n);
   }
-  function lowRider(g,role){
-    const [skin,shirt,pants]=colors[role];
+  function lowRider(g,role,palette=colors[role]){
+    const [skin,shirt,pants]=palette;
     const sections=[[-.70,.19,.17],[-.39,.24,.34],[-.08,.22,.263],[.18,.210,.301]];
     const cloth=sections.map(([z,w,h])=>[[-w,.048,z],[-w+.050,h,z],[w-.052,h+.006,z],[w,.048,z]]);
     for(let j=1;j<cloth.length;j++)for(let k=1;k<4;k++)g.quad(cloth[j-1][k-1],cloth[j-1][k],cloth[j][k],cloth[j][k-1],k===2?blanket:"#95ac97");
@@ -531,12 +536,18 @@
     for(const role of patientRoles){model(key("patient-"+role),g=>modelPatient(g,role));model(key("rider-"+role),g=>lowRider(g,role));}
   }
   function item(list,id,p,yaw=0,pitch=0,roll=0){list.push([key(id),p.x,p.y,p.z,yaw,pitch,roll]);}
+  function streetCot(model,a){
+    const id="street-"+a.style;
+    model(key("patient-"+id),g=>modelPatient(g,"street",a.palette));
+    model(key("rider-"+id),g=>lowRider(g,"street",a.palette));
+  }
   function cotWorld(list,c,t=0,near=true){
     if(!c||c.hidden)return;
+    const rider=c.patient?.palette?"street-"+c.patient.style:roleOf(c);
     const y=c.yaw||0,g=geometry(c),put=(n,x,h,z,rot=0,tilt=0)=>item(list,n,point(c,x,h,z),y+rot,tilt);
     if(near===false){
       put(c.fold>.5?"low-folded":"low-open",0,0,0);
-      if(c.occupied)put("rider-"+roleOf(c),0,0,0);return;
+      if(c.occupied)put("rider-"+rider,0,0,0);return;
     }
     else{
       put("frame",0,0,0);put("brace",0,upperPivot,-g.half,0,g.pitch);put("link",0,upperPivot,g.half,pi,g.pitch);
@@ -547,7 +558,7 @@
         put("tires",0,g.axle,e*g.half+.018,0,spin%tau);
       }
     }
-    if(c.occupied){put("patient-"+roleOf(c),0,0,0);put("cover",0,0,0);}
+    if(c.occupied){put("patient-"+rider,0,0,0);put("cover",0,0,0);}
   }
   function propPlan(a,role,action,mesh){
     if(role==="dispatcher"&&action==="desk"&&mesh){
@@ -611,7 +622,7 @@
   function personMap(ctx,opt,px,py,s,a,t=0,role="medic",action=a?.action||"idle",c,progress=a?.progress??0){
     if(!a||a.hidden||!street(opt))return;
     const mesh=mapRig();pose(mesh,a,t,role,action,c,progress);
-    const ground=c?groundOf(c):(a.ground??a.y??0),I=ink(ctx,opt,px,py,s,ground),[skin,shirt,pants]=colors[role]||colors.player;
+    const ground=c?groundOf(c):(a.ground??a.y??0),I=ink(ctx,opt,px,py,s,ground),[skin,shirt,pants]=a.palette||colors[role]||colors.player;
     const world=v=>actorWorld(a,v),joint=(b,x,y,z)=>world(b.map([x,y,z],[]));
     const head=(x,y,z)=>joint(mesh.head,x,y,z),top=(x,y,z)=>joint(mesh.chest,x,y,z);
     const lifted=action==="lying"||action==="transfer"&&progress>.60;
@@ -676,7 +687,7 @@
         I.line(p(side*.157,.052,z),p(side*.257,.052,z),.047,rubber);}
     }
     if(c.occupied){
-      const a={x:c.x,y:c.y,z:c.z,yaw:c.yaw||0,ground};
+      const a={x:c.x,y:c.y,z:c.z,yaw:c.yaw||0,ground,palette:c.patient?.palette};
       personMap(ctx,opt,px,py,s,a,t,roleOf(c),"lying",c,1);
       const rings=coverSections.map(row=>clothRing(row[0]));
       I.polygon([...rings.map(r=>p(...r[0])),...rings.slice().reverse().map(r=>p(...r[8]))],blanket);
@@ -694,5 +705,5 @@
     ctx.restore();
   }
   window.BayRescueCrew=Object.freeze({install,spec,point,handler,handles,colors,palette:role=>colors[role]||colors.player,
-    dress,pose,props,cotWorld,cotMap,personMap});
+    dress,pose,props,streetCot,cotWorld,cotMap,personMap});
 })();
