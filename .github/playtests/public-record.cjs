@@ -136,10 +136,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert.equal(await js("reelTest.cut?.who"),voice);await tap("KeyH");
     await waitFor("document.querySelector('#chapterWho').textContent===BayRoomTone.lines['"+voice+"'][0]");await snap("reel");
     await tap("Enter");await waitFor(book+".cut?.who==='"+voice+"'");
-    await loadFootAt({x:140.60,z:123});await js("const update=BayAirwavesStreet.Radio.prototype.update;BayAirwavesStreet.Radio.prototype.update=function(...a){window.receiverTest=this;return update.apply(this,a);};");
+    await loadFootAt({x:140.60,z:123});await js("const update=BayAirwavesStreet.Radio.prototype.update;BayAirwavesStreet.Radio.prototype.update=function(...a){window.receiverTest=this;return update.apply(this,a);};const playRelay=BayRoomTone.Relay.prototype.step;BayRoomTone.Relay.prototype.step=function(...a){window.airTest=this;return playRelay.apply(this,a);};");
     await tap("KeyE");await waitFor("window.receiverTest?.device",35000);
     for(let i=0;i<4&&await js("receiverTest.station!=='sol'");i++){await tap("BracketRight");}
     await waitFor("receiverTest.station==='sol'&&document.querySelector('#receiverTitle').textContent==='Room Tone'");
+    await js("window.leftAt=airTest.at");await tap("BracketRight");await waitFor("!airTest.station&&!airTest.clip&&airTest.at>leftAt+.36");await tap("BracketLeft");
+    await waitFor("airTest.station&&airTest.clip&&airTest.at>leftAt+.36");
     await key("keyDown","KeyW");try{
       await waitFor("document.querySelector('#receiverCredit').textContent===BayRoomTone.lines['"+voice+"'][0]",30000);await snap("broadcast");
     }finally{await key("keyUp","KeyW");}

@@ -57,7 +57,7 @@
       const strip=$("receiverCard"),desk=$("boothReadout"),mix=this.mix;
       $("hud").classList.toggle("fm-mixing",!!mix&&!this.approach);
       $("dialKey").hidden=!this.device||!!mix;
-      const bulletin=relay?.show&&this.station==="sol";
+      const bulletin=relay?.show&&relay.station&&this.station==="sol";
       strip.hidden=!this.device||!!mix||quiet||!this.signal||!bulletin&&now>=Math.max(this.showUntil,this.newsUntil);
       if(!strip.hidden){
         const s=fm.stations[this.station],signal=this.signal;

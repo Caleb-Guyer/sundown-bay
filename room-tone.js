@@ -51,20 +51,20 @@
     return parts;
   }
   class Relay{
-    constructor(){this.show=null;this.at=0;this.wait=2;this.station=false;this.clip=null;}
+    constructor(){this.cue();}
+    cue(){this.show=null;this.at=0;this.wait=2;this.station=false;this.clip=null;}
     step(dt,tuned,book){
-      if(!tuned||!book.cut){
-        if(this.station){this.show=null;this.clip=null;this.wait=2;}this.station=false;return;
-      }
-      this.station=true;
+      this.station=!!tuned;
+      if(!book.cut)return;
       if(!this.show){
+        if(!tuned)return;
         this.wait-=dt;if(this.wait>0)return;
         this.show=program(book.cut,book.credit);this.at=0;
       }else this.at+=dt;
       if(this.at>=this.show.at(-1).end){
         this.show=null;this.clip=null;this.wait=100;return true;
       }
-      this.clip=position(this.show,this.at);
+      this.clip=tuned?position(this.show,this.at):null;
     }
   }
   function world(model,list){

@@ -811,6 +811,11 @@
       }
     }
     if(opt.airwaves&&street)BayAirwavesBooth.map(ctx,px,py,s,visible,streetTime,opt.airwaves,opt);
+    if(street&&opt.record?.trips){
+      const d=BayRoomTone.deck,x=px(d.x),y=py(d.z);
+      if(visible(x,y,s)){rect(ctx,x-.23*s,y-.32*s,.46*s,.64*s,"#a3ac97");
+        for(const k of [-1,1])disc(ctx,x-.035*s,y+k*.17*s,.117*s,"#4d5350");}
+    }
     if(opt.buttonwood){
       const work=opt.buttonwood;
       BayButtonwoodYard.map(ctx,px,py,s,visible,streetTime,work,opt);

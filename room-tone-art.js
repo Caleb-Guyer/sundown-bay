@@ -11,7 +11,7 @@
     rect(g,0,0,1000,500,"#253e37");for(let i=0;i<44;i++)rect(g,0,i*12,1000,1,i%3?"#2b433b":"#32483d");
     rect(g,45,22,920,458,"#192d29");rect(g,37,15,920,458,"#7a8578");rect(g,50,26,895,235,"#a7ac95");
     for(const a of [61,931])for(const b of [37,245]){disc(g,a,b,5,"#596457");rect(g,a-2,b,5,1,"#b7bda6");}
-    rect(g,383,67,228,61,"#243d38");text(g,"SOL  FM",405,109,35,cream,"Georgia");text(g,"UNIT  3",524,106,15,"#9bc2af");
+    rect(g,383,67,228,61,"#243d38");text(g,"SOL FM",399,109,32,cream,"Georgia");text(g,"UNIT 3",538,106,15,"#9bc2af");
     rect(g,418,165,165,35,"#69756a");rect(g,433,156,136,38,"#d4c7a9");rect(g,497,156,4,38,"#78392b");
     for(const u of [364,633]){disc(g,u,183,18,"#394c45");disc(g,u,183,11,"#959d8b");}
     rect(g,51,263,895,195,paper);text(g,"M. VEGA    /    FIELD REEL 14",73,290,16,rust);
