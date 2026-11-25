@@ -17,6 +17,26 @@
     r.target={...roadPoint(r,3.1,r.finish),name:r.landmark,kind:"green-finish"};
   }
   const route=id=>routes.find(r=>r.id===id);
+  function invitation(r,last,plate){
+    if(!last)return r.invite;
+    const other=last.plate&&plate&&plate!==last.plate;
+    if(r.id==="ocean"){
+      if(other)return "Hey, what happened to "+last.plate+"? Pull up. My brother wants a look at this one.";
+      if(last.result==="early")return "I heard those tires before the light changed last time. Watch the lamp with me.";
+      if(last.result==="first"&&last.time)return "My brother wrote "+last.time.toFixed(2)+" on his lunch bag. Give me another shot at it?";
+      return "Still got your slip from the Palm? I've got mine in the visor. Line up.";
+    }
+    if(r.id==="luna"){
+      if(other)return "You changed cars. I remember "+last.plate+" under that marquee. Same stage door?";
+      if(last.result==="early")return "Wait for your cue this time. That red slip won't get you into the matinee.";
+      if(last.result==="first")return "The usher asked me who beat me out front. I told her you'd come back.";
+      return "The projectionist can see the clock from upstairs. Let's give her another finish.";
+    }
+    if(other)return "That's a different rig. I had "+last.plate+" chalked on my lunch pail.";
+    if(last.result==="early")return "You're quicker than the lamp. Give it the first move this time.";
+    if(last.result==="first"&&last.time)return "Still got your "+last.time.toFixed(2)+" chalked on the pail. Haven't rubbed it off yet.";
+    return "The yard crew says the old truck still has it. Want to take that up with them?";
+  }
   const finite=(n,min,max)=>Number.isFinite(n)&&n>=min&&n<=max;
   const count=n=>Number.isSafeInteger(n)&&n>=0?n:0;
   const wrapped=n=>Math.atan2(Math.sin(n),Math.cos(n));
@@ -71,19 +91,31 @@
   }
   function leg(v,points,pace,yaw){
     v.path=[{x:v.x,z:v.z},...points];v.corner=1;v.finiteRoute=true;v.finiteYaw=yaw;v.pace=pace;
+    for(let i=0;i<points.length;i++){
+      const bend=points[i].yieldAt;
+      if(bend)BayJunctionTurns.remember(v.path,i+1,...bend);
+    }
     v.reaction=null;v.pullOver=null;v.wantsCurb=false;v.wait=0;v.blocked=0;
   }
   // Turn around the adjacent city block and pull back into the original parking place.
   // Square corners stay on the correct side of each successive two-way street.
   function homeward(s,lane){
     const r=s.route,p=(d,f)=>roadPoint(r,d,f);
-    return [p(lane,65),p(lane,69),p(lane-1.2,72.7),p(-2.7,74.5),p(-69,74.5),p(-72.8,73.1),p(-74.5,69),
+    const points=[p(lane,65),p(lane,69),p(lane-1.2,72.7),p(-2.7,74.5),p(-69,74.5),p(-72.8,73.1),p(-74.5,69),
       p(-74.5,-68.5),p(-73,-72.9),p(-69,-74.5),p(-2,-74.5),p(1,-73.2),p(2.5,-69),
       p(5.8,-65),p(7.6,-53),r.home];
+    // Drivers merge back into the ordinary order of traffic on their lap home.
+    points[0].yieldAt=[p(lane,0),p(lane,74.5),points[4]];
+    points[4].yieldAt=[points[3],p(-74.5,74.5),points[7]];
+    points[7].yieldAt=[points[6],p(-74.5,-74.5),points[10]];
+    points[10].yieldAt=[points[9],p(2.5,-74.5),p(2.5,-31)];
+    return points;
   }
   function laneChange(a,lane,run){
     const {s}=a,r=s.route,v=s.v,q=relative(r,v),path=homeward(s,lane);
-    if(q.z+run>=r.finish-1)return false;
+    // The finish beam is a timing line. Keep the passing line usable through
+    // the run-out, up to the first point of the returning driver's circuit.
+    if(q.z+run>=relative(r,path[0]).z-.25)return false;
     leg(v,[roadPoint(r,lane,q.z+run),...path],v.pace,r.yaw);a.lane=lane;return true;
   }
   function relative(r,v){return BayDriving.local(r,v.x,v.z);}
@@ -196,5 +228,5 @@
       if(Math.abs(q.x)>12||q.z<line-8||q.z>r.finish+6||a.clock>45){this.leave();return "cancel";}
     }
   }
-  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,read,file,laneChange,Club};
+  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,invitation,read,file,laneChange,Club};
 })();

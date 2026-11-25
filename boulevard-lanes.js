@@ -140,8 +140,10 @@
       const b=s.passed,along=(b.x-v.x)*ux+(b.z-v.z)*uz;
       if(along<-(shape(v).halfLength+shape(b).halfLength+3.3)||Math.abs(b.x-v.x)+Math.abs(b.z-v.z)>45)s.passed=null;
     }
-    const turnIn=s.lane>1&&remaining<24,block=area.ahead>12&&area.behind>9;
-    if(turnIn&&remaining<9)s.gap=Math.max(0,remaining-4);
+    const turnIn=s.lane>1&&remaining<37,block=area.ahead>12&&area.behind>9;
+    // Leave a full lane change before the crosswalk. A driver who cannot get
+    // back across waits on the block instead of nosing into the junction.
+    if(turnIn)s.gap=Math.max(0,remaining-17);
     if(time<s.scan)return s;
     s.scan=time+.30+(v.id%4)*.044;
     const hazard=block?obstruction(v,ux,uz,vehicles):null;
@@ -152,8 +154,8 @@
     const preference=v.id%3===0?outside:0;
     let next=s.lane;
     if(turnIn)next=0;
-    else if(hazard&&space)next=s.lane>1?0:outside;
-    else if(!s.passed&&space&&remaining>35&&area.ahead>23)next=preference;
+    else if(hazard&&space&&(s.lane>1||remaining>40))next=s.lane>1?0:outside;
+    else if(!s.passed&&space&&remaining>48&&area.ahead>23)next=preference;
     if(next===s.lane||s.passed&&!turnIn&&hazard?.body===s.passed||!room(v,ux,uz,next-offset,vehicles))return s;
     if(hazard&&hazard.distance<shape(v).halfLength+hazard.half+4.5){
       const gap=shape(v).halfLength+hazard.half+4.9;
@@ -170,6 +172,6 @@
     const b=components(v,s.hold.q,ux,uz);
     return Math.abs(b.r)>shape(v).track+b.width+.15?Infinity:Math.max(0,b.f-b.half-shape(v).halfLength-4.6);
   }
-  function flash(v,time){const t=time-v.mergeFlash;return t>=0&&(t<.22||t>.39&&t<.66);}
+  function flash(v,time){const t=time-Math.max(v.mergeFlash??-Infinity,v.headlightFlash??-Infinity);return t>=0&&(t<.22||t>.39&&t<.66);}
   window.BayBoulevardLanes={update,holdGap,candidate,ask,flash};
 })();

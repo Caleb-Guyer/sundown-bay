@@ -50,7 +50,11 @@
   }
   function roundLoop(v){
     const p=v.path,rounded=[];
-    for(let i=0;i<p.length;i++)bend(p[(i+3)%4],p[i],p[(i+1)%4],5.2,rounded);
+    for(let i=0;i<p.length;i++){
+      const before=p[(i+3)%4],after=p[(i+1)%4];
+      BayJunctionTurns.remember(rounded,rounded.length,before,p[i],after);
+      bend(before,p[i],after,5.2,rounded);
+    }
     v.path=rounded;v.corner=nearestLeg(v,rounded);
   }
   function signal(v){

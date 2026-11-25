@@ -5,13 +5,14 @@ const { spawn } = require("node:child_process");
 const corner = process.argv.includes("--corner");
 const luggage = process.argv.includes("--luggage");
 const green = process.argv.includes("--on-green");
+const junction = process.argv.includes("--junction");
 const threads = process.argv.includes("--threads");
 const neighbors = process.argv.includes("--neighbors");
 const partnerDrive = process.argv.includes("--partner-drive");
 const pavement = process.argv.includes("--pavement");
 const starlite = process.argv.includes("--starlite");
 const engineSeven = process.argv.includes("--engine-seven");
-const play = require(engineSeven ? "./engine-seven.cjs" : starlite ? "./starlite.cjs" : pavement ? "./pavement.cjs" : partnerDrive ? "./partner-drive.cjs" : neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
+const play = require(junction ? "./junction.cjs" : engineSeven ? "./engine-seven.cjs" : starlite ? "./starlite.cjs" : pavement ? "./pavement.cjs" : partnerDrive ? "./partner-drive.cjs" : neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
 
 const mode = process.argv[2];
 const site = "https://caleb-guyer.github.io/sundown-bay/";
@@ -129,7 +130,7 @@ async function run() {
     const lanes = process.argv.includes("--boulevard");
     const beat = process.argv.includes("--ocean-beat");
     const carbon = process.argv.includes("--carbon-copies");
-    if (!lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
+    if (!junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
     const activity = lanes ? require("./boulevard.cjs") : caps ? require("./summer-caps.cjs") : freight ? require("./port-spur.cjs") : angling ? require("./red-cork.cjs") : bumpers ? require("./bumpers.cjs") : houseLights ? require("./house-lights.cjs") : cup ? require("./coast-cup.cjs") : beat ? require("./ocean-beat.cjs") : carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
     await activity({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);

@@ -10317,6 +10317,26 @@ window.buildBayCity = function buildBayCity(g,water) {
     r.target={...roadPoint(r,3.1,r.finish),name:r.landmark,kind:"green-finish"};
   }
   const route=id=>routes.find(r=>r.id===id);
+  function invitation(r,last,plate){
+    if(!last)return r.invite;
+    const other=last.plate&&plate&&plate!==last.plate;
+    if(r.id==="ocean"){
+      if(other)return "Hey, what happened to "+last.plate+"? Pull up. My brother wants a look at this one.";
+      if(last.result==="early")return "I heard those tires before the light changed last time. Watch the lamp with me.";
+      if(last.result==="first"&&last.time)return "My brother wrote "+last.time.toFixed(2)+" on his lunch bag. Give me another shot at it?";
+      return "Still got your slip from the Palm? I've got mine in the visor. Line up.";
+    }
+    if(r.id==="luna"){
+      if(other)return "You changed cars. I remember "+last.plate+" under that marquee. Same stage door?";
+      if(last.result==="early")return "Wait for your cue this time. That red slip won't get you into the matinee.";
+      if(last.result==="first")return "The usher asked me who beat me out front. I told her you'd come back.";
+      return "The projectionist can see the clock from upstairs. Let's give her another finish.";
+    }
+    if(other)return "That's a different rig. I had "+last.plate+" chalked on my lunch pail.";
+    if(last.result==="early")return "You're quicker than the lamp. Give it the first move this time.";
+    if(last.result==="first"&&last.time)return "Still got your "+last.time.toFixed(2)+" chalked on the pail. Haven't rubbed it off yet.";
+    return "The yard crew says the old truck still has it. Want to take that up with them?";
+  }
   const finite=(n,min,max)=>Number.isFinite(n)&&n>=min&&n<=max;
   const count=n=>Number.isSafeInteger(n)&&n>=0?n:0;
   const wrapped=n=>Math.atan2(Math.sin(n),Math.cos(n));
@@ -10371,19 +10391,31 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function leg(v,points,pace,yaw){
     v.path=[{x:v.x,z:v.z},...points];v.corner=1;v.finiteRoute=true;v.finiteYaw=yaw;v.pace=pace;
+    for(let i=0;i<points.length;i++){
+      const bend=points[i].yieldAt;
+      if(bend)BayJunctionTurns.remember(v.path,i+1,...bend);
+    }
     v.reaction=null;v.pullOver=null;v.wantsCurb=false;v.wait=0;v.blocked=0;
   }
   // Turn around the adjacent city block and pull back into the original parking place.
   // Square corners stay on the correct side of each successive two-way street.
   function homeward(s,lane){
     const r=s.route,p=(d,f)=>roadPoint(r,d,f);
-    return [p(lane,65),p(lane,69),p(lane-1.2,72.7),p(-2.7,74.5),p(-69,74.5),p(-72.8,73.1),p(-74.5,69),
+    const points=[p(lane,65),p(lane,69),p(lane-1.2,72.7),p(-2.7,74.5),p(-69,74.5),p(-72.8,73.1),p(-74.5,69),
       p(-74.5,-68.5),p(-73,-72.9),p(-69,-74.5),p(-2,-74.5),p(1,-73.2),p(2.5,-69),
       p(5.8,-65),p(7.6,-53),r.home];
+    // Drivers merge back into the ordinary order of traffic on their lap home.
+    points[0].yieldAt=[p(lane,0),p(lane,74.5),points[4]];
+    points[4].yieldAt=[points[3],p(-74.5,74.5),points[7]];
+    points[7].yieldAt=[points[6],p(-74.5,-74.5),points[10]];
+    points[10].yieldAt=[points[9],p(2.5,-74.5),p(2.5,-31)];
+    return points;
   }
   function laneChange(a,lane,run){
     const {s}=a,r=s.route,v=s.v,q=relative(r,v),path=homeward(s,lane);
-    if(q.z+run>=r.finish-1)return false;
+    // The finish beam is a timing line. Keep the passing line usable through
+    // the run-out, up to the first point of the returning driver's circuit.
+    if(q.z+run>=relative(r,path[0]).z-.25)return false;
     leg(v,[roadPoint(r,lane,q.z+run),...path],v.pace,r.yaw);a.lane=lane;return true;
   }
   function relative(r,v){return BayDriving.local(r,v.x,v.z);}
@@ -10496,7 +10528,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(Math.abs(q.x)>12||q.z<line-8||q.z>r.finish+6||a.clock>45){this.leave();return "cancel";}
     }
   }
-  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,read,file,laneChange,Club};
+  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,invitation,read,file,laneChange,Club};
 })();
 
 ;
@@ -33179,6 +33211,14 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function gestures(rig,a,t){
     const phase=a.phase,age=a.age||0,enter=smooth(0,.32,age),id=a.id;
+    if(phase==="drive"&&a.car){
+      const since=t-a.car.thankedAt,up=thanks(a.car,t);
+      if(up){
+        const hand=palm(rig,-1);
+        solve(rig.sides[0],shift(hand,-.075-.044*Math.sin(since*10),.26,.036),up);
+        look(rig,-.075*up,-.14*up,0);return true;
+      }
+    }
     if(toeIn.has(phase)||a.motion.ride)return false;
     const right=rig.sides[1],left=rig.sides[0],beat=t*.92+(id==="viv"?2.72:id==="tess"?1.72:id==="ruth"?.58:0);
     if(phase==="give"||phase==="receive"){
@@ -33373,7 +33413,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     const before=(guest.exchange||0)<.5,hasKey=guest.phase==="give"?!before:before;
     return hasKey?[[-1,"marlin-fob-"+guest.id]]:[[1,"marlin-stub-"+guest.id]];
   }
-  function mapCabin(c,a,vehicle,s){
+  function thanks(v,t){
+    const time=t-v.thankedAt;
+    return time>=0&&time<1.65?smooth(0,.32,time)*(1-smooth(.98,1.65,time)):0;
+  }
+  function mapCabin(c,a,vehicle,s,t){
     const v=vehicle,van=v.kind==="van",front=van?-1.59:-1.10,b=van?.97:.91;
     const d=people[a.id],seat=bayCarLayout(v.kind),x=-seat.seatX,glass=front+.45,steer=a.motion?.ride?.steer||0;
     c.save();c.translate(v.x-a.x,a.z-v.z);c.rotate(v.yaw||0);
@@ -33382,7 +33426,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     ellipse(x,glass+.04,.208,.110,d.shirt);ellipse(x,glass+.075,.109,.123,d.hair);
     ellipse(x,glass+.024,.089,.089,d.skin);ellipse(x,glass+.065,.101,.105,a.id==="tess"?"#c7c7ad":d.hair);
     c.strokeStyle="#425657";c.lineWidth=.029;c.beginPath();c.ellipse(x,glass-.10,.150,.058,steer*.23,0,tau);c.stroke();
-    for(const k of [-1,1])ellipse(x+k*.119,glass-.099+k*.038*Math.sin(steer),.031,.029,d.skin);
+    const up=thanks(v,t);
+    for(const k of [-1,1]){
+      const lift=k<0?up:0;
+      ellipse(x+k*.119-lift*(.08+.032*Math.sin(t*10)),glass-.099+k*.038*Math.sin(steer)-.05*lift,.031+.018*lift,.029+.032*lift,d.skin);
+    }
     c.fillStyle="rgba(99,144,148,.23)";c.fillRect(-b,front,2*b,.51);
     c.restore();
   }
@@ -33432,7 +33480,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const seated=a.motion?.ride?.seat||0,car=[a.vehicle,a.v,a.car,a.ride,cabinCars.get(a)?.source].find(v=>v?.kind);
     c.save();c.translate(x,y);c.scale(s,s);
     if(seated>=.93){
-      if(car){c.globalAlpha*=smooth(.93,.99,seated);mapCabin(c,a,car,s);}
+      if(car){c.globalAlpha*=smooth(.93,.99,seated);mapCabin(c,a,car,s,t);}
       c.restore();return;
     }
     if(seated>.82)c.globalAlpha*=1-smooth(.82,.93,seated);
@@ -34379,7 +34427,11 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function roundLoop(v){
     const p=v.path,rounded=[];
-    for(let i=0;i<p.length;i++)bend(p[(i+3)%4],p[i],p[(i+1)%4],5.2,rounded);
+    for(let i=0;i<p.length;i++){
+      const before=p[(i+3)%4],after=p[(i+1)%4];
+      BayJunctionTurns.remember(rounded,rounded.length,before,p[i],after);
+      bend(before,p[i],after,5.2,rounded);
+    }
     v.path=rounded;v.corner=nearestLeg(v,rounded);
   }
   function signal(v){
@@ -64609,8 +64661,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       const b=s.passed,along=(b.x-v.x)*ux+(b.z-v.z)*uz;
       if(along<-(shape(v).halfLength+shape(b).halfLength+3.3)||Math.abs(b.x-v.x)+Math.abs(b.z-v.z)>45)s.passed=null;
     }
-    const turnIn=s.lane>1&&remaining<24,block=area.ahead>12&&area.behind>9;
-    if(turnIn&&remaining<9)s.gap=Math.max(0,remaining-4);
+    const turnIn=s.lane>1&&remaining<37,block=area.ahead>12&&area.behind>9;
+    // Leave a full lane change before the crosswalk. A driver who cannot get
+    // back across waits on the block instead of nosing into the junction.
+    if(turnIn)s.gap=Math.max(0,remaining-17);
     if(time<s.scan)return s;
     s.scan=time+.30+(v.id%4)*.044;
     const hazard=block?obstruction(v,ux,uz,vehicles):null;
@@ -64621,8 +64675,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     const preference=v.id%3===0?outside:0;
     let next=s.lane;
     if(turnIn)next=0;
-    else if(hazard&&space)next=s.lane>1?0:outside;
-    else if(!s.passed&&space&&remaining>35&&area.ahead>23)next=preference;
+    else if(hazard&&space&&(s.lane>1||remaining>40))next=s.lane>1?0:outside;
+    else if(!s.passed&&space&&remaining>48&&area.ahead>23)next=preference;
     if(next===s.lane||s.passed&&!turnIn&&hazard?.body===s.passed||!room(v,ux,uz,next-offset,vehicles))return s;
     if(hazard&&hazard.distance<shape(v).halfLength+hazard.half+4.5){
       const gap=shape(v).halfLength+hazard.half+4.9;
@@ -64639,8 +64693,103 @@ window.buildBayCity = function buildBayCity(g,water) {
     const b=components(v,s.hold.q,ux,uz);
     return Math.abs(b.r)>shape(v).track+b.width+.15?Infinity:Math.max(0,b.f-b.half-shape(v).halfLength-4.6);
   }
-  function flash(v,time){const t=time-v.mergeFlash;return t>=0&&(t<.22||t>.39&&t<.66);}
+  function flash(v,time){const t=time-Math.max(v.mergeFlash??-Infinity,v.headlightFlash??-Infinity);return t>=0&&(t<.22||t>.39&&t<.66);}
   window.BayBoulevardLanes={update,holdGap,candidate,ask,flash};
+})();
+
+;
+/* junction-turns.js */
+/* Drivers turning across traffic read the opposing lanes from the start of the bend. */
+(() => {
+  "use strict";
+  const routes=new WeakMap(),occupied=new Map();
+  function remember(path,leg,before,corner,after){
+    const dx=corner.x-before.x,dz=corner.z-before.z,length=Math.hypot(dx,dz);
+    const ex=after.x-corner.x,ez=after.z-corner.z,out=Math.hypot(ex,ez);
+    if(length<20||out<20||(dz*ex-dx*ez)/(length*out)>-.94)return;
+    let turns=routes.get(path);
+    if(!turns){turns=new Map();routes.set(path,turns);}
+    const x=Math.round(corner.x/72),z=Math.round(corner.z/72);
+    turns.set(leg,{x:corner.x,z:corner.z,ux:dx/length,uz:dz/length,ox:ex/out,oz:ez/out,
+      junction:x+","+z,signal:BayStreetArt.signals.find(s=>s.x===x*72&&s.z===z*72)});
+  }
+  function opposing(turn,q){
+    const dx=q.x-turn.x,dz=q.z-turn.z;
+    const side=dx*turn.uz-dz*turn.ux;
+    if(side> -2.6||side< -9.35)return false;
+    return Math.sin(q.yaw)*turn.ux+Math.cos(q.yaw)*turn.uz<-.83;
+  }
+  const along=(turn,q)=>(q.x-turn.x)*turn.ux+(q.z-turn.z)*turn.uz;
+  function canInvite(v,player){
+    const w=v.leftWait;
+    if(!player||!w||w.player!==player||w.offered||w.committed||v.path!==w.path||v.corner!==w.leg)return false;
+    return Math.abs(player.speed)<1.15&&Math.abs(v.speed)<2.2&&-along(w.turn,v)<w.stop+2.8&&along(w.turn,player)>5.8;
+  }
+  function waitingDriver(player,cars){return cars.find(v=>canInvite(v,player));}
+  function offer(player,cars,time){
+    const v=waitingDriver(player,cars);
+    if(v){v.leftWait.offered=player;v.leftWait.until=time+6;v.leftWait.scan=0;}
+    return v;
+  }
+  function distance(v,vehicles,player,time){
+    const previous=v.leftWait;
+    if(previous?.committed&&previous.path===v.path){
+      const t=previous.turn,exit=(v.x-t.x)*t.ox+(v.z-t.z)*t.oz;
+      if(exit<10.2&&Math.abs(v.x-t.x)<24&&Math.abs(v.z-t.z)<24)return Infinity;
+      if(occupied.get(t.junction)===v)occupied.delete(t.junction);
+      v.leftWait=null;
+    }
+    const turn=routes.get(v.path)?.get(v.corner);
+    if(!turn){v.leftWait=null;return Infinity;}
+    const to=-along(turn,v);
+    if(to>24||to<5.24){v.leftWait=null;return Infinity;}
+    let w=v.leftWait;
+    if(!w||w.turn!==turn||w.path!==v.path){
+      // At a marked crossing keep the full car behind the band while looking for a gap.
+      const stop=turn.signal?10.45+bayCarLayout(v.kind).halfLength-along(turn,turn.signal):11.2;
+      w=v.leftWait={turn,path:v.path,leg:v.corner,stop,scan:0,held:false,player:null,offered:null,committed:false};
+    }
+    if(w.committed)return Infinity;
+    // Leave room for the nose of an opposite left-turner to swing into its exit lane.
+    const stop=w.stop,gap=Math.max(0,to-stop);
+    if(time>=w.scan){
+      w.scan=time+.13;w.held=false;w.player=null;
+      if(w.offered&&(player!==w.offered||Math.abs(player.speed)>1.3||time>w.until))w.offered=null;
+      const red=turn.signal&&BayCrosswalk.trafficWait(turn.signal,time,Math.abs(turn.uz)>.7);
+      if(red&&turn.signal.call&&to>=stop-.75){w.held=true;return gap;}
+      // Opposite left turns cross near the middle of the rounded bends. Keep the
+      // second car on its approach until the first car's tail clears its lane.
+      const first=occupied.get(turn.junction);
+      if(first&&first!==v&&first.leftWait?.committed&&first.leftWait.turn.junction===turn.junction&&first.path===first.leftWait.path)w.held=true;
+      // Check every opposing lane. A flash only speaks for the driver's own line of cars.
+      for(const q of vehicles){
+        if(q===v||Math.abs(q.x-turn.x)>52||Math.abs(q.z-turn.z)>52||!opposing(turn,q))continue;
+        const at=along(turn,q),speed=q.speed||0;
+        if(at<-(q.footprint||bayCarLayout(q.kind)).halfLength-1.2||at>49)continue;
+        if(!q.path&&q!==player&&Math.abs(speed)<.35&&at>3.8)continue;
+        if(w.offered&&along(turn,w.offered)>5.8){
+          const rel=BayDriving.local(w.offered,q.x,q.z);
+          if(q===w.offered||rel.z<0&&Math.abs(rel.x)<1.7&&Math.abs(speed)<2.4)continue;
+        }
+        const horizon=(Math.max(to,stop)+4.5)/5.35+1.1;
+        if(at>4.1+Math.max(q===player?4.5:2.2,speed)*horizon)continue;
+        // Two opposite left turns can arrive together. Let the nearer one clear the bend first.
+        const theirs=routes.get(q.path)?.get(q.corner);
+        if(q!==player&&theirs&&Math.hypot(theirs.x-turn.x,theirs.z-turn.z)<10){
+          const otherTo=-along(theirs,q);
+          if(to<otherTo-.55||Math.abs(to-otherTo)<=.55&&v.id<q.id)continue;
+        }
+        if(q===player&&!red)w.player=q;
+        w.held=true;
+      }
+      if(!w.held&&!red&&to<=stop+.38){
+        w.committed=true;occupied.set(turn.junction,v);
+        if(w.offered)v.thankedAt=v.headlightFlash=time;
+      }
+    }
+    return w.held?gap:Infinity;
+  }
+  window.BayJunctionTurns={remember,distance,waitingDriver,offer};
 })();
 
 ;
@@ -68400,16 +68549,20 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(a.phase!=="running"||a.opponent!==null||a.clock<a.s.route.delay)return;
     a.scanIn=(a.scanIn||0)-dt;if(a.scanIn>0)return;a.scanIn=.28;
     const {s}=a,v=s.v,r=s.route,at=BayOnGreen.relative(r,v);
-    if(at.z>r.finish-7||at.z<9&&s.signal.call&&BayCrosswalk.lamps(s.signal,streetTime)==="red")return;
+    if(BayOnGreen.nose(r,v)>=r.finish+2||at.z<9&&s.signal.call&&BayCrosswalk.lamps(s.signal,streetTime)==="red")return;
     const look=Math.min(25,Math.max(20,v.speed*1.1)),run=Math.min(10,Math.max(5.4,v.speed*.41));
-    const obstacles=cars.concat(transit.bus,motos.all).filter(o=>o!==v&&Math.abs(o.x-v.x)<look+6&&Math.abs(o.z-v.z)<look+6);
-    const blocked=obstacles.some(o=>{
-      const pos=BayOnGreen.relative(r,o);
-      return pos.z>at.z+.1&&pos.z<at.z+look&&Math.abs(pos.x-a.lane)<2.05&&
-        (o.path?Math.cos(o.yaw-r.yaw)*o.speed:0)<Math.max(8.5,v.speed+1);
-    });
-    if(!blocked)return;
-    for(const lane of [1.0,3.3,5.68,-.85].sort((a,b)=>Math.abs(a-at.x)-Math.abs(b-at.x))){
+    let blocker=null,nearest=look,meeting=false;v.passHold=null;
+    for(const o of cars.concat(transit.bus,motos.all)){
+      if(o===v||Math.abs(o.x-v.x)>look+19||Math.abs(o.z-v.z)>look+19)continue;
+      const q=BayOnGreen.relative(r,o),d=q.z-at.z,direction=Math.cos(o.yaw-r.yaw);
+      if(direction<-.68&&q.x<.2&&q.x>-6.7&&d> -3&&d<look+18)meeting=true;
+      if(d>.1&&d<nearest&&Math.abs(q.x-a.lane)<2.05&&(o.path?direction*o.speed:0)<Math.max(8.5,v.speed+1)){
+        nearest=d;blocker=o;
+      }
+    }
+    if(!blocker)return;
+    const lanes=meeting?[1.0,3.3,5.68]:[1.0,3.3,5.68,-.85];
+    for(const lane of lanes.sort((a,b)=>Math.abs(a-at.x)-Math.abs(b-at.x))){
       if(Math.abs(lane-a.lane)<2.1)continue;
       const slope=(lane-at.x)/run,heading=r.yaw+Math.atan(slope);
       let clear=true;
@@ -68419,6 +68572,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       if(clear&&BayOnGreen.laneChange(a,lane,run)){a.scanIn=.58;return;}
     }
+    // Keep enough nose room to pull around the obstruction when a lane opens.
+    if(!blocker.path&&Math.abs(blocker.speed)<.5)v.passHold={body:blocker,until:streetTime+.48};
   }
   function greenStep(dt){
     const old=green.run,event=green.step(dt,streetTime,car,greenFree(),held("KeyW","ArrowUp")&&!held("KeyS","ArrowDown")),a=green.run;
@@ -68431,7 +68586,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const r=a.s.route;
     if(event==="offer"){
       const last=save.green.cards[r.id]?.slip;
-      speak(r.driver,last?.result==="first"?"There's the car that took my last slip. Same clock?":last?"Back for another green? Same light, same clock.":r.invite);return;
+      speak(r.driver,BayOnGreen.invitation(r,last,BayStreetCars.plateFor(car)));return;
     }
     if(event==="armed"){note("On Green · "+r.driver,"Hold here. Watch the traffic light.",2.3);return;}
     if(event==="go"){note("Green","First to the "+r.landmark+".",1.35);return;}
@@ -71389,7 +71544,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(!v.impactSlide&&v===personalCar)BayMotelParking.write(v);
         continue;
       }
-      if(!v.path||v===car||v===transfer?.v){v.lanes=null;if(v!==car||v===transfer?.v)v.indicator=0;continue;}
+      if(!v.path||v===car||v===transfer?.v){v.leftWait=v.lanes=null;if(v!==car||v===transfer?.v)v.indicator=0;continue;}
       const t=v.path[v.corner],from=v.path[(v.corner+v.path.length-1)%v.path.length];
       const dx=t.x-from.x,dz=t.z-from.z,n=Math.hypot(dx,dz)||1,ux=dx/n,uz=dz/n;
       const remaining=(t.x-v.x)*ux+(t.z-v.z)*uz,offset=(v.x-from.x)*uz-(v.z-from.z)*ux;
@@ -71430,7 +71585,12 @@ window.buildBayCity = function buildBayCity(g,water) {
         continue;
       }
       let clearance=Math.min(v.z>224?bridge.stopDistance(v,ux,uz,halfLength):Infinity,spur.stopDistance(v,ux,uz,halfLength)),redAhead=Number.isFinite(clearance);
+      if(play&&(v.cityLanes||v.greenId))clearance=Math.min(clearance,BayJunctionTurns.distance(v,laneTraffic,car,streetTime));
       if(lane)clearance=Math.min(clearance,lane.gap,BayBoulevardLanes.holdGap(v,lane,ux,uz,streetTime));
+      if(v.greenRacing&&v.passHold&&streetTime<=v.passHold.until){
+        const q=v.passHold.body,rx=q.x-v.x,rz=q.z-v.z,front=rx*ux+rz*uz;
+        if(front>0&&Math.abs(rx*uz-rz*ux)<2.05)clearance=Math.min(clearance,Math.max(0,front-9.4));
+      }
       const ahead=(q,width,gap)=>{
         if(lane&&q===lane.skip)return;
         const rx=q.x-v.x,rz=q.z-v.z,front=rx*ux+rz*uz;
@@ -73669,7 +73829,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       $("roadTurn").textContent=spur.held?"Crossing occupied · Holding short":r?.phase==="drive"?spur.cargo+" · "+Math.round(spur.speed*2.237)+" mph · Reverser "+(spur.dir>0?"east":"west"):spur.cargo;
     }
     const capHint=summerHint(summerAction());
-    if(car&&!active&&!heat&&BayBoulevardLanes.candidate(car,cars,streetTime))contextHint("H","Ask the driver behind to let you in");
+    if(canUseSeat()&&!heat&&BayJunctionTurns.waitingDriver(car,cars))contextHint("L","Flash the waiting driver through");
+    else if(car&&!active&&!heat&&BayBoulevardLanes.candidate(car,cars,streetTime))contextHint("H","Ask the driver behind to let you in");
     else if(capHint)contextHint(...capHint);
     else if(freightHint)contextHint(...freightHint);
     else if(showing)contextHint(...showing);
@@ -74800,6 +74961,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const keysList=document.createElement("div");keysList.className="controls";const allControls=[["WASD / ↑↓←→","Move, drive or swim"],["Mouse","Look around"],["E","Enter, exit or climb aboard"],["Shift","Sprint or swim faster"],["S / ↓","Brake, then reverse"],["Space","Jump, handbrake or hold to dive"],["H / F","Horn / interact"],["J / M","Jobs / map"],["Q / C","Keyboard look"],["V / X","Look back / recenter"],["+ / −","Camera distance"]];
       allControls.push(["Y / P","Switch characters / Frankie’s camera"],["U / G","Umbrella stand or fold / share and walk alongside"],["L","Hold beside a storm drain to clear it"],["Z / I","Driving view / wipers"],["[ / ]","Previous / next radio station"],["R","Toggle all sound"]);
       allControls.push([", / .","Left / right turn signal"]);
+      allControls.push(["L","Flash headlights · let a waiting driver turn"]);
       allControls.push(["Signal + H","Ask a boulevard driver for room to merge"]);
       allControls.push(["Space","Vault a hood or pull up at a low ledge"],["F · W/S · E","Grip a ladder, climb, let go"]);
       for(const [key,text] of allControls){const span=document.createElement("span"),k=document.createElement("kbd");k.textContent=key;span.append(k,document.createTextNode(text));keysList.append(span);}b.append(keysList);
@@ -74931,6 +75093,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       note(formatVehicle(car),driverSeat.enabled?(isTop()?"Dashboard instruments":"Driver’s seat  ·  Mouse to look   X to center"):"Chase camera",2.6);return;
     }
     if(ev.code==="KeyI"&&canUseSeat()){const mode=driverSeat.changeWipers();saveCamera();note("Windshield wipers",mode==="auto"?"Rain sensing":mode==="on"?"Continuous":"Parked",1.7);return;}
+    if(ev.code==="KeyL"&&canUseSeat()){
+      if(streetTime-(car.headlightFlash??-5)<.8)return;
+      car.headlightFlash=streetTime;
+      if(!heat&&BayJunctionTurns.offer(car,cars,streetTime))note("After you","Hold there while they check the other lane.",2.5);
+      return;
+    }
     if((ev.code==="Comma"||ev.code==="Period")&&canUseSeat()){
       const side=ev.code==="Comma"?-1:1;
       car.indicator=car.indicator===side?0:side;car.signalFrom=car.yaw;car.signalTurned=false;return;

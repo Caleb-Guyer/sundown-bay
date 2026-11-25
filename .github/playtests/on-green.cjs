@@ -54,12 +54,33 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
       assert.equal(await js("club.run.react"),null);assert(Math.abs(await js("ride.speed"))<.5);
     }
     await controls("KeyW");
+    if(process.argv.includes("--return-lap"))await js(`(()=>{
+      const pressed=new Set();let target=null;
+      function steer(){
+        const race=window.club.run?.phase==='running',v=window.ride;
+        if(v&&v.z>7&&target===null)target=traffic.some(q=>q!==site.v&&q.z>20&&q.z<62&&Math.abs(q.x-146.45)<1.95&&q.speed<15)?144.0:146.45;
+        const goal=v&&target!==null?Math.max(-.25,Math.min(.25,(target-v.x)*.17)):0;
+        const delta=v?Math.atan2(Math.sin(goal-v.yaw),Math.cos(goal-v.yaw)):0;
+        for(const [code,side] of [['KeyA',-1],['KeyD',1]]){
+          const want=race&&target!==null&&delta*side>.027;
+          if(want&&!pressed.has(code)){pressed.add(code);dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true,cancelable:true}));}
+          if(!want&&pressed.delete(code))dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));
+        }
+        if(race)requestAnimationFrame(steer);
+      }
+      steer();
+    })()`);
     await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1",45000);
     await controls("KeyS");await waitFor("Math.abs(ride.speed)<1.5",40000);await controls();
     assert(await js("finishSeen"));const card=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).green.cards.ocean");
     assert(["first","second"].includes(card.slip.result)&&card.slip.time>1&&card.slip.reaction>=0);assert.equal(card.runs,1);
     if(brakeLaunch)assert(card.slip.reaction>=.24&&card.slip.toThirty>.4&&card.slip.toThirty<3.8&&["cold","ready","hot"].includes(card.slip.launch));
     await waitFor("!site.runOut&&Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>48",65000);
+    if(process.argv.includes("--return-lap")){
+      await waitFor("!site.out&&!site.v.path&&Math.hypot(site.v.x-site.route.home.x,site.v.z-site.route.home.z)<.15",300000);
+      assert(await js("club.challenge({...site.route.grid,speed:0})===site"));
+      console.log("PASS",mode,"Lena drove the full return circuit in live city traffic and parked at the starting light for a rematch.");
+    }
     await tap("KeyJ");await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('On Green · Timing slips')).click()");
     await waitFor("document.querySelector('.green-slip .slip-time')?.textContent.includes(' s')");await snap("slip");
     const paper=await js("document.querySelector('.green-slip').innerText");assert(paper.includes(card.slip.plate)&&paper.includes("Lena Ríos"));

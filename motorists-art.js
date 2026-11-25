@@ -243,6 +243,14 @@
   }
   function gestures(rig,a,t){
     const phase=a.phase,age=a.age||0,enter=smooth(0,.32,age),id=a.id;
+    if(phase==="drive"&&a.car){
+      const since=t-a.car.thankedAt,up=thanks(a.car,t);
+      if(up){
+        const hand=palm(rig,-1);
+        solve(rig.sides[0],shift(hand,-.075-.044*Math.sin(since*10),.26,.036),up);
+        look(rig,-.075*up,-.14*up,0);return true;
+      }
+    }
     if(toeIn.has(phase)||a.motion.ride)return false;
     const right=rig.sides[1],left=rig.sides[0],beat=t*.92+(id==="viv"?2.72:id==="tess"?1.72:id==="ruth"?.58:0);
     if(phase==="give"||phase==="receive"){
@@ -437,7 +445,11 @@
     const before=(guest.exchange||0)<.5,hasKey=guest.phase==="give"?!before:before;
     return hasKey?[[-1,"marlin-fob-"+guest.id]]:[[1,"marlin-stub-"+guest.id]];
   }
-  function mapCabin(c,a,vehicle,s){
+  function thanks(v,t){
+    const time=t-v.thankedAt;
+    return time>=0&&time<1.65?smooth(0,.32,time)*(1-smooth(.98,1.65,time)):0;
+  }
+  function mapCabin(c,a,vehicle,s,t){
     const v=vehicle,van=v.kind==="van",front=van?-1.59:-1.10,b=van?.97:.91;
     const d=people[a.id],seat=bayCarLayout(v.kind),x=-seat.seatX,glass=front+.45,steer=a.motion?.ride?.steer||0;
     c.save();c.translate(v.x-a.x,a.z-v.z);c.rotate(v.yaw||0);
@@ -446,7 +458,11 @@
     ellipse(x,glass+.04,.208,.110,d.shirt);ellipse(x,glass+.075,.109,.123,d.hair);
     ellipse(x,glass+.024,.089,.089,d.skin);ellipse(x,glass+.065,.101,.105,a.id==="tess"?"#c7c7ad":d.hair);
     c.strokeStyle="#425657";c.lineWidth=.029;c.beginPath();c.ellipse(x,glass-.10,.150,.058,steer*.23,0,tau);c.stroke();
-    for(const k of [-1,1])ellipse(x+k*.119,glass-.099+k*.038*Math.sin(steer),.031,.029,d.skin);
+    const up=thanks(v,t);
+    for(const k of [-1,1]){
+      const lift=k<0?up:0;
+      ellipse(x+k*.119-lift*(.08+.032*Math.sin(t*10)),glass-.099+k*.038*Math.sin(steer)-.05*lift,.031+.018*lift,.029+.032*lift,d.skin);
+    }
     c.fillStyle="rgba(99,144,148,.23)";c.fillRect(-b,front,2*b,.51);
     c.restore();
   }
@@ -496,7 +512,7 @@
     const seated=a.motion?.ride?.seat||0,car=[a.vehicle,a.v,a.car,a.ride,cabinCars.get(a)?.source].find(v=>v?.kind);
     c.save();c.translate(x,y);c.scale(s,s);
     if(seated>=.93){
-      if(car){c.globalAlpha*=smooth(.93,.99,seated);mapCabin(c,a,car,s);}
+      if(car){c.globalAlpha*=smooth(.93,.99,seated);mapCabin(c,a,car,s,t);}
       c.restore();return;
     }
     if(seated>.82)c.globalAlpha*=1-smooth(.82,.93,seated);
