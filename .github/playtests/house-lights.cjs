@@ -21,7 +21,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const paint=drawBayMap; window.drawBayMap=(g,o)=>{if(o.mode==='radar')proof.map=o;return paint(g,o);};
       const update=BayCamera.prototype.update;BayCamera.prototype.update=function(...args){const r=update.apply(this,args);proof.yaw=this.yaw;return r;};
       const updateRoom=BayCineRoom.move;BayCineRoom.move=function(r,...args){proof.room=r;return updateRoom(r,...args);};
-      const grade=BaySecondUnit.grade;BaySecondUnit.grade=(...args)=>{const r=grade(...args);proof.subject=r?.id;return r;};
+      const grade=BaySecondUnit.grade;BaySecondUnit.grade=(...args)=>{const r=grade(...args);proof.subject=r?.id;
+        if(r?.id==="marquee"){const m=args[0].find(s=>s.id==="marquee");proof.aim=args[1](m.x,m.y,m.z);}return r;};
       const film=BayHouseLights.paint;BayHouseLights.paint=(...args)=>{proof.dissolve=args[4];return film(...args);};
       const view=BayView.prototype.updateSun;BayView.prototype.updateSun=function(...args){view.apply(this,args);proof.light={s:this.sunStrength,key:this.sunKey,ok:this.sunTarget?.ok};};
       document.querySelector('#play').click();`);
@@ -43,7 +44,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
   async function callSheet(){await tap("KeyF");await click("House Lights");}
   async function expose(side){
     await tap("KeyP");await waitFor("!document.querySelector('#scoutFinder').hidden");await tap("KeyF");
-    await waitFor("proof.subject==='marquee'");if(side==="night"){await tap("KeyG");await tap("KeyG");}
+    await waitFor("proof.subject==='marquee'&&Math.hypot(proof.aim.x-.5,proof.aim.y-.5)<.035");
+    if(side==="night"){await tap("KeyG");await tap("KeyG");}
     await snap(side);await tap("Space");await waitFor(sleeve+"."+side+"?.image.length>1500");
     await tap("KeyP");
   }

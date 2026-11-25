@@ -663,6 +663,13 @@ window.buildBayCity = function buildBayCity(g,water) {
   cine.face(-10,13.6,15.47,2.47,6.9,"#466579");
   [..."CINE"].forEach((ch,i)=>sign(cine,ch,-10,16.04-i*1.50,15.49,.221,"#ffbc99"));
   cine.box(0,3.55,15.8,17.5,.75,2.7,"#edb780");
+  // The ferry and the apartments across Luna can see the lettering on the canopy roof.
+  const cineRoof={face(u,v,offset,w,d,color){
+    const x=29-15.8+v,z=44-u;
+    rect(x,z,d,w,3.933+offset,color);
+  }};
+  sign(cineRoof,"CINE LUNA",0,0,0,.196,"#655059");
+  for(const side of [-1,1])rect(13.2+side*.95,44,.075,15.8,3.934,"#946a57");
   cine.face(0,3.53,17.16,16.98,.25,"#ffe7b6");
   cine.camera(0,15.8,17.5,2.7,3.17,3.93);
   cine.camera(-10,14.6,3.15,1.7,3.36,17.82);

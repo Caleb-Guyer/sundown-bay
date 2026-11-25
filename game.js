@@ -774,7 +774,7 @@
     Object.assign(cam,{x:e.x+(targetX-e.x)*f,y:e.y+(ground+2.6-e.y)*f+q.high,z:e.z+(targetZ-e.z)*f,
       yaw:e.yaw+angle(e.yaw,b.yaw)*f,pitch:e.pitch+(-.24-e.pitch)*f-1.17*Math.sin(Math.PI*q.u),focal:(e.focal||1.4)*(1-f)+1.4*f});
   }
-  function scoutLook(dx,dy){const l=unit.eye;if(l?.window){if(dx||dy){l.adjusted=true;l.pan=clamp(l.pan+dx,-3.09,3.09);l.pitch=clamp(l.pitch+dy,-.85,1.22);l.reach=clamp(l.reach+dy*19,5,62);}return;}if(l){l.yaw+=clamp(dx,-.7,.7);l.pitch=clamp(l.pitch+clamp(dy,-.5,.5),-1.12,.92);hero.yaw=l.yaw;}}
+  function scoutLook(dx,dy){const l=unit.eye;if(l?.window){if(dx||dy){l.adjusted=true;l.pan=clamp(l.pan+dx,-3.09,3.09);l.pitch=clamp(l.pitch+dy,-.85,1.22);l.reach=clamp(l.reach+dy*19,5,62);}return;}if(l){l.yaw+=clamp(dx,-.7,.7);l.pitch=clamp(l.pitch+clamp(dy,-.5,.5),-1.12,.92);if(Number.isFinite(l.mapReach))l.mapReach=clamp(l.mapReach+dy*15,2,62);hero.yaw=l.yaw;}}
   function nearPartner(){
     return !unit.transition&&!unit.eye&&crewFree()&&onStreetFeet()&&dist(hero,otherCar||otherBody)<4.2;
   }
@@ -1022,6 +1022,7 @@
       else if(code==="KeyF"&&houseLights.s.shooting&&dist(hero,scoutDesk)<55){
         const l=unit.eye,s=BayNightMeet.marquee;
         l.yaw=Math.atan2(s.x-hero.x,s.z-hero.z);l.pitch=Math.atan2(s.y-hero.y-1.61,dist(hero,s));hero.yaw=l.yaw;l.last="";l.check=null;
+        if(isTop())l.mapReach=dist(hero,s);
       }
       else if(code==="Space")unit.eye.fire=true;
       else if(code==="KeyZ"||code==="KeyV")unit.eye.zoom=unit.eye.zoom>=3?1:Math.min(3,Math.round(unit.eye.zoom)+1);
@@ -1070,7 +1071,7 @@
     else{list.push([key,otherBody.x,otherBody.y,otherBody.z,otherBody.yaw]);if(frank)BayScoutArt.cameraProp(list,model,otherBody,mesh,t,raised);}
   }
   function scoutMapView(state,w,h){
-    const l=unit.eye,reach=l.window?l.reach:(12+l.pitch*10)/l.zoom;state.cx=hero.x+Math.sin(l.yaw)*reach;state.cz=hero.z+Math.cos(l.yaw)*reach;
+    const l=unit.eye,reach=l.window?l.reach:l.mapReach??(12+l.pitch*10)/l.zoom;state.cx=hero.x+Math.sin(l.yaw)*reach;state.cz=hero.z+Math.cos(l.yaw)*reach;
     state.rotation=state.cameraYaw=l.yaw;state.scale=h*l.zoom/(l.window?46:35);
     state.target=null;state.waypoint=null;state.jobPins=[];state.ghost=null;
   }
@@ -1109,6 +1110,7 @@
       l.subject=candidate||BaySecondUnit.grade(subjects,project,gate,eye,clear);
     }
     const cameraMark=onCall?{x:hero.x,z:hero.z,yaw:l.yaw,pitch:l.pitch,zoom:l.zoom,overhead:isTop()}:null;
+    if(cameraMark?.overhead)cameraMark.reach=l.mapReach??(12+l.pitch*10)/l.zoom;
     if(l.fire){l.fire=false;
       const districtName=district(hero),photo=BayMeetPhoto.capture(source,sky,.5,.5,1.5,true);
       const r=unit.expose(photo,{title:l.subject?.title||districtName+" street study",score:l.subject?.score||0,by:BaySecondUnit.names[unit.lead],district:districtName,minute:Math.floor(hours.minute),day:hours.day+1});
@@ -1382,13 +1384,13 @@
   }
   function houseLightsPanel(body){
     houseLights.refresh();const s=houseLights.s,desk=crewDeskNear();
-    signedNote(body,"Same marquee, same angle. One before supper and one after the bulbs come on. Leave the passing cars in. I want to see who was here.","Frankie Prado");
+    if(!s.release||s.shooting)signedNote(body,"Same marquee, same angle. One before supper and one after the bulbs come on. Leave the passing cars in. I want to see who was here.","Frankie Prado");
     if(!desk&&!s.opened)return;
     if(s.release){
       const proof=document.createElement("div");proof.className="luna-proof";
       const range=document.createElement("input");range.type="range";range.min="0";range.max="100";range.value="50";range.setAttribute("aria-label","Dissolve from daylight to house lights");
       for(const frame of [s.release.day,s.release.night]){const im=document.createElement("img");im.src=frame.image;im.alt=frame.title+" at "+BayHours.time(frame.minute);proof.append(im);}
-      const caption=document.createElement("p");caption.className="luna-times";caption.textContent=BayHours.time(s.release.day.minute)+"   /   "+BayHours.time(s.release.night.minute)+" · Cine Luna";
+      const caption=document.createElement("p");caption.className="luna-times";caption.textContent="Dissolve · "+BayHours.time(s.release.day.minute)+" to "+BayHours.time(s.release.night.minute);
       const dissolve=()=>{proof.children[1].style.opacity=String(Number(range.value)/100);};dissolve();range.oninput=dissolve;body.append(proof,range,caption);
     }
     if(!desk)body.append(makeButton("Cine Luna location desk","Outside the box office on Luna Boulevard.","Mark desk",()=>clockPin(unitPin)));

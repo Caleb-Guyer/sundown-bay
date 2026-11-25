@@ -31,6 +31,7 @@
       const turn=Math.atan2(Math.sin(m.yaw-p.yaw),Math.cos(m.yaw-p.yaw));
       if(Math.abs(turn)>.095)return turn>0?"Pan right to match":"Pan left to match";
       if(Math.abs(m.pitch-p.pitch)>.085)return m.pitch>p.pitch?"Tilt up to match":"Tilt down to match";
+      if(m.overhead&&Number.isFinite(m.reach)&&Math.abs(m.reach-p.reach)>1.8)return m.reach>p.reach?"Tilt up to match":"Tilt down to match";
       return "";
     }
     guide(p,minute){
@@ -90,6 +91,9 @@
     c.save();
     c.fillStyle="#97766a";c.fillRect(px(front.x),py(52.75),2.7*s,17.5*s);
     c.fillStyle="#e0bc87";c.fillRect(px(front.x)+.15*s,py(52.55),2.38*s,17.1*s);
+    c.save();c.translate(px(13.18),py(44));c.rotate(Math.PI/2);
+    c.fillStyle="#956d59";c.fillRect(-7.9*s,-.93*s,15.8*s,.075*s);c.fillRect(-7.9*s,.87*s,15.8*s,.075*s);
+    c.fillStyle="#5f5154";c.textAlign="center";c.textBaseline="middle";c.font="bold "+1.12*s+"px Georgia, serif";c.fillText("C I N E   L U N A",0,0,14.5*s);c.restore();
     if(lit(clock.minute)){
       const x=px(front.x),y=py(front.z),spill=c.createLinearGradient(x-4.5*s,y,x,y);
       spill.addColorStop(0,"rgba(255,204,104,0)");spill.addColorStop(1,"rgba(255,215,133,.47)");

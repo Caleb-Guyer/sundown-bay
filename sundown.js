@@ -5042,6 +5042,13 @@ window.buildBayCity = function buildBayCity(g,water) {
   cine.face(-10,13.6,15.47,2.47,6.9,"#466579");
   [..."CINE"].forEach((ch,i)=>sign(cine,ch,-10,16.04-i*1.50,15.49,.221,"#ffbc99"));
   cine.box(0,3.55,15.8,17.5,.75,2.7,"#edb780");
+  // The ferry and the apartments across Luna can see the lettering on the canopy roof.
+  const cineRoof={face(u,v,offset,w,d,color){
+    const x=29-15.8+v,z=44-u;
+    rect(x,z,d,w,3.933+offset,color);
+  }};
+  sign(cineRoof,"CINE LUNA",0,0,0,.196,"#655059");
+  for(const side of [-1,1])rect(13.2+side*.95,44,.075,15.8,3.934,"#946a57");
   cine.face(0,3.53,17.16,16.98,.25,"#ffe7b6");
   cine.camera(0,15.8,17.5,2.7,3.17,3.93);
   cine.camera(-10,14.6,3.15,1.7,3.36,17.82);
@@ -56678,6 +56685,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const turn=Math.atan2(Math.sin(m.yaw-p.yaw),Math.cos(m.yaw-p.yaw));
       if(Math.abs(turn)>.095)return turn>0?"Pan right to match":"Pan left to match";
       if(Math.abs(m.pitch-p.pitch)>.085)return m.pitch>p.pitch?"Tilt up to match":"Tilt down to match";
+      if(m.overhead&&Number.isFinite(m.reach)&&Math.abs(m.reach-p.reach)>1.8)return m.reach>p.reach?"Tilt up to match":"Tilt down to match";
       return "";
     }
     guide(p,minute){
@@ -56737,6 +56745,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.save();
     c.fillStyle="#97766a";c.fillRect(px(front.x),py(52.75),2.7*s,17.5*s);
     c.fillStyle="#e0bc87";c.fillRect(px(front.x)+.15*s,py(52.55),2.38*s,17.1*s);
+    c.save();c.translate(px(13.18),py(44));c.rotate(Math.PI/2);
+    c.fillStyle="#956d59";c.fillRect(-7.9*s,-.93*s,15.8*s,.075*s);c.fillRect(-7.9*s,.87*s,15.8*s,.075*s);
+    c.fillStyle="#5f5154";c.textAlign="center";c.textBaseline="middle";c.font="bold "+1.12*s+"px Georgia, serif";c.fillText("C I N E   L U N A",0,0,14.5*s);c.restore();
     if(lit(clock.minute)){
       const x=px(front.x),y=py(front.z),spill=c.createLinearGradient(x-4.5*s,y,x,y);
       spill.addColorStop(0,"rgba(255,204,104,0)");spill.addColorStop(1,"rgba(255,215,133,.47)");
@@ -64233,7 +64244,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     Object.assign(cam,{x:e.x+(targetX-e.x)*f,y:e.y+(ground+2.6-e.y)*f+q.high,z:e.z+(targetZ-e.z)*f,
       yaw:e.yaw+angle(e.yaw,b.yaw)*f,pitch:e.pitch+(-.24-e.pitch)*f-1.17*Math.sin(Math.PI*q.u),focal:(e.focal||1.4)*(1-f)+1.4*f});
   }
-  function scoutLook(dx,dy){const l=unit.eye;if(l?.window){if(dx||dy){l.adjusted=true;l.pan=clamp(l.pan+dx,-3.09,3.09);l.pitch=clamp(l.pitch+dy,-.85,1.22);l.reach=clamp(l.reach+dy*19,5,62);}return;}if(l){l.yaw+=clamp(dx,-.7,.7);l.pitch=clamp(l.pitch+clamp(dy,-.5,.5),-1.12,.92);hero.yaw=l.yaw;}}
+  function scoutLook(dx,dy){const l=unit.eye;if(l?.window){if(dx||dy){l.adjusted=true;l.pan=clamp(l.pan+dx,-3.09,3.09);l.pitch=clamp(l.pitch+dy,-.85,1.22);l.reach=clamp(l.reach+dy*19,5,62);}return;}if(l){l.yaw+=clamp(dx,-.7,.7);l.pitch=clamp(l.pitch+clamp(dy,-.5,.5),-1.12,.92);if(Number.isFinite(l.mapReach))l.mapReach=clamp(l.mapReach+dy*15,2,62);hero.yaw=l.yaw;}}
   function nearPartner(){
     return !unit.transition&&!unit.eye&&crewFree()&&onStreetFeet()&&dist(hero,otherCar||otherBody)<4.2;
   }
@@ -64481,6 +64492,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       else if(code==="KeyF"&&houseLights.s.shooting&&dist(hero,scoutDesk)<55){
         const l=unit.eye,s=BayNightMeet.marquee;
         l.yaw=Math.atan2(s.x-hero.x,s.z-hero.z);l.pitch=Math.atan2(s.y-hero.y-1.61,dist(hero,s));hero.yaw=l.yaw;l.last="";l.check=null;
+        if(isTop())l.mapReach=dist(hero,s);
       }
       else if(code==="Space")unit.eye.fire=true;
       else if(code==="KeyZ"||code==="KeyV")unit.eye.zoom=unit.eye.zoom>=3?1:Math.min(3,Math.round(unit.eye.zoom)+1);
@@ -64529,7 +64541,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     else{list.push([key,otherBody.x,otherBody.y,otherBody.z,otherBody.yaw]);if(frank)BayScoutArt.cameraProp(list,model,otherBody,mesh,t,raised);}
   }
   function scoutMapView(state,w,h){
-    const l=unit.eye,reach=l.window?l.reach:(12+l.pitch*10)/l.zoom;state.cx=hero.x+Math.sin(l.yaw)*reach;state.cz=hero.z+Math.cos(l.yaw)*reach;
+    const l=unit.eye,reach=l.window?l.reach:l.mapReach??(12+l.pitch*10)/l.zoom;state.cx=hero.x+Math.sin(l.yaw)*reach;state.cz=hero.z+Math.cos(l.yaw)*reach;
     state.rotation=state.cameraYaw=l.yaw;state.scale=h*l.zoom/(l.window?46:35);
     state.target=null;state.waypoint=null;state.jobPins=[];state.ghost=null;
   }
@@ -64568,6 +64580,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       l.subject=candidate||BaySecondUnit.grade(subjects,project,gate,eye,clear);
     }
     const cameraMark=onCall?{x:hero.x,z:hero.z,yaw:l.yaw,pitch:l.pitch,zoom:l.zoom,overhead:isTop()}:null;
+    if(cameraMark?.overhead)cameraMark.reach=l.mapReach??(12+l.pitch*10)/l.zoom;
     if(l.fire){l.fire=false;
       const districtName=district(hero),photo=BayMeetPhoto.capture(source,sky,.5,.5,1.5,true);
       const r=unit.expose(photo,{title:l.subject?.title||districtName+" street study",score:l.subject?.score||0,by:BaySecondUnit.names[unit.lead],district:districtName,minute:Math.floor(hours.minute),day:hours.day+1});
@@ -64841,13 +64854,13 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function houseLightsPanel(body){
     houseLights.refresh();const s=houseLights.s,desk=crewDeskNear();
-    signedNote(body,"Same marquee, same angle. One before supper and one after the bulbs come on. Leave the passing cars in. I want to see who was here.","Frankie Prado");
+    if(!s.release||s.shooting)signedNote(body,"Same marquee, same angle. One before supper and one after the bulbs come on. Leave the passing cars in. I want to see who was here.","Frankie Prado");
     if(!desk&&!s.opened)return;
     if(s.release){
       const proof=document.createElement("div");proof.className="luna-proof";
       const range=document.createElement("input");range.type="range";range.min="0";range.max="100";range.value="50";range.setAttribute("aria-label","Dissolve from daylight to house lights");
       for(const frame of [s.release.day,s.release.night]){const im=document.createElement("img");im.src=frame.image;im.alt=frame.title+" at "+BayHours.time(frame.minute);proof.append(im);}
-      const caption=document.createElement("p");caption.className="luna-times";caption.textContent=BayHours.time(s.release.day.minute)+"   /   "+BayHours.time(s.release.night.minute)+" · Cine Luna";
+      const caption=document.createElement("p");caption.className="luna-times";caption.textContent="Dissolve · "+BayHours.time(s.release.day.minute)+" to "+BayHours.time(s.release.night.minute);
       const dissolve=()=>{proof.children[1].style.opacity=String(Number(range.value)/100);};dissolve();range.oninput=dissolve;body.append(proof,range,caption);
     }
     if(!desk)body.append(makeButton("Cine Luna location desk","Outside the box office on Luna Boulevard.","Mark desk",()=>clockPin(unitPin)));
