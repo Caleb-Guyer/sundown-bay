@@ -19,6 +19,31 @@
     return Math.sin(q.yaw)*turn.ux+Math.cos(q.yaw)*turn.uz<-.83;
   }
   const along=(turn,q)=>(q.x-turn.x)*turn.ux+(q.z-turn.z)*turn.uz;
+  // A queue can leave room for the front of a car while stranding its tail in the box.
+  function exitFull(v,vehicles,centerX,centerZ,ox,oz,laneX,laneZ){
+    const body=bayCarLayout(v.kind);
+    for(const q of vehicles){
+      if(q===v||Math.abs(q.speed||0)>1.5||Math.abs(q.x-centerX)>22||Math.abs(q.z-centerZ)>22)continue;
+      const ahead=(q.x-centerX)*ox+(q.z-centerZ)*oz;
+      if(ahead<2.6||ahead>18.5)continue;
+      const across=Math.abs((q.x-laneX)*oz-(q.z-laneZ)*ox);
+      const other=q.footprint||bayCarLayout(q.kind);
+      const cos=Math.abs(Math.sin(q.yaw)*ox+Math.cos(q.yaw)*oz),sin=Math.sqrt(Math.max(0,1-cos*cos));
+      if(across>body.track+other.track*cos+other.halfLength*sin+.12)continue;
+      if(ahead<7.1+body.halfLength*2+other.halfLength*cos+other.track*sin+.8)return true;
+    }
+    return false;
+  }
+  function straightDistance(v,vehicles,time,ux,uz,remaining){
+    if(Math.abs(ux*uz)>.015)return Infinity;
+    const x=Math.round(v.x/72)*72,z=Math.round(v.z/72)*72;
+    const d=(x-v.x)*ux+(z-v.z)*uz;
+    if(d<9.3||d>24||remaining<d+14||Math.abs(x)>144||Math.abs(z)>144||Math.abs((x-v.x)*uz-(z-v.z)*ux)>6.6)return Infinity;
+    if(!v.boxCheck||v.boxCheck.path!==v.path||v.boxCheck.leg!==v.corner||time>=v.boxCheck.next){
+      v.boxCheck={path:v.path,leg:v.corner,next:time+.18,full:exitFull(v,vehicles,x,z,ux,uz,v.x,v.z)};
+    }
+    return v.boxCheck.full?Math.max(0,d-10.4-bayCarLayout(v.kind).halfLength):Infinity;
+  }
   function canInvite(v,player){
     const w=v.leftWait;
     if(!player||!w||w.player!==player||w.offered||w.committed||v.path!==w.path||v.corner!==w.leg)return false;
@@ -30,7 +55,7 @@
     if(v){v.leftWait.offered=player;v.leftWait.until=time+6;v.leftWait.scan=0;}
     return v;
   }
-  function distance(v,vehicles,player,time){
+  function distance(v,vehicles,player,time,ux=0,uz=0,remaining=0){
     const previous=v.leftWait;
     if(previous?.committed&&previous.path===v.path){
       const t=previous.turn,exit=(v.x-t.x)*t.ox+(v.z-t.z)*t.oz;
@@ -39,9 +64,9 @@
       v.leftWait=null;
     }
     const turn=routes.get(v.path)?.get(v.corner);
-    if(!turn){v.leftWait=null;return Infinity;}
+    if(!turn){v.leftWait=null;return straightDistance(v,vehicles,time,ux,uz,remaining);}
     const to=-along(turn,v);
-    if(to>24||to<5.24){v.leftWait=null;return Infinity;}
+    if(to>24||to<5.24){v.leftWait=null;return straightDistance(v,vehicles,time,ux,uz,remaining);}
     let w=v.leftWait;
     if(!w||w.turn!==turn||w.path!==v.path){
       // At a marked crossing keep the full car behind the band while looking for a gap.
@@ -60,6 +85,7 @@
       // second car on its approach until the first car's tail clears its lane.
       const first=occupied.get(turn.junction);
       if(first&&first!==v&&first.leftWait?.committed&&first.leftWait.turn.junction===turn.junction&&first.path===first.leftWait.path)w.held=true;
+      if(exitFull(v,vehicles,Math.round(turn.x/72)*72,Math.round(turn.z/72)*72,turn.ox,turn.oz,turn.x,turn.z))w.held=true;
       // Check every opposing lane. A flash only speaks for the driver's own line of cars.
       for(const q of vehicles){
         if(q===v||Math.abs(q.x-turn.x)>52||Math.abs(q.z-turn.z)>52||!opposing(turn,q))continue;

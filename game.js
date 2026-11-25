@@ -6789,7 +6789,7 @@
         continue;
       }
       let clearance=Math.min(v.z>224?bridge.stopDistance(v,ux,uz,halfLength):Infinity,spur.stopDistance(v,ux,uz,halfLength)),redAhead=Number.isFinite(clearance);
-      if(play&&(v.cityLanes||v.greenId))clearance=Math.min(clearance,BayJunctionTurns.distance(v,laneTraffic,car,streetTime));
+      if(play&&(v.cityLanes||v.greenId))clearance=Math.min(clearance,BayJunctionTurns.distance(v,laneTraffic,car,streetTime,ux,uz,remaining));
       if(lane)clearance=Math.min(clearance,lane.gap,BayBoulevardLanes.holdGap(v,lane,ux,uz,streetTime));
       if(v.greenRacing&&v.passHold&&streetTime<=v.passHold.until){
         const q=v.passHold.body,rx=q.x-v.x,rz=q.z-v.z,front=rx*ux+rz*uz;

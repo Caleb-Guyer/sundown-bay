@@ -75,7 +75,27 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     assert(await js("finishSeen"));const card=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).green.cards.ocean");
     assert(["first","second"].includes(card.slip.result)&&card.slip.time>1&&card.slip.reaction>=0);assert.equal(card.runs,1);
     if(brakeLaunch)assert(card.slip.reaction>=.24&&card.slip.toThirty>.4&&card.slip.toThirty<3.8&&["cold","ready","hot"].includes(card.slip.launch));
-    await waitFor("!site.runOut&&Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>48",65000);
+    if(process.argv.includes("--return-lap")){
+      // The finish is on an open street. Pull over beyond the parked coupe so
+      // the player's car leaves both the crossing and its exit usable.
+      await js(`(()=>{const held=new Set(),end=Math.max(118,ride.z+12);window.curbParked=false;
+        function keyboard(next){
+          for(const k of held)if(!next.includes(k)){dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));held.delete(k);}
+          for(const k of next)if(!held.has(k)){dispatchEvent(new KeyboardEvent('keydown',{code:k,bubbles:true,cancelable:true}));held.add(k);}
+        }
+        function drive(){
+          const v=ride,lane=v.z<99?146.7:150.65,aim=Math.max(-.37,Math.min(.37,(lane-v.x)*.21));
+          const delta=Math.atan2(Math.sin(aim-v.yaw),Math.cos(aim-v.yaw));
+          const speed=Math.min(7.5,Math.sqrt(Math.max(0,5*(end-v.z)))),next=[];
+          if(v.z>end-1&&Math.abs(v.speed)<.5){keyboard([]);window.curbParked=true;return;}
+          if(v.speed<speed-.35)next.push('KeyW');if(v.speed>speed+.25)next.push('KeyS');
+          if(Math.abs(delta)>.025)next.push(delta>0?'KeyD':'KeyA');keyboard(next);requestAnimationFrame(drive);
+        }
+        drive();
+      })()`);
+      await waitFor("curbParked&&ride.x>149.5",75000);
+    }
+    await waitFor("!site.runOut&&(!site.out||Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>48)",90000);
     if(process.argv.includes("--return-lap")){
       await waitFor("!site.out&&!site.v.path&&Math.hypot(site.v.x-site.route.home.x,site.v.z-site.route.home.z)<.15",300000);
       assert(await js("club.challenge({...site.route.grid,speed:0})===site"));
@@ -103,7 +123,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
     console.log("PASS live",mode,"drove from the Marlin, staged alongside the numbered hatch, launched on the working green, crossed the timing clock and recovered the printed slip after reload.",card.slip.result,card.slip.time.toFixed(2));
   }catch(error){
-    const state=await js("window.site&&({stage:club.run?.phase,driver:ride&&[ride.x,ride.z,ride.speed],rival:[site.v.x,site.v.z,site.v.speed,site.v.corner,site.v.blocked],returning:site.out,through:!!site.runOut,near:traffic.filter(v=>v!==site.v&&Math.hypot(v.x-site.v.x,v.z-site.v.z)<12).map(v=>[v.kind,v.x,v.z])})").catch(()=>null);
+    const state=await js("window.site&&({stage:club.run?.phase,driver:ride&&[ride.x,ride.z,ride.speed],rival:[site.v.x,site.v.z,site.v.speed,site.v.corner,site.v.blocked],returning:site.out,through:!!site.runOut,waiting:site.v.leftWait&&[site.v.leftWait.held,site.v.leftWait.committed,site.v.leftWait.turn.junction],near:traffic.filter(v=>v!==site.v&&Math.hypot(v.x-site.v.x,v.z-site.v.z)<28).map(v=>[v.id,v.kind,v.x,v.z,v.yaw,v.speed,v.blocked,v.leftWait?.held,v.leftWait?.committed])})").catch(()=>null);
     throw Error(error.message+" · timing camera state "+JSON.stringify(state),{cause:error});
   }finally{await controls();}
 };

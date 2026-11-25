@@ -15,8 +15,8 @@ module.exports=async({js,send,key,tap,waitFor,errors,mode})=>{
   try{
     await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayJunctionTurns==='object'");
     await js(`window.crossing={playerLit:0,driverLit:0,waveFrames:0,touched:false,low:99,high:0};
-      const distance=BayJunctionTurns.distance;BayJunctionTurns.distance=function(v,all,p,t){
-        const room=distance(v,all,p,t);
+      const distance=BayJunctionTurns.distance;BayJunctionTurns.distance=function(v,all,p,t,...route){
+        const room=distance(v,all,p,t,...route);
         if(!p)return room;
         const s=crossing;s.player=p;
         if(!s.driver&&BayJunctionTurns.waitingDriver(p,[v]))s.driver=v;
@@ -53,7 +53,7 @@ module.exports=async({js,send,key,tap,waitFor,errors,mode})=>{
     await snap("waiting");await tap("KeyL");
     await waitFor("crossing.playerLit>0&&crossing.driverLit>0&&crossing.waveFrames>0",30000);await snap("thanks");
     await waitFor("crossing.cleared",40000);await snap("turn");
-    const result=await js("({driver:crossing.driver.owner.name,x:crossing.driver.x,z:crossing.driver.z,handRise:crossing.high-crossing.low,touched:crossing.touched,playerMoved:Math.hypot(crossing.player.x-69.5,crossing.player.z-15),playerLit:crossing.playerLit,driverLit:crossing.driverLit,waveFrames:crossing.waveFrames})");
+    const result=await js("({driver:crossing.driver.owner.name,x:crossing.driver.x,z:crossing.driver.z,handRise:crossing.low<99?crossing.high-crossing.low:null,touched:crossing.touched,playerMoved:Math.hypot(crossing.player.x-69.5,crossing.player.z-15),playerLit:crossing.playerLit,driverLit:crossing.driverLit,waveFrames:crossing.waveFrames})");
     assert(!result.touched&&result.playerMoved<.3&&result.x<63);
     if(mode==="street")assert(result.handRise>.10,JSON.stringify(result));
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
