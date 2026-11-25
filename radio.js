@@ -689,6 +689,13 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="record-theme"){
+      for(const [delay,pitch,len] of [[0,55,.85],[.40,62,.60],[.76,source.ending?67:65,1.10]]){
+        tone(effects,hz(pitch),at+delay,len,.062,"triangle",0,.035);
+        tone(effects,hz(pitch-12),at+delay,len*.8,.041,"sine",0,.05);
+      }return;
+    }
+    if(name==="record-shutter"){waterNoise(effects,at,.034,.07,2400,620);waterNoise(effects,at+.11,.052,.042,1230,250);return;}
     if(name==="rank-ring"){
       const gain=.036*Math.max(0,1-source.distance/26);
       for(const delay of [0,.59])for(let i=0;i<7;i++){

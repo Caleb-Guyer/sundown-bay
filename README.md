@@ -4,6 +4,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+**Public Record** begins after Play. Mara Vega wants one photograph of a sale notice before it disappears from Port Sol. Watch the opening or press **Enter** to skip a scene. Find Mara outside the Marlin Motel, press **F** to talk, then take a car and pick her up. At Lot 14, photograph the notice and decide whether to risk the Sol FM deadline or send the print to Cine Luna.
+
+After the delivery, return on foot to the timetable at Lot 14. Press **F**, hold **Space**, and sweep **A / D** across the paper to reveal the old dispatch line. **1** credits dispatcher Dalia Cruz. **2** credits the night shift. Your published route and credit are saved. The pause menu can locate the next story scene or replay the opening.
+
 Look for the burnt-orange hatch with two surfboards on its roof, on the sand just north of the striped lifeguard tower. Ro Vega has buried the front wheels. Come to the tailgate and press **F**. Ease off as the wagon rolls back. After the two amber flashes, hold **W** as Ro pulls forward, then release for the next rock. **E** steps away. Once free, she parks beside the promenade and leaves her red traction boards out for you.
 
 Borrow the pair from Ro’s rack with **F**. Stand beside a stationary car on Sol Beach and press **F** to wedge the boards under its drive wheels. You can also lay them on a clear patch, move them, or return them to the rack. Their position survives a reload. Dry sand slows your launch. Down by the wet shoreline, or running back over a fresh pair of ruts, the car finds firmer footing. Tires and shoes both leave prints.
@@ -216,7 +220,7 @@ Choose **Free cruise** to explore the bay and Gull Light. You can also walk out 
 
 For **Last Ferry Out**, look for Inez Cruz and her red lunch tin outside the Marlin Motel. Pick her up in a car, park at the marked pier, and board a speedboat with **E**. Inez follows you aboard. Catch the **M/V Paloma**, steer alongside the amber gate on her left side, and hold a steady course for two seconds so Inez can jump. Hold **F** near the gate to match the ferry’s throttle. Standard sailing gives you 105 seconds at sea and pays **$450**. Five-star sailing gives you 85 seconds and pays **$900** for a transfer under Air One’s searchlight. Replays rotate through Gull Light Passage, North Channel and Outer Sound Crossing.
 
-For **Last Exposure**, meet Mara Vega outside the Marlin Motel or call her through **J**. Pick her up and follow the street route to Port Sol. Park and press **F** to frame the Lot 14 notice. Click to focus or use the arrow keys, then press **Space** for the shutter. Deliver the photo to the Sol FM van in 55 seconds for **$425**, or take it to Cine Luna for **$300**. The evening edition of Bay Wire remembers which outlet ran your picture.
+For **Last Exposure**, meet Mara Vega outside the Marlin Motel or call her through **J**. Pick her up and follow the street route to Port Sol. Park and press **F** to frame the Lot 14 notice. Click to focus or use the arrow keys, then press **Space** for the shutter. Deliver the photo to the Sol FM van in 105 seconds for **$425**, or take it to Cine Luna for **$300**. The evening edition of Bay Wire remembers which outlet ran your picture.
 
 At three stars, patrol cars set up roadblocks. At four, some crews lay spike strips. Clip one and the car pulls toward the flat tire. At five, Air One joins the chase.
 

@@ -240,11 +240,13 @@
     group[key]=surface;return surface;
   }
 
+  const shadowBuildings=new WeakMap();
   function castBuildings(c,solids,light,px,py,s,visible,opacity){
     if(!light||opacity<.012)return;
     c.save();c.fillStyle="rgba(43,54,79,"+(.31*opacity)+")";c.beginPath();
-    for(const b of solids){
-      if(b.streetProp||b.w<2||b.d<2||b.top<1.6)continue;
+    let walls=shadowBuildings.get(solids);
+    if(!walls){walls=solids.filter(b=>!b.streetProp&&b.w>=2&&b.d>=2&&!(b.top<1.6));shadowBuildings.set(solids,walls);}
+    for(const b of walls){
       const height=Math.min(b.top,58),dx=light.dx*height*s,dy=-light.dz*height*s;
       const x=px(b.x),y=py(b.z),hw=b.w*s/2,hd=b.d*s/2;
       if(!visible(x+dx/2,y+dy/2,hw+hd+Math.hypot(dx,dy)/2))continue;
@@ -1133,6 +1135,12 @@
       const p=opt.sandBeach.ro;
       if((opt.sandBeach.phase==="stand"||opt.sandBeach.unload>.5)&&visible(px(p.x),py(p.z),3*s))
         personSprite(ctx,{...p,shirt:"#ba7250",skin:"#ac7254"},px(p.x),py(p.z),Math.max(2.3,s*1.42),false,rotation);
+    }
+    if(opt.record){const p=BayPublicRecord.spots.gate;
+      if(visible(px(p.x),py(p.z),3*s)){
+        ctx.fillStyle="#575d50";ctx.fillRect(px(p.x)-.13*s,py(p.z)-.92*s,.26*s,1.84*s);
+        ctx.fillStyle=opt.record.stage==="filed"?"#86ada0":"#d9c69a";ctx.fillRect(px(p.x),py(p.z)-.79*s,.22*s,1.58*s);
+      }
     }
     if(player) {
       const rider=opt.boardwalk?.player;

@@ -33,8 +33,9 @@
     return limit;
   }
   class BayCamera {
-    constructor(obstacles) {
+    constructor(obstacles,staticCity=false) {
       this.obstacles=obstacles;
+      this.space=staticCity?new BayStreetSpace(obstacles,20):null;
       this.zoom=1;this.assist=false;this.sensitivity=1;
       this.reset({x:151,z:-27,yaw:0});
     }
@@ -85,7 +86,8 @@
       const ground=options.ground||0,pivotY=swim?subject.y+(swim.exit?1.22:.15):ground+(options.skate ? .84 : options.court?1.59:1.26)+(.10+.43*overhang(vehicle))*b+this.jumpLift;
       const realPivot={x:subject.x,y:pivotY,z:subject.z};
       const anchorEye={x:anchor.x,y:pivotY,z:anchor.z};
-      const free=safeFraction(realPivot,anchorEye,this.obstacles);
+      const nearby=(a,b)=>this.space?this.space.near(a.x,a.z,Math.max(Math.abs(a.x-b.x),Math.abs(a.z-b.z))+.24):this.obstacles;
+      const free=safeFraction(realPivot,anchorEye,nearby(realPivot,anchorEye));
       const pivot={x:subject.x+(anchor.x-subject.x)*free,y:pivotY,z:subject.z+(anchor.z-subject.z)*free};
       this.distance=smooth(this.distance,(swim?(this.diving?3.35:4.25):options.flight?12.2+pace*2.8:options.skate?4.2+Math.min(1.3,speed*.11):options.court?5.35:chaseBoom(vehicle,b,pace))*this.zoom,6.5,dt);
       const shoulder=.47*(1-b),radius=this.distance,flat=Math.cos(this.elevation)*radius;
@@ -95,7 +97,7 @@
       const eyeHeight=(x,z,y)=>this.diving?clamp(y,Math.min(-.17,BaySwimming.floor(x,z)+.29),-.15):Math.max(minHeight,y);
       const ideal={x:pivot.x+xOff,z:pivot.z+zOff};
       ideal.y=eyeHeight(ideal.x,ideal.z,pivot.y+yOff);
-      let clearance=safeFraction(pivot,ideal,this.obstacles)*radius;
+      let clearance=safeFraction(pivot,ideal,nearby(pivot,ideal))*radius;
       if(this.diving)for(let part=.2;part<=1;part+=.2){
         if(BaySwimming.floor(pivot.x+xOff*part,pivot.z+zOff*part)>-.54){clearance=Math.min(clearance,radius*(part-.15));break;}
       }
@@ -104,7 +106,7 @@
       const lift=(1-clamp(this.safeDistance/(vehicle?3.8:2.1),0,1))*(vehicle?2.65:.72);
       const eye={x:pivot.x+xOff*ratio,z:pivot.z+zOff*ratio};
       eye.y=eyeHeight(eye.x,eye.z,pivot.y+yOff*ratio+lift);
-      const safe=safeFraction(pivot,eye,this.obstacles);
+      const safe=safeFraction(pivot,eye,nearby(pivot,eye));
       out.x=pivot.x+(eye.x-pivot.x)*safe;out.y=pivot.y+(eye.y-pivot.y)*safe;out.z=pivot.z+(eye.z-pivot.z)*safe;
       if(swim)out.y=eyeHeight(out.x,out.z,out.y);
       const lead=b*(.70+pace*2.25), ahead=.38+lead;

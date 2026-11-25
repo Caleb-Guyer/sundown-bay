@@ -153,6 +153,12 @@
     <template id="exposureProof">
       <figure class="contact-proof"><canvas width="768" height="432" aria-label="Mara Vega’s photograph of the Lot 14 sale notice at Port Sol"></canvas><figcaption>M. VEGA &nbsp; / &nbsp; PORT SOL <span>14A ▸</span></figcaption></figure>
     </template>
+    <section id="chapterFilm" hidden aria-label="Story scene">
+      <canvas id="chapterInsert" width="1000" height="500" hidden></canvas>
+      <div class="chapter-slate"><small id="chapterSlug"></small><strong id="chapterTitle"></strong></div>
+      <div class="chapter-caption" aria-live="polite"><b id="chapterWho"></b><span id="chapterLine"></span></div>
+      <button id="chapterSkip" type="button">Skip scene <kbd>Enter</kbd></button>
+    </section>
     <div id="shade" hidden></div>
     <section id="panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle" hidden>
       <div class="panel-head"><div><div id="panelKicker" class="eyebrow"></div><h2 id="panelTitle"></h2></div><button id="closePanel" aria-label="Close panel">Close <kbd>Esc</kbd></button></div>
@@ -181,6 +187,7 @@
   </main>
   <script type="application/json" id="game-sources">[
   "render.js",
+  "street-space.js",
   "camera.js",
   "sky.js",
   "bay-hours.js",
@@ -237,6 +244,8 @@
   "marsh-line.js",
   "exposure-art.js",
   "exposure.js",
+  "public-record.js",
+  "public-record-art.js",
   "marina-art.js",
   "gull-key-art.js",
   "marina.js",
@@ -389,6 +398,6 @@
   "junction-turns.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=e1c09265a4e88a3e"></script>
+  <script src="sundown.js?v=e0e15e6d83020105"></script>
 </body>
 </html>

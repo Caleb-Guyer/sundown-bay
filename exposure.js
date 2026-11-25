@@ -15,7 +15,7 @@
     {kind:"kiosk",x:9.2,z:54.8,yaw:-Math.PI/2,w:.93,d:1.24,top:1.97},
     {kind:"notice",x:-154.3,z:-91,yaw:Math.PI/2,w:.25,d:2.24,top:2.19}
   ];
-  const liveTime=55;
+  const liveTime=105;
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   const stopped=v=>Math.hypot(v.vx,v.vz)<.85&&Math.abs(v.speed)<.85;
   class Run {
@@ -42,7 +42,7 @@
     }
     holds(v){return this.ride===v&&["approach","board","exit","handoff"].includes(this.phase);}
     atDock(car){return !!car&&this.ride===car&&distance(car,dock)<9&&stopped(car);}
-    interaction(car){return this.atDock(car)?({port:"viewfinder",choice:"contact"})[this.phase]||"":"";}
+    interaction(car){return (this.regrouped&&this.phase==="choice"&&car===this.ride)||this.atDock(car)?({port:"viewfinder",choice:"contact"})[this.phase]||"":"";}
     focus(){const sign=BayExposureArt.photoNotice;return Math.abs(this.aim.x-sign.x)<=sign.width*.32&&Math.abs(this.aim.y-sign.y)<=sign.height*.36;}
     expose(){if(this.phase!=="port"||!this.focus())return false;this.phase="choice";return true;}
     choose(route){if(this.phase!=="choice"||!Object.hasOwn(routes,route))return false;
