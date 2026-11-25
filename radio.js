@@ -689,6 +689,14 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="rank-ring"){
+      const gain=.036*Math.max(0,1-source.distance/26);
+      for(const delay of [0,.59])for(let i=0;i<7;i++){
+        const strike=at+delay+i*.047;
+        tone(effects,i%2?1034:885,strike,.12,gain,"sine",0,.002);
+        tone(effects,i%2?1960:2117,strike,.065,gain*.42,"sine",0,.001);
+      }return;
+    }
     if(name==="pin-flip"){waterNoise(effects,at,.032,.055,1950,370);return;}
     if(name==="pin-pop"||name==="pin-bank"){
       for(const [delay,pitch] of (name==="pin-bank"?[[0,661],[.085,833],[.17,990]]:[[0,622]])){

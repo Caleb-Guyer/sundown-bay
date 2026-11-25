@@ -24,9 +24,10 @@
     try{q=JSON.parse(localStorage.getItem(requestPrefix+station));}catch{}
     return q&&records[q.id]?.station===station&&Number.isFinite(q.at)?q:null;
   }
-  function requestSong(id,time){
+  function requestSong(id,time,caller){
     if(!Object.hasOwn(records,id)||!Number.isFinite(time))return;
-    const station=records[id].station,q={id,at:time};requests.set(station,q);
+    const station=records[id].station,q={id,at:time};
+    if(caller)q.caller=caller;requests.set(station,q);
     try{localStorage.setItem(requestPrefix+station,JSON.stringify(q));}catch{}
   }
   function readTake(raw,id){
@@ -136,7 +137,8 @@
     }
     if(requested){
       const r=records[q.id],age=time-q.at,key="listener/"+station+"/"+q.id+"/"+q.at;
-      return {key,station,track:r.id,title:r.title,credit:r.artist+" · Listener request",age,
+      const caller=typeof q.caller==="string"&&q.caller.length<=32?q.caller:"";
+      return {key,station,track:r.id,title:r.title,credit:r.artist+(caller?" · For "+caller+" / Ring Twice":" · Listener request"),age,
         decks:[deck(r.id,age*r.bpm/60,r.bpm,1,key)]};
     }
     const featured=station==="sol"?book.sets[book.featured]:null,tracks=channel.songs;

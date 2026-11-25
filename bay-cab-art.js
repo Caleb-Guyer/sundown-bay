@@ -54,7 +54,11 @@
     for(let i=0;i<count;i++)plate(g,pt,x+i*size,y+(i%2)*size,x+(i+1)*size,y+(1+i%2)*size,dark);
   }
 
-  function phone(g){
+  function handset(g){
+    g.pole([.015,.085,-.004],[.007,-.103,.008],.030,ink);
+    for(const y of [.097,-.123])g.box(0,y,.019,.095,.059,.080,"#263433",-.11);
+  }
+  function phone(g,offHook=false){
     // An enamel double-sided flag, a cast base and a dial handset under a bent tin hood.
     g.box(0,.065,0,.68,.13,.54,"#9e9981");g.cyl(0,.18,0,.177,.23,.21,8,"#50625a");
     g.box(0,1.66,-.08,.115,3.02,.14,"#54635a");g.box(.06,1.34,-.05,.026,2.20,.025,brass);
@@ -64,10 +68,12 @@
     plate(g,face,-.16,1.305,.16,1.405,"#d5a554");words(g,front(.250),"CALL",0,1.317,.070,ink);
     round(g,front(.250),.07,1.15,.073,10,steel);round(g,front(.254),.07,1.15,.034,9,ink);
     for(let i=0;i<8;i++){const k=i*.76;round(g,front(.255),.07+.052*Math.cos(k),1.15+.052*Math.sin(k),.008,4,ink);}
-    g.pole([.130,1.238,.269],[.122,1.050,.281],.030,ink);
-    for(const y of [1.25,1.03])g.box(.115,y,.292,.095,.059,.080,"#263433",-.11);
     const bends=[[.12,1.027,.29],[.15,.89,.31],[.121,.858,.31],[.078,.871,.305],[.048,.924,.278],[.047,.967,.233]];
-    for(let i=1;i<bends.length;i++)g.pole(bends[i-1],bends[i],.008,"#343d39",4);
+    if(!offHook){
+      g.pole([.130,1.238,.269],[.122,1.050,.281],.030,ink);
+      for(const y of [1.25,1.03])g.box(.115,y,.292,.095,.059,.080,"#263433",-.11);
+      for(let i=1;i<bends.length;i++)g.pole(bends[i-1],bends[i],.008,"#343d39",4);
+    }
     g.box(0,1.485,.055,.58,.05,.53,brass);g.box(0,1.508,.058,.595,.023,.55,"#637269");
     for(const side of [-1,1])g.box(side*.269,1.40,.032,.026,.16,.39,"#758174");
     g.box(0,.746,.173,.39,.062,.074,"#bdad8d");
@@ -414,6 +420,25 @@
     const yaw=s.yaw-Math.PI/2;
     return local({...s.stand,y:.077,yaw},side*offset,0,-.11);
   }
+  function drawHandset(view,list,post,talk){
+    const hook=local(post,.115,1.153,.273),ear=local(talk.actor,.19,1.51,.12),u=talk.amount;
+    const at={x:hook.x+(ear.x-hook.x)*u,y:hook.y+(ear.y-hook.y)*u+.08*Math.sin(Math.PI*u),z:hook.z+(ear.z-hook.z)*u};
+    const yaw=post.yaw+Math.atan2(Math.sin(ear.yaw-post.yaw),Math.cos(ear.yaw-post.yaw))*u;
+    list.push(["rank-handset",at.x,at.y,at.z,yaw,-u*.28,0]);
+    const start=local(post,.047,.967,.233),segments=8;
+    const cord=talk.cord??=new Float32Array(segments*6*6);
+    let i=0,prev=start;
+    for(let k=1;k<=segments;k++){
+      const t=k/segments,p={x:start.x+(at.x-start.x)*t,y:start.y+(at.y-.12-start.y)*t-.37*4*t*(1-t),z:start.z+(at.z-start.z)*t};
+      for(const [end,sign] of [[prev,-1],[p,-1],[p,1],[prev,-1],[p,1],[prev,1]]){
+        cord[i++]=end.x;cord[i++]=end.y+sign*.013;cord[i++]=end.z+sign*.006;cord[i++]=.13;cord[i++]=.16;cord[i++]=.15;
+      }
+      prev=p;
+    }
+    if(!view.models.has("rank-cord"))view.add("rank-cord",{vertices:cord},true);
+    else{view.cpu.get("rank-cord").set(cord);view.updateAnimated("rank-cord");}
+    list.push(["rank-cord",0,0,0,0]);
+  }
   function hand(p,side){
     const limb=p.mesh?.sides[side===1?1:0],angle=(p.motion?.phase||0)*Math.PI*2,push=p.motion?.weight||0;
     const a=limb?limb.forearm.map(limb.handPivot,limb.hand):[side*.25,1.00+.031*push*Math.cos(angle*2),.063+side*.17*push*Math.cos(angle)];
@@ -426,6 +451,13 @@
   function standPosition(p){return local(p,0,0,p.id==="walt"?.417:p.id==="bea"?.497:.490);}
   function install(model){
     model("cab-phone",phone);model("cab-roof-lettering",cabRoof);
+    model("rank-off-hook",g=>phone(g,true));model("rank-handset",handset);
+    for(const lit of [false,true])model(lit?"rank-bell-lit":"rank-bell",g=>{
+      g.box(0,3.033,.38,.18,.073,.36,steel);
+      g.cyl(0,3.126,.38,.119,.101,.16,8,lit?"#ffc25c":"#94664a");
+      g.box(0,3.226,.38,.172,.032,.178,brass);
+      for(const x of [-.094,.094])g.box(x,3.13,.38,.013,.17,.026,steel);
+    });
     for(const on of [false,true])model(on?"cab-light-free":"cab-light-meter",g=>roofLamp(g,on));
     for(const side of [-1,1])model(side<0?"cab-door-left":"cab-door-right",g=>decal(g,side));
     model("cab-lobby",theaterDoor);
@@ -435,7 +467,7 @@
     model("cab-work-reel",reel);
     model("cab-stick",g=>{g.pole([0,0,-.055],[0,-.015,.363],.0095,"#d9bc82",5);g.box(0,-.015,.36,.022,.018,.034,ivory);});
   }
-  function world(view,list,see,t,clock,city,openSecond){
+  function world(view,list,see,t,clock,city,openSecond,phones){
     const night=clock?.night||0;
     if(see(stageDoor,110)){
       list.push(["cab-lobby",stageDoor.x,.077,stageDoor.z,stageDoor.yaw],
@@ -443,7 +475,11 @@
     }
     for(const stop of Object.values(BayCab.stops)){
       if(!see(stop.stand,104))continue;
-      const p=rankLocation(stop);list.push(["cab-phone",p.x,p.y,p.z,p.yaw]);
+      const p=rankLocation(stop),talk=phones?.talk,up=talk?.site.id===stop.id&&talk.amount>.005;
+      list.push([up?"rank-off-hook":"cab-phone",p.x,p.y,p.z,p.yaw]);
+      if(up)drawHandset(view,list,p,talk);
+      const lit=phones?.pulse(stop.id,clock.total);
+      list.push([lit?"rank-bell-lit":"rank-bell",p.x,p.y,p.z,p.yaw,0,0,lit?1:0]);
     }
     const v=city?.vehicle;
     if(v&&see(v,100)){
@@ -610,6 +646,11 @@
       if(!visible(px(p.x),py(p.z),2*s+10))continue;
       if(street)atMap(c,p,px,py,s,rankPlan);
       else phoneIcon(c,px(p.x),py(p.z),ui*(radar?4.15:4.6));
+      if(opt.rankPhones?.pulse(stop.id,opt.weather.total)){
+        const x=px(p.x),y=py(p.z),r=street?Math.max(4,s*.62):5.8*ui;
+        c.save();c.strokeStyle="#ffe09a";c.lineWidth=street?1.7:1.1;c.beginPath();c.arc(x,y,r+2,0,Math.PI*2);c.stroke();c.restore();
+        disc(c,x,y,Math.max(1.4,r*.42),"#ffb74f");
+      }
     }
     const v=city?.vehicle;
     if(v&&visible(px(v.x),py(v.z),3*s+6)){
@@ -656,5 +697,5 @@
     });
     return key;
   }
-  window.BayCabArt={install,world,map,colors,roles,dress,pose,dashboard};
+  window.BayCabArt={install,world,map,colors,roles,dress,pose,dashboard,rankLocation};
 })();

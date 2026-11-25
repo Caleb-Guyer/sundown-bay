@@ -91,6 +91,9 @@
         continue;
       }
       if(!p.coffeeRegular&&!p.crossing?.entered&&(rain>.12||p.porch)&&BayRainWalk.porchStep(p,dt,rain,time,people,cars,valid))continue;
+      if(p.ringLook&&time<p.ringLook.until&&!p.crossing?.entered&&!p.porch&&!p.startle){
+        p.moving=false;p.gesture=0;p.yaw+=wrap(Math.atan2(p.ringLook.x-p.x,p.ringLook.z-p.z)-p.yaw)*-Math.expm1(-5*dt);continue;
+      }
       p.moving=false;
       const target=p.path[p.index],dx=target[0]+p.offset-p.x,dz=target[1]+p.offset-p.z,d=Math.hypot(dx,dz);
       if(p.alert>0){p.alert-=dt;p.gesture=1;continue;}
