@@ -73,19 +73,25 @@
   function passDirection(p,player,ux,uz,valid,cars){
     const dx=player.x-p.x,dz=player.z-p.z,ahead=dx*ux+dz*uz,side=dx*uz-dz*ux;
     if(ahead<-.22||ahead>2.55||Math.abs(side)>1.12){p.passing=0;return null;}
-    const safe=sign=>{
-      const x=p.x+ux*.22+sign*uz*.63,z=p.z+uz*.22-sign*ux*.63;
-      if(!valid(x,z,.28))return false;
-      // Stay on the pavement when the other shoulder would enter a traffic lane.
-      const curb=(x,z)=>Math.min(Math.abs(x-Math.round(x/72)*72),Math.abs(z-Math.round(z/72)*72));
-      if(curb(p.x,p.z)>=6.35&&curb(x,z)<6.35)return false;
-      return cars.every(v=>Math.abs(v.x-x)>4||Math.abs(v.z-z)>4||BayDriving.clearance(v,{x,z})>.38);
-    };
-    let sign=p.passing||(Math.abs(side)>.17?-Math.sign(side):(p.offset||0)<0?-1:1);
-    if(!safe(sign)){if(!p.passing&&safe(-sign))sign=-sign;else return {x:0,z:0};}
-    p.passing=sign;
-    const cross=sign*Math.max(.12,1.06+sign*side),forward=Math.max(.22,ahead-.48),len=Math.hypot(forward,cross);
-    return {x:(ux*forward+uz*cross)/len,z:(uz*forward-ux*cross)/len};
+    const curb=(x,z)=>Math.min(Math.abs(x-Math.round(x/72)*72),Math.abs(z-Math.round(z/72)*72));
+    const sidewalk=curb(p.x,p.z)>=6.35;
+    const clear=(x,z)=>valid(x,z,.28)&&(!sidewalk||curb(x,z)>=6.35)&&
+      cars.every(v=>Math.abs(v.x-x)>4||Math.abs(v.z-z)>4||BayDriving.clearance(v,{x,z})>.38);
+    const prefer=p.passing||(Math.abs(side)>.17?-Math.sign(side):(p.offset||0)<0?-1:1);
+    for(const sign of [prefer,-prefer]){
+      // Aim at the shoulder beside the player. Check the actual diagonal approach
+      // as well as its endpoint so a planter behind or beside the route cannot stop it.
+      const forward=Math.max(.22,ahead-.48),cross=sign*Math.max(.12,1.06+sign*side);
+      const len=Math.hypot(forward,cross),vx=(ux*forward+uz*cross)/len,vz=(uz*forward-ux*cross)/len;
+      const reach=Math.min(len,2.6);
+      let open=true;
+      for(let d=Math.min(.32,reach);;d=Math.min(reach,d+.32)){
+        if(!clear(p.x+vx*d,p.z+vz*d)){open=false;break;}
+        if(d===reach)break;
+      }
+      if(open){p.passing=sign;return {x:vx,z:vz};}
+    }
+    return {x:0,z:0};
   }
   function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0,rail=null,player=null){
     const ease=-Math.expm1(-12*dt);

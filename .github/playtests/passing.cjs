@@ -3,7 +3,7 @@ module.exports=async function passing({js,waitFor,key,snap,mode}){
   // Use one local from the live crowd and one straight piece of Ocean sidewalk.
   await js(`q.at(q.hero,153.5,-14.7,Math.PI);q.rig.reset(q.hero);
     q.local=q.crowd.find(w=>!w.name&&!w.fieldSource&&!w.palmManaged&&!w.onTour);
-    q.original={path:q.local.path,index:q.local.index,x:q.local.x,z:q.local.z,offset:q.local.offset,yaw:q.local.yaw};
+    q.original={...q.local};
     Object.assign(q.local,{x:153.5,z:-20.3,path:[[153.5,-6,1],[153.5,-24,1]],index:0,offset:0,yaw:0,wait:0,stuck:0,alert:0,pace:1.55,phase:0});
     q.gap=Infinity;q.poses=new Set();q.topPoses=new Set();
     const walk=BayLocals.animatePeople;BayLocals.animatePeople=function(){
@@ -40,7 +40,12 @@ module.exports=async function passing({js,waitFor,key,snap,mode}){
       return list.call(this,items);
     };`);
   await key("keyDown","KeyW");try{await waitFor("q.gaveWay",25000);}finally{await key("keyUp","KeyW");}
-  await snap("sidewalk-pass");await waitFor("q.local.z>q.hero.z+1.65",22000);
+  await snap("sidewalk-pass");
+  try{await waitFor("q.local.z>q.hero.z+1.65",22000);}
+  catch(error){
+    console.log("Sidewalk state",await js("({player:[q.hero.x,q.hero.z],walker:[q.local.x,q.local.z],shoulder:q.local.passing,gap:q.gap,index:q.local.index,poses:q.poses.size,overhead:q.topPoses.size})"));
+    throw error;
+  }
   assert(await js("q.gap>.5"),"pedestrian passes beside the player");
   const poses=await js(mode==="street"?"q.poses.size":"q.topPoses.size");assert(poses>=8,"continuous pedestrian gait");
   if(mode==="street"){
