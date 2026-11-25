@@ -102,5 +102,13 @@
       this.side=this.playSide();this.phase="live";this.flash=1.4;return true;
     }
   }
-  window.BayNeedle={site,stops,walls,posts,origin,tip,book,Table};
+  const sideKey="sundownBay.needleSide.v1";
+  function lastSide(){
+    try{const s=JSON.parse(localStorage.getItem(sideKey));if(s&&Object.hasOwn(BayAirwaves.records,s.id)&&Number.isFinite(s.at)&&s.at>=0)return {id:s.id,at:s.at};}catch{}
+    return null;
+  }
+  function playSide(id,at){
+    const side={id,at};try{localStorage.setItem(sideKey,JSON.stringify(side));}catch{}return side;
+  }
+  window.BayNeedle={site,stops,walls,posts,origin,tip,book,sideKey,scoreKey:key,lastSide,playSide,Table};
 })();

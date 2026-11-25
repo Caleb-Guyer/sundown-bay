@@ -937,7 +937,7 @@
       BayCurbDeskArt.map(ctx,px,py,s,BayCurbWire.desk,streetTime);
       if(opt.wireTV)BayCurbDeskArt.mapScreen(ctx,px,py,s,BayCurbWire.desk,opt.wireTV);
     }
-    if(street&&visible(px(BayNeedle.site.x),py(BayNeedle.site.z),15*s))BayNeedleArt.map(ctx,px,py,s);
+    if(street&&visible(px(BayNeedle.site.x),py(BayNeedle.site.z),15*s))BayNeedleArt.map(ctx,px,py,s,opt.arcadeSong);
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){

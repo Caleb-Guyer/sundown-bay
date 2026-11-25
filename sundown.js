@@ -14116,7 +14116,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       BayCurbDeskArt.map(ctx,px,py,s,BayCurbWire.desk,streetTime);
       if(opt.wireTV)BayCurbDeskArt.mapScreen(ctx,px,py,s,BayCurbWire.desk,opt.wireTV);
     }
-    if(street&&visible(px(BayNeedle.site.x),py(BayNeedle.site.z),15*s))BayNeedleArt.map(ctx,px,py,s);
+    if(street&&visible(px(BayNeedle.site.x),py(BayNeedle.site.z),15*s))BayNeedleArt.map(ctx,px,py,s,opt.arcadeSong);
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){
@@ -15420,7 +15420,15 @@ window.buildBayCity = function buildBayCity(g,water) {
       this.side=this.playSide();this.phase="live";this.flash=1.4;return true;
     }
   }
-  window.BayNeedle={site,stops,walls,posts,origin,tip,book,Table};
+  const sideKey="sundownBay.needleSide.v1";
+  function lastSide(){
+    try{const s=JSON.parse(localStorage.getItem(sideKey));if(s&&Object.hasOwn(BayAirwaves.records,s.id)&&Number.isFinite(s.at)&&s.at>=0)return {id:s.id,at:s.at};}catch{}
+    return null;
+  }
+  function playSide(id,at){
+    const side={id,at};try{localStorage.setItem(sideKey,JSON.stringify(side));}catch{}return side;
+  }
+  window.BayNeedle={site,stops,walls,posts,origin,tip,book,sideKey,scoreKey:key,lastSide,playSide,Table};
 })();
 
 ;
@@ -15502,6 +15510,48 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.restore();
   }
   let resting,reels,reelKey="";
+  const covers=new Map();
+  function cover(r){
+    if(covers.has(r.id))return covers.get(r.id);
+    const shell=document.createElement("canvas");shell.width=shell.height=256;const c=shell.getContext("2d");
+    const palettes={"mango-wire":["#e1a472","#a24442"],"late-ferry":["#80a99b","#305568"],"side-door":["#d4aaa1","#593e58"],
+      "after-hours":["#88a7a8","#344558"],"salt-chrome":["#c8ba90","#486f6c"],"dry-county":["#dfb47d","#7c5544"]};
+    const [paper,press]=palettes[r.id];c.fillStyle=paper;c.fillRect(0,0,256,256);
+    c.save();c.beginPath();c.rect(8,8,240,167);c.clip();
+    if(r.id==="late-ferry"){
+      circle(c,190,49,24,cream);path(c,[[-8,114],[75,104],[130,115],[193,92],[265,103],[265,181],[-8,181]],press);
+      path(c,[[37,119],[169,115],[152,134],[61,137]],cream);path(c,[[64,113],[73,96],[121,96],[136,115]],ink);
+      for(let i=0;i<6;i++)line(c,[56+15*i,145+i%2*5],[110+12*i,145+i%2*5],1.5,paper);
+    }else if(r.id==="mango-wire"){
+      for(let i=0;i<6;i++)line(c,[-10,27+i*12],[262,84+i*8],2,ink);
+      for(const [x,y,k] of [[72,82,.94],[148,106,.76],[192,62,.60]]){
+        c.save();c.translate(x,y);c.rotate(.42);c.scale(k,k);
+        c.fillStyle=press;c.beginPath();c.ellipse(0,13,28,41,0,0,tau);c.fill();
+        path(c,[[0,-23],[15,-44],[38,-45],[26,-31]],ink);line(c,[0,-22],[4,-38],3,ink);c.restore();
+      }
+    }else if(r.id==="dry-county"){
+      circle(c,191,77,39,cream);path(c,[[0,106],[49,94],[98,116],[147,110],[202,129],[256,114],[256,178],[0,178]],press);
+      for(const [x,y,h] of [[43,150,123],[105,132,71],[146,125,45]]){
+        line(c,[x,y],[x,y-h],3,ink);line(c,[x-h*.14,y-h+9],[x+h*.14,y-h+9],3,ink);
+      }
+      c.strokeStyle=ink;c.lineWidth=1.6;c.beginPath();c.moveTo(-10,8);c.quadraticCurveTo(14,32,43,36);c.quadraticCurveTo(76,70,105,70);c.quadraticCurveTo(130,91,146,89);c.stroke();
+    }else if(r.id==="salt-chrome"){
+      for(let i=0;i<4;i++){c.save();c.translate(38+i*62,97-i%2*13);c.rotate(-.40);
+        for(let j=0;j<3;j++){c.beginPath();c.ellipse(0,0,26-j*7,73-j*9,0,0,tau);c.strokeStyle=[press,cream,ink][j];c.lineWidth=5;c.stroke();}c.restore();}
+    }else if(r.id==="side-door"){
+      path(c,[[30,165],[30,37],[122,17],[122,164]],press);path(c,[[42,156],[42,46],[100,33],[100,156]],cream);
+      path(c,[[62,158],[62,52],[107,33],[107,158]],ink);circle(c,97,99,3,cream);
+      for(let i=0;i<5;i++)line(c,[112,157-i*3],[242,124-i*5],2,press);
+    }else{
+      circle(c,197,47,24,cream);
+      for(let i=0;i<8;i++){const x=i*35,y=73+(i*47)%68;c.fillStyle=press;c.fillRect(x,y,32,180-y);
+        for(let j=0;j<3;j++)line(c,[x+5,y+7+j*8],[x+21,y+7+j*8],2,cream);}
+    }
+    c.restore();c.textAlign="left";c.fillStyle=ink;c.font="italic bold 31px Georgia";c.fillText(r.title,12,204,233);
+    c.font="bold 15px Georgia";c.fillText(r.artist,13,226,230);line(c,[13,235],[243,235],1,press);
+    c.font="9px monospace";c.fillText("SUNDOWN BAY    ·    SEVEN INCH / 45",14,248);
+    covers.set(r.id,shell);return shell;
+  }
   function restingGlass(){
     if(resting)return resting;
     resting=document.createElement("canvas");resting.width=256;resting.height=512;
@@ -15520,16 +15570,17 @@ window.buildBayCity = function buildBayCity(g,water) {
     type(c,record.best>2400?record.by.toUpperCase():"RAE CORDERO",128,117,"bold 14px monospace",cream);
     return reels;
   }
-  function map(c,px,py,s){
+  function map(c,px,py,s,song){
     const x=px(n.site.x),y=py(n.site.z);
     c.save();c.translate(x,y);c.scale(s,s);
     c.fillStyle="#c2ad91";c.fillRect(-14.3,-.94,28.6,3.10);
     for(let i=0;i<16;i++){c.fillStyle=i%2?"#e3bc90":"#9b5a50";c.fillRect(-14.3+i*1.786,-.94,1.788,.52);}
     c.fillStyle=ink;c.fillRect(-.50,-.78,1,1.55);c.drawImage(restingGlass(),-.40,-.55,.8,1.18);
     for(const u of [-1.16,1.16]){c.fillStyle=ink;c.fillRect(u-.25,-.57,.50,.57);c.fillStyle="#9d9275";c.fillRect(u-.22,-.53,.44,.14);}
+    if(song){c.fillStyle=ink;c.fillRect(-3.73,-.80,1.42,1.36);c.drawImage(cover(song),-3.66,-.73,1.28,1.22);}
     c.restore();
   }
-  function world(view,model,record){
+  function world(view,model,record,song){
     model("arcade-table-print",g=>{
       const pts=[[-.4,1.092,.67,0,0],[.4,1.092,.67,1,0],[.4,1.092,-.67,1,1],[-.4,1.092,-.67,0,1]];
       for(const i of [0,1,2,0,2,3])g.vertices.push(...pts[i],0);
@@ -15540,8 +15591,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     });
     view.drawPrint("arcade-table-print",restingGlass(),1,n.site.x,0,n.site.z,0);
     view.drawPrint("arcade-score-reels",backglass(record),record.best,n.site.x,0,n.site.z,0);
+    model("arcade-window-sleeve",g=>{
+      const pts=[[-3.66,2.42,.70,0,0],[-2.38,2.42,.70,1,0],[-2.38,1.14,.70,1,1],[-3.66,1.14,.70,0,1]];
+      for(const i of [0,1,2,0,2,3])g.vertices.push(...pts[i],0);
+    });
+    view.drawPrint("arcade-window-sleeve",cover(song),1,n.site.x,0,n.site.z,0);
   }
-  window.BayNeedleArt={glass,map,world};
+  window.BayNeedleArt={glass,map,world,cover};
 })();
 
 ;
@@ -65746,6 +65802,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(ev.key===BayRainWalk.key){rainWalk.book=BayRainWalk.read();lastHud=-10;}
     if(ev.key===BaySecondUnit.filmKey){unit.film=BaySecondUnit.loadFilm();houseFrame=null;}
     BayAirwaves.refreshPreset(ev.key);
+    if(ev.key===BayNeedle.sideKey)needleSide=BayNeedle.lastSide();
+    if(ev.key===BayNeedle.scoreKey){needleRecord=BayNeedle.book();if(needle)needle.record=needleRecord;}
     if(ev.key==="sundownBay.v1"){try{syncProgress(JSON.parse(ev.newValue));}catch{}return;}
     if(ev.key===BayRideFilm.key){const book=new BayRideFilm.Book(save.moto.last);motos.film.prints=book.prints;if(!motos.job&&!motos.develop)motos.film.pending=book.pending;lastHud=-10;return;}
     if(ev.key===skateKey){const f=loadSkateReel();if(f&&(!skateReel||f.score>skateReel.score))skateReel=f;return;}
@@ -65936,7 +65994,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const carRadios=new BayOpenWindows.Street(owners.people,(a,v)=>scoutSight(
     {x:a.x,y:footLevel(a.x,a.z)+1.45,z:a.z},{x:v.x,y:footLevel(v.x,v.z)+1.12,z:v.z}));
   locations.push({...BayNeedle.site,z:8.47});
-  let needle=null,needleSide=null,needleChoices=null,needleRecord=BayNeedle.book(),lastCabinetStreet=-1000;
+  let needle=null,needleSide=BayNeedle.lastSide(),needleChoices=null,needleRecord=BayNeedle.book(),lastCabinetStreet=-1000;
   const wash=new BayPalma.Wash(addCar,save.palma),washJob={id:"palma",name:"Palma Hand Wash",by:"Elia Mena"};
   const washPin={...wash.site.till,id:"palma",kind:"car-wash",name:"Palma Hand Wash"};
   locations.push(washPin);
@@ -72483,7 +72541,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function chooseNeedleSide(){
     const id=needleChoices.shift();needleChoices.push(id);
-    needleSide={id,at:hours.total};return BayAirwaves.records[id];
+    needleSide=BayNeedle.playSide(id,hours.total);saveTime();return BayAirwaves.records[id];
   }
   function newNeedleGame(){
     const current=needleSong().r.id;
@@ -72522,6 +72580,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     txt("pinCall",g.phase==="pick"?"Pick a record with A / D. Press F to play it.":g.phase==="over"?"Game over · Enter to replay":g.phase==="drain"?"Ball in the trough":g.phase==="ready"?(g.held?"Release Space to launch":"Pull the plunger"):g.tilt?"TILT · Flippers cut until next ball":g.flash>0?"Three lit · New side on the speakers":g.lit?"Keep the lit records. Aim for the others.":"Hit the record bumpers");
     txt("pinLabel",g.phase==="pick"?"CHOOSE A SIDE":"ON THE SPEAKERS");
     txt("pinSong",song.title);txt("pinArtist",song.artist);
+    const sleeve=$("pinSleeve");
+    if(sleeve.dataset.track!==song.id){sleeve.getContext("2d").drawImage(BayNeedleArt.cover(song),0,0);sleeve.dataset.track=song.id;}
     txt("pinBest","House 2,400 · Rae"+(g.record.best?" / Best "+g.record.best.toLocaleString("en-US")+" · "+g.record.by:""));
   }
   function needleSpeaker(at,yaw){
@@ -73044,6 +73104,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       swim:swim?.actor(hero),submerged:!!swim?.underwater,patrol:play?watchCrew:null,returned:save.shore.returned,found:save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned,
       field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
+      arcadeSong:play&&modeName==="street"&&dist(p,BayNeedle.site)<85?needleSong().r:null,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,houseMark:houseLights.mark,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
       personal:carPin(),copies:save.copies,tireCloud:elapsed-puffAt<1.55?tireCloud:null,
       luggage:play?{book:save.luggage,rack:rackContents(),hand:onStreetFeet()&&!bell.pass?luggage.hand(save.luggage):null,
@@ -73984,7 +74045,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(dz>-.25&&dx*Math.sin(eye.yaw)+dz*Math.cos(eye.yaw)>-.5){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}
     }
     if(play&&see(threads.site,32)&&featuredStrip())stall.print(view,threads.site,windowStrip,windowStamp);
-    if(play&&see(BayNeedle.site,32))BayNeedleArt.world(view,model,needle?.record||needleRecord);
+    if(play&&see(BayNeedle.site,32))BayNeedleArt.world(view,model,needle?.record||needleRecord,needleSong().r);
     if(play&&see(wireDesk,24)){const screen=updateWireTV(t);if(screen)BayCurbDeskArt.screen(view,wireDesk,screen,wireTVVersion);}
     if(play&&see(scoutDesk,75)&&scoutHouseCard())BayScoutArt.drawDeskPrint(view,scoutDesk,houseCard,unit.film.pinned.number);
     if(washArtReady&&see(wash.site.bay,65))BayPalmaWash.water(view,wash,t);
@@ -75125,6 +75186,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function airLedgerButton(){return makeButton("Pelican Air · Signed mail","Delivery slips, recorded routes and water landings.","Open ledger",()=>openPanel("air-book"));}
   let pickingRidePin=false;
   function openPanel(next,redraw=false){
+    if(next==="pause"&&needle?.phase==="ready"&&needle.held)needle.serve();
     if(next!=="map"||panel!=="map")pickingRidePin=next==="ride-map";
     if(pickingRidePin&&next==="ride-map"){next="map";chartMode="city";}
     timingFilm=null;

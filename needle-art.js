@@ -75,6 +75,48 @@
     c.restore();
   }
   let resting,reels,reelKey="";
+  const covers=new Map();
+  function cover(r){
+    if(covers.has(r.id))return covers.get(r.id);
+    const shell=document.createElement("canvas");shell.width=shell.height=256;const c=shell.getContext("2d");
+    const palettes={"mango-wire":["#e1a472","#a24442"],"late-ferry":["#80a99b","#305568"],"side-door":["#d4aaa1","#593e58"],
+      "after-hours":["#88a7a8","#344558"],"salt-chrome":["#c8ba90","#486f6c"],"dry-county":["#dfb47d","#7c5544"]};
+    const [paper,press]=palettes[r.id];c.fillStyle=paper;c.fillRect(0,0,256,256);
+    c.save();c.beginPath();c.rect(8,8,240,167);c.clip();
+    if(r.id==="late-ferry"){
+      circle(c,190,49,24,cream);path(c,[[-8,114],[75,104],[130,115],[193,92],[265,103],[265,181],[-8,181]],press);
+      path(c,[[37,119],[169,115],[152,134],[61,137]],cream);path(c,[[64,113],[73,96],[121,96],[136,115]],ink);
+      for(let i=0;i<6;i++)line(c,[56+15*i,145+i%2*5],[110+12*i,145+i%2*5],1.5,paper);
+    }else if(r.id==="mango-wire"){
+      for(let i=0;i<6;i++)line(c,[-10,27+i*12],[262,84+i*8],2,ink);
+      for(const [x,y,k] of [[72,82,.94],[148,106,.76],[192,62,.60]]){
+        c.save();c.translate(x,y);c.rotate(.42);c.scale(k,k);
+        c.fillStyle=press;c.beginPath();c.ellipse(0,13,28,41,0,0,tau);c.fill();
+        path(c,[[0,-23],[15,-44],[38,-45],[26,-31]],ink);line(c,[0,-22],[4,-38],3,ink);c.restore();
+      }
+    }else if(r.id==="dry-county"){
+      circle(c,191,77,39,cream);path(c,[[0,106],[49,94],[98,116],[147,110],[202,129],[256,114],[256,178],[0,178]],press);
+      for(const [x,y,h] of [[43,150,123],[105,132,71],[146,125,45]]){
+        line(c,[x,y],[x,y-h],3,ink);line(c,[x-h*.14,y-h+9],[x+h*.14,y-h+9],3,ink);
+      }
+      c.strokeStyle=ink;c.lineWidth=1.6;c.beginPath();c.moveTo(-10,8);c.quadraticCurveTo(14,32,43,36);c.quadraticCurveTo(76,70,105,70);c.quadraticCurveTo(130,91,146,89);c.stroke();
+    }else if(r.id==="salt-chrome"){
+      for(let i=0;i<4;i++){c.save();c.translate(38+i*62,97-i%2*13);c.rotate(-.40);
+        for(let j=0;j<3;j++){c.beginPath();c.ellipse(0,0,26-j*7,73-j*9,0,0,tau);c.strokeStyle=[press,cream,ink][j];c.lineWidth=5;c.stroke();}c.restore();}
+    }else if(r.id==="side-door"){
+      path(c,[[30,165],[30,37],[122,17],[122,164]],press);path(c,[[42,156],[42,46],[100,33],[100,156]],cream);
+      path(c,[[62,158],[62,52],[107,33],[107,158]],ink);circle(c,97,99,3,cream);
+      for(let i=0;i<5;i++)line(c,[112,157-i*3],[242,124-i*5],2,press);
+    }else{
+      circle(c,197,47,24,cream);
+      for(let i=0;i<8;i++){const x=i*35,y=73+(i*47)%68;c.fillStyle=press;c.fillRect(x,y,32,180-y);
+        for(let j=0;j<3;j++)line(c,[x+5,y+7+j*8],[x+21,y+7+j*8],2,cream);}
+    }
+    c.restore();c.textAlign="left";c.fillStyle=ink;c.font="italic bold 31px Georgia";c.fillText(r.title,12,204,233);
+    c.font="bold 15px Georgia";c.fillText(r.artist,13,226,230);line(c,[13,235],[243,235],1,press);
+    c.font="9px monospace";c.fillText("SUNDOWN BAY    ·    SEVEN INCH / 45",14,248);
+    covers.set(r.id,shell);return shell;
+  }
   function restingGlass(){
     if(resting)return resting;
     resting=document.createElement("canvas");resting.width=256;resting.height=512;
@@ -93,16 +135,17 @@
     type(c,record.best>2400?record.by.toUpperCase():"RAE CORDERO",128,117,"bold 14px monospace",cream);
     return reels;
   }
-  function map(c,px,py,s){
+  function map(c,px,py,s,song){
     const x=px(n.site.x),y=py(n.site.z);
     c.save();c.translate(x,y);c.scale(s,s);
     c.fillStyle="#c2ad91";c.fillRect(-14.3,-.94,28.6,3.10);
     for(let i=0;i<16;i++){c.fillStyle=i%2?"#e3bc90":"#9b5a50";c.fillRect(-14.3+i*1.786,-.94,1.788,.52);}
     c.fillStyle=ink;c.fillRect(-.50,-.78,1,1.55);c.drawImage(restingGlass(),-.40,-.55,.8,1.18);
     for(const u of [-1.16,1.16]){c.fillStyle=ink;c.fillRect(u-.25,-.57,.50,.57);c.fillStyle="#9d9275";c.fillRect(u-.22,-.53,.44,.14);}
+    if(song){c.fillStyle=ink;c.fillRect(-3.73,-.80,1.42,1.36);c.drawImage(cover(song),-3.66,-.73,1.28,1.22);}
     c.restore();
   }
-  function world(view,model,record){
+  function world(view,model,record,song){
     model("arcade-table-print",g=>{
       const pts=[[-.4,1.092,.67,0,0],[.4,1.092,.67,1,0],[.4,1.092,-.67,1,1],[-.4,1.092,-.67,0,1]];
       for(const i of [0,1,2,0,2,3])g.vertices.push(...pts[i],0);
@@ -113,6 +156,11 @@
     });
     view.drawPrint("arcade-table-print",restingGlass(),1,n.site.x,0,n.site.z,0);
     view.drawPrint("arcade-score-reels",backglass(record),record.best,n.site.x,0,n.site.z,0);
+    model("arcade-window-sleeve",g=>{
+      const pts=[[-3.66,2.42,.70,0,0],[-2.38,2.42,.70,1,0],[-2.38,1.14,.70,1,1],[-3.66,1.14,.70,0,1]];
+      for(const i of [0,1,2,0,2,3])g.vertices.push(...pts[i],0);
+    });
+    view.drawPrint("arcade-window-sleeve",cover(song),1,n.site.x,0,n.site.z,0);
   }
-  window.BayNeedleArt={glass,map,world};
+  window.BayNeedleArt={glass,map,world,cover};
 })();

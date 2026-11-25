@@ -419,6 +419,8 @@
     if(ev.key===BayRainWalk.key){rainWalk.book=BayRainWalk.read();lastHud=-10;}
     if(ev.key===BaySecondUnit.filmKey){unit.film=BaySecondUnit.loadFilm();houseFrame=null;}
     BayAirwaves.refreshPreset(ev.key);
+    if(ev.key===BayNeedle.sideKey)needleSide=BayNeedle.lastSide();
+    if(ev.key===BayNeedle.scoreKey){needleRecord=BayNeedle.book();if(needle)needle.record=needleRecord;}
     if(ev.key==="sundownBay.v1"){try{syncProgress(JSON.parse(ev.newValue));}catch{}return;}
     if(ev.key===BayRideFilm.key){const book=new BayRideFilm.Book(save.moto.last);motos.film.prints=book.prints;if(!motos.job&&!motos.develop)motos.film.pending=book.pending;lastHud=-10;return;}
     if(ev.key===skateKey){const f=loadSkateReel();if(f&&(!skateReel||f.score>skateReel.score))skateReel=f;return;}
@@ -609,7 +611,7 @@
   const carRadios=new BayOpenWindows.Street(owners.people,(a,v)=>scoutSight(
     {x:a.x,y:footLevel(a.x,a.z)+1.45,z:a.z},{x:v.x,y:footLevel(v.x,v.z)+1.12,z:v.z}));
   locations.push({...BayNeedle.site,z:8.47});
-  let needle=null,needleSide=null,needleChoices=null,needleRecord=BayNeedle.book(),lastCabinetStreet=-1000;
+  let needle=null,needleSide=BayNeedle.lastSide(),needleChoices=null,needleRecord=BayNeedle.book(),lastCabinetStreet=-1000;
   const wash=new BayPalma.Wash(addCar,save.palma),washJob={id:"palma",name:"Palma Hand Wash",by:"Elia Mena"};
   const washPin={...wash.site.till,id:"palma",kind:"car-wash",name:"Palma Hand Wash"};
   locations.push(washPin);
@@ -7156,7 +7158,7 @@
   }
   function chooseNeedleSide(){
     const id=needleChoices.shift();needleChoices.push(id);
-    needleSide={id,at:hours.total};return BayAirwaves.records[id];
+    needleSide=BayNeedle.playSide(id,hours.total);saveTime();return BayAirwaves.records[id];
   }
   function newNeedleGame(){
     const current=needleSong().r.id;
@@ -7195,6 +7197,8 @@
     txt("pinCall",g.phase==="pick"?"Pick a record with A / D. Press F to play it.":g.phase==="over"?"Game over · Enter to replay":g.phase==="drain"?"Ball in the trough":g.phase==="ready"?(g.held?"Release Space to launch":"Pull the plunger"):g.tilt?"TILT · Flippers cut until next ball":g.flash>0?"Three lit · New side on the speakers":g.lit?"Keep the lit records. Aim for the others.":"Hit the record bumpers");
     txt("pinLabel",g.phase==="pick"?"CHOOSE A SIDE":"ON THE SPEAKERS");
     txt("pinSong",song.title);txt("pinArtist",song.artist);
+    const sleeve=$("pinSleeve");
+    if(sleeve.dataset.track!==song.id){sleeve.getContext("2d").drawImage(BayNeedleArt.cover(song),0,0);sleeve.dataset.track=song.id;}
     txt("pinBest","House 2,400 · Rae"+(g.record.best?" / Best "+g.record.best.toLocaleString("en-US")+" · "+g.record.by:""));
   }
   function needleSpeaker(at,yaw){
@@ -7717,6 +7721,7 @@
       swim:swim?.actor(hero),submerged:!!swim?.underwater,patrol:play?watchCrew:null,returned:save.shore.returned,found:save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned,
       field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
+      arcadeSong:play&&modeName==="street"&&dist(p,BayNeedle.site)<85?needleSong().r:null,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,houseMark:houseLights.mark,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
       personal:carPin(),copies:save.copies,tireCloud:elapsed-puffAt<1.55?tireCloud:null,
       luggage:play?{book:save.luggage,rack:rackContents(),hand:onStreetFeet()&&!bell.pass?luggage.hand(save.luggage):null,
@@ -8657,7 +8662,7 @@
       if(dz>-.25&&dx*Math.sin(eye.yaw)+dz*Math.cos(eye.yaw)>-.5){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}
     }
     if(play&&see(threads.site,32)&&featuredStrip())stall.print(view,threads.site,windowStrip,windowStamp);
-    if(play&&see(BayNeedle.site,32))BayNeedleArt.world(view,model,needle?.record||needleRecord);
+    if(play&&see(BayNeedle.site,32))BayNeedleArt.world(view,model,needle?.record||needleRecord,needleSong().r);
     if(play&&see(wireDesk,24)){const screen=updateWireTV(t);if(screen)BayCurbDeskArt.screen(view,wireDesk,screen,wireTVVersion);}
     if(play&&see(scoutDesk,75)&&scoutHouseCard())BayScoutArt.drawDeskPrint(view,scoutDesk,houseCard,unit.film.pinned.number);
     if(washArtReady&&see(wash.site.bay,65))BayPalmaWash.water(view,wash,t);
@@ -9798,6 +9803,7 @@
   function airLedgerButton(){return makeButton("Pelican Air · Signed mail","Delivery slips, recorded routes and water landings.","Open ledger",()=>openPanel("air-book"));}
   let pickingRidePin=false;
   function openPanel(next,redraw=false){
+    if(next==="pause"&&needle?.phase==="ready"&&needle.held)needle.serve();
     if(next!=="map"||panel!=="map")pickingRidePin=next==="ride-map";
     if(pickingRidePin&&next==="ride-map"){next="map";chartMode="city";}
     timingFilm=null;

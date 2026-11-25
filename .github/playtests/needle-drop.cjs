@@ -33,42 +33,41 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
     await waitFor("!document.querySelector('#pinCab').hidden&&!!proof.table");
   }
   async function launch(first){
+    const count=await js("proof.launches");
     await js("proof.first="+first+";proof.autoRelease=true");await key("keyDown","Space");
     await waitFor("!proof.autoRelease",25000);await key("keyUp","Space");
+    await waitFor("proof.launches>"+count);
   }
   try{
     await walkIn();
     await key("keyDown","KeyA");await key("keyDown","KeyD");await waitFor("proof.flips.every(Boolean)");
     await key("keyUp","KeyA");await key("keyUp","KeyD");await waitFor("proof.table.flippers.every(v=>v>.39)");
-    let picked=false;
-    for(let game=0;game<3&&!picked;game++){
-      for(let ball=1;ball<=3;ball++){
-        await launch(!picked);
-        await waitFor("['pick','ready','over'].includes(proof.table.phase)",110000);
-        const phase=await js("proof.table.phase");
-        if(phase==="pick"){
-          assert.equal(await js("proof.hits.size"),3);
-          await waitFor("document.querySelector('#pinLabel').textContent==='CHOOSE A SIDE'");
-          const original=await js("document.querySelector('#pinSong').textContent");
-          await tap("KeyD");await waitFor("document.querySelector('#pinSong').textContent!=="+JSON.stringify(original));
-          const song=await js("document.querySelector('#pinSong').textContent");
-          await snap("select");await tap("KeyF");await waitFor("proof.table.phase!=='pick'&&!!proof.table.side");
-          assert.equal(await js("proof.table.side.title"),song);picked=true;
-          // The finished game must pass through the trough and the actual score reels.
-          for(let repeat=0;repeat<5;repeat++){
-            await waitFor("['ready','over','pick'].includes(proof.table.phase)",120000);
-            if(await js("proof.table.phase!=='pick'"))break;
-            await tap("KeyF");
-          }
-        }
-        if(await js("proof.table.phase==='over'"))break;
+    let sideId="",credits=1;
+    for(let event=0;event<40;event++){
+      await waitFor("['ready','pick','over'].includes(proof.table.phase)",120000);
+      const phase=await js("proof.table.phase");
+      if(phase==="ready"){await launch(!sideId);continue;}
+      if(phase==="over"){
+        if(sideId)break;
+        assert(++credits<=3,"No complete bumper bank in three credits");
+        await tap("Enter");await waitFor("proof.table.phase==='ready'");continue;
       }
-      if(!picked){await tap("Enter");await waitFor("proof.table.phase==='ready'");}
+      assert.equal(await js("proof.hits.size"),3);
+      await waitFor("document.querySelector('#pinLabel').textContent==='CHOOSE A SIDE'");
+      const original=await js("document.querySelector('#pinSong').textContent");
+      await tap("KeyD");await waitFor("document.querySelector('#pinSong').textContent!=="+JSON.stringify(original));
+      const song=await js("document.querySelector('#pinSong').textContent");
+      if(!sideId)await snap("select");
+      await tap("KeyF");await waitFor("proof.table.phase!=='pick'&&!!proof.table.side");
+      assert.equal(await js("proof.table.side.title"),song);
+      sideId=await js("proof.table.side.id");assert.equal(await js("BayNeedle.lastSide().id"),sideId);
+      await waitFor("document.querySelector('#pinSleeve').dataset.track===proof.table.side.id");
     }
-    assert(picked);await waitFor("proof.table.phase==='over'&&BayNeedle.book().best>0");
-    const score=await js("proof.table.score");assert.equal(await js("BayNeedle.book().best"),score);
+    assert(sideId);assert.equal(await js("proof.table.phase"),"over");
+    const score=await js("BayNeedle.book().best");assert(score>=await js("proof.table.score"));assert(score>=1200);
     await snap("score");await tap("KeyE");await waitFor("document.querySelector('#pinCab').hidden");
     await walkIn();assert((await js("document.querySelector('#pinBest').textContent")).includes(score.toLocaleString("en-US")));
+    assert.equal(await js("BayNeedle.lastSide().id"),sideId);
     await tap("KeyE");assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     console.log("PASS",mode,"walked from Tideway to the cabinet, used both flippers and the plunger, lit three distinct physical bumpers, selected a record, drained three balls and found the high score after reloading.",score);
   }catch(e){
