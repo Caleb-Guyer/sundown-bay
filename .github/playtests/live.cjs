@@ -46,6 +46,13 @@ async function run() {
   ], { stdio: ["ignore", "ignore", "inherit", "pipe", "pipe"] });
   const pending = new Map(), errors = [];
   let seq = 0, session = "", buffer = "";
+  function disconnect(reason) {
+    for (const finish of [...pending.values()]) finish({ error: { message: reason } });
+  }
+  for (const pipe of [chrome.stdio[3], chrome.stdio[4]]) {
+    pipe.on("error", e => disconnect("Chrome pipe closed: " + e.message));
+  }
+  chrome.once("exit", (code, signal) => disconnect("Chrome exited (" + (signal || code) + ")"));
   chrome.stdio[4].setEncoding("utf8");
   chrome.stdio[4].on("data", chunk => {
     buffer += chunk;
@@ -60,10 +67,10 @@ async function run() {
       pending.get(message.id)?.(message);
     }
   });
-  function send(method, params = {}, sessionId = session) {
+  function send(method, params = {}, sessionId = session, timeout = 18000) {
     const id = ++seq;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { pending.delete(id); reject(Error("Timeout in " + method)); }, 18000);
+      const timer = setTimeout(() => { pending.delete(id); reject(Error("Timeout in " + method)); }, timeout);
       pending.set(id, reply => {
         clearTimeout(timer); pending.delete(id);
         if (reply.error) reject(Error(reply.error.message)); else resolve(reply.result);
@@ -87,8 +94,12 @@ async function run() {
   }
   async function tap(code) { await key("keyDown", code); await key("keyUp", code); }
   try {
-    const { targetId } = await send("Target.createTarget", { url: "about:blank" });
-    session = (await send("Target.attachToTarget", { targetId, flatten: true })).sessionId;
+    // Chrome starts with a clean blank tab. A cold hosted worker can take a while
+    // to initialize its software GPU before the first DevTools reply.
+    const { targetInfos } = await send("Target.getTargets", {}, "", 75000);
+    const page = targetInfos.find(t => t.type === "page" && t.url === "about:blank")
+      || await send("Target.createTarget", { url: "about:blank" }, "", 75000);
+    session = (await send("Target.attachToTarget", { targetId: page.targetId, flatten: true }, "", 75000)).sessionId;
     await send("Page.enable"); await send("Runtime.enable");
     await send("Page.addScriptToEvaluateOnNewDocument", { source: `
       window.audioStarts = window.cursorRequests = 0;
