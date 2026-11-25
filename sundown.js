@@ -61514,7 +61514,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     g.box(lampX,2.48,lampZ-.308,.407,.835,.03,"#373e37");
     for(const [y,col] of [[2.69,state===1?amber:"#7c6647"],[2.29,state===2?go:"#4c6759"]]){
       g.pole([lampX,y,lampZ-.31],[lampX,y,lampZ-.36],.16,brass,10);
-      g.pole([lampX,y,lampZ-.36],[lampX,y,lampZ-.38],.129,col,10);
+      const rim=i=>[lampX+.143*Math.cos(i*Math.PI/5),y+.143*Math.sin(i*Math.PI/5),lampZ-.376];
+      for(let i=0;i<10;i++)g.tri([lampX,y,lampZ-.397],rim(i+1),rim(i),col,col===go||col===amber?1.26:.80);
       g.box(lampX,y+.166,lampZ-.43,.39,.04,.25,green);
     }
   }
