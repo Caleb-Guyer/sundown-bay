@@ -678,6 +678,21 @@
     }`;
   const SUNVERT=LIGHT+`attribute vec3 pos;void main(){gl_Position=vec4(lightClip(pos),1.);}`;
   const SUNFRAG=PRECISION+`void main(){vec2 rg=fract(gl_FragCoord.z*vec2(1.,255.));rg.x-=rg.y/255.;gl_FragColor=vec4(rg,0.,1.);}`;
+  // A few large triangles cover most of a city block. Use the actual authored
+  // surfaces, including road slopes and roof openings, for the depth pass.
+  function cityCover(data,indices){
+    const cover=[];
+    for(let p=0,i=0;p<data.length;p+=18,i+=3){
+      const ax=data[p+6]-data[p],ay=data[p+7]-data[p+1],az=data[p+8]-data[p+2];
+      const bx=data[p+12]-data[p],by=data[p+13]-data[p+1],bz=data[p+14]-data[p+2];
+      const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
+      if(nx*nx+ny*ny+nz*nz>=128*128)cover.push(indices[i],indices[i+1],indices[i+2]);
+    }
+    return new indices.constructor(cover);
+  }
+  const COVER_VERTEX=`attribute vec3 pos;uniform vec3 eye,rightV,upV,forwardV;uniform vec2 focal,depth;
+    void main(){vec3 rel=pos-eye;float z=dot(rel,forwardV);
+      gl_Position=vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);}`;
   class View {
     constructor(canvas) {
       this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();this.actors=new Map();
@@ -727,6 +742,10 @@
         try{return this.createStreetSurface(modelSpace,true);}
         catch{return this.createStreetSurface(modelSpace,false);}
       };
+      this.coverProgram=program(COVER_VERTEX,PRECISION+"void main(){gl_FragColor=vec4(0.);}",{pos:this.pos});
+      this.coverUniforms={};
+      for(const name of ["eye","rightV","upV","forwardV","focal","depth"])this.coverUniforms[name]=gl.getUniformLocation(this.coverProgram,name);
+      gl.useProgram(this.coverProgram);gl.uniform2f(this.coverUniforms.depth,(f+n)/(f-n),-2*f*n/(f-n));
       this.streetSurface=surface(false);this.modelSurface=surface(true);
       gl.useProgram(p);this.streetFrame=null;this.shadowAxes=null;
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
@@ -1078,8 +1097,30 @@
         this.streetWalls=walls;
       }
     }
+    coverCity(){
+      const model=this.models.get("city"),frame=this.streetFrame;
+      if(!frame?.timed||frame.underwater||this.scale>.65||!model?.indices)return;
+      const gl=this.gl,u=this.coverUniforms;
+      if(!model.cover){
+        const indices=cityCover(this.cpu.get("city"),model.indices);
+        model.cover=gl.createBuffer();model.coverCount=indices.length;
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.cover);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,indices,gl.STATIC_DRAW);
+      }
+      gl.useProgram(this.coverProgram);gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);
+      gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.cover);
+      gl.uniform3f(u.eye,frame.x,frame.y,frame.z);gl.uniform3f(u.rightV,frame.cs,0,-frame.sn);
+      gl.uniform3f(u.upV,frame.ux,frame.cp,frame.uz);gl.uniform3f(u.forwardV,frame.fx,frame.fy,frame.fz);
+      gl.uniform2f(u.focal,frame.fxScreen,frame.focal);
+      // Bias away from the eye. Coplanar paint and the colour pass retain their
+      // original ordering even on devices with a 16-bit depth buffer.
+      gl.colorMask(false,false,false,false);gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,2);
+      gl.drawElements(gl.TRIANGLES,model.coverCount,model.elementType,0);
+      gl.disable(gl.POLYGON_OFFSET_FILL);gl.colorMask(true,true,true,true);gl.useProgram(this.program);this.bound=null;
+    }
     drawCityAndWater(t){
       this.collectStreetWalls();
+      this.coverCity();
       this.draw("city");
       // Opaque land masks the water shader. Keep city surfaces on equal-depth shore pixels.
       const gl=this.gl;gl.depthFunc(gl.LESS);this.drawWater(t);gl.depthFunc(gl.LEQUAL);
