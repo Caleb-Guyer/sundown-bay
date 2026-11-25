@@ -18,7 +18,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await js(`window.nav={nextStep:${nextStep.toString()},pilot:${pilot.toString()},yielded:new Set(),phases:new Set()};
       const dm=drawBayMap;window.drawBayMap=(ctx,o)=>{if(o.mode==='radar'){nav.map=o;nav.car=o.streetCar;for(const v of o.cars)if(v.sevenYield)nav.yielded.add(v.id);}return dm(ctx,o);};
       const u=BayCamera.prototype.update;BayCamera.prototype.update=function(...a){const r=u.apply(this,a);nav.yaw=this.yaw;return r;};
-      const st=BayEngineSeven.Company.prototype.step;BayEngineSeven.Company.prototype.step=function(...a){nav.co=this;const r=st.apply(this,a);nav.phases.add(this.phase);if(this.water)nav.flowed=true;return r;};
+      const st=BayEngineSeven.Company.prototype.step;nav.time=0;BayEngineSeven.Company.prototype.step=function(...a){nav.co=this;nav.time+=a[0];const r=st.apply(this,a);nav.phases.add(this.phase);if(this.water)nav.flowed=true;return r;};
       const art=BayEngineHouseArt;nav.lamps=new Set();window.BayEngineHouseArt={...art,
         world(...a){const r=art.world(...a);if(a[0].some(row=>row[0]==='station-seven-lamp-'+a[5]))nav.lamps.add(a[5]);return r;},
         overhead(...a){const r=art.overhead(...a);if(a[7]!==undefined)nav.lamps.add(a[7]);return r;}
@@ -26,6 +26,17 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
   }
   async function reload(){await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayEngineSeven==='object'");await observe();
     await js("document.querySelector('#play').click()");await waitFor("nav.co&&nav.map&&Number.isFinite(nav.yaw)",26000);}
+  async function driveUntil(condition,seconds){
+    const start=await js("nav.time"),end=Date.now()+seconds*6000;
+    let last;
+    while(Date.now()<end){
+      last=await js("({done:!!("+condition+"),clock:nav.time,phase:nav.co.phase,at:nav.co.cursor,blocked:nav.co.blocked})");
+      if(last.done)return;
+      if(last.clock-start>seconds)break;
+      await sleep(250);
+    }
+    throw Error("Drive did not reach "+condition+" · "+JSON.stringify(last));
+  }
   async function walk(target,r){
     const end=Date.now()+100000;let st;
     while(Date.now()<end){
@@ -62,7 +73,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       await tap("KeyE");await waitFor("!nav.map.player.driving&&document.querySelector('#context').innerText.indexOf('Step out')<0",30000);
     }
     await walk("BayEngineSeven.calls[0].stand",1);
-    await waitFor("nav.co.phase==='working'",140000);await waitFor("document.querySelector('#context').innerText.includes('branch line')",18000);
+    await driveUntil("nav.co.phase==='working'",125);await waitFor("document.querySelector('#context').innerText.includes('branch line')",18000);
     await snap("seven-arrival");await tap("KeyF");await waitFor("nav.co.holding",15000);
     for(const target of [-1,0,1]){
       const before=await js("nav.co.aimX"),s=target<before?"KeyA":"KeyD";
@@ -89,7 +100,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
           apply(nav.pilot(v,c.line,target,true,nav.map.cars,near,c.cursor).map(k=>k==='park'?'Space':k));}
         requestAnimationFrame(steer);
       }steer();})()`);
-      await waitFor("nav.homeParked&&nav.co.inHomeBay()&&nav.lamps.has(1)&&nav.lamps.has(2)",270000);await snap("home-bay");
+      await driveUntil("nav.homeParked&&nav.co.inHomeBay()&&nav.lamps.has(1)&&nav.lamps.has(2)",170);await snap("home-bay");
       await tap("KeyF");await waitFor(record+".engineSeven.log.at(-1).homeDriver");
       assert.equal(await js(record+".wallet"),145);assert.equal(await js("nav.co.phase"),"standby");
       await tap("KeyE");await waitFor("!nav.map.player.driving",30000);

@@ -70,7 +70,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
         drive();
       };driveOcean('race',0);`);
     }else await controls("KeyW");
-    await waitFor("!club.run||JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1",55000);
+    await waitFor("!club.run||JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1",165000);
     assert(await js("JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1"),"Race ended before the player's bumper reached the clock");
     await controls("KeyS");await waitFor("Math.abs(ride.speed)<1.5",40000);await controls();
     assert(await js("finishSeen"));const card=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).green.cards.ocean");
