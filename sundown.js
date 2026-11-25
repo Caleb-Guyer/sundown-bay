@@ -69919,11 +69919,15 @@ window.buildBayCity = function buildBayCity(g,water) {
     hero.yaw+=angle(hero.yaw,toward)*-Math.expm1(-9*dt);
     motion.handTarget=op.showing?null:{x:.13,y:1.04,z:.36,weight:clamp((1.28-range)*2.6,0,1)};
     motion.vx=motion.vz=0;motion.step(dt,Math.hypot(hero.x-oldX,hero.z-oldZ),0);
-    if(op.showing){
-      op.age+=dt;
-      if(op.age>=4.3&&!op.reply){op.reply=true;speak(v.neighbors[0],BayPavementShow.response(v,op.copy));}
-      if(op.age>=10)leaveProjector();
-    }
+  }
+  function advanceScreening(seconds){
+    const op=projector;if(!op?.showing)return;
+    const v=op.venue;
+    // The operator, dialogue and arrivals share the cutscene clock. A long
+    // render frame must not extend the delay between a call and its answer.
+    op.age+=Math.min(seconds,1);shows.began[v.route]=streetTime-op.age;
+    if(op.age>=4.3&&!op.reply){op.reply=true;speak(v.neighbors[0],BayPavementShow.response(v,op.copy));}
+    if(op.age>=10)leaveProjector();
   }
   function listenAtCase(){
     if(room||active||heat||projector)return;
@@ -80664,7 +80668,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       if(!pickup&&!room&&!boardwalk.player&&!cabs.playerHeld&&!windowRide?.held&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??(transit.aboard?transit.bus.speed:null)??motos.bike?.speed??skiff?.speed??car?.speed??(windowRide?.held?windowRide.vehicle.speed:cabs.playerHeld?taxi.speed:0));
       if(!panel){stepSand(dt);bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();ferryBulletin(Math.min(raw,.8));stepField(dt);}
-      if(!panel){theatreStep(dt);neighborStep();stepPavement(dt);listenAtCase();}
+      if(!panel){theatreStep(dt);neighborStep();stepPavement(dt);listenAtCase();if(projector?.showing)advanceScreening(raw);}
       for(const v of cars){BayPalma.weatherCar(v,dt,hours.wet);if(v!==car&&v.rubberHeat>0)BayDriving.cool(v,dt);}
       if(car)driverSeat.wipers(car,dt,Math.max(hours.rain,glassWater()));
       let spray=wash.spraying&&!room&&!swim?.underwater&&wash.target,sprayRange=spray?dist(p,spray):Infinity,sprayGain=1;

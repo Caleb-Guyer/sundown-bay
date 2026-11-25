@@ -27,9 +27,9 @@ module.exports=async function playProjection({js,tap,key,waitFor,snap,mode,route
   const pan=v.dir>0?"KeyD":"KeyA",focus=v.dir>0?"KeyS":"KeyW";
   await js(`const adjust=BayPavementShow.Operator.prototype.adjust;
     BayPavementShow.Operator.prototype.adjust=function(...a){
-      const out=adjust.apply(this,a);
-      if(Math.abs(this.pan)<.025)dispatchEvent(new KeyboardEvent('keyup',{code:${JSON.stringify(pan)},bubbles:true}));
-      if(Math.abs(this.focus)<.025)dispatchEvent(new KeyboardEvent('keyup',{code:${JSON.stringify(focus)},bubbles:true}));
+      const out=adjust.apply(this,a);boothQA.op=this;
+      if(!boothQA.panReleased&&Math.abs(this.pan)<.025){boothQA.panReleased=true;dispatchEvent(new KeyboardEvent('keyup',{code:${JSON.stringify(pan)},bubbles:true}));}
+      if(!boothQA.focusReleased&&Math.abs(this.focus)<.025){boothQA.focusReleased=true;dispatchEvent(new KeyboardEvent('keyup',{code:${JSON.stringify(focus)},bubbles:true}));}
       return out;
     };`);
   await key("keyDown",pan);await key("keyDown",focus);
@@ -39,7 +39,8 @@ module.exports=async function playProjection({js,tap,key,waitFor,snap,mode,route
   else await js("const drawShow=BayPavementShow.map;BayPavementShow.map=function(ctx,x,y,scale,v,p){if(p)boothQA.screen=p.canvas;return drawShow.apply(this,arguments);};");
   await tap("Space");await waitFor(stored+"?.frame==="+JSON.stringify(selected.frame));
   const print=await js(stored);assert.deepEqual(print,{...selected,zoom:1.8,cx:.74,cy:.28});
-  await waitFor("document.querySelector('#speech strong').textContent==="+JSON.stringify(v.neighbors[0]),18000);
+  try{await waitFor("document.querySelector('#speech strong').textContent==="+JSON.stringify(v.neighbors[0]),18000);}
+  catch(error){throw Error("Audience reply at "+JSON.stringify(await js("({age:boothQA.op.age,reply:boothQA.op.reply,speech:document.querySelector('#speech').innerText,mode:document.querySelector('#mode').innerText})"))+". "+error.message);}
   await waitFor("!!boothQA.screen");
   await js("boothQA.slide=new Image();boothQA.slide.src="+stored+".image");
   await waitFor("boothQA.slide.naturalWidth>0");
