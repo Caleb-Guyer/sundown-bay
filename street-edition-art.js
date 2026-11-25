@@ -245,5 +245,39 @@
     label(c,"1",width-margin,footer+21,"bold 16px "+serif,ink,"right");
     return true;
   }
-  window.BayStreetEditionArt=Object.freeze({paint,cover});
+  function inscription(issue){
+    return issue.pierPhoto.frame==="14B"?["For Mara,", "Your dad always packed an orange.", "I kept finding the peels in my tin."]:
+      ["For Mara,", "Your dad drew that timetable.", "Check the six. He wrote it left-handed."];
+  }
+  function reverse(canvas,issue){
+    mounted.delete(canvas);
+    canvas.width=840;canvas.height=462;
+    const c=canvas.getContext("2d");if(!c)return;
+    const blue="#294e64",graphite="#40536a";
+    box(c,0,0,840,462,"#586766");
+    for(let n=0;n<8;n++){
+      box(c,0,n*65,840,2,"#465656");box(c,0,n*65+2,840,1,"#89908a");
+      for(let i=0;i<9;i++)box(c,(n*57+i*93)%840,n*65+8+(i*7)%41,16+i,1,"#626f6c");
+    }
+    c.save();c.translate(420,231);c.rotate(.025);
+    box(c,-362,-204,735,422,"#475350");box(c,-369,-213,738,422,blue);
+    c.strokeStyle="#829392";c.lineWidth=3;c.strokeRect(-361,-205,722,405);
+    for(let i=0;i<12;i++)box(c,-341+(i*97)%659,-201+(i%2)*397,5+(i%3)*6,2,"#adab96");
+    c.rotate(-.056);
+    box(c,-325,-174,656,358,"#303f3d");box(c,-327,-178,657,357,"#cabfa7");
+    box(c,-331,-181,657,356,paper);
+    label(c,"BAY WIRE", -298,-143,"bold 19px "+serif,muted);
+    label(c,"PORT SOL     /     DAY "+String(issue.day).padStart(2,"0"),294,-144,"13px "+sans,muted,"right");
+    box(c,-298,-132,592,1,"#a29f8d");
+    box(c,5,-179,2,352,"#d0c5ae");box(c,7,-179,2,352,"#faf0d8");
+    const words=inscription(issue);
+    for(let i=0;i<words.length;i++)label(c,words[i],-268+(i===0?0:12),-68+i*49,"italic "+(i===0?34:30)+"px "+serif,graphite);
+    // His name is a single pencil stroke. The last downstroke catches on the fold.
+    c.save();c.translate(110,47);
+    pen(c,"M0 39Q-9 34 10 12Q32 -15 20 10Q-4 54 9 43Q19 34 23 38Q26 42 31 35L37 25Q25 49 39 39L49 27Q37 49 51 39L58 30Q48 47 62 39Q77 31 71 24Q54 31 68 35Q81 43 94 30M53 20l1 -3M-2 53Q39 46 106 42",graphite,2.6);
+    c.restore();
+    label(c,"LUIS VEGA    ·    NIGHT SHIFT",117,123,"12px "+sans,muted);
+    c.restore();
+  }
+  window.BayStreetEditionArt=Object.freeze({paint,cover,inscription,reverse});
 })();

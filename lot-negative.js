@@ -49,22 +49,28 @@
   }
   // Use the same actor rig, clothes and metal lunch tins as Dalia's departure.
   // Bake the poses on first sight. Nothing animates or allocates during a city drive.
-  function porter(g,step){
+  function porter(g,step,paper){
     const mesh=new BayPlayerMesh(["#926349","#a59569","#414f54"],"local"),motion=new BayPlayerMotion(),f=step/6;
     motion.handTarget={x:.24,y:1.29,z:.30,weight:f};motion.step(1/60,0,0);mesh.update(motion);
     for(const v of mesh.vertices)g.vertices.push(v);
     for(let i=0;i<2;i++){
       const hand=[0,0,0];mesh.sides[i].forearm.map(mesh.sides[i].handPivot,hand);
       const [x,y,z]=hand,col=i?"#426e83":"#637a60";
+      if(paper&&i){
+        g.box(x,y-.022,z+.061,.245,.016,.195,"#e9dfc6");
+        g.box(x-.082,y-.011,z+.061,.050,.005,.155,"#8b8878");
+        g.box(x+.030,y-.011,z+.097,.13,.005,.056,"#546165");
+        continue;
+      }
       g.box(x,y-.213,z,.27,.20,.19,col);g.box(x,y-.106,z,.282,.036,.20,"#c8c2aa");
       g.box(x,y-.258,z,.272,.018,.193,"#e1cc9a");g.box(x,y-.099,z+.106,.052,.065,.018,"#b48d52");
       for(const side of [-1,1])g.box(x+side*.071,y-.052,z,.017,.096,.022,"#504d41");
       g.box(x,y-.006,z,.16,.019,.024,"#504d41");
     }
   }
-  function actor(list,model,ground,raise=0){
-    const step=Math.round(clamp(raise,0,1)*6),name="lot-porter/"+step;
-    model(name,g=>porter(g,step));list.push([name,subject.x,ground(subject.x,subject.z),subject.z,subject.yaw]);
+  function actor(list,model,ground,raise=0,paper=false){
+    const step=Math.round(clamp(raise,0,1)*6),name=(paper?"lot-porter-paper/":"lot-porter/")+step;
+    model(name,g=>porter(g,step,paper));list.push([name,subject.x,ground(subject.x,subject.z),subject.z,subject.yaw]);
   }
   window.BayLotNegative={key,Archive,Roll,actor,subject,notice,photo,captions,readFrame};
 })();

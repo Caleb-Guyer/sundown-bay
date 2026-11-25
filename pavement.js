@@ -42,6 +42,19 @@
       });}catch{}
     }
     indexOf(q){const id=issueId(q);return this.archive.findIndex(p=>issueId(p)===id);}
+    forLuis(preferred){
+      const chosen=preferred&&this.archive[this.indexOf(preferred)];
+      if(chosen?.pierPhoto&&!chosen.signedByLuis)return chosen;
+      return this.archive.findLast(q=>q.pierPhoto&&!q.signedByLuis);
+    }
+    sign(q){
+      this.readArchive();
+      const i=this.indexOf(q),issue=this.archive[i];
+      if(!issue?.pierPhoto||issue.signedByLuis)return null;
+      const next=this.archive.slice();next[i]={...issue,signedByLuis:true};
+      try{localStorage.setItem(archiveKey,JSON.stringify(next));}catch{return null;}
+      this.archive=next;return next[i];
+    }
     keep(q){
       this.readArchive();if(!validIssue(q)||this.indexOf(q)>=0)return false;
       const next=[...this.archive.slice(-4),q];try{localStorage.setItem(archiveKey,JSON.stringify(next));}catch{return false;}

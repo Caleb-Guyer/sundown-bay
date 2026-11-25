@@ -303,7 +303,7 @@
   let clockStart;
   try{const value=localStorage.getItem(clockKey);if(value!=null&&value!=="")clockStart=Number(value);}catch{}
   const hours=new BayHours.Clock(clockStart),gutters=new BayGutters.StreetWater();
-  const pavement=new BayPavement.Street();let openPaper=null,paperIndex=0;
+  const pavement=new BayPavement.Street();let openPaper=null,paperIndex=0,copyForLuis=null,inscribedCopy=null;
   const summerCaps=new BaySummerCaps.Caps(gutters);
   let capReach=null;
   gutters.weather(hours);let sprayRemarkAt=-15;
@@ -770,6 +770,7 @@
     $("chapterLine").textContent=table?(table.cover>=.92?"Who gets the credit?   1  Dalia Cruz     2  The night shift":"Hold Space and sweep A / D across the covered line."):(b?.line||"");
     if(b?.watch==="work")$("chapterLine").textContent=campaign.watch.caption();
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
+    if(b?.art==="inscription")BayStreetEditionArt.reverse($("chapterInsert"),inscribedCopy);
     if(b?.art==="negative")sound.cue("record-shutter");
     if(b?.title)sound.cue("record-theme",{ending:campaign.scene?.id==="crew"||campaign.scene?.id==="signed"});
     filmPage=b;lastFilmPaint=-Infinity;
@@ -779,6 +780,7 @@
     sound.reel(null);
     campaign.negativeNumber=(id==="negative"?(maraFilm.pending||maraFilm.published):maraFilm.published)?.frame;
     filmReplay=replay;if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
+    if(id==="firstCopy")campaign.negativeNumber=inscribedCopy.pierPhoto.frame;
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
   function endFilm(id){
@@ -786,6 +788,10 @@
     campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("game").classList.toggle("in-chapter",false);
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
     if(filmReplay){filmReplay=false;return;}
+    if(id==="firstCopy"){
+      inscribedCopy=null;if(waypoint?.kind==="luis")waypoint=null;
+      note("Luis Vega","His note is on the back of your folded copy.",4);return;
+    }
     if(id==="reelOpen"){enterFilm("edit-reel");return;}
     if(id==="opening"){
       campaign.book.intro=true;campaign.advance("meet");campaign.write();
@@ -846,6 +852,7 @@
   function chapterAction(){
     if(active||heat||!onStreetFeet()||unit.eye||afternoon.photo||rankPhones.lifted)return null;
     const stage=campaign.book.stage;
+    if(dist(hero,BayLotNegative.subject)<1.4&&pavement.forLuis(copyForLuis))return "firstCopy";
     if(stage==="return"||stage==="filed"){
       if(campaign.book.trips&&dist(hero,BayRoomTone.site)<1.52&&dist(hero,BayRoomTone.site)<dist(hero,radioSite.stand))return "reel";
       if(stage==="filed"&&dist(hero,gateCrew)<1.75&&dist(hero,gateCrew)<dist(hero,recordGate))return campaign.book.pass?"service":"pass";
@@ -856,6 +863,12 @@
     return null;
   }
   function doChapter(act){
+    if(act==="firstCopy"){
+      const issue=pavement.forLuis(copyForLuis);if(!issue)return;
+      inscribedCopy=pavement.sign(issue);copyForLuis=null;
+      if(!inscribedCopy){note("Bay Wire","Couldn’t save Luis’s note. Your folded copy is still in your pocket.",4);return;}
+      paperIndex=pavement.indexOf(inscribedCopy);enterFilm("firstCopy");return;
+    }
     if(act==="watchBook"||act==="read"&&campaign.book.morning){enterFilm("watch-book");return;}
     if(act==="reel"){sound.warmReel();enterFilm(campaign.book.cut?"edit-reel":"reelOpen");return;}
     if(act==="pass"){luz.grant();campaign.write();enterFilm(campaign.book.credit==="crew"?"passShift":"passDalia");return;}
@@ -4638,7 +4651,7 @@
     if(maraFilm.published&&(free||car&&Math.abs(car.speed)<7)&&!active&&!heat&&!panel&&!room&&elapsed>speechTill){
       const lead=BayPavement.pierLead(hours.day+1,neighbors.editions,save,maraFilm);
       if(lead){
-        const stand=pavement.props.find(p=>p.kind==="box"&&p.stock&&p.phase==="upright"&&!p.worker.target&&p.calledPrint!==lead&&dist(pos(),p.worker)<(car?8:5));
+        const stand=pavement.props.find(p=>p.kind==="box"&&p.stock&&p.phase==="upright"&&!p.worker.bit&&!p.worker.startle&&!p.worker.atCap&&p.worker.pace<.003&&p.calledPrint!==lead&&dist(pos(),p.worker)<(car?8:5));
         if(stand){
           stand.calledPrint=lead;
           const luis=lead.frame==="14B",ocean=stand.id==="ocean";
@@ -4756,6 +4769,19 @@
     const page=document.createElement("canvas");page.className="bay-front-page";page.setAttribute("role","img");
     const photo=issue.pierPhoto?"Photograph by Mara Vega. "+BayLotNegative.captions[issue.pierPhoto.frame]:null;
     page.setAttribute("aria-label",[issue.headline,issue.deck,photo,issue.local,issue.listing].filter(Boolean).join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
+    if(archive&&issue.pierPhoto){
+      if(issue.signedByLuis){
+        const front=page.getAttribute("aria-label"),reverse=BayStreetEditionArt.inscription(issue).join(" ")+" — Luis Vega";
+        let back=false;
+        body.append(makeButton("Luis’s note","He wrote on the back of this copy at Lot 14.","Turn over",()=>{
+          back=!back;page.setAttribute("aria-label",back?reverse:front);
+          if(back)BayStreetEditionArt.reverse(page,issue);else BayStreetEditionArt.paint(page,issue);
+          page.scrollIntoView({block:"nearest"});
+        }));
+      }else body.append(makeButton("Show Luis the paper","Mara’s uncle is at the Lot 14 gate in Port Sol.","Mark gate",()=>{
+        copyForLuis=issue;clockPin({...BayLotNegative.subject,kind:"luis",name:"Luis Vega · Lot 14 gate"});
+      }));
+    }
     if(!archive)body.append(makeButton("Fold a copy for later","Keep this front page with your last five papers.","Keep paper",()=>{
       pavement.keep(issue);paperIndex=pavement.indexOf(issue);
       if(paperIndex<0){note("Bay Wire","Browser storage is full. This copy is still open.",4);return;}
@@ -8090,6 +8116,8 @@
     const p=transfer||deckStep||cabs.playerHeld?hero:pos();
     if(exchangingKey())Object.assign(keyMapActor,{x:hero.x,y:hero.y,z:hero.z,yaw:hero.yaw,kit:worn()});
     const peds=[];
+    if(play&&modeName==="street"&&(active?.story?.phase==="port"||maraFilm.published||inscribedCopy))
+      peds.push({...BayLotNegative.subject,shirt:"#a59569",skin:"#926349"});
     if(play&&modeName==="street"&&["return","filed"].includes(campaign.book.stage))peds.push({...gateCrew,shirt:"#547d78",skin:"#9b6b51"});
     if(play&&modeName==="street"){
       for(const [i,a] of company.owners.entries())peds.push({...a,skin:personColors[[2,4,1][i]][0],shirt:personColors[[2,4,1][i]][1]});
@@ -8858,7 +8886,10 @@
     else if(see(palmSite.center,650)){model("palm-roof",BayPalmDiner.roof);visible.push(["palm-roof",0,0,0]);}
     const hideActor=!!afternoon.photo||!!airLine.player&&!airLine.transfer||busCameras()||cabWindow()||listening()||cameraRig.hideActor&&!(coffeeFrame.mix>.45&&dist(eye,hero)>.7)&&!broadcastDesk.mix&&!works.line?.close&&!works.rearView&&!club.show?.wide&&!skate.run?.lens&&!transit.aboard&&!paintPreview&&!insideSeat()&&!neon.testing;
     const story=active?.story;
-    if(story&&story.phase==="port"&&see(BayLotNegative.subject,70))BayLotNegative.actor(visible,model,footLevel);
+    if(see(BayLotNegative.subject,70)&&(story?.phase==="port"||maraFilm.published||inscribedCopy)){
+      const receiving=campaign.scene?.id==="firstCopy";
+      BayLotNegative.actor(visible,model,footLevel,receiving?Math.min(1,campaign.scene.age/.85):0,receiving);
+    }
     for(const prop of BayExposure.props)if(see(prop,120)){
       if(!models.has("exposure-van"))BayExposureArt.install(model);
       visible.push(["exposure-"+prop.kind,prop.x,footLevel(prop.x,prop.z),prop.z,prop.yaw]);
@@ -9663,7 +9694,7 @@
         contextHint("Space",r.rope?"Line out":r.charge==null?"Hold to cast the mooring line · F asks the deckhand":"Release near "+target+"% · "+power+"%");
       }else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(chapter)contextHint("F",({watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
+    }else if(chapter)contextHint("F",({firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
     else if(beachHint)contextHint(...beachHint);
     else if(phoneHint)contextHint(...phoneHint);
     else if(nearNeedle())contextHint("F","Play Needle Drop · Tideway Arcade");
@@ -11217,7 +11248,8 @@
         if(beat==="work")BaySixSharpArt.clock($("dispatchClock"),w.second());
       }else if(art==="watchCopy"){
         if(!campaign.watch.printed){BaySixSharpArt.docket($("chapterInsert"),campaign.watch.departure);campaign.watch.printed=true;}
-      }else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="negative"?(maraFilm.pending||maraFilm.published):null);
+      }else if(art==="inscription")return;
+      else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
         if(isTop())tuneOverhead(delta);else tuneStreetResolution(delta,true);

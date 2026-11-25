@@ -282,6 +282,17 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('Folded copies')).click()");
     await waitFor("document.querySelector('.bay-front-page')?.getAttribute('aria-label')?.includes('Photograph by Mara Vega')");
     console.log("PASS news box, Mara "+selected.frame+" street edition, folded and reopened after reload");
+    await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('Show Luis')).click()");
+    await loadFootAt({x:-153.5,z:-89.7});await waitFor("document.querySelector('#context').innerText.includes('Show Luis')");
+    await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').textContent==='The First Copy'");await snap("luis");
+    await waitFor("!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterLine').textContent.includes('ink')");
+    await snap("inscription");await tap("Enter");await waitFor("document.querySelector('#chapterFilm').hidden");
+    await send("Page.reload");await ready();await js("document.querySelector('#play').click()");await tap("KeyJ");
+    const button=term=>"Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes("+JSON.stringify(term)+"))";
+    await waitFor("!!"+button("Folded copies"));await js(button("Folded copies")+".click()");await js(button("Luis’s note")+".click()");
+    assert((await js("document.querySelector('.bay-front-page').getAttribute('aria-label')")).includes(aboard?"orange":"left-handed"));
+    await js(button("Luis’s note")+".click()");assert.deepEqual(await js(pocket+".pierPhoto"),selected);
+    console.log("PASS The First Copy, signed at the gate and read on the reverse after reload");
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     console.log("PASS",mode,"Six Sharp departure, gangway or sailing bell, carbon and Mara callback; Public Record, First Crossing, Room Tone edit, car radio broadcast and Dalia’s response",route,credit);
   }catch(e){console.log("Campaign state",await js("JSON.stringify({book:"+book+",who:document.querySelector('#chapterWho').textContent,line:document.querySelector('#chapterLine').textContent,hint:document.querySelector('#context').innerText,at:window.recQA?.hero&&[recQA.hero.x,recQA.hero.z],goal:window.recQA?.goal,panel:document.querySelector('#panelTitle').innerText})"));await snap("failure");throw e;}

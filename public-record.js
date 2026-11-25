@@ -15,9 +15,14 @@
     cinema:["print",[-8,3.7,-7],[-6.5,2.8,-6.2],[1,2,.1],1.58,29],
     recorder:["reel",[3.5,1.95,-3.0],[2.75,1.67,-2.35],[-.02,1.17,-.18],1.55,14],
     spool:["reel",[1.60,2.15,-.72],[1.34,1.99,-.84],[-.50,1.32,-1.50],1.65,7],
+    luis:["gate",[-.35,1.71,-1.56],[-.41,1.66,-1.37],[-1.50,1.37,-.77],1.28,8],
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    firstCopy:[
+      {dur:4.2,shot:"luis",title:"The First Copy",slug:"LOT 14   /   PORT SOL",who:"Luis Vega",line:"Give me the paper a second. I can never find a flat place to write out here."},
+      {dur:6.3,art:"inscription",who:"Luis Vega",line:"Keep that side folded in. The ink comes off on your fingers."}
+    ],
     reelOpen:[
       {dur:5.4,shot:"recorder",title:"Room Tone",slug:"NORTH BOARDWALK",who:"Mara Vega",line:"There was a man with two lunch tins on the first boat. I left the tape running."},
       {dur:5.5,shot:"spool",who:"Mara Vega",line:"Ivo has room for one voice. Wind to the start of a sentence. Mark it in, then mark it out after the last word."}
@@ -86,6 +91,7 @@
       const s=this.scene,b=s&&scenes[s.id][s.index];if(!b)return null;
       if(b.watch==="away")return {...b,line:this.watch.departure.luis==="aboard"?"One’s mine. The other’s my brother’s. He’d have had crackers for supper.":"Tell my brother I’ve got his lunch. I’ll catch the next one."};
       const recorded=this.book.morning;
+      if(s.id==="firstCopy"&&s.index===0&&this.negativeNumber==="14B")return {...b,line:"Look at him. My brother kept that tin so clean you could check your shave in it. Here, turn it over."};
       if(this.negativeNumber==="14B"&&s.index===0){
         if(s.id==="negative")return {...b,line:"There’s the dent. Dad dropped that tin on the gangway when I was eight."};
         if(s.id==="print")return {...b,line:"Somebody in the back row says, “Luis, you still got that thing?” His laugh carries all the way up to the booth."};
