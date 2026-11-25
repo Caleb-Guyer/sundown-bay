@@ -382,6 +382,12 @@
   };
   function personSprite(c,p,x,y,s,hero,bearing=0,ghost=false) {
     c.save();c.translate(x,y);
+    if(p.down){
+      c.rotate(p.yaw);c.scale(s,s);const roll=Math.sin(BayStreetAction.tilt(p));
+      line(c,-.09,0,-.25,.61*roll,"#485867",.19);line(c,.09,0,.18,.67*roll,"#485867",.19);
+      line(c,0,.12,0,-.48*roll,p.shirt,.41);line(c,-.13,-.3*roll,-.38,-.49*roll,p.skin,.1);
+      line(c,.13,-.3*roll,.33,-.22*roll,p.skin,.1);disc(c,.02,-.63*roll,.17,p.skin);c.restore();return;
+    }
     const recoil=p.startle||p.sprayPose,lift=hero?p.motion.lift:recoil?.lift||0;
     if(ghost)c.globalAlpha*=.55;
     else{
@@ -1005,6 +1011,7 @@
     if(street&&opt.slideProjection)for(const v of BayPavementShow.venues){
       if(visible(px(v.x),py(v.z),7*s))BayPavementShow.map(ctx,px(v.x),py(v.z),s,v,opt.slideProjection(v));
     }
+    if(street&&opt.streetAction)BayStreetAction.map(ctx,opt.streetAction,px,py,s);
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){
@@ -1092,6 +1099,10 @@
       } else if(radar) {
         disc(ctx,x,y,1.18*ui,"#b7bda3");
       }
+    }
+    if(street&&opt.collectionCar){
+      const v=opt.collectionCar,p=BayDriving.world(v,bayCarLayout(v.kind).seatX,.40);
+      if(visible(px(p.x),py(p.z)))disc(ctx,px(p.x),py(p.z),Math.max(1.5,s*.18),"#b48165");
     }
     if(street&&opt.oceanBeat&&opt.oceanBeat.seat<.55){const a=opt.oceanBeat.actor;if(visible(px(a.x),py(a.z),12))BayOceanBeatArt.mapPerson(ctx,a,px,py,s,streetTime);}
     if(opt.coastCup)BayCoastCupArt.map(ctx,opt,px,py,s,visible);
@@ -1247,6 +1258,12 @@
           else if(BayLowTide.custom(player.kit))BayThreadsArt.map(ctx,x,y,Math.max(3,s*1.8),player,player.kit,rotation);
           else if(opt.crew?.lead==="frankie")BayScoutArt.mapPerson(ctx,px,py,s,player,streetTime);
           else personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+          if(opt.streetAction?.slot&&player.motion.handTarget?.streetGun){
+            ctx.save();ctx.translate(x,y);ctx.rotate(player.yaw);const long=opt.streetAction.slot===2;
+            line(ctx,.22*s,-.44*s,.22*s,-(long?1:.77)*s,"#25313a",.13*s);
+            if(opt.streetAction.flash)disc(ctx,.22*s,-(long?1:.78)*s,.13*s,"#ffcc6a");
+            ctx.strokeStyle="#fff4da";ctx.lineWidth=Math.max(1,.065*s);ctx.beginPath();ctx.arc(0,-6*s,.19*s,0,Math.PI*2);ctx.stroke();ctx.restore();
+          }
           if(player.neighborPose)BayNeighborGestures.map(ctx,x,y,Math.max(3,s*1.8),player,player.neighborPose);
           if(opt.rainWalk?.amount>.01){
             ctx.save();if(opt.rainWalk.trip)ctx.globalAlpha*=.65;

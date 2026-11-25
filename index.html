@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#122d32">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2318323c'/%3E%3Ccircle cx='19' cy='13' r='8' fill='%23ffad79'/%3E%3Cpath d='M0 22 Q8 17 16 22 T32 22 V32 H0Z' fill='%238fdccb'/%3E%3C/svg%3E">
-  <title>Sundown Bay</title>
+  <title>GTA 0.6 · Sundown Bay</title>
   <style id="game-style">
 #motoDash { position:absolute; inset:0; height:100%; width:100%; pointer-events:none; }
 #motoFinder { position:absolute; z-index:3; pointer-events:none; top:50%; left:50%; transform:translate(-50%,-50%); width:min(100vw,133.333vh); aspect-ratio:4/3; box-sizing:border-box; border:1px solid #f1e2bfbb; box-shadow:0 0 0 100vmax #162021bd; }
@@ -104,6 +104,9 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 .intro {display:flex;align-items:flex-end;background:linear-gradient(0deg,#11282bce,transparent 48%),linear-gradient(90deg,#152f363c,transparent 47%)}
 .intro-inner {margin:0 4.7vw clamp(28px,7.4vh,69px);display:flex;flex-direction:column;align-items:flex-start}
 #title {width:clamp(258px,34vw,505px);line-height:0;margin:0 0 clamp(15px,2.5vh,26px);transform:rotate(-3deg);transform-origin:14% 80%;filter:drop-shadow(0 4px 2px #15283166)}
+.edition-name{display:block;margin:0 0 .7em .4em;color:#ffdaa5;font:800 clamp(15px,2vw,27px)/1 system-ui;letter-spacing:.16em;text-shadow:1px 2px #233d42}
+#streetWeapon{position:absolute;right:2.2vw;bottom:13vh;max-width:44vw;padding:7px 11px;border-left:3px solid #f5ae76;background:#11292de0;color:#fff2d3;font:600 clamp(10px,1.15vw,14px)/1.35 system-ui}
+#streetSight{position:fixed;z-index:4;width:8px;height:8px;transform:translate(-50%,-50%);border:1.5px solid #fff6dc;border-radius:50%;box-shadow:0 0 2px 1px #2b3030;pointer-events:none}
 #title img {width:100%;height:auto;display:block}
 .primary {background:var(--cream);color:var(--ink);border:2px solid var(--ink);border-radius:4px;box-shadow:3px 3px 0 #122927;min-width:8rem;min-height:44px;padding:10px 22px;font:800 1.04rem/1.1 "DM Sans","Segoe UI",sans-serif}
 .primary:hover {background:#ffe09c;transform:translateY(-1px)}
@@ -548,6 +551,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
         <small id="luzNumber"></small><strong id="luzTo"></strong><span id="luzLine"></span>
         <div id="luzMeter" hidden><i></i><b></b></div>
       </aside>
+      <div id="streetWeapon" hidden></div><i id="streetSight" aria-hidden="true" hidden></i>
       <div class="location"><span class="area-kicker">SUNDOWN BAY <time id="cityTime"></time></span><strong id="district">Ocean Drive</strong><span id="streetName" hidden></span><span id="rankCaption" hidden></span></div>
       <aside id="receiverCard" aria-label="Car radio" hidden>
         <canvas id="radioScale" width="480" height="80" aria-hidden="true"></canvas>
@@ -646,7 +650,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
     </section>
     <section id="intro" class="intro" aria-labelledby="title">
       <div class="intro-inner">
-        <h1 id="title"><img src="wordmark.svg" alt="Sundown Bay"></h1>
+        <h1 id="title"><span class="edition-name">GTA 0.6</span><img src="wordmark.svg" alt="Sundown Bay"></h1>
         <button id="play" class="primary" type="button" autofocus>Play</button>
       </div>
     </section>
@@ -943,8 +947,9 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "boulevard-lanes.js",
   "junction-turns.js",
   "frame-check.js",
+  "street-action.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=1c960d3f3eeb2a60"></script>
+  <script src="sundown.js?v=d66f54462a4038ba"></script>
 </body>
 </html>

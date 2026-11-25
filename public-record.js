@@ -7,6 +7,7 @@
   const camera={
     portWide:["port",[-12,14,-22],[2,10,-19],[-5,3,4],1.4,76],
     fence:["gate",[6.7,2.1,4],[4.8,1.85,3.5],[-1,1.2,-1.6],1.62,23],
+    laundry:["motel",[7,2,-8.8],[5.6,1.65,-8.1],[2.8,1.32,-5.6],1.49,15],
     ocean:["motel",[34,12,17],[27,8,12],[-9,4,-2],1.46,57],
     motel:["motel",[4.6,2.1,-6.3],[3.3,1.7,-5.8],[1.3,1.25,3.2],1.48,20],
     mara:["mara",[2.9,1.68,-2.8],[2.2,1.59,-2.6],[0,1.37,0],1.50,12],
@@ -21,6 +22,22 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    collectionOpen:[
+      {dur:3.1,shot:"laundry",slug:"OCEAN DRIVE   /   LAUNDRY ENTRANCE",title:"Last Collection",who:"Romy Vale",line:"My mother folded sheets upstairs for twenty years. They paid her last Friday with a key to a room she already cleans."},
+      {dur:4.5,art:"payEnvelope",who:"Romy Vale",line:"That's the pay office stamp. Jules has the missing envelopes at the motel curb. Pull up slow. He'll find the passenger door."}
+    ],
+    collectionRide:[
+      {dur:3.4,shot:"cab",slug:"MARLIN MOTEL   /   CURBSIDE",who:"Jules",line:"I told the man I was picking up a cake. He put that whole tin in my lap and hit the alarm."},
+      {dur:3.9,art:"payEnvelope",who:"Jules",line:"Port Sol will buy the tin, no questions. Or take it to the Luna. The night shift's watching a double feature. Your turn to decide."}
+    ],
+    collectionLuna:[
+      {dur:3.7,shot:"cinema",slug:"CINE LUNA   /   SIDE DOOR",title:"The Late Show",who:"Romy Vale",line:"That's my mum's writing. She used to put a little sun over the i in Marisol."},
+      {dur:3.6,art:"payReceipt",who:"Jules",line:"Everybody chipped in for petrol. Even the guy who only got three dollars back."}
+    ],
+    collectionPort:[
+      {dur:3.7,shot:"portWide",slug:"PORT SOL   /   LOADING BAY",title:"Cash in Hand",who:"Jules",line:"He weighed it with the lid on. Guess the names inside didn't weigh much."},
+      {dur:3.6,art:"portReceipt",who:"Romy Vale",line:"Tell my mum yourself. I'm walking home."}
+    ],
     landingClinic:[
       {dur:4.8,shot:"posted",slug:"PORT SOL   /   LOT 14",title:"The Public Slip",who:"Alma Reyes · clinic bus",line:"I can give the woman in the front seat a time now. She’s been asking every Thursday."},
       {dur:6.5,art:"landingOrder",who:"Nora Abreu · port clerk",line:"The shed can change hands. The landing stays public, and the clinic crossing goes on the timetable."}

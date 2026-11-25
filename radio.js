@@ -716,6 +716,10 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="street-sidearm"||name==="street-scatter"){
+      const heavy=name==="street-scatter";waterNoise(effects,at,heavy?.19:.083,heavy?.14:.10,heavy?1520:2610,230);
+      tone(effects,heavy?121:179,at,.11,.084,"triangle",48,.002);return;
+    }
     if(name==="watch-bell"){
       for(const [pitch,life,gain] of [[526,.87,.073],[1327,.47,.028],[1996,.29,.014]]){
         tone(effects,pitch,at,life,gain,"sine",pitch*.997,.002);

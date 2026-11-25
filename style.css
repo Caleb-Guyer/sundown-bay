@@ -95,6 +95,9 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 .intro {display:flex;align-items:flex-end;background:linear-gradient(0deg,#11282bce,transparent 48%),linear-gradient(90deg,#152f363c,transparent 47%)}
 .intro-inner {margin:0 4.7vw clamp(28px,7.4vh,69px);display:flex;flex-direction:column;align-items:flex-start}
 #title {width:clamp(258px,34vw,505px);line-height:0;margin:0 0 clamp(15px,2.5vh,26px);transform:rotate(-3deg);transform-origin:14% 80%;filter:drop-shadow(0 4px 2px #15283166)}
+.edition-name{display:block;margin:0 0 .7em .4em;color:#ffdaa5;font:800 clamp(15px,2vw,27px)/1 system-ui;letter-spacing:.16em;text-shadow:1px 2px #233d42}
+#streetWeapon{position:absolute;right:2.2vw;bottom:13vh;max-width:44vw;padding:7px 11px;border-left:3px solid #f5ae76;background:#11292de0;color:#fff2d3;font:600 clamp(10px,1.15vw,14px)/1.35 system-ui}
+#streetSight{position:fixed;z-index:4;width:8px;height:8px;transform:translate(-50%,-50%);border:1.5px solid #fff6dc;border-radius:50%;box-shadow:0 0 2px 1px #2b3030;pointer-events:none}
 #title img {width:100%;height:auto;display:block}
 .primary {background:var(--cream);color:var(--ink);border:2px solid var(--ink);border-radius:4px;box-shadow:3px 3px 0 #122927;min-width:8rem;min-height:44px;padding:10px 22px;font:800 1.04rem/1.1 "DM Sans","Segoe UI",sans-serif}
 .primary:hover {background:#ffe09c;transform:translateY(-1px)}

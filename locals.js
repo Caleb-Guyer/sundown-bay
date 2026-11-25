@@ -72,6 +72,7 @@
   function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0,rail=null){
     for(const p of people){
       if(p.onTour)continue;
+      if((p.down||p.flee)&&BayStreetAction.stepPerson(p,dt,valid))continue;
       if(p.sprayWait>0){
         p.sprayWait=Math.max(0,p.sprayWait-dt);p.sprayAge+=dt;
         const age=p.sprayAge;
@@ -126,7 +127,7 @@
   }
   function closestSpeaker(people,hero){
     let found=null,best=3.65;
-    for(const p of [shopkeeper,...people]){if(!p.name||p.palmManaged)continue;const d=Math.hypot(hero.x-p.x,hero.z-p.z);if(d<best){best=d;found=p;}}
+    for(const p of [shopkeeper,...people]){if(!p.name||p.palmManaged||p.down||p.flee)continue;const d=Math.hypot(hero.x-p.x,hero.z-p.z);if(d<best){best=d;found=p;}}
     return found;
   }
   window.BayLocals={makeWalkers,animatePeople,closestSpeaker};

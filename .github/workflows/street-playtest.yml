@@ -15,6 +15,26 @@ permissions:
   contents: read
 
 jobs:
+  encounters:
+    name: Play Last Collection and street action in ${{ matrix.view }} view
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        view: [street, overhead]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --street-action --frames
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: street-action-${{ matrix.view }}
+          path: .github/playtests/curb-wire-proof/*.jpg
+          retention-days: 3
+          if-no-files-found: ignore
   play:
     name: Play Public Record in ${{ matrix.view }} view
     runs-on: ubuntu-latest
