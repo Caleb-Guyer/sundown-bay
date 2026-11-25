@@ -51,14 +51,26 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
     await waitFor("proof.map.player.driving&&proof.map.streetCar?.kind==='coupe'",30000);
     const money=await js(state+".wallet");await tap("KeyH");await waitFor("proof.map.coastCup.phase==='count'");await snap("grid");
     await waitFor("proof.map.coastCup.phase==='race'",30000);
+    // Apply input on display frames. A delayed CDP response or screenshot
+    // must not keep the accelerator down while traffic crosses the bonnet.
+    await js(`(()=>{const held=new Set();let last=-1;
+      function set(codes){
+        for(const code of held)if(!codes.includes(code)){dispatchEvent(new KeyboardEvent("keyup",{code,key:code.slice(3).toLowerCase(),bubbles:true}));held.delete(code);}
+        for(const code of codes)if(!held.has(code)){dispatchEvent(new KeyboardEvent("keydown",{code,key:code.slice(3).toLowerCase(),bubbles:true,cancelable:true}));held.add(code);}
+      }
+      function frame(){
+        const r=proof.map?.coastCup;if(!r||r.phase!=="race"){set([]);return;}
+        if(r.clock-last>.035){set(coastPilot(proof.map,proof.driver));last=r.clock;}
+        requestAnimationFrame(frame);
+      }
+      frame();})()`);
     const end=Date.now()+390000;let pack=false,bell=false;
     while(Date.now()<end){
-      const data=await js("(()=>{const c=proof.map.coastCup;return {phase:c.phase,keys:coastPilot(proof.map,proof.driver),clock:c.clock,lap:c.completed,gate:c.gate};})()");
+      const data=await js("(()=>{const c=proof.map.coastCup;return {phase:c.phase,clock:c.clock,lap:c.completed};})()");
       if(data.phase!=="race")break;
-      await hold(data.keys);
       if(!pack&&data.clock>3){await snap("field");pack=true;}
       if(!bell&&data.lap===1){await snap("bell");bell=true;}
-      await new Promise(f=>setTimeout(f,65));
+      await new Promise(f=>setTimeout(f,190));
     }
     await hold([]);await waitFor(state+".clubCup?.last",12000);await tap("KeyJ");await waitFor("!document.querySelector('#panel').hidden");
     const record=await js(state+".clubCup"),stats=await js("({ranks:proof.ranks,sectors:[...proof.sectors],furthest:proof.pass,length:BayCoastCup.length})");
