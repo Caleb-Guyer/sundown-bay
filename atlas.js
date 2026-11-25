@@ -693,6 +693,7 @@
     }
     if(street&&opt.weather){
       BayCoastArt.mapSurface(ctx,opt,px,py,visible);
+      if(opt.roadLights&&visible(px(149),py(243),95*s))BayCutArt.guideMap(ctx,px,py,s,opt.roadLights);
       if(visible(px(12),py(44),55*s))BayHouseLights.overhead(ctx,px,py,s,opt.weather,streetTime,opt.houseMark);
       if(opt.recovery)BayRecoveryArt.groundMap(ctx,opt,px,py,s,visible);
       if(visible(px(-37.4),py(-132.2),13*s))BayMercadoArt.map(ctx,px,py,s,opt.weather,streetTime);
@@ -1140,7 +1141,7 @@
             ctx.translate(x,y);ctx.scale(1+lift*.048,1+lift*.048);ctx.translate(-x,-y-lift*s*.47);
           }
           carSprite(ctx,v,x,y,s,streetTime);
-          if(opt.streetCar){BayStreetCars.map(ctx,v,x,y,s,streetTime);BayRoadGlass.map(ctx,v,x,y,s,streetTime);if(v===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,v,opt.campana.open,opt.campana.bell,streetTime);}
+          if(opt.streetCar){BayStreetCars.map(ctx,v,x,y,s,streetTime,v.mainBeam);BayRoadGlass.map(ctx,v,x,y,s,streetTime);if(v===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,v,opt.campana.open,opt.campana.bell,streetTime);}
           ctx.restore();
         }
         if(player.driving&&opt.streetCar&&player.neighborPose)BayNeighborGestures.mapDriver(ctx,px,py,s,opt.streetCar,player.neighborPose,player.skin,player.shirt);

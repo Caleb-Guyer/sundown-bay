@@ -581,6 +581,7 @@
   taxi.serviceCar=true;
   const cabs=new BayCab.Service(taxi,save.cab);
   const rankPhones=new BayRingTwice.Phones();
+  const roadLights=new BayRoadLights.Field(solids);
   const recoveryYard=BayRecoveryArt.yard,ws=recoveryYard.truck;
   const wrecker=addCar("wrecker","#45847b",ws.x,ws.z,ws.yaw);
   const recovery=new BayRecovery.Service(wrecker,BayRecovery.calls.map(c=>addCar(c.kind,c.color,c.x,c.z,c.yaw)),save.recovery);
@@ -7801,7 +7802,7 @@
       swim:swim?.actor(hero),submerged:!!swim?.underwater,patrol:play?watchCrew:null,returned:save.shore.returned,found:save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned,
       field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
-      rankPhones:play?rankPhones:null,arcadeSong:play&&modeName==="street"&&dist(p,BayNeedle.site)<85?needleSong().r:null,
+      rankPhones:play?rankPhones:null,roadLights:modeName==="street"?roadLights:null,arcadeSong:play&&modeName==="street"&&dist(p,BayNeedle.site)<85?needleSong().r:null,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,houseMark:houseLights.mark,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
       personal:carPin(),copies:save.copies,tireCloud:elapsed-puffAt<1.55?tireCloud:null,
       luggage:play?{book:save.luggage,rack:rackContents(),hand:onStreetFeet()&&!bell.pass?luggage.hand(save.luggage):null,
@@ -8281,6 +8282,10 @@
       $("targetTag").hidden=true;return;
     }
     const besideTicket=paintPreview&&innerWidth>=900&&innerHeight>=490;
+    if(play&&!swim?.underwater){
+      roadLights.update(t,cameraSubject(),run?.subject()||car,cars,patrol,Math.max(cityDusk(),hours.night,.53*hours.rain),hours.wet,transit.bus);
+      view.roadLights=roadLights;
+    }else{roadLights.enabled=false;view.roadLights=null;}
     if(top){
       const ratio=Math.min(1,1120/innerWidth,740/innerHeight),w=Math.round(innerWidth*ratio),h=Math.round(innerHeight*ratio);
       if(map.width!==w||map.height!==h){map.width=w;map.height=h;}
@@ -8575,7 +8580,7 @@
       if(v===spider)BayCaletaArt.roof(visible,model,rigBody,ground);
       if(v===unit4)BayAmbulanceArt.world(visible,rigBody,ground,t,split);
       if(v.damage&&see(v,76))BayBodyworkArt.world(visible,model,body,ground,t);
-      BayStreetCars.world(visible,model,body,ground,t,dist(cam,v));
+      BayStreetCars.world(visible,model,body,ground,t,dist(cam,v),v===car&&car.mainBeam);
       if(v.greenId&&see(v,62))BayOnGreenArt.car(visible,model,body,ground,v.greenGesture||0);
       if(v.soil&&see(v,50))BayRoadGlass.world(visible,view,body,ground,t,dist(cam,v));
     }
@@ -10439,6 +10444,7 @@
       allControls.push(["Y / P","Switch characters / Frankie’s camera"],["U / G","Umbrella stand or fold / share and walk alongside"],["L","Hold beside a storm drain to clear it"],["Z / I","Driving view / wipers"],["[ / ]","Previous / next radio station"],["R","Toggle all sound"]);
       allControls.push([", / .","Left / right turn signal"]);
       allControls.push(["L","Flash headlights · let a waiting driver turn"]);
+      allControls.push(["Shift + L","Switch between dipped and high beams"]);
       allControls.push(["Signal + H","Ask a boulevard driver for room to merge"]);
       allControls.push(["Space","Vault a hood or pull up at a low ledge"],["F · W/S · E","Grip a ladder, climb, let go"]);
       for(const [key,text] of allControls){const span=document.createElement("span"),k=document.createElement("kbd");k.textContent=key;span.append(k,document.createTextNode(text));keysList.append(span);}b.append(keysList);
@@ -10574,6 +10580,9 @@
     }
     if(ev.code==="KeyI"&&canUseSeat()){const mode=driverSeat.changeWipers();saveCamera();note("Windshield wipers",mode==="auto"?"Rain sensing":mode==="on"?"Continuous":"Parked",1.7);return;}
     if(ev.code==="KeyL"&&canUseSeat()){
+      if(ev.shiftKey||held("ShiftLeft","ShiftRight")){
+        car.mainBeam=!car.mainBeam;note(car.mainBeam?"High beams":"Dipped headlights","Shift + L to switch",1.7);return;
+      }
       if(streetTime-(car.headlightFlash??-5)<.8)return;
       car.headlightFlash=streetTime;
       if(!heat&&BayJunctionTurns.offer(car,cars,streetTime))note("After you","Hold there while they check the other lane.",2.5);

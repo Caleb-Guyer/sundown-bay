@@ -753,17 +753,51 @@
   }
   const foliageAreas=[[88,263,136],[181,268,134],[62,382,155],[179,386,145]].map(([x,z,range])=>({x,z,range}));
   const landCenter={x:132,z:331},roadsCenter={x:151,z:257},campCenter={x:205,z:326};
+  const guides=[];
+  for(const route of site().routes.filter(r=>r.id!=="shell")){
+    const points=roadSamples(route).samples;
+    for(let d=route.id==="approach"?39:8;d<points.at(-1).s-7;d+=12){
+      const p=atStation(points,d);
+      if(p.z>243&&p.z<284)continue;
+      for(const sign of [-1,1]){
+        const [x,y,z]=pointOn(p,sign*(route.halfWidth+.3));
+        guides.push({x,y,z,sign,yaw:Math.atan2(-p.nz,p.nx)});
+      }
+    }
+  }
+  function guideMesh(g){
+    for(const {x,y,z,sign,yaw} of guides){
+      g.box(x,y+.42,z,.19,.84,.11,"#a79f85",yaw);
+      g.box(x,y+.72,z,.195,.22,.12,"#474d47",yaw);
+      for(const direction of [-1,1]){
+        const s=Math.sin(yaw),c=Math.cos(yaw),f=direction*.063;
+        const pt=(u,h)=>[x+c*u+s*f,y+h,z-s*u+c*f];
+        g.quad(pt(-.077,.655),pt(.077,.655),pt(.077,.794),pt(-.077,.794),direction===-sign?"#e7e0bf":"#c8965a");
+      }
+    }
+  }
+  function guideMap(ctx,px,py,s,field){
+    ctx.save();
+    for(const p of guides){
+      const x=px(p.x),y=py(p.z),glint=Math.min(1,field.intensity(p.x,p.z)*5);
+      ctx.save();ctx.translate(x,y);ctx.rotate(p.yaw);ctx.fillStyle="#7b7967";ctx.fillRect(-.14*s,-.13*s,.28*s,.26*s);
+      if(glint>.025){ctx.globalAlpha=glint;ctx.fillStyle=p.sign>0?"#fff3c4":"#ffc477";ctx.fillRect(-.13*s,-.085*s,.26*s,.17*s);}
+      ctx.restore();
+    }
+    ctx.restore();
+  }
   function install(model){
     model("cut-wetland",waterMesh);model("cut-roads",roadMesh);model("cut-horizon",distantTreeLine);
     for(let i=0;i<foliageAreas.length;i++)model("cut-growth-"+i,g=>paintFoliage(g,i));
     model("cut-entry",g=>{gateSign(g);forkMarker(g);});model("cut-camp",workYard);model("cut-pier",pierMesh);
     model("cut-lamps",signalLights);model("cut-lamp-pools",lampPools);
+    model("cut-guides",guideMesh);
     model("cut-mast-light",g=>g.cyl(tower.x,floor(tower.x,tower.z)+tower.h+.53,tower.z,.13,.13,.21,7,"#ff986f"));
   }
   function world(view,see,weather,t=0){
     if(!see(landCenter,236))return;
     view.draw("cut-wetland");view.draw("cut-horizon");
-    if(see(roadsCenter,149)){view.draw("cut-roads");view.draw("cut-entry");}
+    if(see(roadsCenter,149)){view.draw("cut-roads");view.draw("cut-entry");view.draw("cut-guides");}
     for(let i=0;i<foliageAreas.length;i++)if(see(foliageAreas[i],foliageAreas[i].range))view.draw("cut-growth-"+i);
     if(!see(campCenter,147))return;
     view.draw("cut-camp");view.draw("cut-pier");
@@ -901,5 +935,5 @@
   for(const l of [-1,1])blocks.push(box(gate.x+l*2.25*.976,gate.z+l*2.25*.218,.34,.37,3.53));
   const camera=[box(tower.x,tower.z,.55,.55,tower.h+.8,4.4),
     box(gate.x,gate.z,5.75,.77,3.66,1.54),box(213.1,316.36,4.52,.24,1.94,1.04)];
-  window.BayCutArt={install,world,map,blocks,camera,span,signText};
+  window.BayCutArt={install,world,map,guideMap,blocks,camera,span,signText};
 })();

@@ -49,7 +49,7 @@
     drains.push({x:axes[road]+side*(4.3+bend*.06),z:along,across:false,length:5+bend*.36});
     if(along<143)drains.push({x:along,z:axes[road]-side*4.9,across:true,length:6+bend*.28});
   }
-  let poolSprite=null,headlightSprite=null;
+  let poolSprite=null;
   function lightSprite(){
     if(poolSprite)return poolSprite;
     const c=document.createElement("canvas");c.width=c.height=64;
@@ -57,15 +57,6 @@
     a.addColorStop(0,"rgba(251,214,144,.74)");a.addColorStop(.4,"rgba(242,194,118,.42)");
     a.addColorStop(.76,"rgba(224,170,107,.12)");a.addColorStop(1,"rgba(218,169,124,0)");
     g.fillStyle=a;g.fillRect(0,0,64,64);poolSprite=c;return c;
-  }
-  function beamSprite(){
-    if(headlightSprite)return headlightSprite;
-    const c=document.createElement("canvas");c.width=72;c.height=132;
-    const g=c.getContext("2d"),a=g.createLinearGradient(0,130,0,0);
-    a.addColorStop(0,"rgba(255,242,180,.54)");a.addColorStop(.4,"rgba(255,237,179,.32)");
-    a.addColorStop(.9,"rgba(239,226,174,.10)");a.addColorStop(1,"rgba(239,226,174,0)");
-    g.fillStyle=a;g.beginPath();g.moveTo(31,132);g.lineTo(3,17);g.quadraticCurveTo(36,-11,69,12);
-    g.lineTo(41,132);g.closePath();g.fill();headlightSprite=c;return c;
   }
   function mapSurface(ctx,opt,px,py,visible){
     const weather=opt.weather;if(!weather)return;
@@ -103,20 +94,7 @@
         if(visible(x,y,lamp.rz*s))ctx.drawImage(sprite,x-lamp.rx*s,y-lamp.rz*s,lamp.rx*s*2,lamp.rz*s*2);
       }
     }
-    const beams=Math.max(night,.56*rain),driver=opt.player;
-    if(beams>.06){
-      const sprite=beamSprite();
-      function headlamps(v,player){
-        if(!v||(!player&&!v.path&&!(Math.abs(v.speed)>.65)))return;
-        const x=px(v.x),y=py(v.z);if(!visible(x,y,22*s))return;
-        ctx.save();ctx.translate(x,y);ctx.rotate(v.yaw);ctx.scale(s,s);
-        ctx.globalAlpha=beams*(player ? .8 : .51);
-        for(const side of [-1,1])ctx.drawImage(sprite,side*.68-2.25,-17.8,4.5,15.9);
-        ctx.restore();
-      }
-      for(const v of opt.cars||[])headlamps(v,false);
-      if(driver?.driving&&!opt.aboard&&!opt.take)headlamps(driver,true);
-    }
+    opt.roadLights?.drawMap(ctx,px,py,s);
     ctx.restore();
   }
 

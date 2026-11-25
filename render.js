@@ -104,6 +104,7 @@
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     uniform vec4 waterParams,airState,driverLamp; uniform vec3 eye,skyTone; uniform vec2 immersion;
     uniform vec3 seaSun;
+    uniform sampler2D vehicleLight; uniform vec3 lightArea;
     uniform sampler2D sunDepth,paper,lobbyPrint,streetLight; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow,showPrint;
     float shadeAt(vec2 uv){
       vec2 rg=texture2D(sunDepth,uv).rg;
@@ -213,7 +214,15 @@
             color+=vec3(.32,.27,.164)*fan*lowSurface*lampTime*(1.+.27*airState.y);
           }
         }
-        if(lampTime>.01&&street.w>1.5){
+        if(lightArea.z>0.&&street.z<5.4){
+          vec2 uv=(street.xy-lightArea.xy)*vec2(lightArea.z,-lightArea.z);
+          if(all(greaterThanEqual(uv,vec2(0.)))&&all(lessThan(uv,vec2(1.)))){
+            vec3 lights=texture2D(vehicleLight,uv).rgb;
+            color+=lights*(1.-smoothstep(1.,5.4,street.z))*(.56+.13*airState.y);
+            if(street.w>6.5)color=mix(color,min(vec3(1.),vColor*1.4),smoothstep(.015,.23,max(lights.g,lights.b)));
+          }
+        }
+        if(lampTime>.01&&street.w>1.5&&street.w<6.5){
           if(street.w<2.5)color=mix(color,vec3(.96,.745,.47),dusk*.81);
           else if(street.w<3.5)color=mix(color,vec3(.60,.79,.78),dusk*.65);
           else if(street.w<4.5)color=mix(color,min(vec3(1.),vColor*1.18+vec3(.035)),dusk*.96);
@@ -273,6 +282,12 @@
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,lamps.size,lamps.size,0,gl.RGBA,gl.UNSIGNED_BYTE,lamps.pixels);
+      gl.activeTexture(gl.TEXTURE4);this.vehicleLight=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,this.vehicleLight);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(4));
+      this.lightVersion=-1;this.lightSize=1;this.u.lightArea=gl.getUniformLocation(p,"lightArea");
+      gl.uniform1i(gl.getUniformLocation(p,"vehicleLight"),4);
       gl.uniform1i(this.u.sunDepth,0);gl.uniform1i(this.u.paper,1);gl.uniform1i(this.u.lobbyPrint,2);gl.uniform1i(this.u.streetLight,3);
       gl.uniform4f(this.u.tilt,1,0,1,0);gl.activeTexture(gl.TEXTURE0);
     }
@@ -280,6 +295,7 @@
       if(!this.gl)return;
       const data=mesh.vertices instanceof Float32Array?mesh.vertices:new Float32Array(mesh.vertices);
       if(name==="city")tagMaterials(data,builtMaterials);
+      else if(name==="cut-guides")tagMaterials(data,new Map([[0xe7e0bf,7],[0xc8965a,7]]));
       else if(/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
       if(animated)this.animated.add(name);
       this.cpu.set(name,data);if(!this.lost)this.upload(name,data);
@@ -377,7 +393,18 @@
         (.895-.14*noon-.08*dawn)*dark*clear+.30*night*clear+(.58-.30*night)*(1-clear),
         (.681+.17*noon+.13*dawn)*dark*clear+.345*night*clear+(.63-.31*night)*(1-clear),
         (.626+.19*noon+.13*dawn)*dark*clear+.41*night*clear+(.66-.29*night)*(1-clear));
-      if(timed&&headlights)gl.uniform4f(this.u.driverLamp,headlights.x,headlights.z,Math.sin(headlights.yaw),Math.cos(headlights.yaw));
+      const field=timed&&seaTime===null&&this.roadLights;
+      if(field?.enabled){
+        if(this.lightVersion!==field.version){
+          gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,this.vehicleLight);
+          if(this.lightSize!==field.size){
+            gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,field.size,field.size,0,gl.RGBA,gl.UNSIGNED_BYTE,field.pixels);this.lightSize=field.size;
+          }else gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,field.size,field.size,gl.RGBA,gl.UNSIGNED_BYTE,field.pixels);
+          gl.activeTexture(gl.TEXTURE0);this.lightVersion=field.version;
+        }
+        gl.uniform3f(this.u.lightArea,field.left,field.north,1/field.span);
+      }else gl.uniform3f(this.u.lightArea,0,0,0);
+      if(timed&&headlights&&!field)gl.uniform4f(this.u.driverLamp,headlights.x,headlights.z,Math.sin(headlights.yaw),Math.cos(headlights.yaw));
       else gl.uniform4f(this.u.driverLamp,0,0,0,0);
       gl.uniform3f(this.u.eye,camera.x,camera.y,camera.z);gl.uniform3f(this.u.rightV,cs,0,-sn);
       gl.uniform3f(this.u.upV,-sn*sp,cp,-cs*sp);gl.uniform3f(this.u.forwardV,sn*cp,sp,cs*cp);gl.uniform2f(this.u.focal,focal/(w/h),focal);

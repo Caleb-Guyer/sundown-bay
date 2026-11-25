@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+After dark, drive north from Ocean Drive onto Pelican Cut. **Shift + L** switches between dipped headlights and high beams. Cars and buildings cast shadows across the road. Watch oncoming traffic for a double flash asking you to dip. Tap **L** to flash your own lamps. In the rain, brake lights leave a red pool behind a stopped car and reverse lamps light the pavement white.
+
 If a cab regular is waiting when a rank phone rings, hang back. On the third double ring they pick it up. Walk over and press **L** while they’re holding the receiver to take the call.
 
 The yellow **Bay Cab** phones carry **Ring Twice** from 5 PM to 2 AM. Listen for two rings or watch the amber lamp as you drive past. Walk up and press **L** to answer. The caller describes a landmark. Get to its cab phone within **2 minutes 35 seconds** and press **L** again. Choose **1** or **2** to send a record and the caller’s dedication out on their station. Run the route yourself or station Frankie across town and press **Y** to pass her the clue. **J → Ring Twice** keeps separate solo and relay times for each of eight routes. During the day, press **L** at any of the four phones to call in yourself. **F** still hails a cab.
