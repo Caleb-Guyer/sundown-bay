@@ -223,6 +223,18 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       await tap("Enter");await waitFor("document.querySelector('#chapterFilm').hidden");
       console.log("PASS Mara's contact print in the passenger seat, closed unread and opened to the third bolt");
     }
+    // The street run has just inspected a photograph at the curb. Start both
+    // drives in a clear northbound lane beyond the parked club cars, then use
+    // the keyboard for the whole recorded minute.
+    await waitFor("!!recQA.map?.streetCar");
+    const start=await js(`(()=>{const map=recQA.map,v=map.streetCar;
+      const others=map.cars.concat(map.motos?.all||[],map.transit?.bus||[]).filter(o=>o!==v);
+      for(const at of [38,46,54,30,62,70,78,86])for(const lane of [1.7,3.7,-1.5]){
+        const p=BayCoastCup.sample(at,lane);
+        if(others.some(o=>{const q=BayDriving.local(p,o.x,o.z);return Math.abs(q.x)<2.6&&q.z> -6&&q.z<13;}))continue;
+        return {x:p.x,z:p.z};
+      }throw Error("Could not stage a clear northbound start");})()`);
+    await parkAt(start);console.log("PERF drive start",mode,start);
     await tap("Escape");await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('One-minute frame check')).click()");
     await waitFor("document.querySelector('#panel').hidden&&recQA.map?.streetCar");
     const checkId=mode==="street"?"Street drive":"Overhead drive";
