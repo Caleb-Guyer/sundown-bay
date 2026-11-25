@@ -6389,13 +6389,15 @@
     if(n){
       const direction=distance>.0002?Math.atan2(movedX,movedZ):Math.atan2(dx,dz);
       hero.yaw+=angle(hero.yaw,direction)*-Math.expm1(-14*dt);
+    }else if(rankPhones.talk?.actor===hero&&rankPhones.talk.amount>.08){
+      const p=rankPhones.talk.site;hero.yaw+=angle(hero.yaw,Math.atan2(p.x-hero.x,p.z-hero.z))*-Math.expm1(-6*dt);
     }else if(helloPose?.kind==="wave"&&neighbors.chat){
       const p=neighbors.chat.p;hero.yaw+=angle(hero.yaw,Math.atan2(p.x-hero.x,p.z-hero.z))*-Math.expm1(-6.8*dt);
     }
     hero.y=ease(hero.y,roofs.level?roofs.floor(hero):footLevel(hero.x,hero.z),27,dt);
     motion.step(dt,distance,dt?(hero.yaw-oldYaw)/dt:0);
     if(motion.handTarget?.receiver)motion.handTarget=null;
-    if(rankPhones.talk&&rankPhones.talk.amount>.01)motion.handTarget={receiver:true,x:.19,y:1.51,z:.12,weight:rankPhones.talk.amount};
+    if(rankPhones.talk?.actor===hero&&rankPhones.talk.amount>.01)motion.handTarget={receiver:true,x:.19,y:1.51,z:.12,weight:rankPhones.talk.amount};
     if(pavement.hand)motion.handTarget={pavement:true,x:.27,y:.99,z:.32,weight:1};
     if(capReach){
       const phase=Math.min(1,capReach.age/.56),reach=Math.sin(Math.PI*phase);
@@ -7158,11 +7160,21 @@
       speak(BaySecondUnit.names[rankPhones.run.lead],"I took the first call. Your clue is on the slip.");
     }
     const talk=rankPhones.talk;
-    if(talk&&dist(talk.site,hero)>3.4)rankPhones.talk=null;
+    if(talk&&dist(talk.site,talk.actor)>3.4){
+      if(talk.helper)talk.actor.motion.handTarget=null;
+      rankPhones.talk=null;
+    }
     else if(talk){
-      const holding=rankPhones.near===talk.site&&ringFoot()&&(rankPhones.lifted||streetTime<talk.until);
+      const holding=talk.helper?talk.actor.phase==="wait"&&available&&streetTime<talk.until:
+        rankPhones.near===talk.site&&ringFoot()&&(rankPhones.lifted||streetTime<talk.until);
       const age=Math.max(0,Math.min(.1,streetTime-talk.last));talk.last=streetTime;
       talk.amount=ease(talk.amount,holding?1:0,holding?9:13,age);
+      if(talk.amount>.985||!holding)talk.passFrom=null;
+      if(talk.helper){
+        const a=talk.actor;
+        if(holding)a.yaw+=angle(a.yaw,Math.atan2(talk.site.x-a.x,talk.site.z-a.z))*Math.min(1,7*age);
+        a.motion.handTarget=holding?{receiver:true,x:.19,y:1.51,z:.12,weight:talk.amount}:null;
+      }
       if(!holding&&talk.amount<.01)rankPhones.talk=null;
     }
     if(event==="expired"&&available)note("Ring Twice","The line went quiet. Pick up at any cab rank to try another call.",3.5);
@@ -7170,13 +7182,23 @@
     const p=rankPhones.bell;
     sound.cue("rank-ring",{distance:dist(p,at)});
     for(const w of walkers)if(!w.onTour&&!w.neighborTalking&&!w.crossing&&dist(w,p)<6)w.ringLook={x:p.x,z:p.z,until:streetTime+1.12};
+    if(rankPhones.rings>=3&&!rankPhones.run&&!rankPhones.talk){
+      const helper=cabs.people.find(a=>a.phase==="wait"&&!a.ride&&dist(a,p)<1.7);
+      if(!helper)return;
+      rankPhones.talk={site:p,actor:helper,helper:true,last:streetTime,until:streetTime+7.5,amount:0};
+      rankPhones.bell=null;rankPhones.silentUntil=hours.total+19;
+      if(dist(hero,p)<11)speak(helper.name,"It's the station again. Here, you take this one.");
+    }
   }
   function ringKey(code){
     if(code!=="KeyL"&&!(rankPhones.lifted&&/^(Digit|Numpad)[12]$/.test(code)))return false;
     if(!ringFoot()||!rankPhones.near||dist(hero,rankPhones.near)>=2.55)return false;
     if(code==="KeyL"){
       const event=rankPhones.answer(hours.total,unit.lead),info=BayRingTwice.streets[rankPhones.run.to];
-      rankPhones.talk={site:rankPhones.near,actor:hero,amount:rankPhones.talk?.amount||0,last:streetTime,until:streetTime+2.15};
+      const prior=rankPhones.talk,from=prior?.helper?prior.actor:null;
+      if(from)from.motion.handTarget=null;
+      rankPhones.talk={site:rankPhones.near,actor:hero,amount:from?0:prior?.amount||0,last:streetTime,until:streetTime+2.15,
+        passFrom:from?{...BayDriving.world(from,.19,.12),y:from.y+1.51}:null};
       if(event==="start"){saveTime();speak(info.caller,info.clue);}
       else if(event==="pick")speak(info.caller,"You got here. Pick one of the two sides for my dedication.");
       else speak(info.caller,(event==="wrong"?"Wrong line. Try this. ":"")+info.clue);
@@ -7195,6 +7217,7 @@
         const songs=BayAirwaves.stations[BayRingTwice.streets[r.to].station].songs;
         return ["1 / 2",songs.map((id,i)=>(i+1)+" "+BayAirwaves.records[id].title).join("   ·   ")];
       }
+      if(p.talk?.helper&&p.talk.site===n)return ["L","Take the receiver from "+p.talk.actor.name+" · F Bay Cab"];
       const label=r&&n.id===r.from?"Hear the clue again":r&&n.id!==r.to?"Check this line":r||p.bell?"Answer the payphone":"Call Ring Twice";
       return ["L",label+" · F Bay Cab"+(!unit.met&&crewPhoneNear()?" · Y Frankie":"")];
     }
@@ -8963,9 +8986,9 @@
   }
   function hud(){
     const phoneRun=rankPhones.run;
-    const bellSite=rankPhones.bell;
+    const localCall=rankPhones.talk?.helper?rankPhones.talk:null,bellSite=rankPhones.bell||localCall?.site;
     $("rankCaption").hidden=!bellSite||!!rankPhones.near||dist(pos(),bellSite)>21;
-    if(!$("rankCaption").hidden)$("rankCaption").textContent="Ringing payphone · "+BayCab.stops[bellSite.id].name;
+    if(!$("rankCaption").hidden)$("rankCaption").textContent=localCall?localCall.actor.name+" answers the cab phone":"Ringing payphone · "+BayCab.stops[bellSite.id].name;
     $("ringSlip").hidden=!phoneRun||!!(active||heat||room||needle||unit.eye||afternoon.photo);
     if(!$("ringSlip").hidden){
       $("ringTime").textContent=rankPhones.seconds(hours.total)+" s";

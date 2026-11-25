@@ -76,6 +76,10 @@
     }
     g.box(0,1.485,.055,.58,.05,.53,brass);g.box(0,1.508,.058,.595,.023,.55,"#637269");
     for(const side of [-1,1])g.box(side*.269,1.40,.032,.026,.16,.39,"#758174");
+    g.box(0,1.745,-.04,.49,.29,.055,"#754e44");
+    plate(g,front(-.009),-.225,1.617,.225,1.872,"#ecdbb0");
+    words(g,front(-.006),"RING",0,1.758,.086,ink);
+    words(g,front(-.005),"TWICE",0,1.647,.080,"#945746");
     g.box(0,.746,.173,.39,.062,.074,"#bdad8d");
     for(const x of [-.140,.145])g.box(x,.733,.212,.015,.015,.008,"#655c4a");
     g.box(0,2.55,-.066,.32,.07,.095,brass);g.box(0,2.18,.28,.07,.074,.71,ink);
@@ -400,6 +404,8 @@
           reach(limb,side*(.076+.092*f),1.045+.097*f,.247+.045*f);
         }
       }
+    }else if(p.phase==="wait"&&p.motion.handTarget?.receiver){
+      return false;
     }else if(p.phase==="wait"){
       const shift=p.id==="bea"?2.7:p.id==="otis"?5.1:0,cycle=((t+shift)%9.7+9.7)%9.7;
       if(cycle>2.0)return false;
@@ -421,7 +427,7 @@
     return local({...s.stand,y:.077,yaw},side*offset,0,-.11);
   }
   function drawHandset(view,list,post,talk){
-    const hook=local(post,.115,1.153,.273),ear=local(talk.actor,.19,1.51,.12),u=talk.amount;
+    const hook=talk.passFrom||local(post,.115,1.153,.273),ear=local(talk.actor,.19,1.51,.12),u=talk.amount;
     const at={x:hook.x+(ear.x-hook.x)*u,y:hook.y+(ear.y-hook.y)*u+.08*Math.sin(Math.PI*u),z:hook.z+(ear.z-hook.z)*u};
     const yaw=post.yaw+Math.atan2(Math.sin(ear.yaw-post.yaw),Math.cos(ear.yaw-post.yaw))*u;
     list.push(["rank-handset",at.x,at.y,at.z,yaw,-u*.28,0]);
@@ -646,6 +652,12 @@
       if(!visible(px(p.x),py(p.z),2*s+10))continue;
       if(street)atMap(c,p,px,py,s,rankPlan);
       else phoneIcon(c,px(p.x),py(p.z),ui*(radar?4.15:4.6));
+      const talk=opt.rankPhones?.talk;
+      if(street&&talk?.site.id===stop.id&&talk.amount>.02){
+        const hand=local(talk.actor,.19,1.51,.12),u=talk.amount,hx=px(p.x+(hand.x-p.x)*u),hy=py(p.z+(hand.z-p.z)*u);
+        c.save();c.beginPath();c.moveTo(px(p.x),py(p.z));c.quadraticCurveTo((px(p.x)+hx)/2+2,(py(p.z)+hy)/2+2,hx,hy);
+        c.strokeStyle=ink;c.lineWidth=1;c.stroke();c.fillStyle=ink;c.fillRect(hx-2,hy-1.5,4,3);c.restore();
+      }
       if(opt.rankPhones?.pulse(stop.id,opt.weather.total)){
         const x=px(p.x),y=py(p.z),r=street?Math.max(4,s*.62):5.8*ui;
         c.save();c.strokeStyle="#ffe09a";c.lineWidth=street?1.7:1.1;c.beginPath();c.arc(x,y,r+2,0,Math.PI*2);c.stroke();c.restore();

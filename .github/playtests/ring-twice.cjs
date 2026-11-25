@@ -37,7 +37,12 @@ module.exports=async({js,send,waitFor,tap,errors,mode})=>{
         }return signal;};
       document.querySelector('#play').click();`);
     await waitFor("qa.phones?.near?.id==='marlin'&&qa.bells>0",45000);
-    await snap("ring");await tap("KeyL");
+    await snap("ring");
+    if(relay){
+      await waitFor("qa.phones.talk?.helper&&qa.phones.talk.amount>.8&&document.querySelector('#context').innerText.includes('Walt')",100000);
+      assert.equal(await js("qa.phones.talk.actor.name"),"Walt Dunn");await snap("handoff");
+    }
+    await tap("KeyL");
     await waitFor("qa.phones.run?.to==='wheel'&&!document.querySelector('#ringSlip').hidden&&qa.phones.talk?.amount>.8");
     assert((await js("document.querySelector('#ringClue').textContent")).includes("boardwalk"));await snap("clue");
     if(relay){await tap("KeyY");await waitFor("qa.phones.run?.relay&&qa.phones.near?.id==='wheel'",65000);}

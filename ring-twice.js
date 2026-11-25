@@ -41,7 +41,9 @@
       if(!this.near||this.near.id!==this.run?.to)this.lifted=false;
       const old=this.bell;
       this.bell=site&&!this.lifted&&now>=this.silentUntil&&(this.run?site.id===this.run.to:live&&now%24<13)?site:null;
-      if(this.bell&&(this.bell!==old||now>=this.nextRing)){this.nextRing=now+3.7;this.rang=now;return "ring";}
+      if(this.bell&&(this.bell!==old||now>=this.nextRing)){
+        this.rings=this.bell===old?this.rings+1:1;this.nextRing=now+3.7;this.rang=now;return "ring";
+      }
       return "";
     }
     pulse(id,now){

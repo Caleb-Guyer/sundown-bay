@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+If a cab regular is waiting when a rank phone rings, hang back. On the third double ring they pick it up. Walk over and press **L** while they’re holding the receiver to take the call.
+
 The yellow **Bay Cab** phones carry **Ring Twice** from 5 PM to 2 AM. Listen for two rings or watch the amber lamp as you drive past. Walk up and press **L** to answer. The caller describes a landmark. Get to its cab phone within **2 minutes 35 seconds** and press **L** again. Choose **1** or **2** to send a record and the caller’s dedication out on their station. Run the route yourself or station Frankie across town and press **Y** to pass her the clue. **J → Ring Twice** keeps separate solo and relay times for each of eight routes. During the day, press **L** at any of the four phones to call in yourself. **F** still hails a cab.
 
 Follow the painted arrow on **Tideway** to **Tideway Arcade**, just west of Luna Boulevard. Walk under the striped awning and press **F** at Rae Cordero’s pinball table. In **Needle Drop**, hold and release **Space** to plunge, flip with **A / D** or the arrow keys, and use **Shift** to nudge. Three nudges within four seconds tilt the table for that ball. Light all three record bumpers for 750 extra points and pick a sleeve with **A / D** and **F**. The speakers beside the cabinet play your selection out onto the sidewalk, and its cover goes in Rae’s window for the length of the song. After three balls, **Enter** starts another game and **E** steps away. Beat Rae’s 2,400 and your score goes on the cabinet glass.

@@ -27452,6 +27452,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     g.box(0,1.485,.055,.58,.05,.53,brass);g.box(0,1.508,.058,.595,.023,.55,"#637269");
     for(const side of [-1,1])g.box(side*.269,1.40,.032,.026,.16,.39,"#758174");
+    g.box(0,1.745,-.04,.49,.29,.055,"#754e44");
+    plate(g,front(-.009),-.225,1.617,.225,1.872,"#ecdbb0");
+    words(g,front(-.006),"RING",0,1.758,.086,ink);
+    words(g,front(-.005),"TWICE",0,1.647,.080,"#945746");
     g.box(0,.746,.173,.39,.062,.074,"#bdad8d");
     for(const x of [-.140,.145])g.box(x,.733,.212,.015,.015,.008,"#655c4a");
     g.box(0,2.55,-.066,.32,.07,.095,brass);g.box(0,2.18,.28,.07,.074,.71,ink);
@@ -27776,6 +27780,8 @@ window.buildBayCity = function buildBayCity(g,water) {
           reach(limb,side*(.076+.092*f),1.045+.097*f,.247+.045*f);
         }
       }
+    }else if(p.phase==="wait"&&p.motion.handTarget?.receiver){
+      return false;
     }else if(p.phase==="wait"){
       const shift=p.id==="bea"?2.7:p.id==="otis"?5.1:0,cycle=((t+shift)%9.7+9.7)%9.7;
       if(cycle>2.0)return false;
@@ -27797,7 +27803,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return local({...s.stand,y:.077,yaw},side*offset,0,-.11);
   }
   function drawHandset(view,list,post,talk){
-    const hook=local(post,.115,1.153,.273),ear=local(talk.actor,.19,1.51,.12),u=talk.amount;
+    const hook=talk.passFrom||local(post,.115,1.153,.273),ear=local(talk.actor,.19,1.51,.12),u=talk.amount;
     const at={x:hook.x+(ear.x-hook.x)*u,y:hook.y+(ear.y-hook.y)*u+.08*Math.sin(Math.PI*u),z:hook.z+(ear.z-hook.z)*u};
     const yaw=post.yaw+Math.atan2(Math.sin(ear.yaw-post.yaw),Math.cos(ear.yaw-post.yaw))*u;
     list.push(["rank-handset",at.x,at.y,at.z,yaw,-u*.28,0]);
@@ -28022,6 +28028,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(!visible(px(p.x),py(p.z),2*s+10))continue;
       if(street)atMap(c,p,px,py,s,rankPlan);
       else phoneIcon(c,px(p.x),py(p.z),ui*(radar?4.15:4.6));
+      const talk=opt.rankPhones?.talk;
+      if(street&&talk?.site.id===stop.id&&talk.amount>.02){
+        const hand=local(talk.actor,.19,1.51,.12),u=talk.amount,hx=px(p.x+(hand.x-p.x)*u),hy=py(p.z+(hand.z-p.z)*u);
+        c.save();c.beginPath();c.moveTo(px(p.x),py(p.z));c.quadraticCurveTo((px(p.x)+hx)/2+2,(py(p.z)+hy)/2+2,hx,hy);
+        c.strokeStyle=ink;c.lineWidth=1;c.stroke();c.fillStyle=ink;c.fillRect(hx-2,hy-1.5,4,3);c.restore();
+      }
       if(opt.rankPhones?.pulse(stop.id,opt.weather.total)){
         const x=px(p.x),y=py(p.z),r=street?Math.max(4,s*.62):5.8*ui;
         c.save();c.strokeStyle="#ffe09a";c.lineWidth=street?1.7:1.1;c.beginPath();c.arc(x,y,r+2,0,Math.PI*2);c.stroke();c.restore();
@@ -28121,7 +28133,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(!this.near||this.near.id!==this.run?.to)this.lifted=false;
       const old=this.bell;
       this.bell=site&&!this.lifted&&now>=this.silentUntil&&(this.run?site.id===this.run.to:live&&now%24<13)?site:null;
-      if(this.bell&&(this.bell!==old||now>=this.nextRing)){this.nextRing=now+3.7;this.rang=now;return "ring";}
+      if(this.bell&&(this.bell!==old||now>=this.nextRing)){
+        this.rings=this.bell===old?this.rings+1:1;this.nextRing=now+3.7;this.rang=now;return "ring";
+      }
       return "";
     }
     pulse(id,now){
@@ -71902,13 +71916,15 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(n){
       const direction=distance>.0002?Math.atan2(movedX,movedZ):Math.atan2(dx,dz);
       hero.yaw+=angle(hero.yaw,direction)*-Math.expm1(-14*dt);
+    }else if(rankPhones.talk?.actor===hero&&rankPhones.talk.amount>.08){
+      const p=rankPhones.talk.site;hero.yaw+=angle(hero.yaw,Math.atan2(p.x-hero.x,p.z-hero.z))*-Math.expm1(-6*dt);
     }else if(helloPose?.kind==="wave"&&neighbors.chat){
       const p=neighbors.chat.p;hero.yaw+=angle(hero.yaw,Math.atan2(p.x-hero.x,p.z-hero.z))*-Math.expm1(-6.8*dt);
     }
     hero.y=ease(hero.y,roofs.level?roofs.floor(hero):footLevel(hero.x,hero.z),27,dt);
     motion.step(dt,distance,dt?(hero.yaw-oldYaw)/dt:0);
     if(motion.handTarget?.receiver)motion.handTarget=null;
-    if(rankPhones.talk&&rankPhones.talk.amount>.01)motion.handTarget={receiver:true,x:.19,y:1.51,z:.12,weight:rankPhones.talk.amount};
+    if(rankPhones.talk?.actor===hero&&rankPhones.talk.amount>.01)motion.handTarget={receiver:true,x:.19,y:1.51,z:.12,weight:rankPhones.talk.amount};
     if(pavement.hand)motion.handTarget={pavement:true,x:.27,y:.99,z:.32,weight:1};
     if(capReach){
       const phase=Math.min(1,capReach.age/.56),reach=Math.sin(Math.PI*phase);
@@ -72671,11 +72687,21 @@ window.buildBayCity = function buildBayCity(g,water) {
       speak(BaySecondUnit.names[rankPhones.run.lead],"I took the first call. Your clue is on the slip.");
     }
     const talk=rankPhones.talk;
-    if(talk&&dist(talk.site,hero)>3.4)rankPhones.talk=null;
+    if(talk&&dist(talk.site,talk.actor)>3.4){
+      if(talk.helper)talk.actor.motion.handTarget=null;
+      rankPhones.talk=null;
+    }
     else if(talk){
-      const holding=rankPhones.near===talk.site&&ringFoot()&&(rankPhones.lifted||streetTime<talk.until);
+      const holding=talk.helper?talk.actor.phase==="wait"&&available&&streetTime<talk.until:
+        rankPhones.near===talk.site&&ringFoot()&&(rankPhones.lifted||streetTime<talk.until);
       const age=Math.max(0,Math.min(.1,streetTime-talk.last));talk.last=streetTime;
       talk.amount=ease(talk.amount,holding?1:0,holding?9:13,age);
+      if(talk.amount>.985||!holding)talk.passFrom=null;
+      if(talk.helper){
+        const a=talk.actor;
+        if(holding)a.yaw+=angle(a.yaw,Math.atan2(talk.site.x-a.x,talk.site.z-a.z))*Math.min(1,7*age);
+        a.motion.handTarget=holding?{receiver:true,x:.19,y:1.51,z:.12,weight:talk.amount}:null;
+      }
       if(!holding&&talk.amount<.01)rankPhones.talk=null;
     }
     if(event==="expired"&&available)note("Ring Twice","The line went quiet. Pick up at any cab rank to try another call.",3.5);
@@ -72683,13 +72709,23 @@ window.buildBayCity = function buildBayCity(g,water) {
     const p=rankPhones.bell;
     sound.cue("rank-ring",{distance:dist(p,at)});
     for(const w of walkers)if(!w.onTour&&!w.neighborTalking&&!w.crossing&&dist(w,p)<6)w.ringLook={x:p.x,z:p.z,until:streetTime+1.12};
+    if(rankPhones.rings>=3&&!rankPhones.run&&!rankPhones.talk){
+      const helper=cabs.people.find(a=>a.phase==="wait"&&!a.ride&&dist(a,p)<1.7);
+      if(!helper)return;
+      rankPhones.talk={site:p,actor:helper,helper:true,last:streetTime,until:streetTime+7.5,amount:0};
+      rankPhones.bell=null;rankPhones.silentUntil=hours.total+19;
+      if(dist(hero,p)<11)speak(helper.name,"It's the station again. Here, you take this one.");
+    }
   }
   function ringKey(code){
     if(code!=="KeyL"&&!(rankPhones.lifted&&/^(Digit|Numpad)[12]$/.test(code)))return false;
     if(!ringFoot()||!rankPhones.near||dist(hero,rankPhones.near)>=2.55)return false;
     if(code==="KeyL"){
       const event=rankPhones.answer(hours.total,unit.lead),info=BayRingTwice.streets[rankPhones.run.to];
-      rankPhones.talk={site:rankPhones.near,actor:hero,amount:rankPhones.talk?.amount||0,last:streetTime,until:streetTime+2.15};
+      const prior=rankPhones.talk,from=prior?.helper?prior.actor:null;
+      if(from)from.motion.handTarget=null;
+      rankPhones.talk={site:rankPhones.near,actor:hero,amount:from?0:prior?.amount||0,last:streetTime,until:streetTime+2.15,
+        passFrom:from?{...BayDriving.world(from,.19,.12),y:from.y+1.51}:null};
       if(event==="start"){saveTime();speak(info.caller,info.clue);}
       else if(event==="pick")speak(info.caller,"You got here. Pick one of the two sides for my dedication.");
       else speak(info.caller,(event==="wrong"?"Wrong line. Try this. ":"")+info.clue);
@@ -72708,6 +72744,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         const songs=BayAirwaves.stations[BayRingTwice.streets[r.to].station].songs;
         return ["1 / 2",songs.map((id,i)=>(i+1)+" "+BayAirwaves.records[id].title).join("   ·   ")];
       }
+      if(p.talk?.helper&&p.talk.site===n)return ["L","Take the receiver from "+p.talk.actor.name+" · F Bay Cab"];
       const label=r&&n.id===r.from?"Hear the clue again":r&&n.id!==r.to?"Check this line":r||p.bell?"Answer the payphone":"Call Ring Twice";
       return ["L",label+" · F Bay Cab"+(!unit.met&&crewPhoneNear()?" · Y Frankie":"")];
     }
@@ -74476,9 +74513,9 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function hud(){
     const phoneRun=rankPhones.run;
-    const bellSite=rankPhones.bell;
+    const localCall=rankPhones.talk?.helper?rankPhones.talk:null,bellSite=rankPhones.bell||localCall?.site;
     $("rankCaption").hidden=!bellSite||!!rankPhones.near||dist(pos(),bellSite)>21;
-    if(!$("rankCaption").hidden)$("rankCaption").textContent="Ringing payphone · "+BayCab.stops[bellSite.id].name;
+    if(!$("rankCaption").hidden)$("rankCaption").textContent=localCall?localCall.actor.name+" answers the cab phone":"Ringing payphone · "+BayCab.stops[bellSite.id].name;
     $("ringSlip").hidden=!phoneRun||!!(active||heat||room||needle||unit.eye||afternoon.photo);
     if(!$("ringSlip").hidden){
       $("ringTime").textContent=rankPhones.seconds(hours.total)+" s";
