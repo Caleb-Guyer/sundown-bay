@@ -26,7 +26,7 @@
     near(p){for(let i=0;i<2;i++)if(Math.hypot(p.x-stop(i).x,p.z-stop(i).z)<3.1)return i;return -1;}
     board(i,hero){
       if(!this.book.pass||this.rider||this.phase!=="berth"||i!==this.at)return false;
-      this.rider={phase:"board",age:0,from:{...hero},x:-.8,z:0,tries:0,bell:false,clean:false,charge:null,rope:null};
+      this.rider={phase:"board",age:0,from:{...hero},x:this.hearing()?-.52:-.8,z:0,tries:0,bell:false,clean:false,charge:null,rope:null};
       if(BayLandingOrder.charter(this.book)!=="clinic")this.clock=0;
       return true;
     }
@@ -99,7 +99,11 @@
       }else{
         const ax=input?.x||0,az=input?.z||0,yaw=(input?.yaw||0)-this.yaw;
         const l=Math.max(1,Math.hypot(ax,az)),dx=(ax*Math.cos(yaw)+az*Math.sin(yaw))/l,dz=(az*Math.cos(yaw)-ax*Math.sin(yaw))/l;
-        r.x=clamp(r.x+dx*dt*1.8,-1.14,.98);r.z=clamp(r.z+dz*dt*1.8,-1.75,1.4);
+        if(ax||az){
+          const x=clamp(r.x+dx*dt*1.8,-1.14,.98),z=clamp(r.z+dz*dt*1.8,-1.75,1.4);
+          if(!this.book.hearing||BayLandingOrder.deckClear(this.book,x,r.z))r.x=x;
+          if(!this.book.hearing||BayLandingOrder.deckClear(this.book,r.x,z))r.z=z;
+        }
         Object.assign(hero,this.onDeck());if(ax||az)hero.yaw=this.yaw+Math.atan2(dx,dz);
         if(r.phase==="line"){
           if(r.charge!=null)r.charge=Math.min(1,r.charge+dt*.68);

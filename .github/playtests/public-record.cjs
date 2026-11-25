@@ -171,6 +171,27 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const animated=await js("recQA.compare.animated");console.log("PERF animated characters",JSON.stringify(animated));
       assert(animated.submitted[1]>0&&animated.submitted[1]<animated.submitted[0]*.85);
       assert(animated.pixels.painted>0&&animated.pixels.silhouette===0&&animated.pixels.recolored===0);
+      await js(`const streams=recQA.view.streetBatch.buffers,single=[streams[0]];
+        const uploadTrial=recQA.uploadTrial={frame:0,times:[[],[]],cpu:[[],[]]};
+        BayView.prototype.drawOpaque=function(items){
+          const q=uploadTrial,n=q.frame++,block=Math.floor(n/8),ring=[0,3].includes(block%4)?1:0,b=this.streetBatch;
+          if(n===64){
+            b.buffers=streams;b.nextBuffer=0;BayView.prototype.drawOpaque=batchDraw;
+            q.image=comparePixels(this,items,batchDraw,function(list){
+              b.buffers=single;b.nextBuffer=0;try{batchDraw.call(this,list);}finally{b.buffers=streams;b.nextBuffer=0;}
+            });return batchDraw.call(this,items);
+          }
+          const start=performance.now();
+          if(n%8>=2)q.times[ring].push(start-q.last);
+          q.last=start;b.buffers=ring?streams:single;if(!ring)b.nextBuffer=0;
+          batchDraw.call(this,items);if(n%8>=2)q.cpu[ring].push(performance.now()-start);
+        };`);
+      await waitFor("!!recQA.uploadTrial.image",55000);
+      const uploads=await js(`(()=>{const q=recQA.uploadTrial,median=a=>a.sort((x,y)=>x-y)[a.length>>1];
+        return {frameMs:q.times.map(median),submitMs:q.cpu.map(median),pixels:q.image,slots:recQA.view.streetBatch.buffers.length};
+      })()`);
+      assert.equal(uploads.slots,3);assert(uploads.pixels.painted>350&&uploads.pixels.silhouette===0&&uploads.pixels.recolored===0);
+      console.log("PERF scenery uploads single and triple",JSON.stringify(uploads));
       assert.equal(await js("recQA.view.gl.getError()"),0);
     }
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
@@ -333,7 +354,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         const q=hearQA;if(q.goal&&this.rider&&a[3]){
           const p=BayLandingOrder.people[q.goal],dx=p.x-this.rider.x,dz=p.z-this.rider.z;
           const yaw=a[3].yaw-this.yaw,c=Math.cos(yaw),s=Math.sin(yaw),x=dx*c-dz*s,z=dx*s+dz*c,want=new Set();
-          if(Math.hypot(dx,dz)<.22)q.goal=null;
+          if(Math.hypot(dx,dz)<.65)q.goal=null;
           else{const gate=.44*Math.max(Math.abs(x),Math.abs(z));
             if(Math.abs(x)>gate)want.add(x>0?'KeyD':'KeyA');if(Math.abs(z)>gate)want.add(z>0?'KeyW':'KeyS');}
           for(const k of q.held)if(!want.has(k))dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));
@@ -345,7 +366,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await tap("KeyF");await waitFor("hearQA.boat?.rider?.phase==='sail'",35000);
     async function visit(id){
       await js("hearQA.goal="+JSON.stringify(id));await waitFor("!hearQA.goal",18000);
-      assert.equal(await js("BayLandingOrder.nearby(hearQA.boat.rider)"),id);await tap("KeyF");
+      assert.equal(await js("BayLandingOrder.nearby(hearQA.boat.rider)"),id);
+      assert(await js("BayLandingOrder.deckClear(hearQA.boat.book,hearQA.boat.rider.x,hearQA.boat.rider.z)"));await tap("KeyF");
     }
     await visit("clerk");assert.equal(await js("document.querySelector('#chapterFilm').hidden"),true);
     for(const id of (aboard?["shift","clinic"]:["clinic","shift"])){

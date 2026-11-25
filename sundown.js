@@ -231,25 +231,31 @@
     constructor(view){
       this.view=view;
       const gl=view.gl;
-      this.vertexBuffer=gl.createBuffer();this.indexBuffer=gl.createBuffer();
       this.vertices=new Float32Array(24576*6);
       this.indices=new Uint16Array(65532);
       this.savedPoses=new Set();this.poseBytes=0;
       this.details=new Map();this.detailBytes=0;this.buildDetail=true;
-      gl.bindBuffer(gl.ARRAY_BUFFER,this.vertexBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength,gl.STREAM_DRAW);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.STREAM_DRAW);
+      // Give the GPU time to consume a submitted street batch before the
+      // next upload writes to the same storage. All three pairs total 2.1 MiB.
+      this.buffers=Array.from({length:3},()=>{
+        const vertex=gl.createBuffer(),index=gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER,vertex);gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength,gl.STREAM_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,index);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.STREAM_DRAW);
+        return {vertex,index};
+      });
+      this.nextBuffer=0;
       view.bound=null;this.count=0;this.used=0;this.glow=0;
     }
     flush(){
       if(!this.count)return;
       const view=this.view,gl=view.gl;
-      gl.bindBuffer(gl.ARRAY_BUFFER,this.vertexBuffer);
+      const slot=this.buffers[this.nextBuffer];
+      this.nextBuffer=(this.nextBuffer+1)%this.buffers.length;
+      gl.bindBuffer(gl.ARRAY_BUFFER,slot.vertex);
       gl.bufferSubData(gl.ARRAY_BUFFER,0,this.vertices.subarray(0,this.used*6));
       gl.vertexAttribPointer(view.pos,3,gl.FLOAT,false,24,0);
       gl.vertexAttribPointer(view.col,3,gl.FLOAT,false,24,12);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,slot.index);
       gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,0,this.indices.subarray(0,this.count));
       gl.uniform3f(view.u.origin,0,0,0);gl.uniform2f(view.u.turn,1,0);
       gl.uniform4f(view.u.tilt,1,0,1,0);view.tiltX=view.tiltZ=0;
@@ -19766,6 +19772,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     clinic:{title:"Clinic connection",term:"Meet the first clinic bus on a fixed timetable."},
     shift:{title:"Shift bell",term:"Keep a boat on call for the last shift."}
   };
+  const witnesses=["clinic","shift","clerk"],regulars={clinic:["clinic"],shift:["shift"]},empty=[];
   function read(raw){
     if(!raw||typeof raw!=="object")return null;
     const clinic=raw.clinic===true,shift=raw.shift===true;
@@ -19774,7 +19781,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function nearby(r){
     if(!r)return null;
-    for(const [id,p] of Object.entries(people))if(Math.hypot(r.x-p.x,r.z-p.z)<.84)return id;
+    for(const id of witnesses){const p=people[id];if(Math.hypot(r.x-p.x,r.z-p.z)<.84)return id;}
     return null;
   }
   function testimony(h,id){
@@ -19794,7 +19801,14 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function aboard(book){
     const h=book.hearing;
-    return !h?[]:h.filed?[h.draft]:["clinic","shift","clerk"];
+    return !h?empty:h.filed?regulars[h.draft]:witnesses;
+  }
+  function deckClear(book,x,z){
+    for(const id of aboard(book)){
+      const p=people[id],dx=x-p.x,dz=z-p.z;
+      if(dx*dx+dz*dz<.49*.49)return false;
+    }
+    return true;
   }
   function world(list,model,s){
     for(const id of aboard(s.book)){
@@ -19842,8 +19856,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function sign(id){
     if(boards.has(id))return boards.get(id);
-    const surface=document.createElement("canvas");surface.width=512;surface.height=236;
-    const c=surface.getContext("2d");c.fillStyle="#26554f";c.fillRect(0,0,512,236);
+    const surface=document.createElement("canvas");surface.width=512;surface.height=256;
+    const c=surface.getContext("2d");c.scale(1,256/236);c.fillStyle="#26554f";c.fillRect(0,0,512,236);
     c.strokeStyle="#d5c68a";c.lineWidth=3;c.strokeRect(9,9,494,218);
     c.textAlign="center";c.fillStyle="#ede4bd";c.font="bold 19px monospace";c.fillText("PORT SOL   /   LANDING 14",256,45);
     c.font="bold 49px Georgia";c.fillText("PUBLIC LANDING",256,112);
@@ -19870,7 +19884,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     g.fillText(h?.filed?"FILED ABOARD M/V LUZ     ·     N. ABREU, PORT CLERK":"WITNESSES     A. REYES  /  L. VEGA",34,390);
     g.restore();
   }
-  window.BayLandingOrder={people,terms,read,nearby,testimony,select,charter,hint,aboard,world,map,notice,face,sign,docket};
+  window.BayLandingOrder={people,terms,read,nearby,testimony,select,charter,hint,aboard,deckClear,world,map,notice,face,sign,docket};
 })();
 
 ;
@@ -19898,11 +19912,11 @@ window.buildBayCity = function buildBayCity(g,water) {
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
     landingClinic:[
-      {dur:4.8,shot:"posted",slug:"PORT SOL   /   THE FOLLOWING MORNING",title:"The Public Slip",who:"Alma Reyes · clinic bus",line:"I can give the woman in the front seat a time now. She’s been asking every Thursday."},
+      {dur:4.8,shot:"posted",slug:"PORT SOL   /   LOT 14",title:"The Public Slip",who:"Alma Reyes · clinic bus",line:"I can give the woman in the front seat a time now. She’s been asking every Thursday."},
       {dur:6.5,art:"landingOrder",who:"Nora Abreu · port clerk",line:"The shed can change hands. The landing stays public, and the clinic crossing goes on the timetable."}
     ],
     landingShift:[
-      {dur:4.8,shot:"posted",slug:"PORT SOL   /   THE FOLLOWING MORNING",title:"The Public Slip",who:"Luis Vega · night shift",line:"Hear that bell? It used to hang outside the pay office. First time I’ve liked the sound of it."},
+      {dur:4.8,shot:"posted",slug:"PORT SOL   /   LOT 14",title:"The Public Slip",who:"Luis Vega · night shift",line:"Hear that bell? It used to hang outside the pay office. First time I’ve liked the sound of it."},
       {dur:6.5,art:"landingOrder",who:"Nora Abreu · port clerk",line:"The landing is out of the sale. Any shift that needs Luz can call her from either pier."}
     ],
     firstCopy:[
@@ -24519,7 +24533,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     near(p){for(let i=0;i<2;i++)if(Math.hypot(p.x-stop(i).x,p.z-stop(i).z)<3.1)return i;return -1;}
     board(i,hero){
       if(!this.book.pass||this.rider||this.phase!=="berth"||i!==this.at)return false;
-      this.rider={phase:"board",age:0,from:{...hero},x:-.8,z:0,tries:0,bell:false,clean:false,charge:null,rope:null};
+      this.rider={phase:"board",age:0,from:{...hero},x:this.hearing()?-.52:-.8,z:0,tries:0,bell:false,clean:false,charge:null,rope:null};
       if(BayLandingOrder.charter(this.book)!=="clinic")this.clock=0;
       return true;
     }
@@ -24592,7 +24606,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       }else{
         const ax=input?.x||0,az=input?.z||0,yaw=(input?.yaw||0)-this.yaw;
         const l=Math.max(1,Math.hypot(ax,az)),dx=(ax*Math.cos(yaw)+az*Math.sin(yaw))/l,dz=(az*Math.cos(yaw)-ax*Math.sin(yaw))/l;
-        r.x=clamp(r.x+dx*dt*1.8,-1.14,.98);r.z=clamp(r.z+dz*dt*1.8,-1.75,1.4);
+        if(ax||az){
+          const x=clamp(r.x+dx*dt*1.8,-1.14,.98),z=clamp(r.z+dz*dt*1.8,-1.75,1.4);
+          if(!this.book.hearing||BayLandingOrder.deckClear(this.book,x,r.z))r.x=x;
+          if(!this.book.hearing||BayLandingOrder.deckClear(this.book,r.x,z))r.z=z;
+        }
         Object.assign(hero,this.onDeck());if(ax||az)hero.yaw=this.yaw+Math.atan2(dx,dz);
         if(r.phase==="line"){
           if(r.charge!=null)r.charge=Math.min(1,r.charge+dt*.68);

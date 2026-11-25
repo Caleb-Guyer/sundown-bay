@@ -13,6 +13,7 @@
     clinic:{title:"Clinic connection",term:"Meet the first clinic bus on a fixed timetable."},
     shift:{title:"Shift bell",term:"Keep a boat on call for the last shift."}
   };
+  const witnesses=["clinic","shift","clerk"],regulars={clinic:["clinic"],shift:["shift"]},empty=[];
   function read(raw){
     if(!raw||typeof raw!=="object")return null;
     const clinic=raw.clinic===true,shift=raw.shift===true;
@@ -21,7 +22,7 @@
   }
   function nearby(r){
     if(!r)return null;
-    for(const [id,p] of Object.entries(people))if(Math.hypot(r.x-p.x,r.z-p.z)<.84)return id;
+    for(const id of witnesses){const p=people[id];if(Math.hypot(r.x-p.x,r.z-p.z)<.84)return id;}
     return null;
   }
   function testimony(h,id){
@@ -41,7 +42,14 @@
   }
   function aboard(book){
     const h=book.hearing;
-    return !h?[]:h.filed?[h.draft]:["clinic","shift","clerk"];
+    return !h?empty:h.filed?regulars[h.draft]:witnesses;
+  }
+  function deckClear(book,x,z){
+    for(const id of aboard(book)){
+      const p=people[id],dx=x-p.x,dz=z-p.z;
+      if(dx*dx+dz*dz<.49*.49)return false;
+    }
+    return true;
   }
   function world(list,model,s){
     for(const id of aboard(s.book)){
@@ -89,8 +97,8 @@
   }
   function sign(id){
     if(boards.has(id))return boards.get(id);
-    const surface=document.createElement("canvas");surface.width=512;surface.height=236;
-    const c=surface.getContext("2d");c.fillStyle="#26554f";c.fillRect(0,0,512,236);
+    const surface=document.createElement("canvas");surface.width=512;surface.height=256;
+    const c=surface.getContext("2d");c.scale(1,256/236);c.fillStyle="#26554f";c.fillRect(0,0,512,236);
     c.strokeStyle="#d5c68a";c.lineWidth=3;c.strokeRect(9,9,494,218);
     c.textAlign="center";c.fillStyle="#ede4bd";c.font="bold 19px monospace";c.fillText("PORT SOL   /   LANDING 14",256,45);
     c.font="bold 49px Georgia";c.fillText("PUBLIC LANDING",256,112);
@@ -117,5 +125,5 @@
     g.fillText(h?.filed?"FILED ABOARD M/V LUZ     ·     N. ABREU, PORT CLERK":"WITNESSES     A. REYES  /  L. VEGA",34,390);
     g.restore();
   }
-  window.BayLandingOrder={people,terms,read,nearby,testimony,select,charter,hint,aboard,world,map,notice,face,sign,docket};
+  window.BayLandingOrder={people,terms,read,nearby,testimony,select,charter,hint,aboard,deckClear,world,map,notice,face,sign,docket};
 })();

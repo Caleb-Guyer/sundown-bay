@@ -230,25 +230,31 @@
     constructor(view){
       this.view=view;
       const gl=view.gl;
-      this.vertexBuffer=gl.createBuffer();this.indexBuffer=gl.createBuffer();
       this.vertices=new Float32Array(24576*6);
       this.indices=new Uint16Array(65532);
       this.savedPoses=new Set();this.poseBytes=0;
       this.details=new Map();this.detailBytes=0;this.buildDetail=true;
-      gl.bindBuffer(gl.ARRAY_BUFFER,this.vertexBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength,gl.STREAM_DRAW);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.STREAM_DRAW);
+      // Give the GPU time to consume a submitted street batch before the
+      // next upload writes to the same storage. All three pairs total 2.1 MiB.
+      this.buffers=Array.from({length:3},()=>{
+        const vertex=gl.createBuffer(),index=gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER,vertex);gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength,gl.STREAM_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,index);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.STREAM_DRAW);
+        return {vertex,index};
+      });
+      this.nextBuffer=0;
       view.bound=null;this.count=0;this.used=0;this.glow=0;
     }
     flush(){
       if(!this.count)return;
       const view=this.view,gl=view.gl;
-      gl.bindBuffer(gl.ARRAY_BUFFER,this.vertexBuffer);
+      const slot=this.buffers[this.nextBuffer];
+      this.nextBuffer=(this.nextBuffer+1)%this.buffers.length;
+      gl.bindBuffer(gl.ARRAY_BUFFER,slot.vertex);
       gl.bufferSubData(gl.ARRAY_BUFFER,0,this.vertices.subarray(0,this.used*6));
       gl.vertexAttribPointer(view.pos,3,gl.FLOAT,false,24,0);
       gl.vertexAttribPointer(view.col,3,gl.FLOAT,false,24,12);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,slot.index);
       gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,0,this.indices.subarray(0,this.count));
       gl.uniform3f(view.u.origin,0,0,0);gl.uniform2f(view.u.turn,1,0);
       gl.uniform4f(view.u.tilt,1,0,1,0);view.tiltX=view.tiltZ=0;

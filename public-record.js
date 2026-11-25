@@ -21,11 +21,11 @@
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
     landingClinic:[
-      {dur:4.8,shot:"posted",slug:"PORT SOL   /   THE FOLLOWING MORNING",title:"The Public Slip",who:"Alma Reyes · clinic bus",line:"I can give the woman in the front seat a time now. She’s been asking every Thursday."},
+      {dur:4.8,shot:"posted",slug:"PORT SOL   /   LOT 14",title:"The Public Slip",who:"Alma Reyes · clinic bus",line:"I can give the woman in the front seat a time now. She’s been asking every Thursday."},
       {dur:6.5,art:"landingOrder",who:"Nora Abreu · port clerk",line:"The shed can change hands. The landing stays public, and the clinic crossing goes on the timetable."}
     ],
     landingShift:[
-      {dur:4.8,shot:"posted",slug:"PORT SOL   /   THE FOLLOWING MORNING",title:"The Public Slip",who:"Luis Vega · night shift",line:"Hear that bell? It used to hang outside the pay office. First time I’ve liked the sound of it."},
+      {dur:4.8,shot:"posted",slug:"PORT SOL   /   LOT 14",title:"The Public Slip",who:"Luis Vega · night shift",line:"Hear that bell? It used to hang outside the pay office. First time I’ve liked the sound of it."},
       {dur:6.5,art:"landingOrder",who:"Nora Abreu · port clerk",line:"The landing is out of the sale. Any shift that needs Luz can call her from either pier."}
     ],
     firstCopy:[
