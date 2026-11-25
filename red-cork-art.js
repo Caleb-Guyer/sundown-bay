@@ -1,7 +1,7 @@
 /* Pier tackle, a cane rod with a live line, and the fish on Cal's measuring board. */
 (() => {
   "use strict";
-  const C=BayRedCork,cal={x:243.05,y:.37,z:-120.4,yaw:Math.PI/2};
+  const C=BayRedCork,cal={x:243.05,y:.37,z:-120.4,yaw:Math.PI/2+.38};
   const brass="#a87e46",wood="#8a6048",green="#647f70",ivory="#e0d9ac",red="#b94d38";
   function box(g){
     for(const x of [-.39,.39])for(const z of [-.22,.22])g.box(x,.255,z,.072,.51,.072,wood);
@@ -27,6 +27,12 @@
     }
   }
   const station=s=>({x:s.x-.44,z:s.z+1.10});
+  function measure(r){
+    if(r?.phase!=="landed"||r.clock>4.5)return null;
+    const b=station(r.site),lift=Math.max(0,Math.min(1,(r.clock-2.85)/.85));
+    const blend=Math.max(0,Math.min(1,r.clock/.28,(4.5-r.clock)/.54));
+    return {x:b.x-.43+r.length*.0048+lift*3,y:r.site.y+.65*(1-lift)+Math.sin(lift*Math.PI)*.60,z:b.z+.06-lift*.6,blend,lift};
+  }
   function ring(g){
     for(let i=0;i<26;i++)if(i%7!==0){
       const a=i*Math.PI/13,b=(i+1)*Math.PI/13,pt=(h,r)=>[Math.cos(h)*r,0,Math.sin(h)*r];
@@ -87,9 +93,11 @@
     model("cork/float",g=>{g.cyl(0,.03,0,.074,.105,.20,10,ivory);g.cyl(0,.19,0,.020,.074,.13,10,red);g.cyl(0,.27,0,.014,.014,.08,7,red);});
     if(see(cal,50)){
       const a=(t%19)/19,d=2.2+Math.min(1,a*16,Math.max(0,(1-a)*5))*8.8;
-      const p=C.point(cal,d,-.23);p.y=BaySwimming.surfaceY(p,t)+.075;
-      tackle(list,view,"cork/cal-rod",cal,cal.yaw-.23,hand(null,t),p,.43+.26*Math.cos(a*Math.PI*2),.055,.10);
-      reel(list,model,cal,cal.yaw-.23,hand(null,t));
+      const p=C.point(cal,d,0);p.y=BaySwimming.surfaceY(p,t)+.075;
+      tackle(list,view,"cork/cal-rod",cal,cal.yaw,hand(null,t),p,.43+.26*Math.cos(a*Math.PI*2),.055,.10);
+      reel(list,model,cal,cal.yaw,hand(null,t));
+      model("cork/cal-hat",g=>{g.cyl(0,.0,0,.218,.222,.024,12,"#c1a17a");g.cyl(0,.067,-.012,.136,.153,.121,10,"#b29571");g.cyl(0,.029,-.012,.151,.154,.026,10,green);});
+      list.push(["cork/cal-hat",cal.x,cal.y+1.73,cal.z,cal.yaw,.04]);
       list.push(["cork/float",p.x,p.y,p.z,0]);
     }
     if(!r)return;
@@ -115,11 +123,11 @@
         list.push([k,end.x+.22,end.y-.11+Math.max(0,Math.sin(r.clock*4))*.30,end.z,r.site.yaw+r.bearing,Math.cos(r.clock*4)*.43]);
       }
     }
-    if(r.phase==="landed"&&r.clock<3){
-      const b=station(r.site),cm=Math.round(r.length/3)*3,k="cork/catch/"+r.id+cm;
+    const m=measure(r);
+    if(m&&m.lift<1){
+      const cm=r.length,k="cork/catch/"+r.id+cm;
       model(k,g=>fishMesh(g,r.id,cm));
-      const u=Math.min(1,Math.max(0,r.clock-1.9)/.8);
-      if(u<1)list.push([k,b.x+u*3,r.site.y+.66*(1-u)+Math.sin(u*Math.PI)*.60,b.z+.06-u*.6,Math.PI/2,.1,1.38*(1-u)]);
+      list.push([k,m.x,m.y,m.z,-Math.PI/2+m.lift*Math.PI,.1,1.48*(1-m.lift)]);
     }
   }
   function map(c,opt,px,py,s,visible){
@@ -141,7 +149,8 @@
     c.fillStyle=r.phase==="bite"?"#783932":red;c.beginPath();c.arc(px(q.x),py(q.z),Math.max(2,s*.12),0,Math.PI*2);c.fill();c.stroke();
     if(r.phase==="wind"||r.phase==="ready"){const p=C.point(site,r.phase==="wind"?4.5+r.power*14.5:8,r.aim);c.setLineDash([3,4]);c.beginPath();c.arc(px(p.x),py(p.z),.52*s,0,Math.PI*2);c.stroke();}
     if(r.phase==="fight"&&r.run){c.fillStyle=C.fish[r.id].color;c.beginPath();c.ellipse(px(q.x+.25),py(q.z),s*.28,s*.095,-r.bearing,0,Math.PI*2);c.fill();}
-    if(r.phase==="landed"&&r.clock<1.9){const b=station(site);c.fillStyle=C.fish[r.id].color;c.beginPath();c.ellipse(px(b.x),py(b.z+.06),s*r.length/200,s*r.length/750,0,0,Math.PI*2);c.fill();}
+    const m=measure(r);
+    if(m&&m.lift<1){c.fillStyle=C.fish[r.id].color;c.beginPath();c.ellipse(px(m.x),py(m.z),s*r.length/200,s*r.length/750,0,0,Math.PI*2);c.fill();}
     c.restore();
   }
   function card(book,id){
@@ -166,5 +175,5 @@
     c.font="bold 24px Georgia,serif";c.fillText(f.name,200,52);c.font="13px monospace";c.fillText("TAG & RELEASE",201,77);
     c.textAlign="right";c.fillStyle="#a34c39";c.font="bold 33px Georgia,serif";c.fillText(cm+" cm",542,63);return canvas;
   }
-  window.BayRedCorkArt={cal,grip,world,map,card};
+  window.BayRedCorkArt={cal,grip,measure,world,map,card};
 })();

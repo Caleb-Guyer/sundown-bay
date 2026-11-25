@@ -40,7 +40,7 @@ module.exports=async({js,send,waitFor,tap,key,errors,mode})=>{
       }requestAnimationFrame(next);})()`);
     await waitFor("proof.map.angling.phase==='soak'||proof.map.angling.phase==='bite'",20000);await snap("water");
     await waitFor("proof.finished",95000);assert.equal(await js("proof.finished"),"landed");
-    await snap("release");
+    await waitFor("proof.map.angling.clock>.45");await snap("release");
     const record=await js(saved+".catchBook");
     assert.equal(record.total,1);assert(record.best[species]>30);assert.equal(await js(saved+".wallet"),55);
     const observed=await js("({phases:[...proof.phases],run:proof.run,frames:proof.painted})");

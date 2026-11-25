@@ -3320,7 +3320,7 @@
       if(corkNear()!==site)return;
       const r=new BayRedCork.Cast(site,save.shore.returned.includes("lure"));r.walkIn=true;
       active={angling:r,job:{id:"red-cork",name:"Red Cork Club",by:"Cal Bennett"},stops:[],index:0};
-      waypoint=null;closePanel();keys.clear();motion.reset();lastHud=lastMap=-10;
+      waypoint=null;closePanel();keys.clear();motion.reset();$("toast").hidden=true;lastHud=lastMap=-10;
     }));
     for(const s of BayRedCork.sites)if(!near||s!==site)b.append(makeButton(s.name,s.id==="cut"?"Cal’s spare tackle sits on the landing by the oyster beds.":"Find Cal’s green measuring bench at the seaward end.","Mark pier",()=>clockPin({...s,name:s.name+" · Red Cork Club"})));
     const record=document.createElement("p");record.className="panel-copy";
@@ -7108,7 +7108,13 @@
     if(angler&&!angler.walkIn){
       const s=angler.site,aim=angler.cork||BayRedCork.shoal(s,streetTime),eye=BayDriving.world(s,-1.52,-2.05);
       const x=hero.x+(aim.x-hero.x)*.59,z=hero.z+(aim.z-hero.z)*.59,y=s.y+2.46;
-      Object.assign(cam,{x:eye.x,z:eye.z,y,yaw:Math.atan2(x-eye.x,z-eye.z),pitch:Math.atan2(.43-y,Math.hypot(x-eye.x,z-eye.z)),focal:1.32});return;
+      Object.assign(cam,{x:eye.x,z:eye.z,y,yaw:Math.atan2(x-eye.x,z-eye.z),pitch:Math.atan2(.43-y,Math.hypot(x-eye.x,z-eye.z)),focal:1.32});
+      const m=BayRedCorkArt.measure(angler);
+      if(m){const target={x:s.x-1.25,z:s.z+2.25,y:s.y+2.0},f=m.blend;
+        cam.x+=f*(target.x-cam.x);cam.z+=f*(target.z-cam.z);cam.y+=f*(target.y-cam.y);
+        cam.yaw+=f*angle(cam.yaw,Math.atan2(m.x-target.x,m.z-target.z));
+        cam.pitch+=f*(Math.atan2(m.y-target.y,dist(m,target))-cam.pitch);cam.focal+=f*.37;
+      }return;
     }
     if(company.holding&&held("Space")){
       const site=company.call,aim=BayDriving.world(site,company.aimX*.48,-.5),face={...hero,yaw:Math.atan2(site.x-hero.x,site.z-hero.z)};
@@ -7875,7 +7881,10 @@
       if(works.rearView&&car===works.trailer.hitched){state.cx=works.trailer.x;state.cz=works.trailer.z;state.rotation=state.cameraYaw=car.yaw+Math.PI;state.scale=h/(22*cameraRig.zoom);}
       if(broadcastDesk.mix&&!broadcastDesk.approach){state.cx=radioSite.x+.32;state.cz=radioSite.z;state.rotation=state.cameraYaw=-Math.PI/2+broadcastDesk.mix.pan;state.scale=h/((broadcastDesk.close?9:18)*cameraRig.zoom);}
       if(works.line?.close){state.rotation=state.cameraYaw=works.line.look+Math.PI;state.cx=(pip.x+works.line.pot.x)*.5;state.cz=(pip.z+works.line.pot.z)*.5;state.scale=h/(13.5*cameraRig.zoom);}
-      if(active?.angling){const r=active.angling,q=r.cork||BayRedCork.shoal(r.site,streetTime);state.cx=(r.site.x+q.x)*.5;state.cz=(r.site.z+q.z)*.5;state.rotation=state.cameraYaw=r.site.yaw;state.scale=h/25;}
+      if(active?.angling){const r=active.angling,q=r.cork||BayRedCork.shoal(r.site,streetTime),m=BayRedCorkArt.measure(r);
+        state.cx=(r.site.x+q.x)*.5;state.cz=(r.site.z+q.z)*.5;state.rotation=state.cameraYaw=r.site.yaw;state.scale=h/25;
+        if(m){state.cx+=(m.x-state.cx)*m.blend;state.cz+=(m.z-state.cz)*m.blend;state.scale=h/(25-19.8*m.blend);}
+      }
       if(skate.rider){
         const r=skate.rider,lens=!!skate.run?.lens,face=lens?cam.yaw:yaw,lead=lens?0:1.0+r.speed*.10;
         state.rotation=state.cameraYaw=face;state.cx=r.x+Math.sin(face)*lead;state.cz=r.z+Math.cos(face)*lead;
@@ -8080,7 +8089,7 @@
       if(see(a,65)){
         if(!calMesh){calMesh=new BayPlayerMesh(personColors[3],"local");calMotion=new BayPlayerMotion();view.add("cork/cal",calMesh,true);}
         calMotion.console=BayRedCorkArt.grip(null,streetTime,streetTime%19>14.5);calMotion.step(dt,0,0);
-        if(calMesh.update(calMotion))view.updateAnimated("cork/cal");visible.push(["cork/cal",a.x,a.y,a.z,a.yaw-.23]);
+        if(calMesh.update(calMotion))view.updateAnimated("cork/cal");visible.push(["cork/cal",a.x,a.y,a.z,a.yaw]);
       }
     }
     if(play&&see(BayCoastCupArt.marshal,74)){
@@ -8803,7 +8812,7 @@
         meter.hidden=false;meter.style.setProperty("--hold",n+"%");meter.setAttribute("aria-valuenow",String(n));meter.setAttribute("aria-label",winding?"Casting power":"Line tension");
       }
     }
-    const showing=angler?["E",(angler.phase==="miss"||angler.phase==="landed"?"Space cast again · ":"")+"Put the rod back"]:rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
+    const showing=angler?(angler.phase==="miss"||angler.phase==="landed"?["Space","Cast again · E put the rod back"]:["E","Put the rod back"]):rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
     if(showing)contextHint(...showing);
     else if(atThreads())contextHint("F","Cora Vidal · Low Tide Exchange");
     else if(curbPrompt)contextHint(...curbPrompt);
