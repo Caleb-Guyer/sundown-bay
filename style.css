@@ -441,3 +441,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .cup-classification th,.cup-classification td {text-align:left;padding:6px 8px;border-bottom:1px solid #a6ab91}
 .cup-classification th:last-child,.cup-classification td:last-child {text-align:right;white-space:nowrap}
 .cup-classification .cup-own-result {background:#e4d8ab}
+.luna-proof {position:relative; width:100%; aspect-ratio:3 / 2; background:#172421}
+.luna-proof img {position:absolute; inset:0; width:100%; height:100%; object-fit:contain}
+.luna-proof + input {display:block; width:100%; margin:.65rem 0 .25rem; accent-color:#936134}
+.luna-times {font:600 .78rem/1.4 monospace; color:inherit; margin:0 0 1rem}

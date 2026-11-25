@@ -540,7 +540,7 @@
     });
   }
 
-  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps;
+  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -551,12 +551,15 @@
     const location=window.BaySecondUnit?.record(options?.location)?options.location:null;
     const windows=options?.windows||null;
     const jumps=options?.pictureJumps||null;
-    if(schedule&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const house=options?.houseLights||null;
+    if(schedule&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedHouse=house;
     listedJumps=jumps;
     if(listedWindows!==windows){listedWindows=windows;windowImages=null;}
     if(listedLocation!==location){listedLocation=location;locationCard=null;}
     listedRecord=saved;listedSkate=skate;listedPrint=print;listedSecond=second;listedDelivery=delivery;
     const list=[];
+    if(house)list.push(slot("house-lights","House Lights","Two exposures on Luna Boulevard · "+house.day.by,8));
     if(jumps)list.push(slot("picture-jumps","Four Wheels Down","Romy Vale · An animation from three measured jumps",15));
     if(location)list.push(slot("location",location.title,"Second Unit · "+location.by+" · Frame "+location.number,5));
     if(windows?.length===3)list.push(slot("windows",BayWindowSeat.filmTitle,"Cine Luna · Second Unit",12));
@@ -574,8 +577,8 @@
     const program=describe(options);
     const raw=Number.isFinite(time)?Math.floor(time*fps+.000001):0;
     const tick=((raw%programFrames)+programFrames)%programFrames;
-    const decode=decodedStamp+(window.BaySkateFilm?.revision||0);
-    if(program===lastProgram&&tick===lastTick&&(projection.id!=="stunt"&&projection.id!=="skate"&&projection.id!=="windows"||lastDecode===decode))return projection;
+    const decode=decodedStamp+(window.BaySkateFilm?.revision||0)+(window.BayHouseLights?.revision||0);
+    if(program===lastProgram&&tick===lastTick&&lastDecode===decode)return projection;
     let inSlot=tick,item=program[0];
     for(const entry of program){
       item=entry;
@@ -601,6 +604,8 @@
       rect(context,0,height-28,width,28,"rgba(34,39,38,.9)");
       label(context,BayWindowSeat.briefs[i].title,14,height-11,"italic bold 14px Georgia,serif",paper);
       label(context,r.by+"   /   "+String(r.number).padStart(2,"0"),width-14,height-11,"bold 9px monospace",chalk,"right");
+    }else if(item.id==="house-lights"){
+      BayHouseLights.paint(context,listedHouse,width,height,smooth((elapsed-2)/3.6));
     }else if(item.id==="location"){
       if(!locationCard){locationCard=surface(720,610);window.BayScoutPrints.print(locationCard,listedLocation);}
       rect(context,0,0,width,height,"#222825");const w=height*720/610;

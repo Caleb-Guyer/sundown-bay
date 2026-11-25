@@ -1,5 +1,5 @@
 /* render.js */
-/* Static city geometry and its sun shadow are baked once. Moving actors share the same light. */
+/* The city shares one shadow map. Reuse its GPU storage as the sun crosses the bay. */
 (() => {
   "use strict";
   const rgbCache = new Map();
@@ -72,22 +72,21 @@
     return {x:(x0+x1)*.5,y:(y0+y1)*.5,z:(z0+z1)*.5,r:Math.hypot(x1-x0,y1-y0,z1-z0)*.5+.035};
   }
   const LIGHT = `
-    const vec3 sunDir=vec3(.510,.430,.746);
+    uniform vec3 sunDir,sunAcross,sunUp;
     vec3 lightClip(vec3 world){
       vec3 p=world-vec3(10.,6.,0.);
-      return vec3(dot(p,vec3(.826,0.,-.564))/294.,
-                  dot(p,vec3(-.243,.903,-.355))/193.,-dot(p,sunDir)/365.);
+      return vec3(dot(p,sunAcross)/310.,dot(p,sunUp)/300.,-dot(p,sunDir)/365.);
     }`;
   const VERTEX = LIGHT+`
     attribute vec3 pos; attribute vec3 col;
     uniform vec3 origin,eye,rightV,upV,forwardV; uniform vec2 turn,focal; uniform vec2 depth;
-    uniform vec4 tilt,waterParams; uniform float castOnly;
+    uniform vec4 tilt,waterParams; uniform float castOnly; uniform vec2 castSlope;
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     void main(){
       vec3 q=vec3(pos.x,pos.y*tilt.x-pos.z*tilt.y,pos.y*tilt.y+pos.z*tilt.x);
       q=vec3(q.x*tilt.z-q.y*tilt.w,q.x*tilt.w+q.y*tilt.z,q.z);
       vec3 world=origin+vec3(q.x*turn.x+q.z*turn.y,q.y,-q.x*turn.y+q.z*turn.x);
-      if(castOnly>.5){world.xz-=sunDir.xz*((world.y-.15)/sunDir.y);world.y=.153;}
+      if(castOnly>.5){world.xz+=castSlope*(world.y-.15);world.y=.153;}
       vec3 rel=world-eye; float z=dot(rel,forwardV);
       gl_Position=vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);
       lightCoord=lightClip(world)*.5+.5;
@@ -105,13 +104,14 @@
   const FRAGMENT = PRECISION+`
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     uniform vec4 waterParams,airState,driverLamp; uniform vec3 eye,skyTone; uniform vec2 immersion;
+    uniform vec3 seaSun;
     uniform sampler2D sunDepth,paper,lobbyPrint,streetLight; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow,showPrint;
     float shadeAt(vec2 uv){
       vec2 rg=texture2D(sunDepth,uv).rg;
       return step(dot(rg,vec2(1.,1./255.))+.00047,lightCoord.z);
     }
     void main(){
-      if(castOnly>.5){gl_FragColor=vec4(.12,.15,.24,.28*(1.-.65*dusk)*(1.-.66*airState.x)*(1.-haze));return;}
+      if(castOnly>.5){gl_FragColor=vec4(.12,.15,.24,.28*seaSun.z*(1.-haze));return;}
       if(showPrint>.5){
         vec3 dye=texture2D(lobbyPrint,vColor.rg).rgb*(1.-.14*dusk);
         gl_FragColor=vec4(mix(dye,vec3(.65,.54,.53),haze*.6),1.);return;
@@ -145,8 +145,8 @@
         float ripple=sin(dot(surface,vec2(.56,-.79))+2.05*t+1.7*swell);
         float grain=texture2D(paper,surface*vec2(.008,.022)+vec2(t*.0017,-t*.0021)).r;
         float crest=smoothstep(.59,.93,.54*swell+.34*ripple+.30*grain);
-        float bearing=dot(offset/max(d,.01),vec2(.564,.826));
-        float sunset=smoothstep(.59,.99,bearing)*smoothstep(12.,95.,d);
+        float bearing=dot(offset/max(d,.01),seaSun.xy);
+        float sunset=smoothstep(.59,.99,bearing)*smoothstep(12.,95.,d)*seaSun.z;
         vec3 sea=vColor*(.94+.085*swell*local+.045*ripple*local);
         sea=mix(sea,vec3(.58,.80,.75),(.11+.32*local)*crest);
         sea=mix(sea,vec3(1.,.77,.57),sunset*(.065+.40*crest)*(1.-haze*.65));
@@ -164,12 +164,12 @@
         gl_FragColor=vec4(mix(sea,seaMist,haze*.83),1.);return;
       }
       float shade=0.;
-      if(hasShadow>.5&&all(greaterThan(lightCoord.xy,vec2(.001)))&&all(lessThan(lightCoord.xy,vec2(.999)))){
+      if(hasShadow>.005&&all(greaterThan(lightCoord.xy,vec2(.001)))&&all(lessThan(lightCoord.xy,vec2(.999)))){
         vec2 cell=lightCoord.xy/texel-.5;
         vec2 uv=(floor(cell)+.5)*texel,weight=fract(cell);
         float a=mix(shadeAt(uv),shadeAt(uv+vec2(texel,0.)),weight.x);
         float b=mix(shadeAt(uv+vec2(0.,texel)),shadeAt(uv+vec2(texel)),weight.x);
-        shade=mix(a,b,weight.y);
+        shade=mix(a,b,weight.y)*hasShadow;
       }
       float fleck=texture2D(paper,surface*.115).r-.5;
       float wash=texture2D(paper,surface*.011).r-.5;
@@ -246,6 +246,10 @@
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
       this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint","streetLight","airState","skyTone","driverLamp","immersion"])this.u[key]=gl.getUniformLocation(p,key);
       this.glow=0;
+      this.sunKey=null;this.sunTarget=null;this.sunStrength=0;
+      for(const key of ["castSlope","seaSun","sunDir","sunAcross","sunUp"])this.u[key]=gl.getUniformLocation(p,key);
+      this.sunUniforms={};
+      for(const key of ["sunDir","sunAcross","sunUp"])this.sunUniforms[key]=gl.getUniformLocation(this.sunProgram,key);
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0); const n=.13,f=1100;gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -294,7 +298,7 @@
           const end=Math.min(count,first+768);
           model.sections.push({first,end,bounds:meshBounds(data,first,end)});
         }
-        this.bakeSun(buf,count);
+        this.sunKey=null;
       }
       this.models.set(name,model);
     }
@@ -303,27 +307,53 @@
       const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);
       gl.bufferSubData(gl.ARRAY_BUFFER,0,this.cpu.get(name));this.bound=null;
     }
-    bakeSun(buf,count){
-      const gl=this.gl,sz=Math.min(1536,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
+    prepareSun(){
+      const gl=this.gl,sz=Math.min(1024,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.shadowTexture);
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,sz,sz,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
       const fbo=gl.createFramebuffer(),rb=gl.createRenderbuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.bindRenderbuffer(gl.RENDERBUFFER,rb);
       gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,sz,sz);
       gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,this.shadowTexture,0);gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,rb);
       const ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE;
-      if(ok){
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindRenderbuffer(gl.RENDERBUFFER,null);
+      gl.uniform1f(this.u.texel,1/sz);
+      return {fbo,rb,sz,ok};
+    }
+    updateSun(weather,dusk){
+      const gl=this.gl,city=this.models.get("city");
+      const ray=weather?.sun||BayHours.sunlight(weather?.minute??990);
+      this.sunStrength=ray.strength*(1-.88*(weather?.rain||0))*(1-dusk);
+      this.castX=ray.dx;this.castZ=ray.dz;
+      const flat=Math.hypot(ray.x,ray.z);
+      gl.uniform3f(this.u.seaSun,ray.x/flat,ray.z/flat,this.sunStrength);
+      gl.uniform2f(this.u.castSlope,this.castX,this.castZ);
+      if(!city||this.sunStrength<.006){gl.uniform1f(this.u.hasShadow,0);return;}
+      const key=Math.round((weather?.minute??990)/10);
+      const target=this.sunTarget??=this.prepareSun();
+      if(target.ok&&this.sunKey!==key){
+        const {sz,fbo}=target;
+        const sun=BayHours.sunlight(key*10),len=Math.hypot(sun.dx,1,sun.dz);
+        const x=-sun.dx/len,y=1/len,z=-sun.dz/len,h=Math.hypot(x,z);
+        const basis=u=>{
+          gl.uniform3f(u.sunDir,x,y,z);gl.uniform3f(u.sunAcross,z/h,0,-x/h);gl.uniform3f(u.sunUp,-x*y/h,h,-z*y/h);
+        };
+        gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.disable(gl.SCISSOR_TEST);
         gl.useProgram(this.sunProgram);gl.viewport(0,0,sz,sz);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+        basis(this.sunUniforms);
         gl.disableVertexAttribArray(this.pos);gl.disableVertexAttribArray(this.col);
-        const p=gl.getAttribLocation(this.sunProgram,"pos");gl.enableVertexAttribArray(p);gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.vertexAttribPointer(p,3,gl.FLOAT,false,24,0);
-        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);gl.drawArrays(gl.TRIANGLES,0,count);gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
+        const p=gl.getAttribLocation(this.sunProgram,"pos");gl.enableVertexAttribArray(p);gl.bindBuffer(gl.ARRAY_BUFFER,city.buf);gl.vertexAttribPointer(p,3,gl.FLOAT,false,24,0);
+        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);gl.drawArrays(gl.TRIANGLES,0,city.count);gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
+        gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.useProgram(this.program);basis(this.u);
+        gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
+        this.sunKey=key;this.bound=null;
       }
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindRenderbuffer(gl.RENDERBUFFER,null);gl.deleteFramebuffer(fbo);gl.deleteRenderbuffer(rb);
-      gl.useProgram(this.program);gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
-      gl.uniform1f(this.u.hasShadow,ok?1:0);gl.uniform1f(this.u.texel,1/sz);gl.clearColor(0,0,0,0);this.bound=null;
+      gl.uniform1f(this.u.hasShadow,target.ok?this.sunStrength:0);
     }
     begin(camera,dusk=0,weather=null,headlights=null,seaTime=null,inset=null){
       if(!this.gl||this.lost)return;
       const gl=this.gl,c=this.canvas, factor=Math.min(this.maxWidth/innerWidth,this.maxHeight/innerHeight,devicePixelRatio||1)*this.scale;
+      if(weather)this.updateSun(weather,dusk);
+      else gl.uniform1f(this.u.hasShadow,0);
       const w=inset?inset.w:Math.max(2,Math.round(innerWidth*factor)),h=inset?inset.h:Math.max(2,Math.round(innerHeight*factor));
       if(inset){gl.enable(gl.SCISSOR_TEST);gl.scissor(0,0,w,h);}
       else{
@@ -360,7 +390,7 @@
       if(tiltZ){const c=Math.cos(tiltZ),s=Math.sin(tiltZ),old=u;u=u*c-h*s;h=old*s+h*c;}
       if(yaw){const c=Math.cos(yaw),s=Math.sin(yaw),old=u;u=u*c+n*s;n=n*c-old*s;}
       x+=u;y+=h;z+=n;
-      if(this.casting){x-=.510/.430*(y-.15);z-=.746/.430*(y-.15);y=.153;r*=2.35;}
+      if(this.casting){x+=this.castX*(y-.15);z+=this.castZ*(y-.15);y=.153;r*=Math.hypot(1,this.castX,this.castZ);}
       x-=v.camera.x;y-=v.camera.y;z-=v.camera.z;
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
       return depth+r>=.13&&depth-r<=1100&&Math.abs(x*v.cs-z*v.sn)<=depth*v.horizontal+r*v.xMargin&&
@@ -373,7 +403,7 @@
       return {x:(.5+(dx*cs-dz*sn)*f/(aspect*depth)*.5)*innerWidth,y:(.5-(dy*cp-along*sp)*f/depth*.5)*innerHeight,depth};
     }
     beginShadow(){
-      if(!this.stencil)return false;this.casting=true;const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ZERO,gl.ONE);
+      if(!this.stencil||this.sunStrength<.025)return false;this.casting=true;const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ZERO,gl.ONE);
       gl.enable(gl.STENCIL_TEST);gl.stencilFunc(gl.EQUAL,0,255);gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);gl.uniform1f(this.u.castOnly,1);return true;
     }
     endShadow(){this.casting=false;const gl=this.gl;gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.uniform1f(this.u.castOnly,0);}
@@ -702,10 +732,9 @@
         }
         g.globalAlpha=1;
       }
-      const sweep=(minute-360)/1440*Math.PI*2,elevation=Math.sin(sweep);
-      const sun=timed?view.project(cam.x+Math.cos(sweep)*760,cam.y+elevation*730-16,
-        cam.z+295+elevation*103):view.project(cam.x+510,cam.y+430-502*dusk,cam.z+746);
-      if(sun&&sceneNight<.94&&(!timed||elevation>-.06)){
+      const ray=timed?(weather.sun||BayHours.sunlight(minute)):null;
+      const sun=ray?view.project(cam.x+ray.x*850,cam.y+ray.y*850,cam.z+ray.z*850):view.project(cam.x+510,cam.y+430-502*dusk,cam.z+746);
+      if(sun&&sceneNight<.94&&(!ray||ray.y>-.06)){
         const x=sun.x*sx,y=sun.y*sy,r=h*.041;
         g.globalAlpha=Math.min(1,(.94-sceneNight)/.24)*(1-rain*.94)*(1-forced);
         const glow=g.createRadialGradient(x,y,r*.4,x,y,r*5.2);glow.addColorStop(0,"rgba(255,230,170,.72)");
@@ -757,6 +786,15 @@
   const dayLength=1440,start=17*60+48,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const wrap=v=>(v%dayLength+dayLength)%dayLength;
   function smooth(value){const n=clamp(value,0,1);return n*n*(3-2*n);}
+  function sunlight(minute){
+    const sinceDawn=wrap(minute-360),angle=sinceDawn<=810?sinceDawn*Math.PI/810:Math.PI+(sinceDawn-810)*Math.PI/630,arc=Math.sin(angle);
+    const x=Math.cos(angle)*760,y=arc*730-16,z=295+arc*103;
+    const length=Math.hypot(x,y,z);
+    // Cap the projection close to the horizon. Its strength fades as the sun sets.
+    const projectionY=Math.max(y,Math.hypot(x,z)*.28);
+    return {x:x/length,y:y/length,z:z/length,dx:-x/projectionY,dz:-z/projectionY,
+      strength:smooth((y/length+.035)/.22)};
+  }
   function shower(minute,center,length){
     const delta=wrap(minute-center+720)-720;
     return smooth((delta+length)/12)*smooth((length-delta)/12);
@@ -769,6 +807,7 @@
     refresh(){
       this.minute=wrap(this.total);this.day=Math.floor(this.total/dayLength);
       const m=this.minute;
+      this.sun=sunlight(m);
       this.night=1-smooth((m-300)/160)*smooth((1260-m)/195);
       const pattern=this.day%3;
       this.rain=Math.max(shower(m,1094+pattern*26,19),shower(m,469+pattern*71,24),shower(m,80+pattern*33,13));
@@ -786,7 +825,7 @@
     const m=Math.floor(wrap(minute)),h=Math.floor(m/60);
     return (h%12||12)+":"+String(m%60).padStart(2,"0")+(h>=12?" PM":" AM");
   }
-  window.BayHours={Clock,time};
+  window.BayHours={Clock,time,sunlight};
 })();
 
 ;
@@ -13149,7 +13188,6 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(s.streetProp)continue;
       if(street) {
         const roof=roofs[(i*7+Math.abs(Math.round(s.x)))%roofs.length];
-        rect(ctx,x+1.1,z-1.4,s.w,s.d,"#84877c");
         rect(ctx,x,z,s.w,s.d,"#817f74");
         rect(ctx,x+.35,z+.42,s.w-.7,s.d-.84,roof);
         if(s.w>10 && s.d>9) {
@@ -13202,15 +13240,15 @@ window.buildBayCity = function buildBayCity(g,water) {
     paintLand(c,street);paintBuildings(c,solids,street);if(street)oceanFrontages(c);
   }
 
-  function staticImage(solids,street) {
+  function staticImage(solids,street,roofs=false) {
     let group=staticLayers.get(solids);
     if(!group || group.count!==solids.length) {
       group={count:solids.length};
       staticLayers.set(solids,group);
     }
-    const key=street?"street":"chart";
+    const key=roofs?"roofs":street?"street":"chart";
     if(group[key]) return group[key];
-    const density=street?3.5:1.8;
+    const density=roofs?2.25:street?3.5:1.8;
     const w=Math.ceil((extent.right-extent.left)*density), h=Math.ceil((extent.top-extent.bottom)*density);
     let surface;
     if(typeof OffscreenCanvas!=="undefined") surface=new OffscreenCanvas(w,h);
@@ -13220,8 +13258,27 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!c) return null;
     c.setTransform(w/(extent.right-extent.left),0,0,-h/(extent.top-extent.bottom),
       -extent.left*w/(extent.right-extent.left),extent.top*h/(extent.top-extent.bottom));
-    paintStatic(c,solids,street);
+    if(roofs){paintBuildings(c,solids,true);oceanFrontages(c);}
+    else if(street)paintLand(c,true);
+    else paintStatic(c,solids,false);
     group[key]=surface;return surface;
+  }
+
+  function castBuildings(c,solids,light,px,py,s,visible,opacity){
+    if(!light||opacity<.012)return;
+    c.save();c.fillStyle="rgba(43,54,79,"+(.31*opacity)+")";c.beginPath();
+    for(const b of solids){
+      if(b.streetProp||b.w<2||b.d<2||b.top<1.6)continue;
+      const height=Math.min(b.top,58),dx=light.dx*height*s,dy=-light.dz*height*s;
+      const x=px(b.x),y=py(b.z),hw=b.w*s/2,hd=b.d*s/2;
+      if(!visible(x+dx/2,y+dy/2,hw+hd+Math.hypot(dx,dy)/2))continue;
+      const a=x+(dx<0?-hw:hw),k=y+(dy<0?-hd:hd),opposite=2*y-k;
+      // Two outward walls and the translated roof make a single ground silhouette.
+      const corners=[[2*x-a,k],[2*x-a+dx,k+dy],[a+dx,k+dy],[a+dx,opposite+dy],[a,opposite],[a,k]];
+      if(dx*dy<0)corners.reverse();
+      c.moveTo(...corners[0]);for(let i=1;i<6;i++)c.lineTo(...corners[i]);c.closePath();
+    }
+    c.fill();c.restore();
   }
 
   function carSprite(c,car,x,y,scale,t) {
@@ -13634,7 +13691,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(base) ctx.drawImage(base,px(extent.left),py(extent.top),(extent.right-extent.left)*s,(extent.top-extent.bottom)*s);
     else {
       ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);
-      paintStatic(ctx,solids,street);ctx.restore();
+      if(street)paintLand(ctx,true);else paintStatic(ctx,solids,false);ctx.restore();
+    }
+    if(street){
+      const light=opt.weather?.sun;
+      castBuildings(ctx,solids,light,px,py,s,visible,(light?.strength||0)*(1-.88*(opt.weather?.rain||0))*(1-(opt.dusk||0)));
+      const roofs=staticImage(solids,true,true);
+      if(roofs)ctx.drawImage(roofs,px(extent.left),py(extent.top),(extent.right-extent.left)*s,(extent.top-extent.bottom)*s);
+      else{ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);paintBuildings(ctx,solids,true);oceanFrontages(ctx);ctx.restore();}
     }
     if(street)for(const sig of opt.signals||empty)if(visible(px(sig.x),py(sig.z),12*s))BayCrosswalkArt.mapPaint(ctx,px,py,s,sig);
     if(visible(px(226),py(327),143*s)){
@@ -13653,6 +13717,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     if(street&&opt.weather){
       BayCoastArt.mapSurface(ctx,opt,px,py,visible);
+      if(visible(px(12),py(44),55*s))BayHouseLights.overhead(ctx,px,py,s,opt.weather,streetTime,opt.houseMark);
       if(opt.recovery)BayRecoveryArt.groundMap(ctx,opt,px,py,s,visible);
       if(visible(px(-37.4),py(-132.2),13*s))BayMercadoArt.map(ctx,px,py,s,opt.weather,streetTime);
       const rear=BayMercadoArt.receiving;
@@ -28626,7 +28691,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     });
   }
 
-  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps;
+  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -28637,12 +28702,15 @@ window.buildBayCity = function buildBayCity(g,water) {
     const location=window.BaySecondUnit?.record(options?.location)?options.location:null;
     const windows=options?.windows||null;
     const jumps=options?.pictureJumps||null;
-    if(schedule&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const house=options?.houseLights||null;
+    if(schedule&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedHouse=house;
     listedJumps=jumps;
     if(listedWindows!==windows){listedWindows=windows;windowImages=null;}
     if(listedLocation!==location){listedLocation=location;locationCard=null;}
     listedRecord=saved;listedSkate=skate;listedPrint=print;listedSecond=second;listedDelivery=delivery;
     const list=[];
+    if(house)list.push(slot("house-lights","House Lights","Two exposures on Luna Boulevard · "+house.day.by,8));
     if(jumps)list.push(slot("picture-jumps","Four Wheels Down","Romy Vale · An animation from three measured jumps",15));
     if(location)list.push(slot("location",location.title,"Second Unit · "+location.by+" · Frame "+location.number,5));
     if(windows?.length===3)list.push(slot("windows",BayWindowSeat.filmTitle,"Cine Luna · Second Unit",12));
@@ -28660,8 +28728,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     const program=describe(options);
     const raw=Number.isFinite(time)?Math.floor(time*fps+.000001):0;
     const tick=((raw%programFrames)+programFrames)%programFrames;
-    const decode=decodedStamp+(window.BaySkateFilm?.revision||0);
-    if(program===lastProgram&&tick===lastTick&&(projection.id!=="stunt"&&projection.id!=="skate"&&projection.id!=="windows"||lastDecode===decode))return projection;
+    const decode=decodedStamp+(window.BaySkateFilm?.revision||0)+(window.BayHouseLights?.revision||0);
+    if(program===lastProgram&&tick===lastTick&&lastDecode===decode)return projection;
     let inSlot=tick,item=program[0];
     for(const entry of program){
       item=entry;
@@ -28687,6 +28755,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       rect(context,0,height-28,width,28,"rgba(34,39,38,.9)");
       label(context,BayWindowSeat.briefs[i].title,14,height-11,"italic bold 14px Georgia,serif",paper);
       label(context,r.by+"   /   "+String(r.number).padStart(2,"0"),width-14,height-11,"bold 9px monospace",chalk,"right");
+    }else if(item.id==="house-lights"){
+      BayHouseLights.paint(context,listedHouse,width,height,smooth((elapsed-2)/3.6));
     }else if(item.id==="location"){
       if(!locationCard){locationCard=surface(720,610);window.BayScoutPrints.print(locationCard,listedLocation);}
       rect(context,0,0,width,height,"#222825");const w=height*720/610;
@@ -56574,6 +56644,116 @@ window.buildBayCity = function buildBayCity(g,water) {
 })();
 
 ;
+/* house-lights.js */
+/* Two negatives on one camera mark, commissioned by the cinema projectionist. */
+(() => {
+  "use strict";
+  const key="sundownBay.houseLights.v1",title="House Lights",fee=140;
+  const period=minute=>minute>=420&&minute<1110?"day":minute>=1170||minute<330?"night":"";
+  const label={day:"Daylight",night:"House lights"};
+  const valid=r=>r&&BaySecondUnit.record(r)&&r.subject==="marquee"&&r.score>=55&&
+    [r.x,r.z,r.yaw,r.pitch,r.zoom].every(Number.isFinite)&&r.zoom>=1&&r.zoom<=3&&
+    typeof r.overhead==="boolean"&&!!period(r.minute);
+  const blank=()=>({opened:false,shooting:false,day:null,night:null,release:null,revision:0});
+  function read(){
+    let raw;try{raw=JSON.parse(localStorage.getItem(key));}catch{}
+    const s=blank();if(!raw)return s;
+    s.opened=raw.opened===true;s.shooting=s.opened&&raw.shooting===true;
+    for(const side of ["day","night"])if(valid(raw[side])&&period(raw[side].minute)===side)s[side]=raw[side];
+    if(valid(raw.release?.day)&&valid(raw.release?.night)&&period(raw.release.day.minute)==="day"&&period(raw.release.night.minute)==="night")s.release=raw.release;
+    s.revision=Number.isSafeInteger(raw.revision)?raw.revision:0;return s;
+  }
+  class Book{
+    constructor(){this.s=read();this.stored=true;}
+    refresh(){const next=read();if(next.revision>this.s.revision)this.s=next;}
+    write(){this.s.revision++;try{localStorage.setItem(key,JSON.stringify(this.s));this.stored=true;}catch{this.stored=false;}}
+    start(){this.refresh();if(this.s.shooting)return;Object.assign(this.s,{opened:true,shooting:true,day:null,night:null});this.write();}
+    get mark(){return this.s.day||this.s.night;}
+    mismatch(p){
+      const m=this.mark;if(!m)return "";
+      if(m.overhead!==p.overhead)return "Use the "+(m.overhead?"overhead":"street")+" view for the match";
+      const gap=Math.hypot(p.x-m.x,p.z-m.z);
+      if(gap>1.8)return "First camera mark · "+Math.ceil(gap)+" m away";
+      if(p.zoom!==m.zoom)return "Match the first lens · "+m.zoom+"×";
+      const turn=Math.atan2(Math.sin(m.yaw-p.yaw),Math.cos(m.yaw-p.yaw));
+      if(Math.abs(turn)>.095)return turn>0?"Pan right to match":"Pan left to match";
+      if(Math.abs(m.pitch-p.pitch)>.085)return m.pitch>p.pitch?"Tilt up to match":"Tilt down to match";
+      return "";
+    }
+    guide(p,minute){
+      const side=period(minute),s=this.s;
+      if(s.day&&s.night)return "Both frames in the sleeve · Return to the desk";
+      if(!side)return "Between shows · Wait for daylight or the house lights";
+      if(s[side])return side==="day"?"Daylight filed · Come back after 7:30 PM":"Night filed · Come back after 7 AM";
+      return this.mismatch(p)||(this.mark?"Camera marks match":"Frame the Cine Luna marquee");
+    }
+    file(r,p,subject){
+      this.refresh();
+      if(!this.s.shooting||this.s.day&&this.s.night)return "";
+      const side=period(r.minute),hint=this.guide(p,r.minute);
+      if(!side||this.s[side])return hint;
+      if(subject!=="marquee"||r.score<55)return "Put the marquee inside the frame";
+      const mismatch=this.mismatch(p);if(mismatch)return mismatch;
+      const frame={...r,...p,subject};
+      if(!valid(frame))return "";
+      this.s[side]=frame;this.write();
+      return this.s.day&&this.s.night?"Both frames filed · Bring them to the desk":label[side]+" filed · Keep this camera mark";
+    }
+    deliver(){
+      this.refresh();const s=this.s;
+      if(!s.shooting||!s.day||!s.night)return false;
+      s.release={day:s.day,night:s.night};s.day=s.night=null;s.shooting=false;this.write();return true;
+    }
+  }
+  let loaded=null,frames=[],revision=0;
+  function paint(g,pair,w,h,night){
+    if(loaded!==pair){
+      loaded=pair;frames=[pair.day,pair.night].map(r=>{const im=new Image();im.onload=()=>revision++;im.src=r.image;return im;});
+    }
+    g.save();g.fillStyle="#152322";g.fillRect(0,0,w,h);
+    const margin=h*.046,labelY=h*.948,photoH=h*.82,photoW=Math.min(w-margin*2,photoH*1.5),x=(w-photoW)/2;
+    for(let i=0;i<2;i++)if(frames[i].naturalWidth){g.globalAlpha=i?night:1;g.drawImage(frames[i],x,margin,photoW,photoW/1.5);}
+    g.globalAlpha=1;g.fillStyle="#f1e0ba";g.font="italic bold "+Math.round(h*.073)+"px Georgia";g.textAlign="left";g.fillText(title,x,labelY);
+    g.textAlign="right";g.font="bold "+Math.round(h*.045)+"px monospace";g.fillStyle="#e1c491";
+    const frame=night>=.5?pair.night:pair.day;g.fillText("CINE LUNA  /  "+BayHours.time(frame.minute),w-x,labelY);g.restore();
+  }
+  const front={x:11.8,z:44},lit=minute=>minute>=1140||minute<360;
+  function world(list,model,clock,t,mark){
+    if(mark){
+      model("luna-camera-mark",g=>{for(const side of [-1,1]){g.box(side*.27,0,0,.045,.015,.40,"#ecd49f");g.box(side*.20,0,.18,.18,.016,.045,"#ecd49f");}});
+      list.push(["luna-camera-mark",mark.x,.166,mark.z,mark.yaw]);
+    }
+    const on=lit(clock.minute),step=Math.floor(t*3)%3;
+    for(let bank=0;bank<3;bank++){
+      const bright=on&&step!==bank,name="luna-bulbs-"+bank+"-"+(bright?"glow":"glass");
+      model(name,g=>{for(let i=bank;i<43;i+=3){
+        const z=(i-21)*.39;
+        for(const y of [3.32,3.82])g.box(0,y,z,.08,.10,.11,bright?"#ffe8a0":"#ac8f6f");
+      }});
+      list.push([name,front.x,0,front.z,0,0,0,bright?1:0]);
+    }
+  }
+  function overhead(c,px,py,s,clock,t,mark){
+    c.save();
+    c.fillStyle="#97766a";c.fillRect(px(front.x),py(52.75),2.7*s,17.5*s);
+    c.fillStyle="#e0bc87";c.fillRect(px(front.x)+.15*s,py(52.55),2.38*s,17.1*s);
+    if(lit(clock.minute)){
+      const x=px(front.x),y=py(front.z),spill=c.createLinearGradient(x-4.5*s,y,x,y);
+      spill.addColorStop(0,"rgba(255,204,104,0)");spill.addColorStop(1,"rgba(255,215,133,.47)");
+      c.fillStyle=spill;c.fillRect(x-4.5*s,py(52.5),4.5*s,17*s);
+    }
+    for(let i=0;i<43;i++){
+      c.fillStyle=lit(clock.minute)&&i%3!==Math.floor(t*3)%3?"#fff1a9":"#9d8266";
+      c.fillRect(px(front.x)-.08*s,py(front.z+(i-21)*.39),Math.max(1,.16*s),Math.max(1,.16*s));
+    }
+    if(mark){c.translate(px(mark.x),py(mark.z));c.rotate(mark.yaw);c.strokeStyle="#f3d59c";c.lineWidth=Math.max(1,s*.045);
+      for(const side of [-1,1]){c.beginPath();c.moveTo(side*.27*s,.2*s);c.lineTo(side*.27*s,-.2*s);c.lineTo(side*.12*s,-.2*s);c.stroke();}}
+    c.restore();
+  }
+  window.BayHouseLights={key,title,fee,period,label,Book,paint,world,overhead,front,get revision(){return revision;}};
+})();
+
+;
 /* scout-art.js */
 /* Frankie Prado's location kit. Local +Z faces the street; the desk hinges on its back edge. */
 (() => {
@@ -63422,6 +63602,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     result.oceanBeat=BayOceanBeat.read(null);
     result.pictureJumps=jumps.read(null);result.copies=carbon.read(null);
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
+      result.houseFee=raw.houseFee===true;
       result.clubCup=BayCoastCup.read(raw.clubCup);
       result.oceanBeat=BayOceanBeat.read(raw.oceanBeat);
       result.pictureJumps=jumps.read(raw.pictureJumps);result.copies=carbon.read(raw.copies);
@@ -63462,7 +63643,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       result.juneReturned=raw.juneReturned===true&&result.tapes.includes(0);return result;
     }catch{return result;}
   }
-  const save=readSave();
+  const save=readSave(),houseLights=new BayHouseLights.Book();
   let jumpPage=jumps.sites[0];
   locations.push(luggage.counter,threads.counter,starliteBooth,BayEngineSeven.desk);
   const rainWalk=new BayRainWalk.Walk(),negatives=new BayWindowSeat.Negatives();
@@ -63596,6 +63777,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    if(latest?.houseFee&&!save.houseFee){
+      save.houseFee=true;if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
+      if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
+    }
     if(latest?.clubCup?.known){
       const book=save.clubCup,other=BayCoastCup.read(latest.clubCup);
       book.known=true;
@@ -63673,6 +63858,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     try{const {stunt,...progress}=save;localStorage.setItem("sundownBay.v1",JSON.stringify(progress));}catch{/* Session progress is still available. */}
   }
   addEventListener("storage",ev=>{
+    if(ev.key===BayHouseLights.key)houseLights.refresh();
     gutters.refresh(ev.key);
     if(ev.key===BayPavement.archiveKey)pavement.readArchive();
     if(ev.key===BayWindowSeat.key){negatives.refresh();lastHud=-10;}
@@ -64291,6 +64477,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(unit.transition)return code!=="Escape"&&code!=="KeyR";
     if(unit.eye){
       if(code==="KeyP"||code==="Escape"||code==="KeyJ"){unit.eye=null;cameraSnap();resetPointer();if(code==="KeyJ")openPanel("unit-roll");}
+      else if(code==="KeyG"&&houseLights.mark)unit.eye.trace=!unit.eye.trace;
+      else if(code==="KeyF"&&houseLights.s.shooting&&dist(hero,scoutDesk)<55){
+        const l=unit.eye,s=BayNightMeet.marquee;
+        l.yaw=Math.atan2(s.x-hero.x,s.z-hero.z);l.pitch=Math.atan2(s.y-hero.y-1.61,dist(hero,s));hero.yaw=l.yaw;l.last="";l.check=null;
+      }
       else if(code==="Space")unit.eye.fire=true;
       else if(code==="KeyZ"||code==="KeyV")unit.eye.zoom=unit.eye.zoom>=3?1:Math.min(3,Math.round(unit.eye.zoom)+1);
       return code!=="KeyR";
@@ -64300,7 +64491,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(unit.met)beginCrewSwitch();else openPanel("unit-sheet");return true;
     }
     if(code==="KeyF"&&crewDeskNear()&&crewFree()){openPanel("unit-sheet");return true;}
-    if(code==="KeyP"&&unit.lead==="frankie"&&onStreetFeet()&&crewFree()){
+    if(code==="KeyP"&&(unit.lead==="frankie"||houseLights.s.shooting&&dist(hero,scoutDesk)<55)&&onStreetFeet()&&crewFree()){
       const sign=BayNightMeet.marquee,angleToSign=Math.atan2(sign.x-hero.x,sign.z-hero.z);
       unit.eye={yaw:dist(hero,scoutDesk)<4?angleToSign:cam.yaw,pitch:dist(hero,scoutDesk)<4?.17:0,zoom:1,fire:false,flash:0};
       rainWalk.open=false;motion.vx=motion.vz=0;resetPointer();lastHud=-10;return true;
@@ -64311,7 +64502,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(windowRide)return windowHint();
     if(afternoonHint())return true;
     if(unit.transition){contextHint("Y",unit.transition.braking?"Pulling over":"Second Unit · "+BaySecondUnit.names[unit.transition.swapped?unit.lead:unit.other]);return true;}
-    if(unit.eye){contextHint("Space","Shutter · Arrows aim · Z zoom · P lower");return true;}
+    if(unit.eye){contextHint("Space",houseLights.s.shooting&&dist(hero,scoutDesk)<55?"Shutter · F sight marquee · G trace first frame · P lower":"Shutter · Arrows aim · Z zoom · P lower");return true;}
     if(!crewFree())return false;
     if(crewDeskNear()){contextHint("F","Frankie’s location desk · "+(unit.met?"Select a print":"Meet the scout"));return true;}
     if(!unit.met&&crewPhoneNear()){contextHint("Y","Pick up Frankie’s call · F Bay Cab");return true;}
@@ -64319,6 +64510,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   const crewBodies=new Map();
   function drawCrew(list,see,t){
+    if(see(BayHouseLights.front,100))BayHouseLights.world(list,model,hours,t,houseLights.mark);
     if(see(scoutDesk,90))BayScoutArt.worldDesk(list,model,scoutDesk,t);
     for(const s of BayOffClock.sites)if(see(s,78))BayFotoBoothArt.world(list,model,s,afternoon.photo?.site===s,afternoon.photo?.flash||0);
     if(!see(otherBody,68)||afternoon.photo&&!afternoon.photo.solo)return;
@@ -64368,18 +64560,30 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function scoutDevelop(source,sky,project){
     const l=unit.eye,gate=BayMeetPhoto.crop(source.width,source.height,.5,.5,1.5,true);
+    const onCall=!l.window&&houseLights.s.shooting&&dist(hero,scoutDesk)<55;
     if(l.fire||l.check==null||elapsed-l.check>.13){
-      l.check=elapsed;l.subject=BaySecondUnit.grade(scoutSubjects(),project,gate,l.window?windowEye():{x:hero.x,y:hero.y+1.61,z:hero.z},isTop()?()=>true:scoutSight);
+      l.check=elapsed;
+      const subjects=scoutSubjects(),eye=l.window?windowEye():{x:hero.x,y:hero.y+1.61,z:hero.z},clear=isTop()?()=>true:scoutSight;
+      const candidate=onCall&&BaySecondUnit.grade(subjects.filter(p=>p.id==="marquee"),project,gate,eye,clear);
+      l.subject=candidate||BaySecondUnit.grade(subjects,project,gate,eye,clear);
     }
+    const cameraMark=onCall?{x:hero.x,z:hero.z,yaw:l.yaw,pitch:l.pitch,zoom:l.zoom,overhead:isTop()}:null;
     if(l.fire){l.fire=false;
       const districtName=district(hero),photo=BayMeetPhoto.capture(source,sky,.5,.5,1.5,true);
       const r=unit.expose(photo,{title:l.subject?.title||districtName+" street study",score:l.subject?.score||0,by:BaySecondUnit.names[unit.lead],district:districtName,minute:Math.floor(hours.minute),day:hours.day+1});
       if(r&&l.window&&l.subject&&windowRide.phase==="ride"&&!windowRide.early&&Math.abs(windowRide.vehicle.speed)>1.5&&r.score>(windowRide.best?.score||0))windowRide.best=r;
       if(r){scoutSheet=r.number;l.flash=1;l.last="Filed #"+r.number+" · "+r.title+(unit.filmStored?"":" · this session");}else l.last="Frame missed · try the shutter again";
+      if(r&&onCall){l.last=houseLights.file(r,cameraMark,l.subject?.id)||l.last;if(!houseLights.stored)l.last+=" · this session";}
     }
     const canvas=$("scoutFinder"),w=Math.min(1100,innerWidth),h=Math.max(1,Math.round(w*innerHeight/innerWidth));
     if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
-    BayScoutPrints.frame(canvas.getContext("2d"),w,h,{title:l.last||(l.window?windowRide.brief.title:"Prado · Second Unit"),subject:l.subject?.title||"Street study",zoom:l.zoom,framed:!!l.subject,flash:l.flash,aspect:1.5,windowPan:l.window&&!isTop()?l.pan:null,time:streetTime});
+    const g=canvas.getContext("2d");
+    BayScoutPrints.frame(g,w,h,{title:onCall?(l.flash>.01&&l.last||houseLights.guide(cameraMark,hours.minute)):l.last||(l.window?windowRide.brief.title:"Prado · Second Unit"),subject:l.subject?.title||"Street study",zoom:l.zoom,framed:!!l.subject,flash:l.flash,aspect:1.5,windowPan:l.window&&!isTop()?l.pan:null,time:streetTime});
+    if(onCall&&l.trace&&houseLights.mark){
+      if(!l.reference){l.reference=new Image();l.reference.src=houseLights.mark.image;}
+      if(l.reference.naturalWidth){const width=Math.min(w,h*1.5),height=width/1.5;
+        g.save();g.globalCompositeOperation="destination-over";g.globalAlpha=.30;g.drawImage(l.reference,(w-width)/2,(h-height)/2,width,height);g.restore();}
+    }
   }
   function scoutHouseCard(){
     const r=unit.film.pinned;if(!r)return null;
@@ -64616,6 +64820,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function scoutPanel(body,sheet){
     if(sheet){
       const other=BaySecondUnit.names[unit.other];
+      if(crewDeskNear()||houseLights.s.opened)body.append(makeButton("House Lights","Two exposures of the Cine Luna marquee from one camera mark.","Call sheet",()=>openPanel("house-lights")));
       appendAfternoonEntry(body);
       if(unit.met&&!afternoon.active)rideInvite(body);
       if(crewFree()&&(unit.met||crewDeskNear()||crewPhoneNear()))body.append(makeButton(unit.met?"Switch to "+other:"Take Frankie’s call",unit.met?"Pick up where they are in "+district(otherCar||otherBody)+".":"“The Rialto people want postcards. I want the town we actually live in. Come find me outside Cine Luna.”","Switch",beginCrewSwitch));
@@ -64633,6 +64838,44 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(crewDeskNear()&&unit.mount(r.number)){houseFrame=null;note("Cine Luna",r.title+" · House selection"+(unit.filmStored?"":" · this session"),3);openPanel("unit-roll",true);}
     }));
     else body.append(makeButton("Cine Luna location desk","Bring the print to the folding desk outside Cine Luna.","Set waypoint",()=>clockPin(unitPin)));
+  }
+  function houseLightsPanel(body){
+    houseLights.refresh();const s=houseLights.s,desk=crewDeskNear();
+    signedNote(body,"Same marquee, same angle. One before supper and one after the bulbs come on. Leave the passing cars in. I want to see who was here.","Frankie Prado");
+    if(!desk&&!s.opened)return;
+    if(s.release){
+      const proof=document.createElement("div");proof.className="luna-proof";
+      const range=document.createElement("input");range.type="range";range.min="0";range.max="100";range.value="50";range.setAttribute("aria-label","Dissolve from daylight to house lights");
+      for(const frame of [s.release.day,s.release.night]){const im=document.createElement("img");im.src=frame.image;im.alt=frame.title+" at "+BayHours.time(frame.minute);proof.append(im);}
+      const caption=document.createElement("p");caption.className="luna-times";caption.textContent=BayHours.time(s.release.day.minute)+"   /   "+BayHours.time(s.release.night.minute)+" · Cine Luna";
+      const dissolve=()=>{proof.children[1].style.opacity=String(Number(range.value)/100);};dissolve();range.oninput=dissolve;body.append(proof,range,caption);
+    }
+    if(!desk)body.append(makeButton("Cine Luna location desk","Outside the box office on Luna Boulevard.","Mark desk",()=>clockPin(unitPin)));
+    if(s.shooting){
+      if(s.day&&s.night){
+        if(desk)body.append(makeButton("Thread both exposures","The projectionist will run a dissolve between the two takes.",save.houseFee?"Replace print":"Collect $140",()=>{
+          if(!crewDeskNear()||!houseLights.deliver())return;
+          payHouseFee();openPanel("house-lights",true);note("Cine Luna","House Lights is on the bill.",4);
+        }));
+      }else{
+        const guide=document.createElement("p");guide.className="edition-copy";guide.textContent=[s.day?"Daylight filed":"Daylight · 7 AM to 6:30 PM",s.night?"Night filed":"House lights · 7:30 PM to 5:30 AM"].join("   /   ");body.append(guide);
+        if(houseLights.mark){const m=houseLights.mark;body.append(makeButton("Your chalk mark","Return to the first camera position. Match the view and lens.","Mark map",()=>clockPin({x:m.x,z:m.z,name:"House Lights · Camera mark"})));}
+        if(desk){
+          const next=s.day?1200:s.night?540:BayHouseLights.period(hours.minute)==="day"?1200:540;
+          body.append(makeButton(next===1200?"Wait for the late show":"Wait for the morning show","Stay at Frankie's desk until "+BayHours.time(next)+".","Wait here",()=>{if(!crewDeskNear()||!crewFree())return;hours.wake(next);saveTime();closePanel();note("Cine Luna",BayHours.time(next)+" · P raises the rangefinder.",3);}));
+        }
+      }
+    }else if(desk){
+      if(s.release&&!save.houseFee)body.append(makeButton("Collect the projection fee","Both negatives are in the booth.","Collect $140",()=>{if(crewDeskNear()){payHouseFee();openPanel("house-lights",true);}}));
+      body.append(makeButton(s.release?"Shoot a new pair":"Take the assignment","Use P near the cinema. F sights the marquee, arrows compose and Space trips the shutter.",s.release?"New sleeve":"$140",()=>{
+        if(!crewDeskNear()||!crewFree())return;houseLights.start();closePanel();note("Frankie Prado","Try the opposite sidewalk for the whole facade. P raises the rangefinder.",5);
+      }));
+    }
+  }
+  function payHouseFee(){
+    if(!houseLights.s.release||save.houseFee)return;
+    try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
+    if(save.houseFee)return;save.houseFee=true;save.wallet+=BayHouseLights.fee;save.paid++;persist();sound.cue("paid");lastHud=-10;
   }
   function canCarryUmbrella(){return !unit.eye&&!unit.transition&&freeFeet()&&!broadcastDesk.mix&&!roofs.raised&&!active&&!heat&&!transit.flag&&!cabs.booking&&!watchCrew.towing&&!exchangingKey()&&!save.airmail.bag;}
   function umbrellaKey(code){
@@ -66970,7 +67213,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,second:!!save.cab.reel,
+  const filmOptions=()=>({houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,second:!!save.cab.reel,
     deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   const cabWindow=()=>cabs.booking?.stage==="ride"&&cabs.booking.window&&!isTop();
   function cabRank(){
@@ -70468,7 +70711,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       swim:swim?.actor(hero),submerged:!!swim?.underwater,patrol:play?watchCrew:null,returned:save.shore.returned,found:save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned,
       field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
-      meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
+      meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,houseMark:houseLights.mark,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
       personal:carPin(),copies:save.copies,tireCloud:elapsed-puffAt<1.55?tireCloud:null,
       luggage:play?{book:save.luggage,rack:rackContents(),hand:onStreetFeet()&&!bell.pass?luggage.hand(save.luggage):null,
         lid:bell.lid,amount:bell.amount,items:bell.lid?trunkContents(bell.lid):null,pass:bell.pass?{id:bell.pass.id,at:passingCase()}:null}:null,
@@ -72455,6 +72698,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   function showCineProgram(body){
+    if(houseLights.s.release)body.append(makeButton("Cue House Lights","Your two exposures, dissolved on the house projector.","Thread print",()=>{
+      room.cuedReel="house-lights";closePanel();note("Cine Luna","Take an aisle seat for House Lights.",3.5);}));
     for(const reel of BayCineProgram.describe(filmOptions())){
       const row=document.createElement("p"),title=document.createElement("strong");
       row.className="cine-listing";title.textContent=reel.title;
@@ -72629,6 +72874,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       b.append(makeButton("Cine Luna","The case inside the lobby has the running order.","Mark cinema",()=>clockPin(BayCab.cinema)));
     }else if(next==="free-afternoon"||next==="foto-album"){
       title=next==="foto-album"?"Photo strips":"An afternoon off";kicker=next==="foto-album"?"Foto Bahía":"Second Unit";afternoonPanel(b,next==="foto-album");
+    }else if(next==="house-lights"){
+      title="House Lights";kicker="Cine Luna / Location desk";houseLightsPanel(b);
     }else if(next==="unit-sheet"||next==="unit-roll"){
       title=next==="unit-sheet"?"Second Unit":"Location prints";kicker="Cine Luna  /  Frankie Prado";scoutPanel(b,next==="unit-sheet");
     }else if(next==="umbrella"){
@@ -72934,6 +73181,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(save.copies.known)b.prepend(makeButton("Carbon Copies","Romy’s shop file · "+carbon.sides.filter(s=>save.copies[s]).length+" of 2 directions","Read copies",()=>readCopies(copySide)));
       if(save.starlite.tickets.length)b.prepend(makeButton("Starlite ticket stubs",save.starlite.tickets.at(-1).title,"Look",()=>{ticketIndex=save.starlite.tickets.length-1;openPanel("starlite-tickets");}));
       if(pavement.archive.length)b.prepend(makeButton("Folded copies","Bay Wire papers you picked up on the street.","Read",()=>{paperIndex=pavement.archive.length-1;openPanel("pocket-papers");}));
+      if(houseLights.s.opened)b.prepend(makeButton("House Lights","Frankie's two-exposure call sheet and the cinema print.","Open sleeve",()=>openPanel("house-lights")));
       if(unit.met)b.prepend(makeButton("Second Unit · "+BaySecondUnit.names[unit.other],"Call for a Window Seat shoot, find your partner or browse your prints.","Call sheet",()=>openPanel("unit-sheet")));
       if(curbWire.book.met||curbWire.book.clips.length)b.prepend(wireButton());
       if(save.edition)b.append(makeButton("Bay Wire",BayExposure.routes[save.edition].headline,"Read edition",()=>openPanel("edition")));

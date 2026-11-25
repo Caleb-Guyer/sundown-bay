@@ -4,6 +4,15 @@
   const dayLength=1440,start=17*60+48,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const wrap=v=>(v%dayLength+dayLength)%dayLength;
   function smooth(value){const n=clamp(value,0,1);return n*n*(3-2*n);}
+  function sunlight(minute){
+    const sinceDawn=wrap(minute-360),angle=sinceDawn<=810?sinceDawn*Math.PI/810:Math.PI+(sinceDawn-810)*Math.PI/630,arc=Math.sin(angle);
+    const x=Math.cos(angle)*760,y=arc*730-16,z=295+arc*103;
+    const length=Math.hypot(x,y,z);
+    // Cap the projection close to the horizon. Its strength fades as the sun sets.
+    const projectionY=Math.max(y,Math.hypot(x,z)*.28);
+    return {x:x/length,y:y/length,z:z/length,dx:-x/projectionY,dz:-z/projectionY,
+      strength:smooth((y/length+.035)/.22)};
+  }
   function shower(minute,center,length){
     const delta=wrap(minute-center+720)-720;
     return smooth((delta+length)/12)*smooth((length-delta)/12);
@@ -16,6 +25,7 @@
     refresh(){
       this.minute=wrap(this.total);this.day=Math.floor(this.total/dayLength);
       const m=this.minute;
+      this.sun=sunlight(m);
       this.night=1-smooth((m-300)/160)*smooth((1260-m)/195);
       const pattern=this.day%3;
       this.rain=Math.max(shower(m,1094+pattern*26,19),shower(m,469+pattern*71,24),shower(m,80+pattern*33,13));
@@ -33,5 +43,5 @@
     const m=Math.floor(wrap(minute)),h=Math.floor(m/60);
     return (h%12||12)+":"+String(m%60).padStart(2,"0")+(h>=12?" PM":" AM");
   }
-  window.BayHours={Clock,time};
+  window.BayHours={Clock,time,sunlight};
 })();

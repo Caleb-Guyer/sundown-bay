@@ -164,7 +164,6 @@
       if(s.streetProp)continue;
       if(street) {
         const roof=roofs[(i*7+Math.abs(Math.round(s.x)))%roofs.length];
-        rect(ctx,x+1.1,z-1.4,s.w,s.d,"#84877c");
         rect(ctx,x,z,s.w,s.d,"#817f74");
         rect(ctx,x+.35,z+.42,s.w-.7,s.d-.84,roof);
         if(s.w>10 && s.d>9) {
@@ -217,15 +216,15 @@
     paintLand(c,street);paintBuildings(c,solids,street);if(street)oceanFrontages(c);
   }
 
-  function staticImage(solids,street) {
+  function staticImage(solids,street,roofs=false) {
     let group=staticLayers.get(solids);
     if(!group || group.count!==solids.length) {
       group={count:solids.length};
       staticLayers.set(solids,group);
     }
-    const key=street?"street":"chart";
+    const key=roofs?"roofs":street?"street":"chart";
     if(group[key]) return group[key];
-    const density=street?3.5:1.8;
+    const density=roofs?2.25:street?3.5:1.8;
     const w=Math.ceil((extent.right-extent.left)*density), h=Math.ceil((extent.top-extent.bottom)*density);
     let surface;
     if(typeof OffscreenCanvas!=="undefined") surface=new OffscreenCanvas(w,h);
@@ -235,8 +234,27 @@
     if(!c) return null;
     c.setTransform(w/(extent.right-extent.left),0,0,-h/(extent.top-extent.bottom),
       -extent.left*w/(extent.right-extent.left),extent.top*h/(extent.top-extent.bottom));
-    paintStatic(c,solids,street);
+    if(roofs){paintBuildings(c,solids,true);oceanFrontages(c);}
+    else if(street)paintLand(c,true);
+    else paintStatic(c,solids,false);
     group[key]=surface;return surface;
+  }
+
+  function castBuildings(c,solids,light,px,py,s,visible,opacity){
+    if(!light||opacity<.012)return;
+    c.save();c.fillStyle="rgba(43,54,79,"+(.31*opacity)+")";c.beginPath();
+    for(const b of solids){
+      if(b.streetProp||b.w<2||b.d<2||b.top<1.6)continue;
+      const height=Math.min(b.top,58),dx=light.dx*height*s,dy=-light.dz*height*s;
+      const x=px(b.x),y=py(b.z),hw=b.w*s/2,hd=b.d*s/2;
+      if(!visible(x+dx/2,y+dy/2,hw+hd+Math.hypot(dx,dy)/2))continue;
+      const a=x+(dx<0?-hw:hw),k=y+(dy<0?-hd:hd),opposite=2*y-k;
+      // Two outward walls and the translated roof make a single ground silhouette.
+      const corners=[[2*x-a,k],[2*x-a+dx,k+dy],[a+dx,k+dy],[a+dx,opposite+dy],[a,opposite],[a,k]];
+      if(dx*dy<0)corners.reverse();
+      c.moveTo(...corners[0]);for(let i=1;i<6;i++)c.lineTo(...corners[i]);c.closePath();
+    }
+    c.fill();c.restore();
   }
 
   function carSprite(c,car,x,y,scale,t) {
@@ -649,7 +667,14 @@
     if(base) ctx.drawImage(base,px(extent.left),py(extent.top),(extent.right-extent.left)*s,(extent.top-extent.bottom)*s);
     else {
       ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);
-      paintStatic(ctx,solids,street);ctx.restore();
+      if(street)paintLand(ctx,true);else paintStatic(ctx,solids,false);ctx.restore();
+    }
+    if(street){
+      const light=opt.weather?.sun;
+      castBuildings(ctx,solids,light,px,py,s,visible,(light?.strength||0)*(1-.88*(opt.weather?.rain||0))*(1-(opt.dusk||0)));
+      const roofs=staticImage(solids,true,true);
+      if(roofs)ctx.drawImage(roofs,px(extent.left),py(extent.top),(extent.right-extent.left)*s,(extent.top-extent.bottom)*s);
+      else{ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);paintBuildings(ctx,solids,true);oceanFrontages(ctx);ctx.restore();}
     }
     if(street)for(const sig of opt.signals||empty)if(visible(px(sig.x),py(sig.z),12*s))BayCrosswalkArt.mapPaint(ctx,px,py,s,sig);
     if(visible(px(226),py(327),143*s)){
@@ -668,6 +693,7 @@
     }
     if(street&&opt.weather){
       BayCoastArt.mapSurface(ctx,opt,px,py,visible);
+      if(visible(px(12),py(44),55*s))BayHouseLights.overhead(ctx,px,py,s,opt.weather,streetTime,opt.houseMark);
       if(opt.recovery)BayRecoveryArt.groundMap(ctx,opt,px,py,s,visible);
       if(visible(px(-37.4),py(-132.2),13*s))BayMercadoArt.map(ctx,px,py,s,opt.weather,streetTime);
       const rear=BayMercadoArt.receiving;

@@ -1,4 +1,4 @@
-/* Static city geometry and its sun shadow are baked once. Moving actors share the same light. */
+/* The city shares one shadow map. Reuse its GPU storage as the sun crosses the bay. */
 (() => {
   "use strict";
   const rgbCache = new Map();
@@ -71,22 +71,21 @@
     return {x:(x0+x1)*.5,y:(y0+y1)*.5,z:(z0+z1)*.5,r:Math.hypot(x1-x0,y1-y0,z1-z0)*.5+.035};
   }
   const LIGHT = `
-    const vec3 sunDir=vec3(.510,.430,.746);
+    uniform vec3 sunDir,sunAcross,sunUp;
     vec3 lightClip(vec3 world){
       vec3 p=world-vec3(10.,6.,0.);
-      return vec3(dot(p,vec3(.826,0.,-.564))/294.,
-                  dot(p,vec3(-.243,.903,-.355))/193.,-dot(p,sunDir)/365.);
+      return vec3(dot(p,sunAcross)/310.,dot(p,sunUp)/300.,-dot(p,sunDir)/365.);
     }`;
   const VERTEX = LIGHT+`
     attribute vec3 pos; attribute vec3 col;
     uniform vec3 origin,eye,rightV,upV,forwardV; uniform vec2 turn,focal; uniform vec2 depth;
-    uniform vec4 tilt,waterParams; uniform float castOnly;
+    uniform vec4 tilt,waterParams; uniform float castOnly; uniform vec2 castSlope;
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     void main(){
       vec3 q=vec3(pos.x,pos.y*tilt.x-pos.z*tilt.y,pos.y*tilt.y+pos.z*tilt.x);
       q=vec3(q.x*tilt.z-q.y*tilt.w,q.x*tilt.w+q.y*tilt.z,q.z);
       vec3 world=origin+vec3(q.x*turn.x+q.z*turn.y,q.y,-q.x*turn.y+q.z*turn.x);
-      if(castOnly>.5){world.xz-=sunDir.xz*((world.y-.15)/sunDir.y);world.y=.153;}
+      if(castOnly>.5){world.xz+=castSlope*(world.y-.15);world.y=.153;}
       vec3 rel=world-eye; float z=dot(rel,forwardV);
       gl_Position=vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);
       lightCoord=lightClip(world)*.5+.5;
@@ -104,13 +103,14 @@
   const FRAGMENT = PRECISION+`
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     uniform vec4 waterParams,airState,driverLamp; uniform vec3 eye,skyTone; uniform vec2 immersion;
+    uniform vec3 seaSun;
     uniform sampler2D sunDepth,paper,lobbyPrint,streetLight; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow,showPrint;
     float shadeAt(vec2 uv){
       vec2 rg=texture2D(sunDepth,uv).rg;
       return step(dot(rg,vec2(1.,1./255.))+.00047,lightCoord.z);
     }
     void main(){
-      if(castOnly>.5){gl_FragColor=vec4(.12,.15,.24,.28*(1.-.65*dusk)*(1.-.66*airState.x)*(1.-haze));return;}
+      if(castOnly>.5){gl_FragColor=vec4(.12,.15,.24,.28*seaSun.z*(1.-haze));return;}
       if(showPrint>.5){
         vec3 dye=texture2D(lobbyPrint,vColor.rg).rgb*(1.-.14*dusk);
         gl_FragColor=vec4(mix(dye,vec3(.65,.54,.53),haze*.6),1.);return;
@@ -144,8 +144,8 @@
         float ripple=sin(dot(surface,vec2(.56,-.79))+2.05*t+1.7*swell);
         float grain=texture2D(paper,surface*vec2(.008,.022)+vec2(t*.0017,-t*.0021)).r;
         float crest=smoothstep(.59,.93,.54*swell+.34*ripple+.30*grain);
-        float bearing=dot(offset/max(d,.01),vec2(.564,.826));
-        float sunset=smoothstep(.59,.99,bearing)*smoothstep(12.,95.,d);
+        float bearing=dot(offset/max(d,.01),seaSun.xy);
+        float sunset=smoothstep(.59,.99,bearing)*smoothstep(12.,95.,d)*seaSun.z;
         vec3 sea=vColor*(.94+.085*swell*local+.045*ripple*local);
         sea=mix(sea,vec3(.58,.80,.75),(.11+.32*local)*crest);
         sea=mix(sea,vec3(1.,.77,.57),sunset*(.065+.40*crest)*(1.-haze*.65));
@@ -163,12 +163,12 @@
         gl_FragColor=vec4(mix(sea,seaMist,haze*.83),1.);return;
       }
       float shade=0.;
-      if(hasShadow>.5&&all(greaterThan(lightCoord.xy,vec2(.001)))&&all(lessThan(lightCoord.xy,vec2(.999)))){
+      if(hasShadow>.005&&all(greaterThan(lightCoord.xy,vec2(.001)))&&all(lessThan(lightCoord.xy,vec2(.999)))){
         vec2 cell=lightCoord.xy/texel-.5;
         vec2 uv=(floor(cell)+.5)*texel,weight=fract(cell);
         float a=mix(shadeAt(uv),shadeAt(uv+vec2(texel,0.)),weight.x);
         float b=mix(shadeAt(uv+vec2(0.,texel)),shadeAt(uv+vec2(texel)),weight.x);
-        shade=mix(a,b,weight.y);
+        shade=mix(a,b,weight.y)*hasShadow;
       }
       float fleck=texture2D(paper,surface*.115).r-.5;
       float wash=texture2D(paper,surface*.011).r-.5;
@@ -245,6 +245,10 @@
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
       this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint","streetLight","airState","skyTone","driverLamp","immersion"])this.u[key]=gl.getUniformLocation(p,key);
       this.glow=0;
+      this.sunKey=null;this.sunTarget=null;this.sunStrength=0;
+      for(const key of ["castSlope","seaSun","sunDir","sunAcross","sunUp"])this.u[key]=gl.getUniformLocation(p,key);
+      this.sunUniforms={};
+      for(const key of ["sunDir","sunAcross","sunUp"])this.sunUniforms[key]=gl.getUniformLocation(this.sunProgram,key);
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0); const n=.13,f=1100;gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -293,7 +297,7 @@
           const end=Math.min(count,first+768);
           model.sections.push({first,end,bounds:meshBounds(data,first,end)});
         }
-        this.bakeSun(buf,count);
+        this.sunKey=null;
       }
       this.models.set(name,model);
     }
@@ -302,27 +306,53 @@
       const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);
       gl.bufferSubData(gl.ARRAY_BUFFER,0,this.cpu.get(name));this.bound=null;
     }
-    bakeSun(buf,count){
-      const gl=this.gl,sz=Math.min(1536,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
+    prepareSun(){
+      const gl=this.gl,sz=Math.min(1024,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.shadowTexture);
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,sz,sz,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
       const fbo=gl.createFramebuffer(),rb=gl.createRenderbuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.bindRenderbuffer(gl.RENDERBUFFER,rb);
       gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,sz,sz);
       gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,this.shadowTexture,0);gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,rb);
       const ok=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE;
-      if(ok){
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindRenderbuffer(gl.RENDERBUFFER,null);
+      gl.uniform1f(this.u.texel,1/sz);
+      return {fbo,rb,sz,ok};
+    }
+    updateSun(weather,dusk){
+      const gl=this.gl,city=this.models.get("city");
+      const ray=weather?.sun||BayHours.sunlight(weather?.minute??990);
+      this.sunStrength=ray.strength*(1-.88*(weather?.rain||0))*(1-dusk);
+      this.castX=ray.dx;this.castZ=ray.dz;
+      const flat=Math.hypot(ray.x,ray.z);
+      gl.uniform3f(this.u.seaSun,ray.x/flat,ray.z/flat,this.sunStrength);
+      gl.uniform2f(this.u.castSlope,this.castX,this.castZ);
+      if(!city||this.sunStrength<.006){gl.uniform1f(this.u.hasShadow,0);return;}
+      const key=Math.round((weather?.minute??990)/10);
+      const target=this.sunTarget??=this.prepareSun();
+      if(target.ok&&this.sunKey!==key){
+        const {sz,fbo}=target;
+        const sun=BayHours.sunlight(key*10),len=Math.hypot(sun.dx,1,sun.dz);
+        const x=-sun.dx/len,y=1/len,z=-sun.dz/len,h=Math.hypot(x,z);
+        const basis=u=>{
+          gl.uniform3f(u.sunDir,x,y,z);gl.uniform3f(u.sunAcross,z/h,0,-x/h);gl.uniform3f(u.sunUp,-x*y/h,h,-z*y/h);
+        };
+        gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.disable(gl.SCISSOR_TEST);
         gl.useProgram(this.sunProgram);gl.viewport(0,0,sz,sz);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+        basis(this.sunUniforms);
         gl.disableVertexAttribArray(this.pos);gl.disableVertexAttribArray(this.col);
-        const p=gl.getAttribLocation(this.sunProgram,"pos");gl.enableVertexAttribArray(p);gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.vertexAttribPointer(p,3,gl.FLOAT,false,24,0);
-        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);gl.drawArrays(gl.TRIANGLES,0,count);gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
+        const p=gl.getAttribLocation(this.sunProgram,"pos");gl.enableVertexAttribArray(p);gl.bindBuffer(gl.ARRAY_BUFFER,city.buf);gl.vertexAttribPointer(p,3,gl.FLOAT,false,24,0);
+        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);gl.drawArrays(gl.TRIANGLES,0,city.count);gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
+        gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.useProgram(this.program);basis(this.u);
+        gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
+        this.sunKey=key;this.bound=null;
       }
-      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindRenderbuffer(gl.RENDERBUFFER,null);gl.deleteFramebuffer(fbo);gl.deleteRenderbuffer(rb);
-      gl.useProgram(this.program);gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
-      gl.uniform1f(this.u.hasShadow,ok?1:0);gl.uniform1f(this.u.texel,1/sz);gl.clearColor(0,0,0,0);this.bound=null;
+      gl.uniform1f(this.u.hasShadow,target.ok?this.sunStrength:0);
     }
     begin(camera,dusk=0,weather=null,headlights=null,seaTime=null,inset=null){
       if(!this.gl||this.lost)return;
       const gl=this.gl,c=this.canvas, factor=Math.min(this.maxWidth/innerWidth,this.maxHeight/innerHeight,devicePixelRatio||1)*this.scale;
+      if(weather)this.updateSun(weather,dusk);
+      else gl.uniform1f(this.u.hasShadow,0);
       const w=inset?inset.w:Math.max(2,Math.round(innerWidth*factor)),h=inset?inset.h:Math.max(2,Math.round(innerHeight*factor));
       if(inset){gl.enable(gl.SCISSOR_TEST);gl.scissor(0,0,w,h);}
       else{
@@ -359,7 +389,7 @@
       if(tiltZ){const c=Math.cos(tiltZ),s=Math.sin(tiltZ),old=u;u=u*c-h*s;h=old*s+h*c;}
       if(yaw){const c=Math.cos(yaw),s=Math.sin(yaw),old=u;u=u*c+n*s;n=n*c-old*s;}
       x+=u;y+=h;z+=n;
-      if(this.casting){x-=.510/.430*(y-.15);z-=.746/.430*(y-.15);y=.153;r*=2.35;}
+      if(this.casting){x+=this.castX*(y-.15);z+=this.castZ*(y-.15);y=.153;r*=Math.hypot(1,this.castX,this.castZ);}
       x-=v.camera.x;y-=v.camera.y;z-=v.camera.z;
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
       return depth+r>=.13&&depth-r<=1100&&Math.abs(x*v.cs-z*v.sn)<=depth*v.horizontal+r*v.xMargin&&
@@ -372,7 +402,7 @@
       return {x:(.5+(dx*cs-dz*sn)*f/(aspect*depth)*.5)*innerWidth,y:(.5-(dy*cp-along*sp)*f/depth*.5)*innerHeight,depth};
     }
     beginShadow(){
-      if(!this.stencil)return false;this.casting=true;const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ZERO,gl.ONE);
+      if(!this.stencil||this.sunStrength<.025)return false;this.casting=true;const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ZERO,gl.ONE);
       gl.enable(gl.STENCIL_TEST);gl.stencilFunc(gl.EQUAL,0,255);gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);gl.uniform1f(this.u.castOnly,1);return true;
     }
     endShadow(){this.casting=false;const gl=this.gl;gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.uniform1f(this.u.castOnly,0);}

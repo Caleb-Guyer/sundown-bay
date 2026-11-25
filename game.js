@@ -143,6 +143,7 @@
     result.oceanBeat=BayOceanBeat.read(null);
     result.pictureJumps=jumps.read(null);result.copies=carbon.read(null);
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
+      result.houseFee=raw.houseFee===true;
       result.clubCup=BayCoastCup.read(raw.clubCup);
       result.oceanBeat=BayOceanBeat.read(raw.oceanBeat);
       result.pictureJumps=jumps.read(raw.pictureJumps);result.copies=carbon.read(raw.copies);
@@ -183,7 +184,7 @@
       result.juneReturned=raw.juneReturned===true&&result.tapes.includes(0);return result;
     }catch{return result;}
   }
-  const save=readSave();
+  const save=readSave(),houseLights=new BayHouseLights.Book();
   let jumpPage=jumps.sites[0];
   locations.push(luggage.counter,threads.counter,starliteBooth,BayEngineSeven.desk);
   const rainWalk=new BayRainWalk.Walk(),negatives=new BayWindowSeat.Negatives();
@@ -317,6 +318,10 @@
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    if(latest?.houseFee&&!save.houseFee){
+      save.houseFee=true;if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
+      if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
+    }
     if(latest?.clubCup?.known){
       const book=save.clubCup,other=BayCoastCup.read(latest.clubCup);
       book.known=true;
@@ -394,6 +399,7 @@
     try{const {stunt,...progress}=save;localStorage.setItem("sundownBay.v1",JSON.stringify(progress));}catch{/* Session progress is still available. */}
   }
   addEventListener("storage",ev=>{
+    if(ev.key===BayHouseLights.key)houseLights.refresh();
     gutters.refresh(ev.key);
     if(ev.key===BayPavement.archiveKey)pavement.readArchive();
     if(ev.key===BayWindowSeat.key){negatives.refresh();lastHud=-10;}
@@ -1012,6 +1018,11 @@
     if(unit.transition)return code!=="Escape"&&code!=="KeyR";
     if(unit.eye){
       if(code==="KeyP"||code==="Escape"||code==="KeyJ"){unit.eye=null;cameraSnap();resetPointer();if(code==="KeyJ")openPanel("unit-roll");}
+      else if(code==="KeyG"&&houseLights.mark)unit.eye.trace=!unit.eye.trace;
+      else if(code==="KeyF"&&houseLights.s.shooting&&dist(hero,scoutDesk)<55){
+        const l=unit.eye,s=BayNightMeet.marquee;
+        l.yaw=Math.atan2(s.x-hero.x,s.z-hero.z);l.pitch=Math.atan2(s.y-hero.y-1.61,dist(hero,s));hero.yaw=l.yaw;l.last="";l.check=null;
+      }
       else if(code==="Space")unit.eye.fire=true;
       else if(code==="KeyZ"||code==="KeyV")unit.eye.zoom=unit.eye.zoom>=3?1:Math.min(3,Math.round(unit.eye.zoom)+1);
       return code!=="KeyR";
@@ -1021,7 +1032,7 @@
       if(unit.met)beginCrewSwitch();else openPanel("unit-sheet");return true;
     }
     if(code==="KeyF"&&crewDeskNear()&&crewFree()){openPanel("unit-sheet");return true;}
-    if(code==="KeyP"&&unit.lead==="frankie"&&onStreetFeet()&&crewFree()){
+    if(code==="KeyP"&&(unit.lead==="frankie"||houseLights.s.shooting&&dist(hero,scoutDesk)<55)&&onStreetFeet()&&crewFree()){
       const sign=BayNightMeet.marquee,angleToSign=Math.atan2(sign.x-hero.x,sign.z-hero.z);
       unit.eye={yaw:dist(hero,scoutDesk)<4?angleToSign:cam.yaw,pitch:dist(hero,scoutDesk)<4?.17:0,zoom:1,fire:false,flash:0};
       rainWalk.open=false;motion.vx=motion.vz=0;resetPointer();lastHud=-10;return true;
@@ -1032,7 +1043,7 @@
     if(windowRide)return windowHint();
     if(afternoonHint())return true;
     if(unit.transition){contextHint("Y",unit.transition.braking?"Pulling over":"Second Unit · "+BaySecondUnit.names[unit.transition.swapped?unit.lead:unit.other]);return true;}
-    if(unit.eye){contextHint("Space","Shutter · Arrows aim · Z zoom · P lower");return true;}
+    if(unit.eye){contextHint("Space",houseLights.s.shooting&&dist(hero,scoutDesk)<55?"Shutter · F sight marquee · G trace first frame · P lower":"Shutter · Arrows aim · Z zoom · P lower");return true;}
     if(!crewFree())return false;
     if(crewDeskNear()){contextHint("F","Frankie’s location desk · "+(unit.met?"Select a print":"Meet the scout"));return true;}
     if(!unit.met&&crewPhoneNear()){contextHint("Y","Pick up Frankie’s call · F Bay Cab");return true;}
@@ -1040,6 +1051,7 @@
   }
   const crewBodies=new Map();
   function drawCrew(list,see,t){
+    if(see(BayHouseLights.front,100))BayHouseLights.world(list,model,hours,t,houseLights.mark);
     if(see(scoutDesk,90))BayScoutArt.worldDesk(list,model,scoutDesk,t);
     for(const s of BayOffClock.sites)if(see(s,78))BayFotoBoothArt.world(list,model,s,afternoon.photo?.site===s,afternoon.photo?.flash||0);
     if(!see(otherBody,68)||afternoon.photo&&!afternoon.photo.solo)return;
@@ -1089,18 +1101,30 @@
   }
   function scoutDevelop(source,sky,project){
     const l=unit.eye,gate=BayMeetPhoto.crop(source.width,source.height,.5,.5,1.5,true);
+    const onCall=!l.window&&houseLights.s.shooting&&dist(hero,scoutDesk)<55;
     if(l.fire||l.check==null||elapsed-l.check>.13){
-      l.check=elapsed;l.subject=BaySecondUnit.grade(scoutSubjects(),project,gate,l.window?windowEye():{x:hero.x,y:hero.y+1.61,z:hero.z},isTop()?()=>true:scoutSight);
+      l.check=elapsed;
+      const subjects=scoutSubjects(),eye=l.window?windowEye():{x:hero.x,y:hero.y+1.61,z:hero.z},clear=isTop()?()=>true:scoutSight;
+      const candidate=onCall&&BaySecondUnit.grade(subjects.filter(p=>p.id==="marquee"),project,gate,eye,clear);
+      l.subject=candidate||BaySecondUnit.grade(subjects,project,gate,eye,clear);
     }
+    const cameraMark=onCall?{x:hero.x,z:hero.z,yaw:l.yaw,pitch:l.pitch,zoom:l.zoom,overhead:isTop()}:null;
     if(l.fire){l.fire=false;
       const districtName=district(hero),photo=BayMeetPhoto.capture(source,sky,.5,.5,1.5,true);
       const r=unit.expose(photo,{title:l.subject?.title||districtName+" street study",score:l.subject?.score||0,by:BaySecondUnit.names[unit.lead],district:districtName,minute:Math.floor(hours.minute),day:hours.day+1});
       if(r&&l.window&&l.subject&&windowRide.phase==="ride"&&!windowRide.early&&Math.abs(windowRide.vehicle.speed)>1.5&&r.score>(windowRide.best?.score||0))windowRide.best=r;
       if(r){scoutSheet=r.number;l.flash=1;l.last="Filed #"+r.number+" · "+r.title+(unit.filmStored?"":" · this session");}else l.last="Frame missed · try the shutter again";
+      if(r&&onCall){l.last=houseLights.file(r,cameraMark,l.subject?.id)||l.last;if(!houseLights.stored)l.last+=" · this session";}
     }
     const canvas=$("scoutFinder"),w=Math.min(1100,innerWidth),h=Math.max(1,Math.round(w*innerHeight/innerWidth));
     if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
-    BayScoutPrints.frame(canvas.getContext("2d"),w,h,{title:l.last||(l.window?windowRide.brief.title:"Prado · Second Unit"),subject:l.subject?.title||"Street study",zoom:l.zoom,framed:!!l.subject,flash:l.flash,aspect:1.5,windowPan:l.window&&!isTop()?l.pan:null,time:streetTime});
+    const g=canvas.getContext("2d");
+    BayScoutPrints.frame(g,w,h,{title:onCall?(l.flash>.01&&l.last||houseLights.guide(cameraMark,hours.minute)):l.last||(l.window?windowRide.brief.title:"Prado · Second Unit"),subject:l.subject?.title||"Street study",zoom:l.zoom,framed:!!l.subject,flash:l.flash,aspect:1.5,windowPan:l.window&&!isTop()?l.pan:null,time:streetTime});
+    if(onCall&&l.trace&&houseLights.mark){
+      if(!l.reference){l.reference=new Image();l.reference.src=houseLights.mark.image;}
+      if(l.reference.naturalWidth){const width=Math.min(w,h*1.5),height=width/1.5;
+        g.save();g.globalCompositeOperation="destination-over";g.globalAlpha=.30;g.drawImage(l.reference,(w-width)/2,(h-height)/2,width,height);g.restore();}
+    }
   }
   function scoutHouseCard(){
     const r=unit.film.pinned;if(!r)return null;
@@ -1337,6 +1361,7 @@
   function scoutPanel(body,sheet){
     if(sheet){
       const other=BaySecondUnit.names[unit.other];
+      if(crewDeskNear()||houseLights.s.opened)body.append(makeButton("House Lights","Two exposures of the Cine Luna marquee from one camera mark.","Call sheet",()=>openPanel("house-lights")));
       appendAfternoonEntry(body);
       if(unit.met&&!afternoon.active)rideInvite(body);
       if(crewFree()&&(unit.met||crewDeskNear()||crewPhoneNear()))body.append(makeButton(unit.met?"Switch to "+other:"Take Frankie’s call",unit.met?"Pick up where they are in "+district(otherCar||otherBody)+".":"“The Rialto people want postcards. I want the town we actually live in. Come find me outside Cine Luna.”","Switch",beginCrewSwitch));
@@ -1354,6 +1379,44 @@
       if(crewDeskNear()&&unit.mount(r.number)){houseFrame=null;note("Cine Luna",r.title+" · House selection"+(unit.filmStored?"":" · this session"),3);openPanel("unit-roll",true);}
     }));
     else body.append(makeButton("Cine Luna location desk","Bring the print to the folding desk outside Cine Luna.","Set waypoint",()=>clockPin(unitPin)));
+  }
+  function houseLightsPanel(body){
+    houseLights.refresh();const s=houseLights.s,desk=crewDeskNear();
+    signedNote(body,"Same marquee, same angle. One before supper and one after the bulbs come on. Leave the passing cars in. I want to see who was here.","Frankie Prado");
+    if(!desk&&!s.opened)return;
+    if(s.release){
+      const proof=document.createElement("div");proof.className="luna-proof";
+      const range=document.createElement("input");range.type="range";range.min="0";range.max="100";range.value="50";range.setAttribute("aria-label","Dissolve from daylight to house lights");
+      for(const frame of [s.release.day,s.release.night]){const im=document.createElement("img");im.src=frame.image;im.alt=frame.title+" at "+BayHours.time(frame.minute);proof.append(im);}
+      const caption=document.createElement("p");caption.className="luna-times";caption.textContent=BayHours.time(s.release.day.minute)+"   /   "+BayHours.time(s.release.night.minute)+" · Cine Luna";
+      const dissolve=()=>{proof.children[1].style.opacity=String(Number(range.value)/100);};dissolve();range.oninput=dissolve;body.append(proof,range,caption);
+    }
+    if(!desk)body.append(makeButton("Cine Luna location desk","Outside the box office on Luna Boulevard.","Mark desk",()=>clockPin(unitPin)));
+    if(s.shooting){
+      if(s.day&&s.night){
+        if(desk)body.append(makeButton("Thread both exposures","The projectionist will run a dissolve between the two takes.",save.houseFee?"Replace print":"Collect $140",()=>{
+          if(!crewDeskNear()||!houseLights.deliver())return;
+          payHouseFee();openPanel("house-lights",true);note("Cine Luna","House Lights is on the bill.",4);
+        }));
+      }else{
+        const guide=document.createElement("p");guide.className="edition-copy";guide.textContent=[s.day?"Daylight filed":"Daylight · 7 AM to 6:30 PM",s.night?"Night filed":"House lights · 7:30 PM to 5:30 AM"].join("   /   ");body.append(guide);
+        if(houseLights.mark){const m=houseLights.mark;body.append(makeButton("Your chalk mark","Return to the first camera position. Match the view and lens.","Mark map",()=>clockPin({x:m.x,z:m.z,name:"House Lights · Camera mark"})));}
+        if(desk){
+          const next=s.day?1200:s.night?540:BayHouseLights.period(hours.minute)==="day"?1200:540;
+          body.append(makeButton(next===1200?"Wait for the late show":"Wait for the morning show","Stay at Frankie's desk until "+BayHours.time(next)+".","Wait here",()=>{if(!crewDeskNear()||!crewFree())return;hours.wake(next);saveTime();closePanel();note("Cine Luna",BayHours.time(next)+" · P raises the rangefinder.",3);}));
+        }
+      }
+    }else if(desk){
+      if(s.release&&!save.houseFee)body.append(makeButton("Collect the projection fee","Both negatives are in the booth.","Collect $140",()=>{if(crewDeskNear()){payHouseFee();openPanel("house-lights",true);}}));
+      body.append(makeButton(s.release?"Shoot a new pair":"Take the assignment","Use P near the cinema. F sights the marquee, arrows compose and Space trips the shutter.",s.release?"New sleeve":"$140",()=>{
+        if(!crewDeskNear()||!crewFree())return;houseLights.start();closePanel();note("Frankie Prado","Try the opposite sidewalk for the whole facade. P raises the rangefinder.",5);
+      }));
+    }
+  }
+  function payHouseFee(){
+    if(!houseLights.s.release||save.houseFee)return;
+    try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
+    if(save.houseFee)return;save.houseFee=true;save.wallet+=BayHouseLights.fee;save.paid++;persist();sound.cue("paid");lastHud=-10;
   }
   function canCarryUmbrella(){return !unit.eye&&!unit.transition&&freeFeet()&&!broadcastDesk.mix&&!roofs.raised&&!active&&!heat&&!transit.flag&&!cabs.booking&&!watchCrew.towing&&!exchangingKey()&&!save.airmail.bag;}
   function umbrellaKey(code){
@@ -3691,7 +3754,7 @@
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,second:!!save.cab.reel,
+  const filmOptions=()=>({houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,second:!!save.cab.reel,
     deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   const cabWindow=()=>cabs.booking?.stage==="ride"&&cabs.booking.window&&!isTop();
   function cabRank(){
@@ -7189,7 +7252,7 @@
       swim:swim?.actor(hero),submerged:!!swim?.underwater,patrol:play?watchCrew:null,returned:save.shore.returned,found:save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned,
       field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
-      meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
+      meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,houseMark:houseLights.mark,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
       personal:carPin(),copies:save.copies,tireCloud:elapsed-puffAt<1.55?tireCloud:null,
       luggage:play?{book:save.luggage,rack:rackContents(),hand:onStreetFeet()&&!bell.pass?luggage.hand(save.luggage):null,
         lid:bell.lid,amount:bell.amount,items:bell.lid?trunkContents(bell.lid):null,pass:bell.pass?{id:bell.pass.id,at:passingCase()}:null}:null,
@@ -9176,6 +9239,8 @@
     }
   }
   function showCineProgram(body){
+    if(houseLights.s.release)body.append(makeButton("Cue House Lights","Your two exposures, dissolved on the house projector.","Thread print",()=>{
+      room.cuedReel="house-lights";closePanel();note("Cine Luna","Take an aisle seat for House Lights.",3.5);}));
     for(const reel of BayCineProgram.describe(filmOptions())){
       const row=document.createElement("p"),title=document.createElement("strong");
       row.className="cine-listing";title.textContent=reel.title;
@@ -9350,6 +9415,8 @@
       b.append(makeButton("Cine Luna","The case inside the lobby has the running order.","Mark cinema",()=>clockPin(BayCab.cinema)));
     }else if(next==="free-afternoon"||next==="foto-album"){
       title=next==="foto-album"?"Photo strips":"An afternoon off";kicker=next==="foto-album"?"Foto Bahía":"Second Unit";afternoonPanel(b,next==="foto-album");
+    }else if(next==="house-lights"){
+      title="House Lights";kicker="Cine Luna / Location desk";houseLightsPanel(b);
     }else if(next==="unit-sheet"||next==="unit-roll"){
       title=next==="unit-sheet"?"Second Unit":"Location prints";kicker="Cine Luna  /  Frankie Prado";scoutPanel(b,next==="unit-sheet");
     }else if(next==="umbrella"){
@@ -9655,6 +9722,7 @@
       if(save.copies.known)b.prepend(makeButton("Carbon Copies","Romy’s shop file · "+carbon.sides.filter(s=>save.copies[s]).length+" of 2 directions","Read copies",()=>readCopies(copySide)));
       if(save.starlite.tickets.length)b.prepend(makeButton("Starlite ticket stubs",save.starlite.tickets.at(-1).title,"Look",()=>{ticketIndex=save.starlite.tickets.length-1;openPanel("starlite-tickets");}));
       if(pavement.archive.length)b.prepend(makeButton("Folded copies","Bay Wire papers you picked up on the street.","Read",()=>{paperIndex=pavement.archive.length-1;openPanel("pocket-papers");}));
+      if(houseLights.s.opened)b.prepend(makeButton("House Lights","Frankie's two-exposure call sheet and the cinema print.","Open sleeve",()=>openPanel("house-lights")));
       if(unit.met)b.prepend(makeButton("Second Unit · "+BaySecondUnit.names[unit.other],"Call for a Window Seat shoot, find your partner or browse your prints.","Call sheet",()=>openPanel("unit-sheet")));
       if(curbWire.book.met||curbWire.book.clips.length)b.prepend(wireButton());
       if(save.edition)b.append(makeButton("Bay Wire",BayExposure.routes[save.edition].headline,"Read edition",()=>openPanel("edition")));

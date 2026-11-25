@@ -126,10 +126,9 @@
         }
         g.globalAlpha=1;
       }
-      const sweep=(minute-360)/1440*Math.PI*2,elevation=Math.sin(sweep);
-      const sun=timed?view.project(cam.x+Math.cos(sweep)*760,cam.y+elevation*730-16,
-        cam.z+295+elevation*103):view.project(cam.x+510,cam.y+430-502*dusk,cam.z+746);
-      if(sun&&sceneNight<.94&&(!timed||elevation>-.06)){
+      const ray=timed?(weather.sun||BayHours.sunlight(minute)):null;
+      const sun=ray?view.project(cam.x+ray.x*850,cam.y+ray.y*850,cam.z+ray.z*850):view.project(cam.x+510,cam.y+430-502*dusk,cam.z+746);
+      if(sun&&sceneNight<.94&&(!ray||ray.y>-.06)){
         const x=sun.x*sx,y=sun.y*sy,r=h*.041;
         g.globalAlpha=Math.min(1,(.94-sceneNight)/.24)*(1-rain*.94)*(1-forced);
         const glow=g.createRadialGradient(x,y,r*.4,x,y,r*5.2);glow.addColorStop(0,"rgba(255,230,170,.72)");
