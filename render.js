@@ -70,6 +70,17 @@
     }
     return {x:(x0+x1)*.5,y:(y0+y1)*.5,z:(z0+z1)*.5,r:Math.hypot(x1-x0,y1-y0,z1-z0)*.5+.035};
   }
+  // Keep long edges (kerbs, cables and road paint). Their narrow triangles
+  // still carry a visible silhouette after individual sign letters disappear.
+  function distantTriangles(data,start,end,indices){
+    for(let i=start;i<end;i+=3){
+      const p=i*6,ax=data[p+6]-data[p],ay=data[p+7]-data[p+1],az=data[p+8]-data[p+2];
+      const bx=data[p+12]-data[p],by=data[p+13]-data[p+1],bz=data[p+14]-data[p+2];
+      const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
+      if(nx*nx+ny*ny+nz*nz>.09||ax*ax+ay*ay+az*az>4||bx*bx+by*by+bz*bz>4||
+        (bx-ax)**2+(by-ay)**2+(bz-az)**2>4)indices.push(i,i+1,i+2);
+    }
+  }
   const LIGHT = `
     uniform vec3 sunDir,sunAcross,sunUp;
     vec3 lightClip(vec3 world){
@@ -105,7 +116,7 @@
     uniform vec4 waterParams,airState,driverLamp; uniform vec3 eye,skyTone; uniform vec2 immersion;
     uniform vec3 seaSun;
     uniform sampler2D vehicleLight; uniform vec3 lightArea;
-    uniform sampler2D sunDepth,paper,lobbyPrint,streetLight; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow,showPrint;
+    uniform sampler2D sunDepth,paper,lobbyPrint,streetLight; uniform float texel,hasShadow,castOnly,ghost,beam,dusk,glow,showPrint,lowDetail;
     float shadeAt(vec2 uv){
       vec2 rg=texture2D(sunDepth,uv).rg;
       return step(dot(rg,vec2(1.,1./255.))+.00047,lightCoord.z);
@@ -143,7 +154,7 @@
         float local=1.-smoothstep(30.,145.,d);
         float swell=sin(dot(surface,vec2(.16,.22))+1.35*t+.85*sin(surface.y*.075-t*.43));
         float ripple=sin(dot(surface,vec2(.56,-.79))+2.05*t+1.7*swell);
-        float grain=texture2D(paper,surface*vec2(.008,.022)+vec2(t*.0017,-t*.0021)).r;
+        float grain=lowDetail>.5?.5:texture2D(paper,surface*vec2(.008,.022)+vec2(t*.0017,-t*.0021)).r;
         float crest=smoothstep(.59,.93,.54*swell+.34*ripple+.30*grain);
         float bearing=dot(offset/max(d,.01),seaSun.xy);
         float sunset=smoothstep(.59,.99,bearing)*smoothstep(12.,95.,d)*seaSun.z;
@@ -165,14 +176,16 @@
       }
       float shade=0.;
       if(hasShadow>.005&&all(greaterThan(lightCoord.xy,vec2(.001)))&&all(lessThan(lightCoord.xy,vec2(.999)))){
+        if(lowDetail>.5)shade=shadeAt(lightCoord.xy)*hasShadow;
+        else{
         vec2 cell=lightCoord.xy/texel-.5;
         vec2 uv=(floor(cell)+.5)*texel,weight=fract(cell);
         float a=mix(shadeAt(uv),shadeAt(uv+vec2(texel,0.)),weight.x);
         float b=mix(shadeAt(uv+vec2(0.,texel)),shadeAt(uv+vec2(texel)),weight.x);
-        shade=mix(a,b,weight.y)*hasShadow;
+        shade=mix(a,b,weight.y)*hasShadow;}
       }
-      float fleck=texture2D(paper,surface*.115).r-.5;
-      float wash=texture2D(paper,surface*.011).r-.5;
+      float fleck=lowDetail>.5?0.:texture2D(paper,surface*.115).r-.5;
+      float wash=lowDetail>.5?0.:texture2D(paper,surface*.011).r-.5;
       vec3 ink=mix(vec3(dot(vColor,vec3(.25,.58,.17))),vColor,1.08);
       vec3 light=mix(vec3(1.055,1.018,.957),vec3(.63,.72,.88),shade);
       vec3 color=ink*light*(1.+fleck*.056+wash*.030);
@@ -239,7 +252,7 @@
       this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();
       this.scale=1; this.maxWidth=1180; this.maxHeight=760; this.lost=false;
       try {
-        this.gl=canvas.getContext("webgl",{alpha:true,depth:true,stencil:true,antialias:true,powerPreference:"low-power",preserveDrawingBuffer:false});
+        this.gl=canvas.getContext("webgl",{alpha:true,depth:true,stencil:true,antialias:false,powerPreference:"low-power",preserveDrawingBuffer:false});
         if(this.gl) this.setup();
       } catch { this.gl=null; }
       canvas.addEventListener("webglcontextlost",e=>{e.preventDefault();this.lost=true;});
@@ -252,8 +265,9 @@
         gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;};
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
+      this.largeIndices=!!gl.getExtension("OES_element_index_uint");
       this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint","streetLight","airState","skyTone","driverLamp","immersion"])this.u[key]=gl.getUniformLocation(p,key);
-      this.glow=0;
+      this.u.lowDetail=gl.getUniformLocation(p,"lowDetail");this.glow=0;
       this.sunKey=null;this.sunTarget=null;this.sunStrength=0;
       for(const key of ["castSlope","seaSun","sunDir","sunAcross","sunUp"])this.u[key]=gl.getUniformLocation(p,key);
       this.sunUniforms={};
@@ -317,6 +331,28 @@
       }
       this.models.set(name,model);
     }
+    prepareDistanceMesh(model,data){
+      model.distanceReady=true;
+      if(model.count>65535&&!this.largeIndices)return;
+      const sections=model.sections||[{first:0,end:model.count,bounds:model.bounds}],indices=[];
+      for(const part of sections){
+        part.indexStart=indices.length;
+        distantTriangles(data,part.first,part.end,indices);
+        part.indexCount=indices.length-part.indexStart;
+      }
+      // A distant car or person must still have an outline.
+      if(indices.length<18||indices.length>model.count*.8)return;
+      const gl=this.gl,large=model.count>65535;
+      model.distant=gl.createBuffer();model.indexSize=large?4:2;model.indexType=large?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT;
+      model.indexCount=indices.length;
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,large?new Uint32Array(indices):new Uint16Array(indices),gl.STATIC_DRAW);
+    }
+    farFromCamera(b,x=0,y=0,z=0,yaw=0){
+      const eye=this.basis.camera,c=Math.cos(yaw),s=Math.sin(yaw);
+      const dx=x+c*b.x+s*b.z-eye.x,dy=y+b.y-eye.y,dz=z+c*b.z-s*b.x-eye.z;
+      return dx*dx+dy*dy+dz*dz>(55+b.r)*(55+b.r);
+    }
     updateAnimated(name){
       const model=this.models.get(name);if(!model||this.lost)return;
       const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);
@@ -367,6 +403,7 @@
     begin(camera,dusk=0,weather=null,headlights=null,seaTime=null,inset=null){
       if(!this.gl||this.lost)return;
       const gl=this.gl,c=this.canvas, factor=Math.min(this.maxWidth/innerWidth,this.maxHeight/innerHeight,devicePixelRatio||1)*this.scale;
+      gl.uniform1f(this.u.lowDetail,this.scale<=.65?1:0);
       if(weather)this.updateSun(weather,dusk);
       else gl.uniform1f(this.u.hasShadow,0);
       const w=inset?inset.w:Math.max(2,Math.round(innerWidth*factor)),h=inset?inset.h:Math.max(2,Math.round(innerHeight*factor));
@@ -484,6 +521,9 @@
       if(!base?.count||!this.inFrame(base.bounds,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0))return;
       const model=vehicle?.damage?BayBodyworkArt.buffer(this,name,vehicle,doorSide):base,gl=this.gl;
       if(!model)return;
+      const reduced=this.scale<=.65&&base===model&&base.bounds&&base.count>330&&
+        (model.sections||!tiltX&&!tiltZ&&this.farFromCamera(base.bounds,x,y,z,yaw));
+      if(reduced&&!model.distanceReady)this.prepareDistanceMesh(model,this.cpu.get(name));
       if(this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}
       if(tiltX!==this.tiltX||tiltZ!==this.tiltZ){gl.uniform4f(this.u.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));this.tiltX=tiltX;this.tiltZ=tiltZ;}
@@ -491,11 +531,19 @@
       gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
       if(model.sections){
         let first=-1;
+        if(reduced&&model.distant)gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);
         for(const section of model.sections){
-          if(this.inFrame(section.bounds,x,y,z,yaw,tiltX,tiltZ)){if(first<0)first=section.first;}
+          if(this.inFrame(section.bounds,x,y,z,yaw,tiltX,tiltZ)){
+            if(reduced&&model.distant&&this.farFromCamera(section.bounds)){
+              if(first>=0){gl.drawArrays(gl.TRIANGLES,first,section.first-first);first=-1;}
+              if(section.indexCount)gl.drawElements(gl.TRIANGLES,section.indexCount,model.indexType,section.indexStart*model.indexSize);
+            }else if(first<0)first=section.first;
+          }
           else if(first>=0){gl.drawArrays(gl.TRIANGLES,first,section.first-first);first=-1;}
         }
         if(first>=0)gl.drawArrays(gl.TRIANGLES,first,model.count-first);
+      }else if(reduced&&model.distant){
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,model.indexCount,model.indexType,0);
       }else gl.drawArrays(gl.TRIANGLES,0,model.count);
       if(vapor){gl.uniform1f(this.u.beam,0);gl.disable(gl.BLEND);gl.depthMask(true);}
     }

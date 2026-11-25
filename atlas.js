@@ -666,7 +666,19 @@
     }
     rect(ctx,px(213),-pad,Math.max(0,w+pad-px(213)),h+pad*2,p.ocean);
     const base=staticImage(solids,street);
-    if(base) ctx.drawImage(base,px(extent.left),py(extent.top),(extent.right-extent.left)*s,(extent.top-extent.bottom)*s);
+    // Only sample the source rectangle the rotated camera can actually see.
+    const reachX=(Math.abs(cs)*w+Math.abs(sn)*h)*.5/s+1;
+    const reachZ=(Math.abs(sn)*w+Math.abs(cs)*h)*.5/s+1;
+    function drawLayer(image){
+      const width=extent.right-extent.left,height=extent.top-extent.bottom;
+      const x=Math.max(extent.left,opt.cx-reachX),endX=Math.min(extent.right,opt.cx+reachX);
+      const z=Math.min(extent.top,opt.cz+reachZ),endZ=Math.max(extent.bottom,opt.cz-reachZ);
+      if(x>=endX||z<=endZ)return;
+      const sx=image.width/width,sz=image.height/height;
+      ctx.drawImage(image,(x-extent.left)*sx,(extent.top-z)*sz,(endX-x)*sx,(z-endZ)*sz,
+        px(x),py(z),(endX-x)*s,(z-endZ)*s);
+    }
+    if(base) drawLayer(base);
     else {
       ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);
       if(street)paintLand(ctx,true);else paintStatic(ctx,solids,false);ctx.restore();
@@ -675,7 +687,7 @@
       const light=opt.weather?.sun;
       castBuildings(ctx,solids,light,px,py,s,visible,(light?.strength||0)*(1-.88*(opt.weather?.rain||0))*(1-(opt.dusk||0)));
       const roofs=staticImage(solids,true,true);
-      if(roofs)ctx.drawImage(roofs,px(extent.left),py(extent.top),(extent.right-extent.left)*s,(extent.top-extent.bottom)*s);
+      if(roofs)drawLayer(roofs);
       else{ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);paintBuildings(ctx,solids,true);oceanFrontages(ctx);ctx.restore();}
     }
     if(street)for(const sig of opt.signals||empty)if(visible(px(sig.x),py(sig.z),12*s))BayCrosswalkArt.mapPaint(ctx,px,py,s,sig);

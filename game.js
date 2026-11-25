@@ -8464,7 +8464,7 @@
       view.roadLights=roadLights;
     }else{roadLights.enabled=false;view.roadLights=null;}
     if(top){
-      const ratio=Math.min(1,1120/innerWidth,740/innerHeight),w=Math.round(innerWidth*ratio),h=Math.round(innerHeight*ratio);
+      const ratio=Math.min(1,1120/innerWidth,740/innerHeight)*overheadQuality.scale,w=Math.max(2,Math.round(innerWidth*ratio)),h=Math.max(2,Math.round(innerHeight*ratio));
       if(map.width!==w||map.height!==h){map.width=w;map.height=h;}
       if(motos.finder){const project=rideScenery.paint(map,cam,motos.job.brief,t,{hours,wheel:boardwalk.wheel,neon,model,cars,cpu:view.cpu},motos.captureRequest);exposeMoto(map,null,project);$("targetTag").hidden=true;return;}
       const p=play?cameraSubject():{x:65,z:0};
@@ -10884,6 +10884,16 @@
   addEventListener("blur",()=>{keys.clear();resetPointer();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");});
   document.addEventListener("visibilitychange",()=>{if(document.hidden){keys.clear();if(play)saveTime();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");}});
   let last=performance.now(),lateSeconds=0,spareSeconds=0,verySlowFrames=0,lastIntroPaint=0,lastMenuPaint=0;
+  const overheadQuality={scale:1,late:0,early:0};
+  function tuneOverhead(seconds){
+    if(seconds<=0||seconds>.8)return;
+    const q=overheadQuality;
+    if(seconds>.045){q.late+=Math.min(.1,seconds);q.early=0;}
+    else if(seconds<.022){q.early+=seconds;q.late=0;}
+    else{q.early=0;q.late=Math.max(0,q.late-seconds);}
+    if(q.late>.68){q.scale=Math.max(.62,q.scale-.10);q.late=0;}
+    if(q.early>8){q.scale=Math.min(1,q.scale+.05);q.early=0;}
+  }
   function tuneStreetResolution(seconds,streetView){
     if(!streetView||seconds<=0||seconds>2.5){lateSeconds=spareSeconds=verySlowFrames=0;return;}
     verySlowFrames=seconds>.13?Math.min(8,verySlowFrames+1):Math.max(0,verySlowFrames-2);
@@ -10909,7 +10919,7 @@
     // Sample each display frame in play. Throttle only the title and pause screens.
     if(!play){if(now-lastIntroPaint<1000/30-.9)return;lastIntroPaint=now;}
     if(campaign.scene||campaign.table){
-      const delta=Math.min(.18,Math.max(0,(now-last)/1000));last=now;
+      const delta=Math.min(campaign.scene ? .85 : .18,Math.max(0,(now-last)/1000));last=now;
       if(campaign.scene){
         const id=campaign.scene.id;
         if(campaign.step(delta)){if(!campaign.scene){endFilm(id);return;}setFilmPage();}
@@ -10924,7 +10934,8 @@
       if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
-        tuneStreetResolution(d,!isTop());renderWorld(d,streetTime);
+        if(isTop())tuneOverhead(delta);else tuneStreetResolution(delta,true);
+        renderWorld(d,streetTime);
       }
       return;
     }
@@ -10984,6 +10995,7 @@
     if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;
     if(needle&&!panel){if(now-lastCabinetStreet<150)return;lastCabinetStreet=now;}
     tuneStreetResolution(raw,play&&!panel&&!isTop());
+    if(play&&!panel&&isTop())tuneOverhead(raw);
     renderWorld(dt,streetTime);
     if(!panel&&skateTape.active)skateTape.sample(streetTime,lookSurface(),isTop()?null:$("sky"));
     if(skateProof)BaySkateFilm.paint(skateProof.canvas,skateReel,(now-skateProof.start)/1000);

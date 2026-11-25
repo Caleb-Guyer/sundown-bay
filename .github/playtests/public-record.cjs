@@ -13,6 +13,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await js(`window.recQA={frames:[],held:new Set(),now:0,points:[],samples:false};
       const camera=BayCamera.prototype.update;BayCamera.prototype.update=function(...args){const out=camera.apply(this,args);recQA.rig=this;recQA.yaw=this.yaw;return out;};
       const scene=BayPublicRecord.Story.prototype.step;BayPublicRecord.Story.prototype.step=function(dt){const changed=scene.call(this,dt);recQA.director=this;return changed;};
+      const begin=BayView.prototype.begin;BayView.prototype.begin=function(...args){recQA.view=this;return begin.apply(this,args);};
+      if(window.WebGLRenderingContext){
+        const gl=WebGLRenderingContext.prototype;
+        for(const [name,countAt] of [["drawArrays",2],["drawElements",1]]){const draw=gl[name];gl[name]=function(...args){
+          if(recQA.samples){recQA.calls=(recQA.calls||0)+1;recQA.vertices=(recQA.vertices||0)+args[countAt];}return draw.apply(this,args);};}
+      }
       const attend=BaySoftSand.Beach.prototype.attend;
       BaySoftSand.Beach.prototype.attend=function(dt,t,hero,...rest){const out=attend.call(this,dt,t,hero,...rest),q=recQA;
         q.hero=hero;q.now=t;if(!q.goal)return out;
@@ -42,7 +48,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         const c=indexed?rig.space.near(a.x,a.z,8):all;sum+=BayCamera.safeFraction(a,b,c);n+=c.length;}
         return {ms:performance.now()-t,sum,candidates:n/(poses.length*3)};};run(false);run(true);
       const base=run(false),indexed=run(true),a=recQA.frames.slice().sort((a,b)=>a-b);
-      return {base,indexed,frameMedian:a[Math.floor(a.length*.5)],frameP95:a[Math.min(a.length-1,Math.floor(a.length*.95))],samples:a.length};})()`);
+      return {base,indexed,frameMedian:a[Math.floor(a.length*.5)],frameP95:a[Math.min(a.length-1,Math.floor(a.length*.95))],samples:a.length,
+        drawCalls:Math.round((recQA.calls||0)/a.length),vertices:Math.round((recQA.vertices||0)/a.length),width:document.querySelector('#'+(recQA.view?'world':'overhead')).width};})()`);
     assert.equal(perf.base.sum,perf.indexed.sum);assert(perf.indexed.candidates<perf.base.candidates*.18);
     console.log("PERF",mode,JSON.stringify(perf));
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
