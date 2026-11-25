@@ -32,15 +32,18 @@
       this.aim={x:.43,y:.58};this.remarked=false;this.warnedHeat=false;this.warnedFlat=false;this.warnedClock=false;
       this.offeredSleeve=false;
       this.photoRoad="";this.onApproach=false;
+      this.field="";this.quote="";
     }
     markRoad(id){this.photoRoad=Object.hasOwn(photoRuns,id)?id:"";this.onApproach=false;}
     target(car){
+      if(this.field)return this.phase==="delivery"?{x:this.ride.x,z:this.ride.z,name:"Mara’s passenger door"}:{...BayLotNegative.mark,name:"Lot 14 · Camera mark"};
       if(this.ride&&this.ride!==car)return {x:this.ride.x,z:this.ride.z,name:"Mara’s car"};
       if(this.phase==="pickup"||this.phase==="approach"||this.phase==="board")return pickup;
       if(this.phase==="port"&&this.photoRoad){const road=photoRuns[this.photoRoad];return this.onApproach?road.frame:road.lead;}
       return routes[this.route]||dock;
     }
     objective(car){
+      if(this.field)return this.phase==="delivery"?"Bring the negative back to the passenger door":"As Mara, find your angle on the sale notice";
       if(this.ride&&this.ride!==car)return "Get back in Mara’s car";
       switch(this.phase){
         case "pickup":return car?"Pull up beside Mara":"Take a car and pick up Mara";
@@ -51,20 +54,56 @@
         default:return "Wait for Mara to make the handoff";
       }
     }
-    holds(v){return this.ride===v&&["approach","board","exit","handoff"].includes(this.phase);}
+    holds(v){return this.ride===v&&(!!this.field||["approach","board","exit","handoff"].includes(this.phase));}
     atDock(car){return !!car&&this.ride===car&&distance(car,dock)<9&&stopped(car);}
     sleeveStop(car){return this.offeredSleeve&&this.phase==="port"&&!this.remarked&&car===this.ride&&!!car&&stopped(car);}
-    interaction(car){return (this.regrouped&&this.phase==="choice"&&car===this.ride)||this.atDock(car)?({port:"viewfinder",choice:"contact"})[this.phase]||"":"";}
+    interaction(car){
+      if(this.field)return this.field==="walk"?(this.phase==="choice"?"contact":this.canFrame()?"viewfinder":""):"";
+      return (this.regrouped&&this.phase==="choice"&&car===this.ride)||this.atDock(car)?({port:"viewfinder",choice:"contact"})[this.phase]||"":"";
+    }
     focus(){const sign=BayExposureArt.photoNotice;return Math.abs(this.aim.x-sign.x)<=sign.width*.32&&Math.abs(this.aim.y-sign.y)<=sign.height*.36;}
     expose(){if(this.phase!=="port"||!this.focus())return false;this.phase="choice";return true;}
     choose(route){if(this.phase!=="choice"||!Object.hasOwn(routes,route))return false;
       this.route=route;this.remaining=route==="live"?liveTime:0;this.phase="delivery";return true;}
     dispose(){if(this.ride)this.ride.passengerDoor=0;}
+    leaveForPicture(car,plan){
+      if(this.field||this.phase!=="port"||!this.atDock(car)||!plan(car,true,this.mara,1))return false;
+      this.field="leaving";return true;
+    }
+    canFrame(){
+      const p=this.mara,n=BayLotNegative.notice;
+      if(this.field!=="walk"||this.phase!=="port"||p.x<n.x+2.45||p.x>n.x+6||Math.abs(p.z-n.z)>=3.2)return false;
+      for(let i=1;i<8;i++)if(BayDriving.clearance(this.ride,{x:p.x+(n.x-p.x)*i/8,z:p.z+(n.z-p.z)*i/8})<.15)return false;
+      return true;
+    }
+    returnToSeat(plan){
+      if(this.field!=="walk"||distance(this.mara,this.ride)>5.5)return false;
+      const route=plan(this.ride,false,this.mara,1);if(!route)return false;
+      this.path=route.points;this.field="approach-car";return true;
+    }
+    fieldStep(dt,ground){
+      if(this.field==="walk")return;
+      if(this.field==="approach-car"){if(this.walk(dt,ground))this.field="boarding";return;}
+      const entering=this.field==="boarding";
+      this.progress=Math.max(0,Math.min(1,this.progress+(entering?1:-1)*dt/1.5));this.pose(dt,ground);
+      if(!entering&&this.progress===0){this.field="walk";this.motion.reset();return "on-location";}
+      if(entering&&this.progress===1){this.field="";return "driver-back";}
+    }
+    stride(dt,across,forward,yaw,fast,clear,ground){
+      const p=this.mara,oldX=p.x,oldZ=p.z,oldYaw=p.yaw;
+      const step=dt*(fast?4.15:2.65)/Math.max(1,Math.hypot(across,forward));
+      const dx=(Math.cos(yaw)*across+Math.sin(yaw)*forward)*step,dz=(Math.cos(yaw)*forward-Math.sin(yaw)*across)*step;
+      if(dx&&clear(p.x+dx,p.z))p.x+=dx;if(dz&&clear(p.x,p.z+dz))p.z+=dz;
+      const travel=distance(p,{x:oldX,z:oldZ});
+      if(travel>.00001){const diff=Math.atan2(p.x-oldX,p.z-oldZ)-oldYaw;p.yaw+=Math.atan2(Math.sin(diff),Math.cos(diff))*-Math.expm1(-14*dt);}
+      p.y=ground(p.x,p.z);this.motion.step(dt,travel,(p.yaw-oldYaw)/Math.max(.0001,dt));
+    }
     walk(dt,ground){
       return BayCarAccess.walkPath(this.mara,this.motion,this.path,dt,ground);
     }
     pose(dt,ground){BayCarAccess.pose(this.ride,1,this.progress,this.mara,this.motion,ground,dt,true);}
     step(dt,car,transfer,doorPlan,ground){
+      if(this.field)return this.fieldStep(dt,ground);
       if(this.phase==="pickup"){
         this.motion.step(dt,0,0);
         if(!car||transfer||!stopped(car)||distance(car,this.mara)>8.5)return;

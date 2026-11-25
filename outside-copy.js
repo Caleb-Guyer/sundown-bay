@@ -19,7 +19,7 @@
     constructor(){this.mounted=read();}
     source(site,edition,negative){
       const old=this.mounted[site.route];
-      if(edition!==site.route||!negative||old?.image===negative.image&&old.frame===negative.frame)return old;
+      if(edition!==site.route||!negative||old?.image===negative.image&&old.frame===negative.frame&&old.quote===negative.quote)return old;
       return negative;
     }
     hang(site,edit){
@@ -42,9 +42,10 @@
     ctx.fillRect(16,43,608,2);ctx.fillStyle="#312e2a";ctx.fillRect(16,52,608,342);
     ctx.drawImage(img,...crop(img.naturalWidth,img.naturalHeight,copy),16,52,608,342);
     ctx.textAlign="left";ctx.fillStyle=site.ink;ctx.font=print?"bold 20px Georgia, serif":"bold 18px sans-serif";
-    ctx.fillText(copy.frame==="14A"?"The notice at Lot 14":"Luis Vega at the public landing",16,420);
-    ctx.font="12px monospace";ctx.fillText("PHOTOGRAPH BY MARA VEGA",17,438);
-    ctx.textAlign="right";ctx.font="bold 17px monospace";ctx.fillText("LOT 14  /  "+copy.frame,624,429);
+    const subject=copy.frame==="14A"?"The notice at Lot 14":"Luis Vega at the public landing";
+    ctx.fillText(copy.quote?"“"+BayLotNegative.quotes[copy.quote]+"”":subject,16,418,608);
+    ctx.font="bold 13px monospace";ctx.fillText(copy.quote?"LUIS VEGA   /   PHOTOGRAPH BY MARA VEGA":"PHOTOGRAPH BY MARA VEGA",17,439);
+    ctx.textAlign="right";ctx.fillText("LOT 14  /  "+copy.frame,624,439);
     ctx.textAlign="left";
   }
   // The image and the canvas survive between draws. A new hanging gets a new texture.
@@ -60,7 +61,8 @@
     const draft=readCopy(source),img=BayLotNegative.photo(source);
     body.append(document.getElementById("outsideCopyDesk").content.cloneNode(true));
     const canvas=body.querySelector("canvas"),button=body.querySelector(".hang-copy"),status=body.querySelector("[role=status]");
-    canvas.setAttribute("aria-label",BayLotNegative.captions[source.frame]+", the outside copy for "+site.name);
+    canvas.setAttribute("aria-label",BayLotNegative.captions[source.frame]+", the outside copy for "+site.name+
+      (source.quote?". Luis Vega: "+BayLotNegative.quotes[source.quote]:""));
     const inputs=[...body.querySelectorAll("input")];
     const refresh=()=>{
       if(!canvas.isConnected)return;

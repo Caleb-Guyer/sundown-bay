@@ -6,6 +6,11 @@
   const notice=BayExposure.props.find(p=>p.kind==="notice");
   const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
   const captions={"14A":"Notice of sale, Port Sol public landing","14B":"Luis Vega with his brother’s lunch tin"};
+  const mark={x:-150.90,z:-91.18},quotes={
+    aboard:"She held the gate. I got both tins aboard.",
+    ashore:"I heard the bell from this side of the fence.",
+    pier:"Blue one was his. Mine never closed right."
+  };
   const locations={
     wheel:{name:"Coast Wheel",caption:"North Boardwalk from the passenger window",reply:"Got the red gondola. Dad could pick it out from halfway across the bay.",
       inscription:"For the driver. He used to count the cabins till our boat tied up. — Mara"},
@@ -14,7 +19,10 @@
   };
   function jpeg(f){return typeof f?.image==="string"&&f.image.length<=96000&&/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]+={0,2}$/.test(f.image);}
   function readFrame(f){
-    return f&&Object.hasOwn(captions,f.frame)&&jpeg(f)?{frame:f.frame,image:f.image}:null;
+    if(!f||!Object.hasOwn(captions,f.frame)||!jpeg(f))return null;
+    const frame={frame:f.frame,image:f.image};
+    if(Object.hasOwn(quotes,f.quote))frame.quote=f.quote;
+    return frame;
   }
   function readWindow(f){return f?.frame==="13"&&Object.hasOwn(locations,f.place)&&jpeg(f)?{frame:"13",place:f.place,image:f.image}:null;}
   function passengerSubject(v){
@@ -78,8 +86,14 @@
   }
   class Roll {
     constructor(){this.pan=.045;this.tilt=.035;this.focal=1.97;this.raise=0;this.asked=false;this.frames={};}
-    eye(ground){return {x:-150.90,z:-91.18,y:ground+1.55,yaw:-Math.PI/2+this.pan,pitch:this.tilt,focal:this.focal};}
-    turn(dx,dy){this.pan=clamp(this.pan+dx,-.36,.97);this.tilt=clamp(this.tilt+dy,-.34,.28);}
+    eye(ground){const p=this.stance||mark;return {x:p.x,z:p.z,y:ground+1.55,yaw:-Math.PI/2+this.pan,pitch:this.tilt,focal:this.focal};}
+    stand(p){
+      this.stance={x:p.x,z:p.z};
+      if(this.asked){this.matchPrint();return;}
+      this.pan=Math.atan2(notice.x-p.x,notice.z-p.z)+Math.PI/2;this.tilt=.035;
+      this.focal=clamp(Math.hypot(notice.x-p.x,notice.z-p.z)*.56,1.48,2.9);
+    }
+    turn(dx,dy){this.pan=clamp(this.pan+dx,this.stance?-1.32:-.36,this.stance?1.48:.97);this.tilt=clamp(this.tilt+dy,-.34,.28);}
     aim(u,v){this.turn(Math.atan((u-.5)*32/(9*this.focal)),Math.atan((.5-v)*2/this.focal));}
     zoom(delta){this.focal=clamp(this.focal+delta,1.48,3.9);}
     ask(useMark=false){
@@ -88,7 +102,7 @@
       if(useMark)this.matchPrint();
       return true;
     }
-    matchPrint(){const eye=this.eye(0);this.pan=Math.atan2(subject.x-eye.x,subject.z-eye.z)+Math.PI/2;this.focal=3.2;this.tilt=-.064;}
+    matchPrint(){const eye=this.eye(0);this.pan=Math.atan2(subject.x-eye.x,subject.z-eye.z)+Math.PI/2;this.focal=this.stance?clamp(Math.hypot(subject.x-eye.x,subject.z-eye.z)*.8,1.48,3.9):3.2;this.tilt=-.064;}
     ready(project,ground){
       const inside=(p,dx,dy)=>p&&Math.abs(p.x-.5)<dx&&Math.abs(p.y-.5)<dy;
       if(!this.frames["14A"]){
@@ -130,5 +144,5 @@
     const step=Math.round(clamp(raise,0,1)*6),name=(paper?"lot-porter-paper/":"lot-porter/")+step;
     model(name,g=>porter(g,step,paper));list.push([name,subject.x,ground(subject.x,subject.z),subject.z,subject.yaw]);
   }
-  window.BayLotNegative={key,Archive,Roll,actor,subject,notice,photo,captions,readFrame,locations,passengerSubject,passengerEye};
+  window.BayLotNegative={key,Archive,Roll,actor,subject,notice,mark,quotes,photo,captions,readFrame,locations,passengerSubject,passengerEye};
 })();

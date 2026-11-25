@@ -705,6 +705,7 @@
   }
   const pos=()=>(windowRide?.held&&windowRide.seat===1?windowRide.vehicle:null)||(motos.player?.stage==="ride"?motos.bike:null)||(airLine.player&&!airLine.transfer?airLine.plane:null)||active?.take?.subject()||(transit.player?.stage==="ride"?transit.bus:null)||(cabs.booking?.stage==="ride"?taxi:null)||skiff||car||(!cycles.transfer&&cycles.riding)||skate.rider||hero;
   function cameraSubject(){
+    if(active?.story?.field)return active.story.mara;
     if(spur.aboard&&!spur.transfer)return spur.engine;
     if(cabs.playerHeld){
       const f=cabs.booking.seat;
@@ -4527,7 +4528,7 @@
   const atWash=()=>washFree()&&!transfer&&(car?wash.personalBay(car):onStreetFeet()&&wash.atTill(hero));
   const inWashPad=()=>cars.find(v=>v.used&&!v.washGuest&&wash.personalBay(v));
   const canUseSeat=()=>!!car&&!transfer&&car!==meet.jules&&!active?.take&&!paintPreview;
-  const insideSeat=()=>!campaign.scene&&!theatre.visit&&!theatre.run&&!unit.transition&&!works.rearView&&!club.show?.wide&&driverSeat.enabled&&canUseSeat()&&!held("KeyV");
+  const insideSeat=()=>!active?.story?.field&&!campaign.scene&&!theatre.visit&&!theatre.run&&!unit.transition&&!works.rearView&&!club.show?.wide&&driverSeat.enabled&&canUseSeat()&&!held("KeyV");
   const seatLights=()=>Math.max(cityDusk(),hours.night,.53*hours.rain)>.08;
   const glassWater=()=>Math.max(car?.glassSplash||0,wash.spraying&&wash.work?.v===car&&wash.panel===2?.96:0);
   function commitPaletas(){
@@ -6539,8 +6540,33 @@
     rideScenery.paint(out,shot.eye,BaySecondSeat.find(shot.place),shot.time,{hours:shot,wheel:{angle:shot.angle},model,cars:traffic,cpu:view.cpu},true);
     maraFilm.exposeWindow(shot.place,BayMeetPhoto.capture(out,null,.5,.5,16/9,true));
   }
+  function maraKey(story,code){
+    if(["Escape","KeyM","KeyJ","KeyR"].includes(code))return false;
+    if(story.field!=="walk")return true;
+    if(code==="KeyH"&&story.phase==="port"&&dist(story.mara,BayLotNegative.subject)<2.75){
+      story.quote=campaign.book.morning?.luis||"pier";
+      speak("Luis Vega",BayLotNegative.quotes[story.quote]);note("Mara’s notebook","Luis’s words will go out with your photograph.",4);
+    }else if(code==="KeyF"&&story.interaction(car)){
+      if(story.phase==="port"){story.roll??=new BayLotNegative.Roll();story.roll.stand(story.mara);}
+      openPanel(story.interaction(car));
+    }else if(code==="KeyE"&&story.phase!=="choice"){
+      if(!story.returnToSeat(doorPlan))note("Passenger door","Come around to the passenger side of your car.",3);
+    }else if(code==="KeyX")cameraRig.recenter(story.mara.yaw,elapsed);
+    return true;
+  }
   function advanceExposure(dt){
-    const story=active.story,wasMarked=story.photoRoad,event=story.step(dt,car,transfer,doorPlan,footLevel);
+    const story=active.story,wasMarked=story.photoRoad;
+    if(story.field==="walk"){
+      const clear=(x,z)=>dist({x,z},BayExposure.dock)<20&&valid(x,z,.25)&&dist({x,z},BayLotNegative.subject)>.48&&
+        !cars.some(v=>Math.abs(v.x-x)<5&&Math.abs(v.z-z)<5&&BayDriving.clearance(v,{x,z})<.22);
+      story.stride(dt,Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),
+        Number(held("KeyW","ArrowUp"))-Number(held("KeyS","ArrowDown")),cameraRig.yaw,held("ShiftLeft","ShiftRight"),clear,footLevel);
+    }
+    const event=story.step(dt,car,transfer,doorPlan,footLevel);
+    if(event==="on-location"){note("Mara Vega","Choose your footing by the red notice. Luis is here with the tins.",4);lastHud=lastMap=-10;return;}
+    if(event==="driver-back"){keys.clear();lastHud=lastMap=-10;cameraRig.recenter(car.yaw,elapsed);
+      note("Back at the wheel",story.phase==="delivery"?story.target(car).name+" · Mara has the negative.":"Pull around if Mara needs a clearer angle.",4);return;}
+    if(story.field)return;
     if(wasMarked&&!story.photoRoad){campaign.book.photoRoad="";campaign.write();lastHud=lastMap=-10;}
     if(event==="approaching-frame"||event==="missed-frame"){
       if(!heat)speak("Mara Vega",event==="missed-frame"?"We went past. Another lap, or take me down to the pier.":story.photoRoad==="wheel"?"See the red gondola? Keep rolling. Give me the nod when it clears the palms.":"There’s the box office. Hold this side of the street. Give me the nod under the gold letters.");
@@ -7382,6 +7408,7 @@
         if(front>.10&&front<20&&Math.abs(rx*uz-rz*ux)<width)clearance=Math.min(clearance,Math.max(0,front-gap));
       };
       if(!roofs.raised||p!==hero||p.y<2.4)ahead(p,car?1.95:1.55,car?4.65:3.1);
+      if(active?.story?.field)ahead(active.story.mara,1.5,3);
       if(transfer){
         const a=transfer,s=bayCarLayout(a.v.kind);
         ahead(hero,1.5,3);ahead(BayDriving.world(a.v,a.side*(s.hingeX+.65),s.back),1.45,3);
@@ -8056,6 +8083,7 @@
     if(!car&&BayPalmDiner.contains(hero.x,hero.z)){span=palm.playerSeat?20:26;ahead=1.2;}
     if(coffee.stage==="walk"||coffee.stage==="table"){span=coffee.stage==="walk"?29:16;ahead=1.5;}
     if(onStreetFeet()&&luggage.hand(save.luggage)){span=29;ahead=2.5;}
+    if(active?.story?.field){span=19;ahead=1.7;beside=0;}
     f.span=ease(f.span,span,4.7,dt);f.ahead=ease(f.ahead,ahead,4.7,dt);f.beside=ease(f.beside,beside,5.5,dt);
   }
   const keyView={mix:0,x:0,z:0};
@@ -8181,6 +8209,11 @@
       keyView.x=(hero.x+valet.focus.x)*.5;keyView.z=(hero.z+valet.focus.z)*.5;
     }
     if(isTop())boardwalkFraming(dt);
+    if(active?.story?.field){
+      const a=active.story;
+      if(pointer.edgeX)cameraRig.orbit(pointer.edgeX*dt*445,0,elapsed);
+      cameraRig.update(cam,a.mara,null,dt,elapsed,{ground:a.mara.y,lift:a.motion.lift});return;
+    }
     if(boardwalk.player?.phase==="ride"){
       const w=boardwalk,look=Number(held("KeyC"))-Number(held("KeyQ"));
       w.pan+=(look*1.8+pointer.edgeX*1.45)*dt;
@@ -8293,10 +8326,10 @@
     setTheatreSeats();
     if(cycles.riding)cycles.riding.kit=worn();
     if(skate.rider)skate.rider.shirt=BayCourtPlayers.kitColors[worn()];
-    const take=active?.take,driving=(!!car||!!take)&&!transfer;
+    const take=active?.take,field=active?.story?.field,driving=(!!car||!!take)&&!transfer&&!field;
     const displayCar=paintPreview||car;
     const allTraffic=modeName==="atlas"?patrol:cars.filter(v=>!driving||v!==car||car===meet.jules).concat(patrol);
-    const p=transfer||deckStep||cabs.playerHeld?hero:pos();
+    const p=field?active.story.mara:transfer||deckStep||cabs.playerHeld?hero:pos();
     if(exchangingKey())Object.assign(keyMapActor,{x:hero.x,y:hero.y,z:hero.z,yaw:hero.yaw,kit:worn()});
     const peds=[];
     if(play&&modeName==="street")for(const s of BayOutsideCopy.sites){
@@ -9078,6 +9111,11 @@
       BayLotNegative.actor(visible,model,footLevel,receiving?Math.min(1,campaign.scene.age/.85):0,receiving);
     }
     const posted=story?.phase==="port"?"":BayLandingOrder.charter(campaign.book);
+    if(story?.field&&story.phase==="port"){
+      const p=BayLotNegative.mark;
+      model("lot14/chalk",g=>{g.box(0,.003,0,.37,.006,.035,"#ede4c7");g.box(-.167,.003,-.12,.035,.006,.25,"#ede4c7");});
+      visible.push(["lot14/chalk",p.x,footLevel(p.x,p.z)+.012,p.z,0]);
+    }
     if(play)for(const s of BayOutsideCopy.sites)if(see(s,65)){
       const name="outside-case/"+s.route;model(name,g=>BayOutsideCopy.cabinet(g,s));
       visible.push([name,s.x,footLevel(s.x,s.z),s.z,s.yaw]);
@@ -9886,7 +9924,16 @@
     const chapter=chapterAction(),passengerShot=maraWindowSubject();
     $("luzTicket").hidden=!luz.rider;
     $("jobKey").hidden=!!luz.rider;
-    if(luz.rider){
+    if(active?.story?.field){
+      const a=active.story,id=a.field,near=dist(a.mara,BayLotNegative.subject)<2.75;
+      $("mode").textContent="Mara Vega · On location";$("speed").textContent="";
+      const caption=near?(a.quote?" · H hear Luis again":" · H ask Luis for a caption"):"";
+      if(id!=="walk")contextHint("",id==="leaving"?"Mara is getting out":"Mara is getting back in");
+      else if(a.phase==="delivery")contextHint("E","Return to the passenger door with the negative");
+      else if(a.phase==="choice")contextHint("F","Choose who gets the photograph");
+      else if(a.canFrame())contextHint("F","Raise Mara’s camera"+caption+" · E back to car");
+      else contextHint("WASD","Walk around the car to the chalk by the notice"+caption+" · E back to car");
+    }else if(luz.rider){
       const r=luz.rider,h=luz.hearing(),route=BayLandingOrder.charter(luz.book);
       $("mode").textContent="M/V Luz · Passenger";
       $("speed").textContent="";$("objective").hidden=true;
@@ -10124,7 +10171,7 @@
     else if(car&&ferry?.holds(car))contextHint("","Inez Cruz  ·  Passenger door");
     else if(car&&ferry?.phase==="pier")contextHint("E","Get out and follow Inez down the pier");
     else if(car&&ferry?.phase==="pickup"&&dist(car,ferry.rider)<12)contextHint("","Stop with room by the passenger door");
-    else if(active?.story?.interaction(car))contextHint("F",active.story.phase==="choice"?"Choose where to deliver the photo":"Use Mara’s camera");
+    else if(active?.story?.interaction(car))contextHint("F",active.story.phase==="choice"?"Choose where to deliver the photo":"Take Mara’s camera out on location");
     else if(car&&active?.story?.holds(car))contextHint("","Mara Vega  ·  "+(active.story.progress===0&&active.story.phase==="handoff"?"Delivering the photo":"Passenger door"));
     else if(car&&active?.story&&dist(car,tar)<12)contextHint("",active.story.phase==="port"?"Stop beside the red sign":"Stop with room by the passenger door");
     else if(boxed>1)contextHint("","Patrol closing in  ·  "+Math.ceil(5.3-boxed)+" s");
@@ -10381,7 +10428,7 @@
     const c=body.querySelector("canvas"),g=c.getContext("2d"),img=BayLotNegative.photo(frame);
     if(!img){BayExposureArt.drawPhoto(g,c.width,c.height);return;}
     const caption=BayLotNegative.captions[frame.frame];c.setAttribute("aria-label",caption);
-    body.querySelector("figcaption").textContent=frame.frame+"  /  "+caption+"  ·  M. Vega";
+    body.querySelector("figcaption").textContent=frame.frame+"  /  "+caption+"  ·  M. Vega"+(frame.quote?"  ·  Luis Vega: “"+BayLotNegative.quotes[frame.quote]+"”":"");
     const draw=()=>g.drawImage(img,0,0,c.width,c.height);
     if(img.naturalWidth)draw();else img.addEventListener("load",draw,{once:true});
   }
@@ -10390,14 +10437,16 @@
     const q=s=>body.querySelector(s),canvas=q("canvas"),cross=q(".finder-cross"),status=q(".finder-status");
     const ask=q(".ask-portrait"),notice=q(".file-notice"),portrait=q(".file-portrait"),shutter=q(".shutter");
     const roll=story.roll??=new BayLotNegative.Roll(),sign=BayLotNegative.notice;
-    const env={hours,curb:true,sensorWidth:512,cars:[],scene:list=>{
+    const ride=story.ride;
+    const env={hours,curb:true,sensorWidth:512,cars:story.field?[{kind:ride.kind,color:ride.color,x:ride.x,y:footLevel(ride.x,ride.z)+.008,z:ride.z,yaw:ride.yaw}]:[],scene:list=>{
       model("exposure-notice",BayExposureArt.saleNotice);list.push(["exposure-notice",sign.x,footLevel(sign.x,sign.z),sign.z,sign.yaw]);
       BayLotNegative.actor(list,model,footLevel,roll.raise);
     }};
     const filming=()=>panel==="viewfinder"&&active?.story===story&&canvas.isConnected;
     let project;
     function draw(){
-      project=rideScenery.paint(canvas,roll.eye(footLevel(-150.90,-91.18)),{id:"lot14"},elapsed,env,true);
+      const p=roll.stance||BayLotNegative.mark;
+      project=rideScenery.paint(canvas,roll.eye(footLevel(p.x,p.z)),{id:"lot14"},elapsed,env,true);
       const first=roll.frames["14A"],second=roll.frames["14B"],ready=roll.ready(project,footLevel);
       cross.classList.toggle("locked",!!ready);q(".film-counter").textContent=second?"END OF ROLL":first?"14B":"14A";
       ask.hidden=!first||roll.asked;notice.hidden=!first;portrait.hidden=!second;shutter.hidden=!!second||!!first&&!roll.asked;
@@ -10426,7 +10475,7 @@
     function file(id){
       const frame=roll.frames[id];if(!filming()||!frame||story.phase!=="port")return;
       developWindow();
-      maraFilm.file(frame);story.phase="choice";campaign.advance("negative");
+      maraFilm.file(story.quote?{...frame,quote:story.quote}:frame);story.phase="choice";campaign.advance("negative");
       if(campaign.book.intro)enterFilm("negative");else openPanel("contact");
     }
     canvas.addEventListener("pointerdown",e=>{
@@ -11257,6 +11306,15 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(active?.story?.field&&maraKey(active.story,ev.code))return;
+    if(ev.code==="KeyF"&&!transfer&&active?.story?.interaction(car)==="viewfinder"){
+      const a=active.story;
+      if(heat){note("Mara Vega","Lose the patrol before we step out.",3);return;}
+      if(!a.leaveForPicture(car,doorPlan)){note("Passenger door","Park with enough room for Mara to get out.",3);return;}
+      BayDriving.settle(car);keys.clear();lastHud=lastMap=-10;
+      cameraRig.recenter(Math.atan2(BayLotNegative.notice.x-car.x,BayLotNegative.notice.z-car.z),elapsed);
+      return;
+    }
     if(ev.code==="KeyN"&&ev.shiftKey&&canReadRoadMap()){enterFilm("road-map");return;}
     if(ev.code==="KeyN"){const brief=maraWindowSubject();if(brief){photographWindow(brief);return;}}
     if(ev.code==="KeyN"&&!campaign.book.sleeve&&!heat&&!transfer&&active?.story?.sleeveStop(car)){enterFilm("film-sleeve");return;}
@@ -11543,7 +11601,7 @@
         }else if(spur.aboard||spur.transfer){/* The engine supplies the rider's position. */}
         else if(active?.angling)stepCork(d);else if(active?.take)stepTake(d);else if(deckStep)stepLanding(d);else if(transfer)stepTransfer(d);
         else if(swim)swimStep(d);
-        else if(car){if(car!==meet.jules&&!(active?.meet&&meet.phase==="countdown"))drive(d,!!unit.transition);}
+        else if(car){if(!active?.story?.field&&car!==meet.jules&&!(active?.meet&&meet.phase==="countdown"))drive(d,!!unit.transition);}
         else if(!unit.transition&&!unit.eye&&!afternoon.photo&&!windowRide?.held&&!broadcastDesk.mix&&!palm.match&&!palm.playerSeat&&!gull.exchange&&!motos.player&&!motos.job?.swapping&&!rescue.holding&&!airLine.aboard&&!skate.rider&&!transit.engaged&&!band.take&&!pickup&&!onBoardwalk&&!cabs.playerHeld&&!skiff&&!listening()&&!exchangingKey())walk(d);
         stepWater(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);greenStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);
         if(windowRide)windowRide.step(d,windowEnv,windowRideEvent);recovery.step(d,recoveryEnv,recoveryEvent);pursuit(d);stepMeet(d);advanceJob(d);serviceGarage(d);stepBeach(d);

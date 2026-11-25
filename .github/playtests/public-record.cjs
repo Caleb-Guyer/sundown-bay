@@ -311,7 +311,33 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       await js(`(()=>{const v=recQA.map.streetCar;Object.assign(v,{x:${point.x},z:${point.z},yaw:0,path:null});BayDriving.settle(v);})()`);
     }
     await parkAt({x:-149.5,z:-91});await waitFor("document.querySelector('#context').innerText.includes('Mara’s camera')");
+    await tap("KeyF");await waitFor("recQA.map.story?.field==='walk'&&recQA.map.story.progress===0");
+    await js(`recQA.walkMara=(x,z)=>{
+      let held=new Set();recQA.atMark=false;
+      const tick=()=>{const a=recQA.map.story.mara,yaw=recQA.rig.yaw,dx=x-a.x,dz=z-a.z;
+        const across=dx*Math.cos(yaw)-dz*Math.sin(yaw),forward=dx*Math.sin(yaw)+dz*Math.cos(yaw),want=new Set();
+        if(Math.hypot(dx,dz)>.14){
+          if(Math.abs(across)>Math.abs(forward)*.43)want.add(across>0?'KeyD':'KeyA');
+          if(Math.abs(forward)>Math.abs(across)*.43)want.add(forward>0?'KeyW':'KeyS');
+        }
+        for(const code of held)if(!want.has(code))dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));
+        for(const code of want)if(!held.has(code))dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true}));
+        held=want;if(want.size)requestAnimationFrame(tick);else recQA.atMark=true;
+      };tick();
+    };`);
+    const walkMara=async(x,z)=>{
+      await js("recQA.walkMara("+x+","+z+")");
+      try{await waitFor("recQA.atMark",20000);}
+      catch(error){const position=await js("recQA.map.story?.mara");throw Error("Mara at "+JSON.stringify(position)+" walking to "+x+", "+z+". "+error.message);}
+    };
+    await walkMara(await js("recQA.map.story.mara.x"),-94.1);await walkMara(-151.55,-94.1);await walkMara(-151.55,-89.35);
+    await waitFor("document.querySelector('#context').textContent.includes('ask Luis')");
+    await tap("KeyH");const quote=aboard?"aboard":"ashore";
+    await waitFor("!document.querySelector('#speech').hidden&&document.querySelector('#speech span').textContent===BayLotNegative.quotes."+quote);
+    await snap("location");
+    if(aboard)await walkMara(-151.55,-91.75);
     await tap("KeyF");await waitFor("document.querySelector('.finder-cross.locked')");
+    assert.equal(await js("recQA.map.story.roll.stance.x===recQA.map.story.mara.x"),true);
     await snap("lens");await tap("Space");await waitFor("document.querySelector('.file-notice')?.hidden===false");
     if(aboard){
       await waitFor("document.querySelector('.finder-status')?.textContent.includes('Can we match it')");
@@ -319,13 +345,17 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       await waitFor("document.querySelector('.finder-status')?.textContent.includes('tin in focus')");await snap("portrait");
       await tap("Space");await waitFor("document.querySelector('.file-portrait')?.hidden===false");await tap("Digit2");
     }else await tap("Digit1");
-    const selected=await js(film+".pending");assert.equal(selected.frame,aboard?"14B":"14A");
+    const selected=await js(film+".pending");assert.equal(selected.frame,aboard?"14B":"14A");assert.equal(selected.quote,quote);
     const driverPrint=await js(film+".windowPending");assert.equal(driverPrint.place,place);
     assert(driverPrint.image.startsWith("data:image/jpeg;base64,/9j/")&&driverPrint.image.length>1500);
     assert(selected.image.startsWith("data:image/jpeg;base64,/9j/")&&selected.image.length>1500);
     await waitFor("!document.querySelector('#chapterFilm').hidden");await tap("Enter");
     await waitFor("document.querySelector('#panelBody figcaption')?.textContent.includes("+JSON.stringify(selected.frame)+")");await snap("proof");
     await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes("+JSON.stringify(aboard?"Make a print":"Go live")+")).click()");
+    await waitFor("recQA.map.story.phase==='delivery'&&recQA.map.story.field==='walk'");
+    assert.equal(await js("recQA.map.story.remaining"),aboard?0:105);
+    await tap("KeyE");await waitFor("recQA.map.story.field===''&&recQA.map.story.progress===1");
+    console.log("PASS walked Mara around the actual car, chose a camera position and filed Luis’s "+quote+" caption before returning to the wheel.");
     await parkAt(await js("BayExposure.routes["+JSON.stringify(route)+"]"));
     await waitFor(film+".published?.frame==="+JSON.stringify(selected.frame),45000);
     assert.deepEqual(await js(film+".published"),selected);assert.equal(await js(film+".pending"),null);
@@ -374,6 +404,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       for(let i=0;i<sample.length;i+=97)if(Math.abs(mounted[i]-sample[i])>2)return false;
       return true;
     })()`),true);
+    assert((await js("document.querySelector('#panelBody canvas').getAttribute('aria-label')")).includes(await js("BayLotNegative.quotes."+quote)));
     await snap("outside-copy");
     const expected=await js("document.querySelector('#panelBody canvas').toDataURL()");
     await js("document.querySelector('.hang-copy').click()");await waitFor("document.querySelector('#panel').hidden");
