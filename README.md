@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+**Coastline Circuit** starts north of the Marlin on Ocean Drive. Find Luz Quintero’s folding lap board and the numbered teal hatch and red coupe. Press **F** at the board for the race sheet, or bring a street car to the white grid, face north and press **H**. On green, race Pili and Vic for two laps through North Boardwalk, the marina road and Marquee. The white flag marks the final lap. The payouts are **$205**, **$130** and **$75** in finishing order. Your last result and best laps are under **J → Sol Motor Club** once you discover the stand or race. Luz also keeps the original solo time trial.
+
 For a burnout, stop a rear-drive car such as the Marlin GT on pavement. Hold **W + S** together. The rear tires spin against the front brakes. Add **A** or **D** to turn a donut, or release **S** to drive out. Bay Wire contributors can film a full turn from the sidewalk.
 
 At an **On Green** starting light, hold both pedals with the wheels straight to warm the rear tires. When the light goes green, release **S** and keep **W** down. Warm tires bite harder for the first car lengths. Overheat them and the car takes longer to get up to speed. Your timing slip shows the brake-release reaction and the measured **0–30 MPH** split.

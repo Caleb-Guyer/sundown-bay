@@ -957,6 +957,7 @@
       if(street){
         carSprite(ctx,car,x,y,s,streetTime);
         BayStreetCars.map(ctx,car,x,y,s,streetTime);
+        if(car.cupNumber)BayCoastCupArt.mapCar(ctx,car,x,y,s);
         if(car.beatCar)BayOceanBeatArt.carMap(ctx,car,x,y,s,streetTime,car.beatLights);
         if(car.greenId)BayOnGreenArt.carMap(ctx,px,py,s,car,car.greenGesture||0);
         if(car===opt.luggage?.lid)BayLuggageBootArt.map(ctx,px,py,s,car,opt.luggage.amount,opt.luggage.items);
@@ -992,6 +993,7 @@
       }
     }
     if(street&&opt.oceanBeat&&opt.oceanBeat.seat<.55){const a=opt.oceanBeat.actor;if(visible(px(a.x),py(a.z),12))BayOceanBeatArt.mapPerson(ctx,a,px,py,s,streetTime);}
+    if(opt.coastCup)BayCoastCupArt.map(ctx,opt,px,py,s,visible);
     if(opt.recovery&&!street)BayRecoveryArt.map(ctx,opt,px,py,s,visible);
     if(street&&opt.courts){
       BayCourtBench.map(ctx,opt,px,py,s,visible);

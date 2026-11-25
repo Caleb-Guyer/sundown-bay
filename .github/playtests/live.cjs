@@ -109,10 +109,11 @@ async function run() {
     await waitFor("!document.querySelector('#hud').hidden");
     assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
     const jumps = process.argv.includes("--picture-jumps");
+    const cup = process.argv.includes("--coast-cup");
     const beat = process.argv.includes("--ocean-beat");
     const carbon = process.argv.includes("--carbon-copies");
-    if (!beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
-    const activity = beat ? require("./ocean-beat.cjs") : carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
+    if (!cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
+    const activity = cup ? require("./coast-cup.cjs") : beat ? require("./ocean-beat.cjs") : carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
     await activity({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
     assert.equal(await js("audioStarts+cursorRequests"), 0);

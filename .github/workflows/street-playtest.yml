@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   play:
-    name: Meet Ocean Unit 12 in ${{ matrix.view }} view
+    name: Race the Coastline Circuit in ${{ matrix.view }} view
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: node .github/playtests/live.cjs ${{ matrix.view }} --carbon-copies --frames
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --coast-cup --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --ocean-beat --frames
       - uses: actions/upload-artifact@v4
         if: always()
