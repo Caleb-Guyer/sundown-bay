@@ -19,10 +19,11 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         return this.drawOpaque(items);};`);
     await waitFor("!!recQA.surfaceResult",40000);
     const result=await js("recQA.surfaceResult");console.log("PERF solid street "+label,JSON.stringify(result));
-    assert(result.litCalls>0);
+    assert(result.litCalls>0&&result.modelCalls>0);
     for(const frame of result.comparisons){
       assert(frame.painted>10000&&frame.silhouette===0&&frame.recolored<=Math.ceil(frame.painted*.0001));
     }
+    assert(result.directPixels.painted>600&&result.directPixels.silhouette===0&&result.directPixels.recolored<=Math.ceil(result.directPixels.painted*.0001));
     assert.equal(await js("recQA.view.gl.getError()"),0);
   }
   async function loadFootAt(point){

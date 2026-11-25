@@ -11323,36 +11323,31 @@
   });
   addEventListener("blur",()=>{keys.clear();resetPointer();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");});
   document.addEventListener("visibilitychange",()=>{if(document.hidden){keys.clear();sound.reel(null);if(play)saveTime();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");}});
-  let last=performance.now(),lateSeconds=0,spareSeconds=0,verySlowFrames=0,lastIntroPaint=0,lastMenuPaint=0;
-  const overheadQuality={scale:1,late:0,early:0};
-  function tuneOverhead(seconds){
-    if(seconds<=0||seconds>.8)return;
-    const q=overheadQuality;
-    if(seconds>.045){q.late+=Math.min(.1,seconds);q.early=0;}
-    else if(seconds<.022){q.early+=seconds;q.late=0;}
-    else{q.early=0;q.late=Math.max(0,q.late-seconds);}
-    if(q.late>.68){q.scale=Math.max(.62,q.scale-.10);q.late=0;}
-    if(q.early>8){q.scale=Math.min(1,q.scale+.05);q.early=0;}
-  }
-  function tuneStreetResolution(seconds,streetView){
-    if(!streetView||seconds<=0||seconds>2.5){lateSeconds=spareSeconds=verySlowFrames=0;return;}
-    verySlowFrames=seconds>.13?Math.min(8,verySlowFrames+1):Math.max(0,verySlowFrames-2);
-    const floor=verySlowFrames>=6?.52:.64;
-    if(seconds>1/29){
-      lateSeconds=Math.min(1,lateSeconds+Math.min(.09,seconds)*(seconds>.048?1.5:1));
-      spareSeconds=0;
-    }else{
-      lateSeconds=Math.max(0,lateSeconds-seconds*.7);
-      spareSeconds=seconds<1/48?Math.min(9,spareSeconds+seconds):0;
-    }
-    if(lateSeconds>=.82&&view.scale>floor){
-      view.scale=Math.max(floor,Math.round((view.scale-.12)*100)/100);
-      lateSeconds=spareSeconds=0;
-    }else if(spareSeconds>=9&&view.scale<1){
-      view.scale=Math.min(1,Math.round((view.scale+.06)*100)/100);
-      lateSeconds=spareSeconds=0;
+  let last=performance.now(),lastIntroPaint=0,lastMenuPaint=0;
+  const overheadQuality={scale:1};
+  class SceneResolution {
+    constructor(target,floor){this.target=target;this.floor=floor;this.reset();}
+    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;}
+    sample(seconds){
+      if(!(seconds>0)||seconds>.5){this.reset();return;}
+      // Judge a stretch of play. An occasional upload or texture decode should
+      // not soften every following frame on an otherwise fast machine.
+      this.time+=Math.min(seconds,.15);this.frames++;
+      if(seconds>1/28)this.late++;
+      if(this.time<1.25)return;
+      const mean=this.time/this.frames,late=this.late/this.frames,scale=this.target.scale;
+      if(mean>1/28&&late>=.4&&scale>this.floor){
+        const step=mean>1/21?.14:.08;
+        this.target.scale=Math.max(this.floor,Math.round((scale-step)*100)/100);
+      }
+      this.headroom=mean<1/43&&late<.08?this.headroom+this.time:0;
+      if(this.headroom>=6&&scale<1){
+        this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);this.headroom=0;
+      }
+      this.time=this.frames=this.late=0;
     }
   }
+  const streetResolution=new SceneResolution(view,.46),overheadResolution=new SceneResolution(overheadQuality,.52);
   function frameCheckId(){
     const travel=canUseSeat()?"drive":onStreetFeet()||freeFeet()&&motion.jumpTime>=0?"walk":"";
     return travel?(isTop()?"Overhead ":"Street ")+travel:"";
@@ -11413,7 +11408,7 @@
         scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
         if(top)BaySixSharpArt.overhead(map,w,beat);
         else{
-          tuneStreetResolution(delta,true);const eye=w.eye(beat);
+          streetResolution.sample(delta);const eye=w.eye(beat);
           view.begin(eye,w.sun.night,w.sun);skyPainter.draw(view,eye,w.age,w.sun.night,w.sun);view.drawCityAndWater(w.age);
           BaySixSharp.street(w,view,model,personSkin);
         }
@@ -11424,7 +11419,7 @@
       else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
-        if(isTop())tuneOverhead(delta);else tuneStreetResolution(delta,true);
+        (isTop()?overheadResolution:streetResolution).sample(delta);
         renderWorld(d,streetTime);
       }
       return;
@@ -11492,8 +11487,7 @@
     if(timingFilm?.playing)drawTimingFilm(now);
     if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;
     if(needle&&!panel){if(now-lastCabinetStreet<150)return;lastCabinetStreet=now;}
-    tuneStreetResolution(raw,play&&!panel&&!isTop());
-    if(play&&!panel&&isTop())tuneOverhead(raw);
+    if(play&&!panel)(isTop()?overheadResolution:streetResolution).sample(raw);
     renderWorld(dt,streetTime);
     if(!panel&&skateTape.active)skateTape.sample(streetTime,lookSurface(),isTop()?null:$("sky"));
     if(skateProof)BaySkateFilm.paint(skateProof.canvas,skateReel,(now-skateProof.start)/1000);

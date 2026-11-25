@@ -4,9 +4,9 @@ module.exports=function compareSurface(view,items,pixels){
   const gl=view.gl,original=view.beginStreetSurface,batch=view.streetBatch,detail=batch.distanceDetail;
   const times=[[],[]],pixel=new Uint8Array(4),oldScale=view.scale,low=gl.getUniform(view.program,view.u.lowDetail);
   const frame=view.streetFrame,draw=view.drawOpaque,median=a=>a.sort((x,y)=>x-y)[a.length>>1];
-  let comparisons=[],litCalls=0;
+  let comparisons=[],litCalls=0,modelCalls=0;
   const pass=(fast,record)=>function(){
-    view.beginStreetSurface=fast?function(value){const used=original.call(this,value);if(used)litCalls++;return used;}:()=>false;
+    view.beginStreetSurface=fast?function(...args){const used=original.apply(this,args);if(used)litCalls++;return used;}:()=>false;
     gl.finish();const start=performance.now();view.draw("city");draw.call(view,items);
     gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
     if(record)times[+fast].push(performance.now()-start);
@@ -24,9 +24,38 @@ module.exports=function compareSurface(view,items,pixels){
       lamp:{x:frame.x,z:frame.z,yaw:view.basis.camera.yaw},skyR:.43,skyG:.48,skyB:.53};
     view.setFrameUniforms(view.u,view.streetFrame);
     comparisons.push(pixels(view,[],pass(true,false),pass(false,false),true));
-    return {timedMs:times.map(median),litCalls,width:view.canvas.width,height:view.canvas.height,comparisons};
+    const directTimes=[[],[]];
+    const direct=(fast,record)=>function(){
+      view.beginStreetSurface=function(glow,modelSpace){
+        if(modelSpace&&!fast)return false;
+        const used=original.call(this,glow,modelSpace);if(used&&modelSpace)modelCalls++;return used;
+      };
+      gl.finish();const start=performance.now();
+      for(const item of items)view.draw(...item);
+      gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
+      if(record)directTimes[+fast].push(performance.now()-start);
+    };
+    let directPixels;
+    for(let i=0;i<6;i++){
+      const fast=i%2===0,pair=pixels(view,[],direct(fast,i>1),direct(!fast,i>1),true);
+      if(i===5)directPixels=pair;
+    }
+    // Change only the target resolution. Both sizes render the same geometry,
+    // textures, camera and time of day with the production opaque shaders.
+    view.beginStreetSurface=original;
+    const widths=[.64,.46].map(scale=>Math.round(view.canvas.width*scale/oldScale)),sizeTimes=[[],[]];
+    function timedSize(tier,record){return function(){
+      gl.finish();const start=performance.now();
+      view.draw("city");draw.call(view,items);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
+      if(record)sizeTimes[tier].push(performance.now()-start);
+    };}
+    for(let i=0;i<6;i++)for(const tier of (i%2?[1,0]:[0,1])){
+      const render=timedSize(tier,i>0);pixels(view,[],render,render,widths[tier]);
+    }
+    return {timedMs:times.map(median),directMs:directTimes.map(median),directPixels,litCalls,modelCalls,
+      widths,sizeMs:sizeTimes.map(median),width:view.canvas.width,height:view.canvas.height,comparisons};
   }finally{
-    view.beginStreetSurface=original;batch.distanceDetail=detail;view.streetFrame=frame;view.streetFrameSent=null;
+    view.beginStreetSurface=original;batch.distanceDetail=detail;view.streetFrame=frame;
     view.scale=oldScale;gl.useProgram(view.program);gl.uniform1f(view.u.lowDetail,low);view.setFrameUniforms(view.u,frame);view.bound=null;
   }
 };

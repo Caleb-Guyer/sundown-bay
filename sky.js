@@ -99,7 +99,8 @@
       const sceneNight=Math.max(dusk,night);
       const {c}=this;if(!this.g)this.g=c.getContext("2d",{alpha:false});
       if(!this.g)return;
-      const g=this.g,w=Math.max(2,Math.round(innerWidth*.66)),h=Math.max(2,Math.round(innerHeight*.66)),f=cam.focal||1.5;
+      const density=Math.min(.66,view.scale||1);
+      const g=this.g,w=Math.max(2,Math.round(innerWidth*density)),h=Math.max(2,Math.round(innerHeight*density)),f=cam.focal||1.5;
       if(this.last&&w===c.width&&h===c.height&&Math.abs(this.last.yaw-cam.yaw)<.0008&&Math.abs(this.last.pitch-cam.pitch)<.0008&&Math.abs(this.last.f-f)<.003&&Math.abs(this.last.dusk-dusk)<.02&&Math.abs(this.last.minute-minute)<.7&&Math.abs(this.last.rain-rain)<.018&&this.last.t<=t&&t-this.last.t<.20)return;
       if(w!==c.width||h!==c.height){c.width=w;c.height=h;}
       this.last={t,yaw:cam.yaw,pitch:cam.pitch,f,dusk,minute,rain};

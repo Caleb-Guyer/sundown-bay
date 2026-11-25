@@ -456,13 +456,15 @@
     uniform vec4 tilt,waterParams; uniform float castOnly; uniform vec2 castSlope;
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     void main(){
-      #ifdef STREET_SURFACE
+      #if defined(STREET_SURFACE) && !defined(MODEL_SPACE)
       vec3 world=pos;
       #else
       vec3 q=vec3(pos.x,pos.y*tilt.x-pos.z*tilt.y,pos.y*tilt.y+pos.z*tilt.x);
       q=vec3(q.x*tilt.z-q.y*tilt.w,q.x*tilt.w+q.y*tilt.z,q.z);
       vec3 world=origin+vec3(q.x*turn.x+q.z*turn.y,q.y,-q.x*turn.y+q.z*turn.x);
+      #ifndef STREET_SURFACE
       if(castOnly>.5){world.xz+=castSlope*(world.y-.15);world.y=.153;}
+      #endif
       #endif
       vec3 rel=world-eye; float z=dot(rel,forwardV);
       gl_Position=vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);
@@ -656,18 +658,23 @@
       this.sunUniforms={};
       for(const key of ["sunDir","sunAcross","sunUp"])this.sunUniforms[key]=gl.getUniformLocation(this.sunProgram,key);
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
-      // Both submissions below contain world-space vertices. Keep the normal
-      // program for tilted models, water, projected shadows and blended effects.
+      // The city and streamed props already use world coordinates. Individual
+      // solid models keep their chassis or joint transform in the vertex shader.
       const define="#define STREET_SURFACE\n";
-      this.streetProgram=program(define+VERTEX,define+FRAGMENT,{pos:this.pos,col:this.col});
-      this.streetU={};for(const name of ["eye","rightV","upV","forwardV","focal","depth","sunDir","sunAcross","sunUp","sunDepth","paper","vehicleLight","streetLight","hasShadow","airState","dusk","skyTone","lightArea","driverLamp","glow"])
-        this.streetU[name]=gl.getUniformLocation(this.streetProgram,name);
-      gl.useProgram(this.streetProgram);
-      for(const [name,unit] of [["sunDepth",0],["paper",1],["streetLight",3],["vehicleLight",4]])gl.uniform1i(this.streetU[name],unit);
-      gl.useProgram(p);this.streetFrame=null;this.streetFrameSent=null;this.shadowAxes=null;this.streetGlow=NaN;
+      const n=.13,f=1100;
+      const surface=prefix=>{
+        const solid=program(prefix+define+VERTEX,define+FRAGMENT,{pos:this.pos,col:this.col}),u={};
+        for(const name of ["origin","turn","tilt","eye","rightV","upV","forwardV","focal","depth","sunDir","sunAcross","sunUp","sunDepth","paper","vehicleLight","streetLight","hasShadow","airState","dusk","skyTone","lightArea","driverLamp","glow"])
+          u[name]=gl.getUniformLocation(solid,name);
+        gl.useProgram(solid);
+        for(const [name,unit] of [["sunDepth",0],["paper",1],["streetLight",3],["vehicleLight",4]])gl.uniform1i(u[name],unit);
+        gl.uniform2f(u.depth,(f+n)/(f-n),-2*f*n/(f-n));
+        return {program:solid,u,frame:null,glow:NaN};
+      };
+      this.streetSurface=surface("");this.modelSurface=surface("#define MODEL_SPACE\n");
+      gl.useProgram(p);this.streetFrame=null;this.shadowAxes=null;
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
-      gl.clearColor(0,0,0,0); const n=.13,f=1100;gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
-      gl.useProgram(this.streetProgram);gl.uniform2f(this.streetU.depth,(f+n)/(f-n),-2*f*n/(f-n));gl.useProgram(p);
+      gl.clearColor(0,0,0,0);gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
       this.stencil=gl.getContextAttributes().stencil;this.shadowTexture=gl.createTexture();this.paper=gl.createTexture();
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.shadowTexture);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
@@ -925,15 +932,15 @@
       gl.uniform3f(u.eye,p.x,p.y,p.z);gl.uniform3f(u.rightV,p.cs,0,-p.sn);
       gl.uniform3f(u.upV,p.ux,p.cp,p.uz);gl.uniform3f(u.forwardV,p.fx,p.fy,p.fz);gl.uniform2f(u.focal,p.fxScreen,p.focal);
     }
-    beginStreetSurface(glow){
-      const frame=this.streetFrame;
-      if(!frame||this.scale>.65||frame.underwater||this.casting||!this.streetProgram)return false;
-      const gl=this.gl,u=this.streetU;gl.useProgram(this.streetProgram);
-      if(this.streetFrameSent!==frame){
+    beginStreetSurface(glow,modelSpace=false){
+      const frame=this.streetFrame,surface=modelSpace?this.modelSurface:this.streetSurface;
+      if(!frame||this.scale>.65||frame.underwater||this.casting||!surface||modelSpace&&!frame.timed)return false;
+      const gl=this.gl,u=surface.u;gl.useProgram(surface.program);
+      if(surface.frame!==frame){
         this.setFrameUniforms(u,frame);gl.uniform1f(u.hasShadow,frame.shadow);
-        if(frame.shadow&&this.shadowAxes)this.sunAxes(u);this.streetFrameSent=frame;
+        if(frame.shadow&&this.shadowAxes)this.sunAxes(u);surface.frame=frame;
       }
-      if(this.streetGlow!==glow){gl.uniform1f(u.glow,glow);this.streetGlow=glow;}
+      if(surface.glow!==glow){gl.uniform1f(u.glow,glow);surface.glow=glow;}
       return true;
     }
     inFrame(b,x,y,z,yaw,tiltX,tiltZ,pad=0){
@@ -976,8 +983,12 @@
       gl.enable(gl.STENCIL_TEST);gl.stencilFunc(gl.EQUAL,0,255);gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);gl.uniform1f(this.u.castOnly,1);return true;
     }
     endShadow(){this.casting=false;const gl=this.gl;gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.uniform1f(this.u.castOnly,0);}
+    drawEffect(name,x=0,y=0,z=0,yaw=0,pitch=0){
+      this.effectPass=true;
+      try{this.draw(name,x,y,z,yaw,pitch);}finally{this.effectPass=false;}
+    }
     drawGhost(name,x,y,z,yaw){
-      this.gl.uniform1f(this.u.ghost,1);this.draw(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
+      this.gl.uniform1f(this.u.ghost,1);this.drawEffect(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
     }
     drawOpaque(list){
       if(this.scale>.75){for(const item of list)this.draw(...item);return;}
@@ -1003,7 +1014,7 @@
     }
     drawWater(t){
       const gl=this.gl,eye=this.basis.camera;gl.uniform4f(this.u.waterParams,eye.x,eye.z,t,1);
-      this.draw("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
+      this.drawEffect("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
     }
     drawPrint(name,canvas,revision,x,y,z,yaw,tiltX=0){
       if(!this.gl||this.lost||!this.models.has(name))return;
@@ -1030,12 +1041,12 @@
         }
         gl.activeTexture(gl.TEXTURE0);
       }
-      gl.uniform1f(this.u.showPrint,1);this.draw(name,x,y,z,yaw,tiltX);gl.uniform1f(this.u.showPrint,0);
+      gl.uniform1f(this.u.showPrint,1);this.drawEffect(name,x,y,z,yaw,tiltX);gl.uniform1f(this.u.showPrint,0);
     }
     drawSearchlight(name){
       const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);
       gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
-      gl.uniform1f(this.u.beam,1);this.draw(name);gl.uniform1f(this.u.beam,0);
+      gl.uniform1f(this.u.beam,1);this.drawEffect(name);gl.uniform1f(this.u.beam,0);
       gl.disable(gl.BLEND);gl.depthMask(true);
     }
     draw(name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0,vehicle=null,doorSide=0,vapor=0){
@@ -1060,14 +1071,21 @@
       const reduced=this.scale<=.65&&base===model&&!base.actor&&base.bounds&&base.count>330&&
         (model.sections||!tiltX&&!tiltZ&&this.farFromCamera(base.bounds,x,y,z,yaw));
       if(reduced&&!model.distanceReady)this.prepareDistanceMesh(model,this.cpu.get(name));
-      if(this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}
-      if(tiltX!==this.tiltX||tiltZ!==this.tiltZ){gl.uniform4f(this.u.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));this.tiltX=tiltX;this.tiltZ=tiltZ;}
+      const city=reduced&&model.city&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ;
+      const solid=!this.effectPass&&!vapor&&this.beginStreetSurface(glow,!city);
+      if(!solid&&this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
+      if(!solid||!city){
+        const uniforms=solid?this.modelSurface.u:this.u,state=solid?this.modelSurface:this;
+        if(tiltX!==state.tiltX||tiltZ!==state.tiltZ){
+          gl.uniform4f(uniforms.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));
+          state.tiltX=tiltX;state.tiltZ=tiltZ;
+        }
+        gl.uniform3f(uniforms.origin,x,y,z);gl.uniform2f(uniforms.turn,Math.cos(yaw),Math.sin(yaw));
+      }
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
-      gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
-      if(reduced&&model.city&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ){
-        const solid=this.beginStreetSurface(glow),list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model);
-        if(solid)gl.useProgram(this.program);
+      if(city){
+        const list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model);
       }else if(model.starts&&this.multiDraw){
         this.drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0);
       }else if(model.sections){
@@ -1089,6 +1107,7 @@
       }else if(reduced&&model.distant){
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,model.indexCount,model.indexType,0);
       }else drawRange(gl,model,0,model.count);
+      if(solid)gl.useProgram(this.program);
       if(vapor){gl.uniform1f(this.u.beam,0);gl.disable(gl.BLEND);gl.depthMask(true);}
     }
   }
@@ -1389,7 +1408,8 @@
       const sceneNight=Math.max(dusk,night);
       const {c}=this;if(!this.g)this.g=c.getContext("2d",{alpha:false});
       if(!this.g)return;
-      const g=this.g,w=Math.max(2,Math.round(innerWidth*.66)),h=Math.max(2,Math.round(innerHeight*.66)),f=cam.focal||1.5;
+      const density=Math.min(.66,view.scale||1);
+      const g=this.g,w=Math.max(2,Math.round(innerWidth*density)),h=Math.max(2,Math.round(innerHeight*density)),f=cam.focal||1.5;
       if(this.last&&w===c.width&&h===c.height&&Math.abs(this.last.yaw-cam.yaw)<.0008&&Math.abs(this.last.pitch-cam.pitch)<.0008&&Math.abs(this.last.f-f)<.003&&Math.abs(this.last.dusk-dusk)<.02&&Math.abs(this.last.minute-minute)<.7&&Math.abs(this.last.rain-rain)<.018&&this.last.t<=t&&t-this.last.t<.20)return;
       if(w!==c.width||h!==c.height){c.width=w;c.height=h;}
       this.last={t,yaw:cam.yaw,pitch:cam.pitch,f,dusk,minute,rain};
@@ -79755,36 +79775,31 @@ window.buildBayCity = function buildBayCity(g,water) {
   });
   addEventListener("blur",()=>{keys.clear();resetPointer();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");});
   document.addEventListener("visibilitychange",()=>{if(document.hidden){keys.clear();sound.reel(null);if(play)saveTime();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");}});
-  let last=performance.now(),lateSeconds=0,spareSeconds=0,verySlowFrames=0,lastIntroPaint=0,lastMenuPaint=0;
-  const overheadQuality={scale:1,late:0,early:0};
-  function tuneOverhead(seconds){
-    if(seconds<=0||seconds>.8)return;
-    const q=overheadQuality;
-    if(seconds>.045){q.late+=Math.min(.1,seconds);q.early=0;}
-    else if(seconds<.022){q.early+=seconds;q.late=0;}
-    else{q.early=0;q.late=Math.max(0,q.late-seconds);}
-    if(q.late>.68){q.scale=Math.max(.62,q.scale-.10);q.late=0;}
-    if(q.early>8){q.scale=Math.min(1,q.scale+.05);q.early=0;}
-  }
-  function tuneStreetResolution(seconds,streetView){
-    if(!streetView||seconds<=0||seconds>2.5){lateSeconds=spareSeconds=verySlowFrames=0;return;}
-    verySlowFrames=seconds>.13?Math.min(8,verySlowFrames+1):Math.max(0,verySlowFrames-2);
-    const floor=verySlowFrames>=6?.52:.64;
-    if(seconds>1/29){
-      lateSeconds=Math.min(1,lateSeconds+Math.min(.09,seconds)*(seconds>.048?1.5:1));
-      spareSeconds=0;
-    }else{
-      lateSeconds=Math.max(0,lateSeconds-seconds*.7);
-      spareSeconds=seconds<1/48?Math.min(9,spareSeconds+seconds):0;
-    }
-    if(lateSeconds>=.82&&view.scale>floor){
-      view.scale=Math.max(floor,Math.round((view.scale-.12)*100)/100);
-      lateSeconds=spareSeconds=0;
-    }else if(spareSeconds>=9&&view.scale<1){
-      view.scale=Math.min(1,Math.round((view.scale+.06)*100)/100);
-      lateSeconds=spareSeconds=0;
+  let last=performance.now(),lastIntroPaint=0,lastMenuPaint=0;
+  const overheadQuality={scale:1};
+  class SceneResolution {
+    constructor(target,floor){this.target=target;this.floor=floor;this.reset();}
+    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;}
+    sample(seconds){
+      if(!(seconds>0)||seconds>.5){this.reset();return;}
+      // Judge a stretch of play. An occasional upload or texture decode should
+      // not soften every following frame on an otherwise fast machine.
+      this.time+=Math.min(seconds,.15);this.frames++;
+      if(seconds>1/28)this.late++;
+      if(this.time<1.25)return;
+      const mean=this.time/this.frames,late=this.late/this.frames,scale=this.target.scale;
+      if(mean>1/28&&late>=.4&&scale>this.floor){
+        const step=mean>1/21?.14:.08;
+        this.target.scale=Math.max(this.floor,Math.round((scale-step)*100)/100);
+      }
+      this.headroom=mean<1/43&&late<.08?this.headroom+this.time:0;
+      if(this.headroom>=6&&scale<1){
+        this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);this.headroom=0;
+      }
+      this.time=this.frames=this.late=0;
     }
   }
+  const streetResolution=new SceneResolution(view,.46),overheadResolution=new SceneResolution(overheadQuality,.52);
   function frameCheckId(){
     const travel=canUseSeat()?"drive":onStreetFeet()||freeFeet()&&motion.jumpTime>=0?"walk":"";
     return travel?(isTop()?"Overhead ":"Street ")+travel:"";
@@ -79845,7 +79860,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
         if(top)BaySixSharpArt.overhead(map,w,beat);
         else{
-          tuneStreetResolution(delta,true);const eye=w.eye(beat);
+          streetResolution.sample(delta);const eye=w.eye(beat);
           view.begin(eye,w.sun.night,w.sun);skyPainter.draw(view,eye,w.age,w.sun.night,w.sun);view.drawCityAndWater(w.age);
           BaySixSharp.street(w,view,model,personSkin);
         }
@@ -79856,7 +79871,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
-        if(isTop())tuneOverhead(delta);else tuneStreetResolution(delta,true);
+        (isTop()?overheadResolution:streetResolution).sample(delta);
         renderWorld(d,streetTime);
       }
       return;
@@ -79924,8 +79939,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(timingFilm?.playing)drawTimingFilm(now);
     if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;
     if(needle&&!panel){if(now-lastCabinetStreet<150)return;lastCabinetStreet=now;}
-    tuneStreetResolution(raw,play&&!panel&&!isTop());
-    if(play&&!panel&&isTop())tuneOverhead(raw);
+    if(play&&!panel)(isTop()?overheadResolution:streetResolution).sample(raw);
     renderWorld(dt,streetTime);
     if(!panel&&skateTape.active)skateTape.sample(streetTime,lookSurface(),isTop()?null:$("sky"));
     if(skateProof)BaySkateFilm.paint(skateProof.canvas,skateReel,(now-skateProof.start)/1000);

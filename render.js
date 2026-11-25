@@ -455,13 +455,15 @@
     uniform vec4 tilt,waterParams; uniform float castOnly; uniform vec2 castSlope;
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     void main(){
-      #ifdef STREET_SURFACE
+      #if defined(STREET_SURFACE) && !defined(MODEL_SPACE)
       vec3 world=pos;
       #else
       vec3 q=vec3(pos.x,pos.y*tilt.x-pos.z*tilt.y,pos.y*tilt.y+pos.z*tilt.x);
       q=vec3(q.x*tilt.z-q.y*tilt.w,q.x*tilt.w+q.y*tilt.z,q.z);
       vec3 world=origin+vec3(q.x*turn.x+q.z*turn.y,q.y,-q.x*turn.y+q.z*turn.x);
+      #ifndef STREET_SURFACE
       if(castOnly>.5){world.xz+=castSlope*(world.y-.15);world.y=.153;}
+      #endif
       #endif
       vec3 rel=world-eye; float z=dot(rel,forwardV);
       gl_Position=vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);
@@ -655,18 +657,23 @@
       this.sunUniforms={};
       for(const key of ["sunDir","sunAcross","sunUp"])this.sunUniforms[key]=gl.getUniformLocation(this.sunProgram,key);
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
-      // Both submissions below contain world-space vertices. Keep the normal
-      // program for tilted models, water, projected shadows and blended effects.
+      // The city and streamed props already use world coordinates. Individual
+      // solid models keep their chassis or joint transform in the vertex shader.
       const define="#define STREET_SURFACE\n";
-      this.streetProgram=program(define+VERTEX,define+FRAGMENT,{pos:this.pos,col:this.col});
-      this.streetU={};for(const name of ["eye","rightV","upV","forwardV","focal","depth","sunDir","sunAcross","sunUp","sunDepth","paper","vehicleLight","streetLight","hasShadow","airState","dusk","skyTone","lightArea","driverLamp","glow"])
-        this.streetU[name]=gl.getUniformLocation(this.streetProgram,name);
-      gl.useProgram(this.streetProgram);
-      for(const [name,unit] of [["sunDepth",0],["paper",1],["streetLight",3],["vehicleLight",4]])gl.uniform1i(this.streetU[name],unit);
-      gl.useProgram(p);this.streetFrame=null;this.streetFrameSent=null;this.shadowAxes=null;this.streetGlow=NaN;
+      const n=.13,f=1100;
+      const surface=prefix=>{
+        const solid=program(prefix+define+VERTEX,define+FRAGMENT,{pos:this.pos,col:this.col}),u={};
+        for(const name of ["origin","turn","tilt","eye","rightV","upV","forwardV","focal","depth","sunDir","sunAcross","sunUp","sunDepth","paper","vehicleLight","streetLight","hasShadow","airState","dusk","skyTone","lightArea","driverLamp","glow"])
+          u[name]=gl.getUniformLocation(solid,name);
+        gl.useProgram(solid);
+        for(const [name,unit] of [["sunDepth",0],["paper",1],["streetLight",3],["vehicleLight",4]])gl.uniform1i(u[name],unit);
+        gl.uniform2f(u.depth,(f+n)/(f-n),-2*f*n/(f-n));
+        return {program:solid,u,frame:null,glow:NaN};
+      };
+      this.streetSurface=surface("");this.modelSurface=surface("#define MODEL_SPACE\n");
+      gl.useProgram(p);this.streetFrame=null;this.shadowAxes=null;
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
-      gl.clearColor(0,0,0,0); const n=.13,f=1100;gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
-      gl.useProgram(this.streetProgram);gl.uniform2f(this.streetU.depth,(f+n)/(f-n),-2*f*n/(f-n));gl.useProgram(p);
+      gl.clearColor(0,0,0,0);gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
       this.stencil=gl.getContextAttributes().stencil;this.shadowTexture=gl.createTexture();this.paper=gl.createTexture();
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.shadowTexture);
       gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
@@ -924,15 +931,15 @@
       gl.uniform3f(u.eye,p.x,p.y,p.z);gl.uniform3f(u.rightV,p.cs,0,-p.sn);
       gl.uniform3f(u.upV,p.ux,p.cp,p.uz);gl.uniform3f(u.forwardV,p.fx,p.fy,p.fz);gl.uniform2f(u.focal,p.fxScreen,p.focal);
     }
-    beginStreetSurface(glow){
-      const frame=this.streetFrame;
-      if(!frame||this.scale>.65||frame.underwater||this.casting||!this.streetProgram)return false;
-      const gl=this.gl,u=this.streetU;gl.useProgram(this.streetProgram);
-      if(this.streetFrameSent!==frame){
+    beginStreetSurface(glow,modelSpace=false){
+      const frame=this.streetFrame,surface=modelSpace?this.modelSurface:this.streetSurface;
+      if(!frame||this.scale>.65||frame.underwater||this.casting||!surface||modelSpace&&!frame.timed)return false;
+      const gl=this.gl,u=surface.u;gl.useProgram(surface.program);
+      if(surface.frame!==frame){
         this.setFrameUniforms(u,frame);gl.uniform1f(u.hasShadow,frame.shadow);
-        if(frame.shadow&&this.shadowAxes)this.sunAxes(u);this.streetFrameSent=frame;
+        if(frame.shadow&&this.shadowAxes)this.sunAxes(u);surface.frame=frame;
       }
-      if(this.streetGlow!==glow){gl.uniform1f(u.glow,glow);this.streetGlow=glow;}
+      if(surface.glow!==glow){gl.uniform1f(u.glow,glow);surface.glow=glow;}
       return true;
     }
     inFrame(b,x,y,z,yaw,tiltX,tiltZ,pad=0){
@@ -975,8 +982,12 @@
       gl.enable(gl.STENCIL_TEST);gl.stencilFunc(gl.EQUAL,0,255);gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);gl.uniform1f(this.u.castOnly,1);return true;
     }
     endShadow(){this.casting=false;const gl=this.gl;gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.uniform1f(this.u.castOnly,0);}
+    drawEffect(name,x=0,y=0,z=0,yaw=0,pitch=0){
+      this.effectPass=true;
+      try{this.draw(name,x,y,z,yaw,pitch);}finally{this.effectPass=false;}
+    }
     drawGhost(name,x,y,z,yaw){
-      this.gl.uniform1f(this.u.ghost,1);this.draw(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
+      this.gl.uniform1f(this.u.ghost,1);this.drawEffect(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
     }
     drawOpaque(list){
       if(this.scale>.75){for(const item of list)this.draw(...item);return;}
@@ -1002,7 +1013,7 @@
     }
     drawWater(t){
       const gl=this.gl,eye=this.basis.camera;gl.uniform4f(this.u.waterParams,eye.x,eye.z,t,1);
-      this.draw("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
+      this.drawEffect("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
     }
     drawPrint(name,canvas,revision,x,y,z,yaw,tiltX=0){
       if(!this.gl||this.lost||!this.models.has(name))return;
@@ -1029,12 +1040,12 @@
         }
         gl.activeTexture(gl.TEXTURE0);
       }
-      gl.uniform1f(this.u.showPrint,1);this.draw(name,x,y,z,yaw,tiltX);gl.uniform1f(this.u.showPrint,0);
+      gl.uniform1f(this.u.showPrint,1);this.drawEffect(name,x,y,z,yaw,tiltX);gl.uniform1f(this.u.showPrint,0);
     }
     drawSearchlight(name){
       const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);
       gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
-      gl.uniform1f(this.u.beam,1);this.draw(name);gl.uniform1f(this.u.beam,0);
+      gl.uniform1f(this.u.beam,1);this.drawEffect(name);gl.uniform1f(this.u.beam,0);
       gl.disable(gl.BLEND);gl.depthMask(true);
     }
     draw(name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0,vehicle=null,doorSide=0,vapor=0){
@@ -1059,14 +1070,21 @@
       const reduced=this.scale<=.65&&base===model&&!base.actor&&base.bounds&&base.count>330&&
         (model.sections||!tiltX&&!tiltZ&&this.farFromCamera(base.bounds,x,y,z,yaw));
       if(reduced&&!model.distanceReady)this.prepareDistanceMesh(model,this.cpu.get(name));
-      if(this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}
-      if(tiltX!==this.tiltX||tiltZ!==this.tiltZ){gl.uniform4f(this.u.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));this.tiltX=tiltX;this.tiltZ=tiltZ;}
+      const city=reduced&&model.city&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ;
+      const solid=!this.effectPass&&!vapor&&this.beginStreetSurface(glow,!city);
+      if(!solid&&this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
+      if(!solid||!city){
+        const uniforms=solid?this.modelSurface.u:this.u,state=solid?this.modelSurface:this;
+        if(tiltX!==state.tiltX||tiltZ!==state.tiltZ){
+          gl.uniform4f(uniforms.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));
+          state.tiltX=tiltX;state.tiltZ=tiltZ;
+        }
+        gl.uniform3f(uniforms.origin,x,y,z);gl.uniform2f(uniforms.turn,Math.cos(yaw),Math.sin(yaw));
+      }
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
-      gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
-      if(reduced&&model.city&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ){
-        const solid=this.beginStreetSurface(glow),list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model);
-        if(solid)gl.useProgram(this.program);
+      if(city){
+        const list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model);
       }else if(model.starts&&this.multiDraw){
         this.drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0);
       }else if(model.sections){
@@ -1088,6 +1106,7 @@
       }else if(reduced&&model.distant){
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,model.indexCount,model.indexType,0);
       }else drawRange(gl,model,0,model.count);
+      if(solid)gl.useProgram(this.program);
       if(vapor){gl.uniform1f(this.u.beam,0);gl.disable(gl.BLEND);gl.depthMask(true);}
     }
   }
