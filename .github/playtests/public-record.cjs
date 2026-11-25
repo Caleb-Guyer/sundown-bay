@@ -13,6 +13,17 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     console.log("PERF city indices "+label,JSON.stringify(proof));
     assert(proof.counts[1]<proof.counts[0]&&proof.ranges[1]===1&&proof.ranges[0]>1);
     assert(proof.pixels.painted>300&&proof.pixels.silhouette<proof.pixels.painted*.001&&proof.pixels.recolored<proof.pixels.painted*.005);
+    await js(`recQA.surfaceResult=null;
+      recQA.view.drawOpaque=function(items){delete this.drawOpaque;
+        recQA.surfaceResult=(${require("./street-surface.cjs").toString()})(this,items,comparePixels);
+        return this.drawOpaque(items);};`);
+    await waitFor("!!recQA.surfaceResult",40000);
+    const result=await js("recQA.surfaceResult");console.log("PERF solid street "+label,JSON.stringify(result));
+    assert(result.litCalls>0);
+    for(const frame of result.comparisons){
+      assert(frame.painted>10000&&frame.silhouette===0&&frame.recolored<=Math.ceil(frame.painted*.0001));
+    }
+    assert.equal(await js("recQA.view.gl.getError()"),0);
   }
   async function loadFootAt(point){
     const before=await send("Page.addScriptToEvaluateOnNewDocument",{source:`const data=JSON.parse(localStorage.getItem('sundownBay.secondUnit.v1'));
