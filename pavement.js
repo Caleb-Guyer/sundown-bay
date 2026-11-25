@@ -165,11 +165,11 @@
     }
     attendants(dt,focus,env){
       for(const p of this.props){
-        const w=p.worker;if(gap(focus,p)>95)continue;
+        const w=p.worker;if(gap(focus,p)>95&&!env.capNeedsService?.(p))continue;
         w.wait=Math.max(0,w.wait-dt);w.pace=0;let reaching=false;
         if(env.dodge?.(w,dt)){w.path=[];w.target=null;continue;}
         if(env.tendCap?.(p,w,dt)){
-          w.motion.step(dt,w.pace,0);w.motion.crouch=w.atCap?.34:0;
+          w.motion.step(dt,w.pace,0);w.motion.crouch=w.atCap ? .34 : 0;
           w.motion.handTarget=w.atCap||w.carryCap?{x:.24,y:.92,z:.37,weight:1}:null;
           continue;
         }

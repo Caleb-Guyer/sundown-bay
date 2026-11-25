@@ -44,13 +44,27 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await hold(["KeyS"]);await waitFor("n.car.speed<-.8&&n.car.z<n.s.z-5.5",30000);
     await hold(["KeyW"]);await waitFor("n.car.speed>-.20",20000);await hold([]);
     await waitFor("n.s.cap?.rest&&n.s.pressure>.9");await snap("jet");
+    const incident=await js("localStorage.getItem('sundownBay.waterPost.marlin')");
     assert(await js("n.height>1.1&&n.wet>.30&&n.flow>.30&&n.burstFrames>1"));
     await tap("KeyE");await waitFor("!n.map.player.driving");await walk("n.s.button",1.25);
     await waitFor("document.querySelector('#context').innerText.includes('Stop the water')");await tap("KeyF");await waitFor("n.s.mode==='closed'");
     await walk("n.s.cap",1.21);await tap("KeyL");await waitFor("n.net.hand===n.s");await snap("carry");
     await walk("n.s",1.29);await tap("KeyL");await waitFor("n.s.mode==='idle'&&n.net.book.marlin===1");
     await walk("n.s.button",1.23);await tap("KeyF");await waitFor("n.s.mode==='fan'&&n.fanFrames>=3");await snap("shower");
+    assert.equal(await js("audioStarts+cursorRequests"),0);
+    // Replay the same real collision from the witness's sidewalk. Here the driver leaves the work to Luz.
+    const witness=await js(`(()=>{const u=new BaySecondUnit.Unit();delete u.motors[u.lead];u.remember({x:153.0,z:-25.0,yaw:0},null);u.save();return localStorage.getItem("sundownBay.secondUnit.v1");})()`);
+    const saved=await send("Page.addScriptToEvaluateOnNewDocument",{source:'localStorage.setItem("sundownBay.waterPost.marlin",'+JSON.stringify(incident)+');localStorage.setItem("sundownBay.secondUnit.v1",'+JSON.stringify(witness)+');'});
     await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BaySummerCaps==='object'&&BaySummerCaps.readBook().marlin===1");
+    await send("Page.removeScriptToEvaluateOnNewDocument",{identifier:saved.identifier});
+    await js(`window.watch={};const step=BayPavement.Street.prototype.attendants;
+      BayPavement.Street.prototype.attendants=function(dt,focus,env){const r=step.apply(this,arguments);const w=this.props[0].worker;
+        if(w.carryCap)watch.carried=true;if(w.atCap)watch.worked=true;return r;};
+      const map=drawBayMap;window.drawBayMap=function(c,o){if(o.summerCaps)watch.post=o.summerCaps.posts[0];return map(c,o);};document.querySelector('#play').click();`);
+    await waitFor("window.watch?.post?.mode==='burst'");await snap("witness");
+    await waitFor("watch.worked&&watch.carried&&!watch.post.cap",150000);
+    assert.equal(await js("BaySummerCaps.readBook().marlin"),1);assert.equal(await js("audioStarts+cursorRequests"),0);
+    console.log("PASS",mode,"Luz left her stand, stopped the saved burst, carried the loose cap and restored the corner herself.");
     assert.deepEqual(errors,[]);console.log("PASS",mode,"drove into the Marlin cap, saw it tumble and fill the gutter, soaked the windshield, backed away, exited, shut off the burst, retrieved and refitted the cap, then ran the shower. Repair survived reload. Audio starts 0, cursor locks 0.");
   }catch(error){
     console.log("Caps state",await js("JSON.stringify({car:window.n?.car&&[n.car.x,n.car.z,n.car.speed],p:window.n?.map?.player&&[n.map.player.x,n.map.player.z,n.map.player.driving],post:window.n?.s&&[n.s.mode,n.s.age,n.s.cap?.x,n.s.cap?.z,n.s.cap?.rest],wet:window.n?.wet,flow:window.n?.flow,burstFrames:window.n?.burstFrames,context:document.querySelector('#context').innerText})"));

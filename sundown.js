@@ -59615,11 +59615,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     attendants(dt,focus,env){
       for(const p of this.props){
-        const w=p.worker;if(gap(focus,p)>95)continue;
+        const w=p.worker;if(gap(focus,p)>95&&!env.capNeedsService?.(p))continue;
         w.wait=Math.max(0,w.wait-dt);w.pace=0;let reaching=false;
         if(env.dodge?.(w,dt)){w.path=[];w.target=null;continue;}
         if(env.tendCap?.(p,w,dt)){
-          w.motion.step(dt,w.pace,0);w.motion.crouch=w.atCap?.34:0;
+          w.motion.step(dt,w.pace,0);w.motion.crouch=w.atCap ? .34 : 0;
           w.motion.handTarget=w.atCap||w.carryCap?{x:.24,y:.92,z:.37,weight:1}:null;
           continue;
         }
@@ -64223,12 +64223,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     return Object.fromEntries(sites.map(s=>[s.id,Number.isSafeInteger(plain?.[s.id])&&plain[s.id]>0?Math.min(99999,plain[s.id]):0]));
   }
   const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
-  const directions=(s,x,z)=>BayDriving.world(s,x,z);
   class Caps{
     constructor(gutters){
-      this.posts=sites.map(s=>({...s,button:directions(s,1.7,-2.6),pool:gutters.pools.find(p=>p.id===s.id),
+      this.posts=sites.map(s=>({...s,button:BayDriving.world(s,1.7,-2.6),pool:gutters.pools.find(p=>p.id===s.id),
         mode:"idle",age:0,timer:0,pressure:0,cap:null,flow:"fan",lastSlot:-1,buttonDip:0,attending:false}));
       this.hand=null;this.book=readBook();
+      this.byStand=new Map(this.posts.map(s=>[s.stand,s]));
       for(const s of this.posts){
         let q;try{q=JSON.parse(localStorage.getItem(incidentKey(s.id)));}catch{}
         if(!q||!["burst","closed"].includes(q.mode)||![q.x,q.z].every(Number.isFinite))continue;
@@ -64255,7 +64255,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     take(s,actor){
       if(s.mode!=="closed"||!s.cap?.rest||s.cap.carrier)return false;
-      s.cap.carrier=actor;return true;
+      s.cap.lift={x:s.cap.x,z:s.cap.z,y:s.cap.y,t:0};s.cap.carrier=actor;return true;
     }
     seat(s,actor,player){
       if(s.cap?.carrier!==actor||gap(actor,s)>1.68)return false;
@@ -64263,6 +64263,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         this.hand=null;this.book=readBook();this.book[s.id]=Math.min(99999,this.book[s.id]+1);
         try{localStorage.setItem(recordKey,JSON.stringify(this.book));}catch{}
       }
+      s.fitting={x:s.cap.x,z:s.cap.z,y:s.cap.y,t:0};
       Object.assign(s,{cap:null,mode:"idle",flow:"fan",timer:0,age:0,attending:false});savePost(s);return true;
     }
     drop(){
@@ -64286,6 +64287,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     tick(dt,env){
       for(const s of this.posts){
         s.age+=dt;s.buttonDip=Math.max(0,s.buttonDip-dt);
+        if(s.fitting&&(s.fitting.t+=dt)>=.40)s.fitting=null;
         if(!s.cap&&gap(s,env.focus)<85)for(const v of env.vehicles){
           if(Math.abs(v.x-s.x)<5&&Math.abs(v.z-s.z)<5&&this.strike(s,v)){env.hit(s,v);break;}
         }
@@ -64293,14 +64295,25 @@ window.buildBayCity = function buildBayCity(g,water) {
         const target=s.mode==="burst"||s.mode==="fan"?1:0;
         s.pressure+=(target-s.pressure)*(-Math.expm1(-dt*(target?3.8:2.8)));
         if(s.pressure<.002)s.pressure=0;
-        s.pool.runoff=Math.max(0,Math.min(1,(s.pool.runoff||0)+dt*(target?s.flow==="burst"?.22:.065:s.pool.cleared?-.21:-.060)));
+        const inflow=s.flow==="burst" ? .22 : .065;
+        const drainage=s.pool.cleared ? .21 : .060;
+        s.pool.runoff=Math.max(0,Math.min(1,(s.pool.runoff||0)+dt*(target?inflow:-drainage)));
         if(env.glass&&this.wetAt(s,env.glass))env.driver.glassSplash=Math.max(env.driver.glassSplash||0,s.pressure*.98);
         if(s.pressure>.18&&gap(s,env.focus)<65)for(const p of env.walkers){
           if(p.onTour||p.sprayWait>0||!this.wetAt(s,p))continue;
           p.sprayWait=4;p.sprayAge=0;p.sprayFace=Math.atan2(s.x-p.x,s.z-p.z);
         }
         const c=s.cap;if(!c)continue;
-        if(c.carrier){const q=directions(c.carrier,.25,.33);c.x=q.x;c.z=q.z;c.y=.99;c.yaw=c.carrier.yaw;c.spin=0;continue;}
+        if(c.carrier){
+          const q=BayDriving.world(c.carrier,.25,.33),lift=c.lift;
+          c.x=q.x;c.z=q.z;c.y=.99;c.yaw=c.carrier.yaw;c.spin=0;
+          if(lift){
+            const u=Math.min(1,(lift.t+=dt)/.52),f=u*u*(3-2*u);
+            c.x=lift.x+(q.x-lift.x)*f;c.z=lift.z+(q.z-lift.z)*f;c.y=lift.y+(.99-lift.y)*f;c.spin=.83*(1-f);
+            if(u===1)c.lift=null;
+          }
+          continue;
+        }
         if(c.rest)continue;
         for(const [axis,vel] of [["x","vx"],["z","vz"]]){
           const next=c[axis]+c[vel]*dt;
@@ -64312,7 +64325,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
     }
     tend(stand,w,dt,street,env,clock){
-      const s=this.posts.find(s=>s.stand===stand.id);if(!s)return false;
+      const s=this.byStand.get(stand.id);if(!s)return false;
       const slot=Math.floor(clock.total/75),appointed=clock.minute>=720&&clock.minute<1085&&clock.rain<.08&&(clock.total%75-s.start)>=0&&(clock.total%75-s.start)<19;
       const routine=s.mode==="idle"&&appointed&&s.lastSlot!==slot;
       if(w.bit||stand.phase!=="upright"||!(routine||s.mode==="burst"&&s.age>23||s.mode==="closed"&&s.age>(s.playerClosed?24:3)))return false;
@@ -64360,6 +64373,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     g.cyl(0,.172,0,.06,.08,.043,6,brass);
     for(let i=-2;i<=2;i++)g.box(i*.059,.060,.188-.014*i*i,.021,.032,.023,steel);
   }
+  function coverAt(s){
+    if(s.cap)return s.cap;
+    if(!s.fitting)return {x:s.x,z:s.z,y:.89,yaw:s.yaw,spin:0};
+    const a=s.fitting,u=Math.min(1,a.t/.40),f=u*u*(3-2*u);
+    return {x:a.x+(s.x-a.x)*f,z:a.z+(s.z-a.z)*f,y:a.y+(.89-a.y)*f+.15*Math.sin(Math.PI*f),yaw:s.yaw,spin:0};
+  }
   function panel(g){
     g.cyl(0,.078,0,.22,.24,.145,8,steel);g.box(0,.58,0,.115,.95,.125,"#638883");
     g.box(0,1.10,0,.52,.51,.11,steel);g.box(0,1.10,.062,.46,.445,.023,ivory);
@@ -64370,9 +64389,9 @@ window.buildBayCity = function buildBayCity(g,water) {
   function parcel(burst,i,u,p){
     if(burst){
       const a=i*2.39996,r=(.35+(i%4)*.31)*u*u;
-      return [Math.sin(a)*r*p,.88+p*(4*(3.0+(i%4)*.31)*u*(1-u)-.8*u),p*(.20+Math.cos(a)*r+.65*u)];
+      return [Math.sin(a)*r*p,.88-.80*u+p*4*(3.0+(i%4)*.31)*u*(1-u),p*(.20+Math.cos(a)*r+.65*u)];
     }
-    return [(i-3)*.42*u*p,.91+p*(4*(.67+.19*(1-Math.abs(i-3)/3))*u*(1-u)-.82*u),.16+u*(2.58+.24*(3-Math.abs(i-3)))*p];
+    return [(i-3)*.42*u*p,.91-.83*u+p*4*(.67+.19*(1-Math.abs(i-3)/3))*u*(1-u),.16+u*(2.58+.24*(3-Math.abs(i-3)))*p];
   }
   function stream(g,burst,frame,pressure){
     const count=burst?11:7;
@@ -64399,8 +64418,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       model("summer/button",g=>g.pole([0,1.002,0],[0,1.002,.038],.068,blue,10));
       list.push(["summer/button",q.x,ground(q.x,q.z),q.z,s.yaw]);
       model("summer/lid",lid);
-      const c=s.cap;if(c)list.push(["summer/lid",c.x,ground(c.x,c.z)+c.y,c.z,c.yaw,c.spin]);
-      else list.push(["summer/lid",s.x,base+.89,s.z,s.yaw]);
+      const c=coverAt(s);list.push(["summer/lid",c.x,ground(c.x,c.z)+c.y,c.z,c.yaw,c.spin]);
       if(s.pressure<.13||!see(s,64))continue;
       const p=Math.max(1,Math.round(s.pressure*4)),frame=p===4?Math.floor(time*12)%12:Math.floor(time*4)%3*4,burst=s.flow==="burst",jet="summer/"+s.flow+"/"+p+"/"+frame;
       model(jet,g=>stream(g,burst,frame,p*.25));list.push([jet,s.x,base,s.z,s.yaw]);
@@ -64412,15 +64430,15 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(!visible(px(post.x),py(post.z),7*s))continue;
       const dot=(x,z,r,color)=>{c.fillStyle=color;c.beginPath();c.arc(px(x),py(z),Math.max(.8,r*s),0,tau);c.fill();};
       dot(post.button.x,post.button.z,.28,ivory);dot(post.button.x,post.button.z,.11,blue);
-      dot(post.x,post.z,.34,steel);dot(post.x,post.z,.26,post.ink);if(!post.cap)dot(post.x,post.z,.18,blue);
-      if(post.cap){dot(post.cap.x,post.cap.z,.23,blue);dot(post.cap.x,post.cap.z,.08,brass);}
+      dot(post.x,post.z,.34,steel);dot(post.x,post.z,.26,post.ink);
+      const cap=coverAt(post);dot(cap.x,cap.z,.23,blue);dot(cap.x,cap.z,.08,brass);
       if(post.pressure<.13)continue;
       const burst=post.flow==="burst",frame=Math.floor((o.time||0)*12)%12;
       for(let i=0;i<(burst?11:7);i++)for(let j=0;j<6;j++){
         const u=(j+(frame/12+i*.319)%1)/6,p=parcel(burst,i,u,post.pressure),q=parcel(burst,i,Math.min(1,u+.105),post.pressure);
         const a=BayDriving.world(post,p[0],p[2]),b=BayDriving.world(post,q[0],q[2]);
         c.strokeStyle=i%3?aqua:white;c.lineWidth=Math.max(1,(burst?.06:.03)*s);
-        c.beginPath();c.moveTo(px(a.x),py(a.z));c.lineTo(px(b.x),py(b.z));c.stroke();
+        c.beginPath();c.moveTo(px(a.x),py(a.z)-p[1]*s*.28);c.lineTo(px(b.x),py(b.z)-q[1]*s*.28);c.stroke();
       }
     }
   }
@@ -64707,6 +64725,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const hours=new BayHours.Clock(clockStart),gutters=new BayGutters.StreetWater();
   const pavement=new BayPavement.Street();let openPaper=null,paperIndex=0;
   const summerCaps=new BaySummerCaps.Caps(gutters);
+  let capReach=null;
   gutters.weather(hours);let sprayRemarkAt=-15;
   let savedAt=hours.total,room=null,recentDiner=null,roomArtReady=false,marketArtReady=false,cineArtReady=false,cabArtReady=false;
   let cutArtReady=false,onAir=null,ambientField=null,ambientAt=-1;
@@ -68717,14 +68736,16 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!a)return null;
     const hints={shut:["F","Stop the water at the blue button"],start:["F","Push for a summer shower"+(summerCaps.book[a.s.id]?" · Cap refitted":"")],
       pick:["L","Pick up the loose blue cap"],seat:["L","Fit the cap back on the post"],
-      carry:["L","Carry the cap back to its post · Put it down"],fan:["","Summer shower · "+Math.ceil(a.s.timer)+" s"],
+      carry:["L","Carry the cap back to its post · Put it down"],fan:["F","Stop the summer shower · "+Math.ceil(a.s.timer)+" s"],
       closed:["","Water off · Find the loose blue cap"]};
     return hints[a.act];
   }
   function summerKey(code){
     if(code!=="KeyF"&&code!=="KeyL")return false;
     const a=summerAction();if(!a)return false;const s=a.s;
+    const aim=a.act==="pick"?s.cap:a.act==="seat"?s:s.button;
     if(code==="KeyF"&&a.act==="start")summerCaps.start(s);
+    else if(code==="KeyF"&&a.act==="fan"){s.mode="idle";s.timer=0;s.buttonDip=.45;}
     else if(code==="KeyF"&&a.act==="shut"){summerCaps.shut(s,true);note(s.label+" water post","The spray is dying down. Find the blue cap where it landed.",3);}
     else if(code==="KeyL"&&a.act==="pick"&&summerCaps.take(s,hero)){summerCaps.hand=s;note("Blue summer cap","Carry it to the open post.",2);}
     else if(code==="KeyL"&&a.act==="carry")summerCaps.drop();
@@ -68732,6 +68753,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const w=pavement.props.find(p=>p.id===s.stand).worker;speak(w.name,"There it is. Give the blue button a push and see if she runs.");
       note(s.label+" water post","Back in service · "+Object.values(summerCaps.book).filter(Boolean).length+" of 3 corners helped",4);
     }else return false;
+    if(a.act!=="carry")capReach={x:aim.x,z:aim.z,y:a.act==="pick"?.22:.95,age:0,pick:a.act==="pick"};
     lastHud=-10;return true;
   }
   const summerEnv={
@@ -68744,6 +68766,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   };
   function stepSummer(dt){
+    if(capReach&&((capReach.age+=dt)>.56||!onStreetFeet()))capReach=null;
     if(summerCaps.hand&&!curbsideFree())summerCaps.drop();
     summerEnv.glass=car?BayDriving.world(car,0,.66):null;
     summerCaps.tick(dt,summerEnv);
@@ -68756,9 +68779,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     return dist({x,z},transit.bus)>7||BayDriving.clearance(transit.bus,{x,z})>.4;
   }
   const pavementEnv={ground:footLevel,clear:(x,z,r)=>valid(x,z,r),safe:workerSafe,issue:()=>pavement.edition(hours,neighbors.editions,save,BayCineProgram.describe(filmOptions())),
+    capNeedsService:p=>!!summerCaps.byStand.get(p.id)?.cap,
     tendCap(p,w,dt){
       const busy=summerCaps.tend(p,w,dt,pavement,this,hours);
-      const s=busy&&summerCaps.posts.find(s=>s.stand===p.id);
+      const s=busy&&summerCaps.byStand.get(p.id);
       w.atCap=!!s?.attending;w.carryCap=s?.cap?.carrier===w;
       return busy;
     },
@@ -70745,7 +70769,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     hero.y=ease(hero.y,roofs.level?roofs.floor(hero):footLevel(hero.x,hero.z),27,dt);
     motion.step(dt,distance,dt?(hero.yaw-oldYaw)/dt:0);
     if(pavement.hand)motion.handTarget={pavement:true,x:.27,y:.99,z:.32,weight:1};
-    if(summerCaps.hand)motion.handTarget={summer:true,x:.25,y:.99,z:.33,weight:1};
+    if(capReach){
+      const phase=Math.min(1,capReach.age/.56),reach=Math.sin(Math.PI*phase);
+      hero.yaw+=angle(hero.yaw,Math.atan2(capReach.x-hero.x,capReach.z-hero.z))*Math.min(1,dt*13*reach);
+      const local=BayDriving.local(hero,capReach.x,capReach.z);
+      motion.handTarget={summer:true,x:clamp(local.x,-.12,.43),y:capReach.pick?.99-.77*(1-phase):capReach.y,z:clamp(local.z,.24,.59),weight:Math.min(1,reach*2)};
+      if(capReach.pick)motion.crouch=Math.max(motion.crouch||0,.68*reach);
+    }else if(summerCaps.hand)motion.handTarget={summer:true,x:.25,y:.99,z:.33,weight:1};
     else if(hero.summerWet>.03&&!motion.handTarget&&!rainWalk.amount){
       motion.handTarget={summer:true,x:.14,y:1.57,z:.23,weight:hero.summerWet};motion.crouch=Math.max(motion.crouch||0,.22*hero.summerWet);
     }

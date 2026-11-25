@@ -276,6 +276,7 @@
   const hours=new BayHours.Clock(clockStart),gutters=new BayGutters.StreetWater();
   const pavement=new BayPavement.Street();let openPaper=null,paperIndex=0;
   const summerCaps=new BaySummerCaps.Caps(gutters);
+  let capReach=null;
   gutters.weather(hours);let sprayRemarkAt=-15;
   let savedAt=hours.total,room=null,recentDiner=null,roomArtReady=false,marketArtReady=false,cineArtReady=false,cabArtReady=false;
   let cutArtReady=false,onAir=null,ambientField=null,ambientAt=-1;
@@ -4286,14 +4287,16 @@
     if(!a)return null;
     const hints={shut:["F","Stop the water at the blue button"],start:["F","Push for a summer shower"+(summerCaps.book[a.s.id]?" · Cap refitted":"")],
       pick:["L","Pick up the loose blue cap"],seat:["L","Fit the cap back on the post"],
-      carry:["L","Carry the cap back to its post · Put it down"],fan:["","Summer shower · "+Math.ceil(a.s.timer)+" s"],
+      carry:["L","Carry the cap back to its post · Put it down"],fan:["F","Stop the summer shower · "+Math.ceil(a.s.timer)+" s"],
       closed:["","Water off · Find the loose blue cap"]};
     return hints[a.act];
   }
   function summerKey(code){
     if(code!=="KeyF"&&code!=="KeyL")return false;
     const a=summerAction();if(!a)return false;const s=a.s;
+    const aim=a.act==="pick"?s.cap:a.act==="seat"?s:s.button;
     if(code==="KeyF"&&a.act==="start")summerCaps.start(s);
+    else if(code==="KeyF"&&a.act==="fan"){s.mode="idle";s.timer=0;s.buttonDip=.45;}
     else if(code==="KeyF"&&a.act==="shut"){summerCaps.shut(s,true);note(s.label+" water post","The spray is dying down. Find the blue cap where it landed.",3);}
     else if(code==="KeyL"&&a.act==="pick"&&summerCaps.take(s,hero)){summerCaps.hand=s;note("Blue summer cap","Carry it to the open post.",2);}
     else if(code==="KeyL"&&a.act==="carry")summerCaps.drop();
@@ -4301,6 +4304,7 @@
       const w=pavement.props.find(p=>p.id===s.stand).worker;speak(w.name,"There it is. Give the blue button a push and see if she runs.");
       note(s.label+" water post","Back in service · "+Object.values(summerCaps.book).filter(Boolean).length+" of 3 corners helped",4);
     }else return false;
+    if(a.act!=="carry")capReach={x:aim.x,z:aim.z,y:a.act==="pick"?.22:.95,age:0,pick:a.act==="pick"};
     lastHud=-10;return true;
   }
   const summerEnv={
@@ -4313,6 +4317,7 @@
     }
   };
   function stepSummer(dt){
+    if(capReach&&((capReach.age+=dt)>.56||!onStreetFeet()))capReach=null;
     if(summerCaps.hand&&!curbsideFree())summerCaps.drop();
     summerEnv.glass=car?BayDriving.world(car,0,.66):null;
     summerCaps.tick(dt,summerEnv);
@@ -4325,9 +4330,10 @@
     return dist({x,z},transit.bus)>7||BayDriving.clearance(transit.bus,{x,z})>.4;
   }
   const pavementEnv={ground:footLevel,clear:(x,z,r)=>valid(x,z,r),safe:workerSafe,issue:()=>pavement.edition(hours,neighbors.editions,save,BayCineProgram.describe(filmOptions())),
+    capNeedsService:p=>!!summerCaps.byStand.get(p.id)?.cap,
     tendCap(p,w,dt){
       const busy=summerCaps.tend(p,w,dt,pavement,this,hours);
-      const s=busy&&summerCaps.posts.find(s=>s.stand===p.id);
+      const s=busy&&summerCaps.byStand.get(p.id);
       w.atCap=!!s?.attending;w.carryCap=s?.cap?.carrier===w;
       return busy;
     },
@@ -6314,7 +6320,13 @@
     hero.y=ease(hero.y,roofs.level?roofs.floor(hero):footLevel(hero.x,hero.z),27,dt);
     motion.step(dt,distance,dt?(hero.yaw-oldYaw)/dt:0);
     if(pavement.hand)motion.handTarget={pavement:true,x:.27,y:.99,z:.32,weight:1};
-    if(summerCaps.hand)motion.handTarget={summer:true,x:.25,y:.99,z:.33,weight:1};
+    if(capReach){
+      const phase=Math.min(1,capReach.age/.56),reach=Math.sin(Math.PI*phase);
+      hero.yaw+=angle(hero.yaw,Math.atan2(capReach.x-hero.x,capReach.z-hero.z))*Math.min(1,dt*13*reach);
+      const local=BayDriving.local(hero,capReach.x,capReach.z);
+      motion.handTarget={summer:true,x:clamp(local.x,-.12,.43),y:capReach.pick?.99-.77*(1-phase):capReach.y,z:clamp(local.z,.24,.59),weight:Math.min(1,reach*2)};
+      if(capReach.pick)motion.crouch=Math.max(motion.crouch||0,.68*reach);
+    }else if(summerCaps.hand)motion.handTarget={summer:true,x:.25,y:.99,z:.33,weight:1};
     else if(hero.summerWet>.03&&!motion.handTarget&&!rainWalk.amount){
       motion.handTarget={summer:true,x:.14,y:1.57,z:.23,weight:hero.summerWet};motion.crouch=Math.max(motion.crouch||0,.22*hero.summerWet);
     }

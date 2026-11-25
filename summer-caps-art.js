@@ -21,6 +21,12 @@
     g.cyl(0,.172,0,.06,.08,.043,6,brass);
     for(let i=-2;i<=2;i++)g.box(i*.059,.060,.188-.014*i*i,.021,.032,.023,steel);
   }
+  function coverAt(s){
+    if(s.cap)return s.cap;
+    if(!s.fitting)return {x:s.x,z:s.z,y:.89,yaw:s.yaw,spin:0};
+    const a=s.fitting,u=Math.min(1,a.t/.40),f=u*u*(3-2*u);
+    return {x:a.x+(s.x-a.x)*f,z:a.z+(s.z-a.z)*f,y:a.y+(.89-a.y)*f+.15*Math.sin(Math.PI*f),yaw:s.yaw,spin:0};
+  }
   function panel(g){
     g.cyl(0,.078,0,.22,.24,.145,8,steel);g.box(0,.58,0,.115,.95,.125,"#638883");
     g.box(0,1.10,0,.52,.51,.11,steel);g.box(0,1.10,.062,.46,.445,.023,ivory);
@@ -31,9 +37,9 @@
   function parcel(burst,i,u,p){
     if(burst){
       const a=i*2.39996,r=(.35+(i%4)*.31)*u*u;
-      return [Math.sin(a)*r*p,.88+p*(4*(3.0+(i%4)*.31)*u*(1-u)-.8*u),p*(.20+Math.cos(a)*r+.65*u)];
+      return [Math.sin(a)*r*p,.88-.80*u+p*4*(3.0+(i%4)*.31)*u*(1-u),p*(.20+Math.cos(a)*r+.65*u)];
     }
-    return [(i-3)*.42*u*p,.91+p*(4*(.67+.19*(1-Math.abs(i-3)/3))*u*(1-u)-.82*u),.16+u*(2.58+.24*(3-Math.abs(i-3)))*p];
+    return [(i-3)*.42*u*p,.91-.83*u+p*4*(.67+.19*(1-Math.abs(i-3)/3))*u*(1-u),.16+u*(2.58+.24*(3-Math.abs(i-3)))*p];
   }
   function stream(g,burst,frame,pressure){
     const count=burst?11:7;
@@ -60,8 +66,7 @@
       model("summer/button",g=>g.pole([0,1.002,0],[0,1.002,.038],.068,blue,10));
       list.push(["summer/button",q.x,ground(q.x,q.z),q.z,s.yaw]);
       model("summer/lid",lid);
-      const c=s.cap;if(c)list.push(["summer/lid",c.x,ground(c.x,c.z)+c.y,c.z,c.yaw,c.spin]);
-      else list.push(["summer/lid",s.x,base+.89,s.z,s.yaw]);
+      const c=coverAt(s);list.push(["summer/lid",c.x,ground(c.x,c.z)+c.y,c.z,c.yaw,c.spin]);
       if(s.pressure<.13||!see(s,64))continue;
       const p=Math.max(1,Math.round(s.pressure*4)),frame=p===4?Math.floor(time*12)%12:Math.floor(time*4)%3*4,burst=s.flow==="burst",jet="summer/"+s.flow+"/"+p+"/"+frame;
       model(jet,g=>stream(g,burst,frame,p*.25));list.push([jet,s.x,base,s.z,s.yaw]);
@@ -73,15 +78,15 @@
       if(!visible(px(post.x),py(post.z),7*s))continue;
       const dot=(x,z,r,color)=>{c.fillStyle=color;c.beginPath();c.arc(px(x),py(z),Math.max(.8,r*s),0,tau);c.fill();};
       dot(post.button.x,post.button.z,.28,ivory);dot(post.button.x,post.button.z,.11,blue);
-      dot(post.x,post.z,.34,steel);dot(post.x,post.z,.26,post.ink);if(!post.cap)dot(post.x,post.z,.18,blue);
-      if(post.cap){dot(post.cap.x,post.cap.z,.23,blue);dot(post.cap.x,post.cap.z,.08,brass);}
+      dot(post.x,post.z,.34,steel);dot(post.x,post.z,.26,post.ink);
+      const cap=coverAt(post);dot(cap.x,cap.z,.23,blue);dot(cap.x,cap.z,.08,brass);
       if(post.pressure<.13)continue;
       const burst=post.flow==="burst",frame=Math.floor((o.time||0)*12)%12;
       for(let i=0;i<(burst?11:7);i++)for(let j=0;j<6;j++){
         const u=(j+(frame/12+i*.319)%1)/6,p=parcel(burst,i,u,post.pressure),q=parcel(burst,i,Math.min(1,u+.105),post.pressure);
         const a=BayDriving.world(post,p[0],p[2]),b=BayDriving.world(post,q[0],q[2]);
         c.strokeStyle=i%3?aqua:white;c.lineWidth=Math.max(1,(burst?.06:.03)*s);
-        c.beginPath();c.moveTo(px(a.x),py(a.z));c.lineTo(px(b.x),py(b.z));c.stroke();
+        c.beginPath();c.moveTo(px(a.x),py(a.z)-p[1]*s*.28);c.lineTo(px(b.x),py(b.z)-q[1]*s*.28);c.stroke();
       }
     }
   }

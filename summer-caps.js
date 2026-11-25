@@ -19,12 +19,12 @@
     return Object.fromEntries(sites.map(s=>[s.id,Number.isSafeInteger(plain?.[s.id])&&plain[s.id]>0?Math.min(99999,plain[s.id]):0]));
   }
   const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
-  const directions=(s,x,z)=>BayDriving.world(s,x,z);
   class Caps{
     constructor(gutters){
-      this.posts=sites.map(s=>({...s,button:directions(s,1.7,-2.6),pool:gutters.pools.find(p=>p.id===s.id),
+      this.posts=sites.map(s=>({...s,button:BayDriving.world(s,1.7,-2.6),pool:gutters.pools.find(p=>p.id===s.id),
         mode:"idle",age:0,timer:0,pressure:0,cap:null,flow:"fan",lastSlot:-1,buttonDip:0,attending:false}));
       this.hand=null;this.book=readBook();
+      this.byStand=new Map(this.posts.map(s=>[s.stand,s]));
       for(const s of this.posts){
         let q;try{q=JSON.parse(localStorage.getItem(incidentKey(s.id)));}catch{}
         if(!q||!["burst","closed"].includes(q.mode)||![q.x,q.z].every(Number.isFinite))continue;
@@ -51,7 +51,7 @@
     }
     take(s,actor){
       if(s.mode!=="closed"||!s.cap?.rest||s.cap.carrier)return false;
-      s.cap.carrier=actor;return true;
+      s.cap.lift={x:s.cap.x,z:s.cap.z,y:s.cap.y,t:0};s.cap.carrier=actor;return true;
     }
     seat(s,actor,player){
       if(s.cap?.carrier!==actor||gap(actor,s)>1.68)return false;
@@ -59,6 +59,7 @@
         this.hand=null;this.book=readBook();this.book[s.id]=Math.min(99999,this.book[s.id]+1);
         try{localStorage.setItem(recordKey,JSON.stringify(this.book));}catch{}
       }
+      s.fitting={x:s.cap.x,z:s.cap.z,y:s.cap.y,t:0};
       Object.assign(s,{cap:null,mode:"idle",flow:"fan",timer:0,age:0,attending:false});savePost(s);return true;
     }
     drop(){
@@ -82,6 +83,7 @@
     tick(dt,env){
       for(const s of this.posts){
         s.age+=dt;s.buttonDip=Math.max(0,s.buttonDip-dt);
+        if(s.fitting&&(s.fitting.t+=dt)>=.40)s.fitting=null;
         if(!s.cap&&gap(s,env.focus)<85)for(const v of env.vehicles){
           if(Math.abs(v.x-s.x)<5&&Math.abs(v.z-s.z)<5&&this.strike(s,v)){env.hit(s,v);break;}
         }
@@ -89,14 +91,25 @@
         const target=s.mode==="burst"||s.mode==="fan"?1:0;
         s.pressure+=(target-s.pressure)*(-Math.expm1(-dt*(target?3.8:2.8)));
         if(s.pressure<.002)s.pressure=0;
-        s.pool.runoff=Math.max(0,Math.min(1,(s.pool.runoff||0)+dt*(target?s.flow==="burst"?.22:.065:s.pool.cleared?-.21:-.060)));
+        const inflow=s.flow==="burst" ? .22 : .065;
+        const drainage=s.pool.cleared ? .21 : .060;
+        s.pool.runoff=Math.max(0,Math.min(1,(s.pool.runoff||0)+dt*(target?inflow:-drainage)));
         if(env.glass&&this.wetAt(s,env.glass))env.driver.glassSplash=Math.max(env.driver.glassSplash||0,s.pressure*.98);
         if(s.pressure>.18&&gap(s,env.focus)<65)for(const p of env.walkers){
           if(p.onTour||p.sprayWait>0||!this.wetAt(s,p))continue;
           p.sprayWait=4;p.sprayAge=0;p.sprayFace=Math.atan2(s.x-p.x,s.z-p.z);
         }
         const c=s.cap;if(!c)continue;
-        if(c.carrier){const q=directions(c.carrier,.25,.33);c.x=q.x;c.z=q.z;c.y=.99;c.yaw=c.carrier.yaw;c.spin=0;continue;}
+        if(c.carrier){
+          const q=BayDriving.world(c.carrier,.25,.33),lift=c.lift;
+          c.x=q.x;c.z=q.z;c.y=.99;c.yaw=c.carrier.yaw;c.spin=0;
+          if(lift){
+            const u=Math.min(1,(lift.t+=dt)/.52),f=u*u*(3-2*u);
+            c.x=lift.x+(q.x-lift.x)*f;c.z=lift.z+(q.z-lift.z)*f;c.y=lift.y+(.99-lift.y)*f;c.spin=.83*(1-f);
+            if(u===1)c.lift=null;
+          }
+          continue;
+        }
         if(c.rest)continue;
         for(const [axis,vel] of [["x","vx"],["z","vz"]]){
           const next=c[axis]+c[vel]*dt;
@@ -108,7 +121,7 @@
       }
     }
     tend(stand,w,dt,street,env,clock){
-      const s=this.posts.find(s=>s.stand===stand.id);if(!s)return false;
+      const s=this.byStand.get(stand.id);if(!s)return false;
       const slot=Math.floor(clock.total/75),appointed=clock.minute>=720&&clock.minute<1085&&clock.rain<.08&&(clock.total%75-s.start)>=0&&(clock.total%75-s.start)<19;
       const routine=s.mode==="idle"&&appointed&&s.lastSlot!==slot;
       if(w.bit||stand.phase!=="upright"||!(routine||s.mode==="burst"&&s.age>23||s.mode==="closed"&&s.age>(s.playerClosed?24:3)))return false;
