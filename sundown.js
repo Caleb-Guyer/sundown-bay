@@ -464,11 +464,29 @@
       vec3 p=world-vec3(10.,6.,0.);
       return vec3(dot(p,sunAcross)/310.,dot(p,sunUp)/300.,-dot(p,sunDir)/365.);
     }`;
+  // Opaque paint is affine in dye and in the sampled shadow strength. Compose
+  // the frame-wide terms once. Wet asphalt, headlights and haze stay per pixel.
+  const daylight=[1.055,1.018,.957],shadeLight=[.63,.72,.88],evening=[.57,.62,.77],eveningShade=[.43,.52,.68];
+  const nightFloor=[.020,.026,.036],noonTint=[.932,1.015,1.054],rainTint=[.81,.88,.94];
+  function paintCoefficients(out,p,glow){
+    const night=p.night,dark=night*(1-glow),lit=night*glow,day=1-night;
+    for(let k=0;k<3;k++){
+      const gain=p.timed?(1+(noonTint[k]-1)*p.noon*day)*(1+(rainTint[k]-1)*p.rain):1;
+      const sky=k===0?p.skyR:k===1?p.skyG:p.skyB;
+      out[k]=(daylight[k]*day+evening[k]*dark)*gain;
+      out[k+3]=((shadeLight[k]-daylight[k])*day+(eveningShade[k]-evening[k])*dark)*gain;
+      out[k+6]=1.07*lit*gain;out[k+9]=nightFloor[k]*dark*gain+(p.timed?sky*.036*p.rain:0);
+    }
+  }
   const VERTEX = LIGHT+`
     attribute vec3 pos; attribute vec3 col;
     uniform vec3 origin,eye,rightV,upV,forwardV; uniform vec2 turn,focal; uniform vec2 depth;
     uniform vec4 tilt,waterParams; uniform float castOnly; uniform vec2 castSlope;
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
+    #ifdef FRAME_PAINT
+    uniform vec3 paint[4];
+    varying vec3 litPaint,shadowInk;
+    #endif
     void main(){
       #if defined(STREET_SURFACE) && !defined(MODEL_SPACE)
       vec3 world=pos;
@@ -489,6 +507,10 @@
       float material=floor((col.r+.25)*.5);
       street=vec4(world.xz,world.y,material);
       vColor=vec3(col.r-2.*material,col.gb); haze=smoothstep(62.,390.,z)*.68;
+      #ifdef FRAME_PAINT
+      vec3 ink=mix(vec3(dot(vColor,vec3(.25,.58,.17))),vColor,1.08);
+      litPaint=ink*paint[0]+vColor*paint[2]+paint[3];shadowInk=ink*paint[1];
+      #endif
     }`;
   const PRECISION=`#ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
@@ -498,6 +520,9 @@
   `;
   const FRAGMENT = PRECISION+`
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
+    #ifdef FRAME_PAINT
+    varying vec3 litPaint,shadowInk;
+    #endif
     uniform vec4 waterParams,airState,driverLamp; uniform vec3 eye,skyTone; uniform vec2 immersion;
     uniform vec3 seaSun;
     uniform sampler2D vehicleLight; uniform vec3 lightArea;
@@ -581,6 +606,10 @@
       float fleck=lowDetail>.5?0.:texture2D(paper,surface*.115).r-.5;
       float wash=lowDetail>.5?0.:texture2D(paper,surface*.011).r-.5;
       #endif
+      #ifdef FRAME_PAINT
+      vec3 color=litPaint+shadowInk*shade;
+      vec3 mist=mix(vec3(.87,.691,.651),vec3(.56,.405,.465),dusk);
+      #else
       vec3 ink=mix(vec3(dot(vColor,vec3(.25,.58,.17))),vColor,1.08);
       vec3 light=mix(vec3(1.055,1.018,.957),vec3(.63,.72,.88),shade);
       vec3 color=ink*light*(1.+fleck*.056+wash*.030);
@@ -592,11 +621,14 @@
         color=mix(color,mix(night,vColor*1.07,glow),dusk);
         mist=mix(mist,vec3(.56,.405,.465),dusk);
       }
+      #endif
       if(airState.w>.5){
         float lampTime=max(dusk,.53*airState.x);
         float lowSurface=1.-smoothstep(.27,4.4,street.z);
+        #ifndef FRAME_PAINT
         color*=mix(vec3(1.),vec3(.932,1.015,1.054),airState.z*(1.-dusk));
         color=mix(color,color*vec3(.81,.88,.94)+skyTone*.036,airState.x);
+        #endif
         mist=skyTone;
         if(street.w>.5&&street.w<1.5&&airState.y>.012){
           vec2 road=street.xy;
@@ -674,18 +706,24 @@
       this.pos=gl.getAttribLocation(p,"pos");this.col=gl.getAttribLocation(p,"col");
       // The city and streamed props already use world coordinates. Individual
       // solid models keep their chassis or joint transform in the vertex shader.
-      const define="#define STREET_SURFACE\n";
       const n=.13,f=1100;
-      const surface=prefix=>{
+      this.createStreetSurface=(modelSpace,framePaint)=>{
+        const define="#define STREET_SURFACE\n"+(framePaint?"#define FRAME_PAINT\n":"");
+        const prefix=modelSpace?"#define MODEL_SPACE\n":"";
         const solid=program(prefix+define+VERTEX,define+FRAGMENT,{pos:this.pos,col:this.col}),u={};
         for(const name of ["origin","turn","tilt","eye","rightV","upV","forwardV","focal","depth","sunDir","sunAcross","sunUp","sunDepth","paper","vehicleLight","streetLight","hasShadow","airState","dusk","skyTone","lightArea","driverLamp","glow"])
           u[name]=gl.getUniformLocation(solid,name);
         gl.useProgram(solid);
         for(const [name,unit] of [["sunDepth",0],["paper",1],["streetLight",3],["vehicleLight",4]])gl.uniform1i(u[name],unit);
         gl.uniform2f(u.depth,(f+n)/(f-n),-2*f*n/(f-n));
-        return {program:solid,u,frame:null,glow:NaN};
+        u.paint=framePaint?gl.getUniformLocation(solid,"paint[0]"):null;
+        return {program:solid,u,frame:null,glow:NaN,paint:framePaint?new Float32Array(12):null};
       };
-      this.streetSurface=surface("");this.modelSurface=surface("#define MODEL_SPACE\n");
+      const surface=modelSpace=>{
+        try{return this.createStreetSurface(modelSpace,true);}
+        catch{return this.createStreetSurface(modelSpace,false);}
+      };
+      this.streetSurface=surface(false);this.modelSurface=surface(true);
       gl.useProgram(p);this.streetFrame=null;this.shadowAxes=null;
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0);gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -950,11 +988,15 @@
       const frame=this.streetFrame,surface=modelSpace?this.modelSurface:this.streetSurface;
       if(!frame||this.scale>.65||frame.underwater||this.casting||!surface||modelSpace&&!frame.timed)return false;
       const gl=this.gl,u=surface.u;gl.useProgram(surface.program);
-      if(surface.frame!==frame){
+      const newFrame=surface.frame!==frame;
+      if(newFrame){
         this.setFrameUniforms(u,frame);gl.uniform1f(u.hasShadow,frame.shadow);
         if(frame.shadow&&this.shadowAxes)this.sunAxes(u);surface.frame=frame;
       }
-      if(surface.glow!==glow){gl.uniform1f(u.glow,glow);surface.glow=glow;}
+      if(newFrame||surface.glow!==glow){
+        if(surface.paint){paintCoefficients(surface.paint,frame,glow);gl.uniform3fv(u.paint,surface.paint);}
+        gl.uniform1f(u.glow,glow);surface.glow=glow;
+      }
       return true;
     }
     inFrame(b,x,y,z,yaw,tiltX,tiltZ,pad=0){
