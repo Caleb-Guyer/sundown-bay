@@ -5113,7 +5113,6 @@
     lastHud=lastMap=-10;
   }
   function stepWater(dt){
-    if(luz.book.pass)stepLuz(dt);
     if(skiff!==manta||deckStep){if(mantaRide.run||mantaRide.air||mantaRide.onRamp||mantaRide.height)mantaRide.reset();}
     else if((active||heat)&&mantaRide.run)mantaRide.run=null;
     const race=active?.regatta;
@@ -9550,8 +9549,11 @@
     const beachHint=sandHint(sandAction());
     const chapter=chapterAction();
     $("luzTicket").hidden=!luz.rider;
+    $("jobKey").hidden=!!luz.rider;
     if(luz.rider){
       const r=luz.rider;
+      $("mode").textContent="M/V Luz · Passenger";
+      $("speed").textContent="";$("objective").hidden=true;
       $("luzNumber").textContent="M/V LUZ   •   Nº "+String(luz.book.trips+1).padStart(4,"0");
       $("luzTo").textContent=bay.docks[r.phase==="board"?1-luz.at:1-luz.departure].name;
       $("luzLine").textContent=r.phase==="line"?"Cast to the iron cleat":r.phase==="off"?"Made fast · Gangway open":
@@ -11049,6 +11051,7 @@
         if(streetStep)trafficTime=0;
         iceVan.campanaDriver=!campana.manual&&car!==iceVan&&transfer?.v!==iceVan;
         stepSummer(d);stepSpur(d);campana.step(d,paletaEnv);radioStep(d);stepButtonwood(d);stepBridge(d);stepNeon(d);stepAir(d);stepRescue(d);sevenStep(d);brisasStep(d);palmUpdate(d);gull.step(d,gullEnv);stepMotorcycles(d);stepSkate(d);transit.step(d,transitEnv);
+        if(luz.book.pass)stepLuz(d);
         const onBoardwalk=!!(boardwalk.player||cycles.riding);stepCourts(d);boardwalkStep(d);
         if(car!==wrecker&&tow.busy)tow.step(d,towClear,recoveryEvent);
         if(room){walkRoom(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);left-=d;continue;}

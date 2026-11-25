@@ -17,12 +17,12 @@
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
     passDalia:[
-      {dur:4,shot:"fence",who:"Dalia Cruz",line:"Used to sign the ticket books right here. First leaf’s yours. They gave me the south run back."},
-      {dur:4.5,art:"pass",slug:"MARLIN PIER",title:"First Crossing",who:"Dalia Cruz",line:"Look for the red awning at Marlin Pier. My sister takes the helm. I’m putting you on the line."}
+      {dur:4,shot:"fence",title:"First Crossing",who:"Dalia Cruz",line:"Used to sign the ticket books right here. First leaf’s yours. They gave me the south run back."},
+      {dur:4.5,art:"pass",who:"Dalia Cruz",line:"Look for the red awning at Marlin Pier. My sister’s working the deck. I’m putting you on the line."}
     ],
     passShift:[
-      {dur:4,shot:"fence",who:"Dalia Cruz",line:"You put the whole shift down. Forty of us signed this first ticket. There wasn’t room on the front."},
-      {dur:4.5,art:"pass",slug:"NORTH FLOAT",title:"First Crossing",who:"Dalia Cruz",line:"Luis has the little double-ender at North Float. He saved you the line. Mind your knuckles."}
+      {dur:4,shot:"fence",title:"First Crossing",who:"Dalia Cruz",line:"You put the whole shift down. Forty of us signed this first ticket. There wasn’t room on the front."},
+      {dur:4.5,art:"pass",who:"Dalia Cruz",line:"Luis has the little double-ender at North Float. He saved you the line. Mind your knuckles."}
     ],
     opening:[
       {dur:4.3,shot:"portWide",slug:"PORT SOL",line:"",title:"Sundown Bay"},

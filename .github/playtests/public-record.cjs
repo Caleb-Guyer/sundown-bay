@@ -91,7 +91,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await waitFor("document.querySelector('#chapterFilm').hidden&&document.querySelector('#hud').hidden===false");
     assert.equal((await js(book)).credit,credit);assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).wallet"),347);
     await loadFootAt({x:-151.1,z:-86.6});await waitFor("document.querySelector('#context').innerText.includes('Dalia Cruz')");
-    await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').innerText==='First Crossing'",30000);await snap("ticket");await tap("Enter");
+    await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').innerText==='First Crossing'",30000);
+    await waitFor("!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterWho').textContent==='Dalia Cruz'");await snap("ticket");await tap("Enter");
     const gate=await js("BayFirstCrossing.stop("+book+".berth)");await loadFootAt(gate);
     await waitFor("document.querySelector('#context').innerText.includes('Board Luz')");
     await js(`const move=BayFirstCrossing.Service.prototype.step;BayFirstCrossing.Service.prototype.step=function(...a){
@@ -99,6 +100,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       if(this.rider?.charge>=this.goal()&&!window.letGo){window.letGo=true;dispatchEvent(new KeyboardEvent('keyup',{code:'Space',bubbles:true}));}
       return result;};`);
     await tap("KeyF");await waitFor("window.rideTest?.rider?.phase==='sail'",35000);
+    assert.equal(await js("document.querySelector('#objective').hidden&&document.querySelector('#jobKey').hidden"),true);
+    assert.equal(await js("document.querySelector('#mode').textContent"),"M/V Luz · Passenger");
     await key("keyDown","KeyD");try{await waitFor("Math.hypot(rideTest.rider.x+.8,rideTest.rider.z)>.27",16000);}finally{await key("keyUp","KeyD");}
     await waitFor("Math.abs(rideTest.u-.5)<.13",95000);await tap("KeyH");await waitFor("rideTest.rider.bell");await snap("deck");
     await waitFor("rideTest.rider.phase==='line'",90000);await snap("quay");

@@ -109,6 +109,19 @@
     g.box(.58,1.18,1.90,1.05,.73,.37,teal);g.box(.58,1.59,1.90,1.12,.08,.42,cream);
     for(const z of [-3.45,-1.7,1.7,3.45]){g.cyl(1.39,1.12,z,.029,.029,.59,5,ink);}
     g.pole([1.39,1.40,-3.45],[1.39,1.40,3.45],.025,cream,5);
+    for(const side of [-1,1]){
+      // The nameboards hang between the red awning's forward stanchions.
+      g.box(side*1.35,2.33,2.31,.08,.43,1.30,teal);
+      const letter=(z,y)=>[side*1.401,2.33+y,2.31+side*z];
+      for(const [u,v,x,y] of [[-.46,.12,-.46,-.12],[-.46,-.12,-.25,-.12],
+        [-.10,.12,-.10,-.12],[-.10,-.12,.10,-.12],[.10,-.12,.10,.12],
+        [.25,.12,.46,.12],[.46,.12,.25,-.12],[.25,-.12,.46,-.12]]){
+        g.pole(letter(u,v),letter(x,y),.023,cream,5);
+      }
+      const ring=a=>[side*1.38,1.91+.30*Math.sin(a),-2.33+.30*Math.cos(a)];
+      g.box(side*1.33,1.91,-2.33,.07,.07,1.21,wood);
+      for(let i=0;i<12;i++)g.pole(ring(i*tau/12),ring((i+1)*tau/12),.069,i%3===0?cream:"#c46540",6);
+    }
     for(let i=-6;i<=6;i++)g.box(i*.19,.822,0,.014,.014,6.88,"#947858");
     g.box(-1.50,1.09,-1.76,.13,.32,.61,"#33444a");
   }
@@ -155,7 +168,8 @@
   function map(c,s,px,py,scale,visible,street){
     if(!s?.book.pass)return;
     for(let i=0;i<2;i++){const p=stop(i);if(!visible(px(p.x),py(p.z),12))continue;
-      c.fillStyle=teal;c.fillRect(px(p.x)-2,py(p.z)-2,4,4);}
+      c.fillStyle=teal;c.fillRect(px(p.x)-2,py(p.z)-2,4,4);
+      if(street){const k=cleat(i);c.fillStyle=ink;c.fillRect(px(k.x)-.13*scale,py(k.z)-.33*scale,.26*scale,.66*scale);}}
     if(visible(px(channel.x),py(channel.z),8)){c.fillStyle=s.replied>0?"#ffda86":red;c.beginPath();c.arc(px(channel.x),py(channel.z),Math.max(1.7,.42*scale),0,tau);c.fill();}
     if(!visible(px(s.x),py(s.z),8*scale+12))return;
     c.save();c.translate(px(s.x),py(s.z));c.rotate(s.yaw);const k=street?scale:Math.max(.8,scale);c.scale(k,-k);
@@ -164,9 +178,12 @@
     c.fillStyle=wood;c.fillRect(-1.42,-2.92,2.84,5.84);c.fillStyle=red;c.fillRect(-1.42,1.64,2.84,1.41);c.fillRect(-1.42,-3.06,2.84,1.41);
     c.fillStyle=cream;c.fillRect(-1.42,2.73,2.84,.15);c.fillRect(-1.42,-2.87,2.84,.14);
     if(street){c.fillStyle="#c99a68";c.beginPath();c.arc(.61,2.31,.24,0,tau);c.fill();
+      c.fillStyle=ink;c.beginPath();c.arc(-.96,-2.43,.25,0,tau);c.fill();
       if(s.phase==="berth"){c.fillStyle=wood;c.fillRect(-6.78,-.39,5.35,.78);}
       if(s.rider?.rope){const r=s.rider.rope,f=Math.min(1,r.age/.69),reach=r.hit?1:.55+r.power*.78;
-        c.strokeStyle=cream;c.lineWidth=.095;c.beginPath();c.ellipse(mix(s.rider.x,-6.2,f*reach),mix(s.rider.z,1.65,f*reach),.29,.37,0,0,tau);c.stroke();}}
+        const dock=cleat(s.at),x=mix(s.rider.x,dock.x-s.x,f*reach),z=mix(s.rider.z,dock.z-s.z,f*reach);
+        c.strokeStyle=cream;c.lineWidth=.095;c.beginPath();c.moveTo(s.rider.x,s.rider.z);c.lineTo(x,z);c.stroke();
+        c.beginPath();c.ellipse(x,z,.29,.37,0,0,tau);c.stroke();}}
     c.restore();
   }
   window.BayFirstCrossing={Service,stop,channel,track,world,map};
