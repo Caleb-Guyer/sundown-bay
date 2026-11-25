@@ -437,7 +437,15 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await require("./landing-run.cjs")({js,waitFor,tap,snap,loadFootAt,book,service});
     await loadFootAt(await js("BayCab.cinema"));
     await js(`const moveRoom=BayCineRoom.move;BayCineRoom.move=function(room,...a){window.lobby=room;return moveRoom(room,...a);};
-      const program=BayCineProgram;window.BayCineProgram={...program,frame(t,options){const reel=program.frame(t,options);window.projection=reel;return reel;}};`);
+      const referencePrint=new Image();referencePrint.src=${film}.windowPrint.image;
+      const program=BayCineProgram;let currentReel;
+      window.BayCineProgram={...program,frame(t,options){return currentReel=program.frame(t,options);}};
+      for(const method of ['world','map']){
+        const draw=BayCineRoom[method];BayCineRoom[method]=function(...a){
+          const result=draw.apply(this,a);
+          window.aisleFrame=a[1].seatBlend>.998&&a[4]===currentReel?.canvas?currentReel:null;return result;
+        };
+      }`);
     await tap("KeyF");await waitFor("!!window.lobby");
     async function walkLobby(code,condition){
       await key("keyDown",code);try{await waitFor(condition);}finally{await key("keyUp",code);}
@@ -446,7 +454,16 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await tap("KeyF");const loan="[...document.querySelectorAll('#panelBody button')].find(b=>b.innerText.includes('Lend the projectionist'))";
     await waitFor(loan);await js(loan+".click()");assert.equal(await js(film+".onScreen"),true);
     await walkLobby("KeyD","Math.abs(lobby.x)<.32");await walkLobby("KeyW","BayCineRoom.action(lobby)==='seat'");
-    await tap("KeyF");await waitFor("lobby.seated&&window.projection?.id==='frame-13'&&projection.elapsed>.75");
+    await tap("KeyF");await waitFor("window.aisleFrame?.id==='frame-13'&&aisleFrame.elapsed>2&&aisleFrame.elapsed<4.5");
+    const photoError=await js(`(()=>{const frame=aisleFrame.canvas;
+      const canvas=document.createElement('canvas');canvas.width=32;canvas.height=18;
+      const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(referencePrint,0,0,32,18);
+      const expected=ctx.getImageData(0,0,32,18).data;
+      ctx.drawImage(frame,18*frame.width/416,0,380*frame.width/416,213.75*frame.height/234,0,0,32,18);
+      const actual=ctx.getImageData(0,0,32,18).data;
+      let sum=0;for(let i=0;i<actual.length;i++)if(i%4!==3)sum+=Math.abs(actual[i]-expected[i]);
+      return sum/(32*18*3);})()`);
+    assert(photoError<13,"the screen shows the saved passenger-window exposure, RGB error "+photoError);
     await snap("window-screen");
     console.log("PASS kept the driver's print through reload, lent it in the lobby and saw Frame 13 from an aisle seat.");
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
