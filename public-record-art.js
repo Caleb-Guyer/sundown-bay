@@ -35,6 +35,10 @@
       g.strokeStyle="#b4a471";g.lineWidth=6;g.beginPath();g.ellipse(0,-89,21,16,0,0,Math.PI*2);g.stroke();
       g.fillStyle="#bfa367";g.beginPath();g.ellipse(24,-87,15,20,.55,0,Math.PI*2);g.fill();
       g.fillRect(27,-91,92,10);g.fillRect(95,-84,9,13);g.fillRect(111,-84,7,8);
+    }else if(id==="driverPrint"){
+      stock(g,-304,-187,608,374);
+      g.fillStyle="#343535";g.fillRect(-287,-173,574,322);
+      label(g,-283,174,"13",18,red,"monospace","bold");label(g,187,174,"M. Vega",21,ink,"Georgia","italic");
     }else if(id==="notice"||id==="negative"){
       g.fillStyle=id==="negative"?"#28231f":"#e8d7ae";g.fillRect(-347,-165,688,331);
       g.save();g.translate(-333,-151);BayExposureArt.drawPhoto(g,660,293);g.restore();
@@ -63,7 +67,14 @@
     if(!id)return;const g=canvas.getContext("2d",{alpha:false});
     if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
     const f=Math.min(1,age/5);g.setTransform(1,0,0,1,0,0);g.drawImage(plate(id),-4-5*f,-2-3*f,W+10+10*f,H+5+6*f);
-    if(id==="negative"&&frame){
+    if(id==="driverPrint"&&frame){
+      const img=BayLotNegative.photo(frame);
+      if(img?.naturalWidth){
+        g.save();g.translate(-4-5*f,-2-3*f);g.scale((W+10+10*f)/W,(H+5+6*f)/H);
+        g.translate(500,254);g.rotate(-.031);g.drawImage(img,-286,-173,572,321.75);
+        label(g,-243,174,BayLotNegative.locations[frame.place].caption,19,ink,"Georgia","italic");g.restore();
+      }
+    }else if(id==="negative"&&frame){
       const img=BayLotNegative.photo(frame);
       if(img?.naturalWidth){
         g.save();g.translate(-4-5*f,-2-3*f);g.scale((W+10+10*f)/W,(H+5+6*f)/H);

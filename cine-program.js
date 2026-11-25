@@ -546,7 +546,7 @@
     }
   }
 
-  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse;
+  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -558,13 +558,16 @@
     const windows=options?.windows||null;
     const jumps=options?.pictureJumps||null;
     const house=options?.houseLights||null;
-    if(schedule&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const driver=options?.driverPrint||null;
+    if(schedule&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedDriver=driver;
     listedHouse=house;
     listedJumps=jumps;
     if(listedWindows!==windows){listedWindows=windows;windowImages=null;}
     if(listedLocation!==location){listedLocation=location;locationCard=null;}
     listedRecord=saved;listedSkate=skate;listedPrint=print;listedSecond=second;listedDelivery=delivery;
     const list=[];
+    if(driver)list.push(slot("frame-13","From the Passenger Window","Mara Vega · "+BayLotNegative.locations[driver.place].name,5));
     if(house)list.push(slot("house-lights","House Lights","Two exposures on Luna Boulevard · "+house.day.by,8));
     if(jumps)list.push(slot("picture-jumps","Four Wheels Down","Romy Vale · An animation from three measured jumps",15));
     if(location)list.push(slot("location",location.title,"Second Unit · "+location.by+" · Frame "+location.number,5));
@@ -598,7 +601,13 @@
       context.lineCap="round";context.lineJoin="round";
     }
     const elapsed=inSlot/fps;
-    if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
+    if(item.id==="frame-13"){
+      const image=BayLotNegative.photo(listedDriver);
+      rect(context,0,0,width,height,"#202522");
+      if(image?.naturalWidth)context.drawImage(image,18,0,380,213.75);
+      label(context,item.credit,19,227,"italic 12px Georgia,serif","#eddfbf");
+      label(context,"35 MM   /   13",397,227,"bold 9px monospace","#caa977","right");
+    }else if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
     else if(item.id==="pelican")showPelican(context,elapsed);
     else if(item.id==="tram")showTram(context,elapsed,item.credit);
     else if(item.id==="stunt")showStunt(context,listedRecord);

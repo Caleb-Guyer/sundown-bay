@@ -57,7 +57,7 @@
     boarded:[
       {dur:3.8,shot:"cab",who:"Mara Vega",line:"Glove box still sticks. Here, give it a knock."},
       {dur:4.3,art:"timetable",who:"Mara Vega",line:"My dad pencilled in the extra crossing. Look at the bottom. That one was for the night shift."},
-      {dur:3.6,shot:"portWide",slug:"CHAPTER ONE",title:"Last Exposure",line:""}
+      {dur:5.1,shot:"portWide",slug:"CHAPTER ONE",title:"Last Exposure",who:"Mara Vega",line:"Thirteen’s for me. If we pass the Luna or the big wheel, put it on my side. Fourteen’s for the pier."}
     ],
     negative:[
       {dur:3.7,art:"negative",who:"Mara Vega",line:"Got the lot number and the signature in one frame."},
@@ -97,7 +97,13 @@
       return this.beat();
     }
     beat(){
-      const s=this.scene,b=s&&scenes[s.id][s.index];if(!b)return null;
+      const s=this.scene;if(!s)return null;
+      const delivery=s.id==="live"||s.id==="print";
+      if(delivery&&this.windowPrint&&s.index===1){
+        const place=BayLotNegative.locations[this.windowPrint.place];
+        return {dur:5.7,art:"driverPrint",who:"Mara Vega",line:place.inscription,slug:"ON THE BACK OF FRAME 13"};
+      }
+      const index=delivery&&this.windowPrint&&s.index>1?s.index-1:s.index,b=scenes[s.id][index];if(!b)return null;
       if(b.watch==="away")return {...b,line:this.watch.departure.luis==="aboard"?"One’s mine. The other’s my brother’s. He’d have had crackers for supper.":"Tell my brother I’ve got his lunch. I’ll catch the next one."};
       const recorded=this.book.morning;
       if(s.id==="firstCopy"&&s.index===0&&this.negativeNumber==="14B")return {...b,line:"Look at him. My brother kept that tin so clean you could check your shave in it. Here, turn it over."};

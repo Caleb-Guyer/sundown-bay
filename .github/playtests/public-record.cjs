@@ -234,8 +234,20 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       await tap("Enter");await waitFor("document.querySelector('#chapterFilm').hidden");
       console.log("PASS Mara's contact print in the passenger seat, closed unread and opened to the third bolt");
     }
-    // The street run has just inspected a photograph at the curb. Start both
-    // drives in a clear northbound lane beyond the parked club cars, then use
+    const film="JSON.parse(localStorage.getItem(BayLotNegative.key)||'{}')",place=aboard?"wheel":"luna";
+    await waitFor("!!recQA.map?.streetCar");
+    await parkAt(aboard?{x:146,z:103}:{x:-2,z:37});
+    assert.equal(await js("BayLotNegative.passengerSubject(recQA.map.streetCar)"),null);
+    await js("recQA.sensorCalls=0;const sensor=BayRideFilm.Scenery.prototype.paint;BayRideFilm.Scenery.prototype.paint=function(...args){recQA.sensorCalls++;return sensor.apply(this,args);};");
+    await key("keyDown","KeyW");
+    try{
+      await waitFor("document.querySelector('#context').innerText.includes('Give Mara the shot')",25000);
+      await tap("KeyN");await waitFor(film+".latent?.place==="+JSON.stringify(place));
+    }finally{await key("keyUp","KeyW");}
+    assert.equal(await js("recQA.sensorCalls"),0,"the shutter does no scene rasterization on the moving frame");
+    await js("BayRideFilm.Scenery.prototype.paint=sensor");
+    console.log("PASS Frame 13 exposed through the passenger window at",place,"without rasterizing during the drive.");
+    // Start both drives in a clear northbound lane beyond the parked club cars, then use
     // the keyboard for the whole recorded minute.
     await waitFor("!!recQA.map?.streetCar");
     const start=await js(`(()=>{const map=recQA.map,v=map.streetCar;
@@ -277,8 +289,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       await waitFor("document.querySelector('.finder-status')?.textContent.includes('tin in focus')");await snap("portrait");
       await tap("Space");await waitFor("document.querySelector('.file-portrait')?.hidden===false");await tap("Digit2");
     }else await tap("Digit1");
-    const film="JSON.parse(localStorage.getItem(BayLotNegative.key)||'{}')";
     const selected=await js(film+".pending");assert.equal(selected.frame,aboard?"14B":"14A");
+    const driverPrint=await js(film+".windowPending");assert.equal(driverPrint.place,place);
+    assert(driverPrint.image.startsWith("data:image/jpeg;base64,/9j/")&&driverPrint.image.length>1500);
     assert(selected.image.startsWith("data:image/jpeg;base64,/9j/")&&selected.image.length>1500);
     await waitFor("!document.querySelector('#chapterFilm').hidden");await tap("Enter");
     await waitFor("document.querySelector('#panelBody figcaption')?.textContent.includes("+JSON.stringify(selected.frame)+")");await snap("proof");
@@ -286,7 +299,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await parkAt(await js("BayExposure.routes["+JSON.stringify(route)+"]"));
     await waitFor(film+".published?.frame==="+JSON.stringify(selected.frame),45000);
     assert.deepEqual(await js(film+".published"),selected);assert.equal(await js(film+".pending"),null);
-    await waitFor("!document.querySelector('#chapterFilm').hidden");await tap("Enter");
+    await waitFor("document.querySelector('#chapterSlug').textContent.includes('FRAME 13')");await snap("window-print");await tap("Enter");
+    assert.deepEqual(await js(film+".windowPrint"),driverPrint);
     console.log("PASS Lot 14 shutter, "+selected.frame+" handoff to "+route+", exact "+selected.image.length+"-byte data URL retained.");
     // Load a delivered legacy save through the normal startup path and play its sequel on foot.
     const save=await js(`(()=>{const u=new BaySecondUnit.Unit();u.met=true;u.remember({x:-151.05,z:-87.8,yaw:-Math.PI/2},null);u.save();
@@ -421,6 +435,20 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await tap("Digit1");assert.equal((await js(book)).hearing.draft,service);await tap("Enter");
     console.log("PASS The Public Slip",service,"moving-deck testimony, paper order, mooring, ending, posted deed after reload");
     await require("./landing-run.cjs")({js,waitFor,tap,snap,loadFootAt,book,service});
+    await loadFootAt(await js("BayCab.cinema"));
+    await js(`const moveRoom=BayCineRoom.move;BayCineRoom.move=function(room,...a){window.lobby=room;return moveRoom(room,...a);};
+      const program=BayCineProgram;window.BayCineProgram={...program,frame(t,options){const reel=program.frame(t,options);window.projection=reel;return reel;}};`);
+    await tap("KeyF");await waitFor("!!window.lobby");
+    async function walkLobby(code,condition){
+      await key("keyDown",code);try{await waitFor(condition);}finally{await key("keyUp",code);}
+    }
+    await walkLobby("KeyW","lobby.z>=-5.55");await walkLobby("KeyA","lobby.x<=-2.35");
+    await tap("KeyF");const loan="[...document.querySelectorAll('#panelBody button')].find(b=>b.innerText.includes('Lend the projectionist'))";
+    await waitFor(loan);await js(loan+".click()");assert.equal(await js(film+".onScreen"),true);
+    await walkLobby("KeyD","Math.abs(lobby.x)<.32");await walkLobby("KeyW","BayCineRoom.action(lobby)==='seat'");
+    await tap("KeyF");await waitFor("lobby.seated&&window.projection?.id==='frame-13'&&projection.elapsed>.75");
+    await snap("window-screen");
+    console.log("PASS kept the driver's print through reload, lent it in the lobby and saw Frame 13 from an aisle seat.");
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     console.log("PASS",mode,"Six Sharp departure, gangway or sailing bell, carbon and Mara callback; Public Record, First Crossing, Room Tone edit, car radio broadcast and Dalia’s response",route,credit);
   }catch(e){console.log("Campaign state",await js("JSON.stringify({book:"+book+",who:document.querySelector('#chapterWho').textContent,line:document.querySelector('#chapterLine').textContent,hint:document.querySelector('#context').innerText,at:window.recQA?.hero&&[recQA.hero.x,recQA.hero.z],goal:window.recQA?.goal,panel:document.querySelector('#panelTitle').innerText})"));await snap("failure");throw e;}

@@ -797,6 +797,7 @@
     if(panel)closePanel();
     sound.reel(null);
     campaign.negativeNumber=(id==="negative"?(maraFilm.pending||maraFilm.published):maraFilm.published)?.frame;
+    campaign.windowPrint=maraFilm.inEdition?maraFilm.windowPrint:null;
     filmReplay=replay;if(id==="film-sleeve"){
       const photo=document.createElement("canvas");photo.width=384;photo.height=216;
       const roll=new BayLotNegative.Roll();roll.matchPrint();
@@ -827,7 +828,8 @@
       campaign.book.intro=true;campaign.advance("meet");campaign.write();
       if(!active&&!waypoint&&campaign.book.stage!=="filed")waypoint=chapterTarget();
       if(!active&&campaign.book.stage!=="filed")note("Public Record",campaign.book.stage==="return"?"The last page is at the Lot 14 gate.":"Find Mara on the curb outside the Marlin Motel.",4.8);
-    }else if(id==="negative"&&active?.story?.phase==="choice")openPanel("contact");
+    }else if(id==="boarded"&&!maraFilm.latent&&!maraFilm.windowPending&&active?.story?.phase==="port")note("Mara’s last roll","Pass Cine Luna or the Coast Wheel on her side. N cues the shutter while you drive.",8);
+    else if(id==="negative"&&active?.story?.phase==="choice")openPanel("contact");
     else if((id==="live"||id==="print")&&!active){waypoint=chapterTarget();note("Chapter two · The Six O’Clock Boat","Meet Mara at the timetable on the Port Sol fence.",5);}
     else if(id==="crew"||id==="signed"){if(waypoint?.kind==="chapter")waypoint=null;note("Public Record · Filed","Dalia has the first sailing ticket. Find her next to the dispatch board.",5);}
     else if(id==="passDalia"||id==="passShift"){waypoint=chapterTarget();note("First Crossing",waypoint.name+" · Walk to the green post at the end of the pier.",5);}
@@ -4221,7 +4223,7 @@
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
+  const filmOptions=()=>({driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
     deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   const cabWindow=()=>cabs.booking?.stage==="ride"&&cabs.booking.window&&!isTop();
   function cabRank(){
@@ -6460,6 +6462,23 @@
     $("filmRoll").textContent=(elapsed-meet.lastShot<2&&meet.feedback)||("M. VEGA   /   "+String(meet.shots+1).padStart(2,"0")+(score?"   •   IN FRAME":""));
   }
   function maraOnBreak(){return campaign.book.trips?BayRoomTone.mara:campaign.book.stage==="return"?gateMara:BayExposure.routes[save.edition]?.stand||BayExposure.pickup;}
+  function windowSubject(){
+    const story=active?.story;
+    if(!story||story.phase!=="port"||!car||car!==story.ride||transfer||heat||maraFilm.latent||maraFilm.windowPending)return null;
+    return BayLotNegative.passengerSubject(car);
+  }
+  function photographWindow(brief){
+    if(!maraFilm.wind(brief,car,hours,boardwalk.wheel,streetTime,cars))return;
+    sound.cue("record-shutter");speak("Mara Vega",BayLotNegative.locations[brief.id].reply);
+    note("Frame 13","Mara winds on to the pier photograph.",3);lastHud=-10;
+  }
+  function developWindow(){
+    const shot=maraFilm.latent;if(!shot)return;
+    const out=document.createElement("canvas");out.width=352;out.height=198;
+    const traffic=shot.traffic.map(v=>({...v,footprint:{track:v.track,halfLength:v.length}}));
+    rideScenery.paint(out,shot.eye,BaySecondSeat.find(shot.place),shot.time,{hours:shot,wheel:{angle:shot.angle},model,cars:traffic,cpu:view.cpu},true);
+    maraFilm.exposeWindow(shot.place,BayMeetPhoto.capture(out,null,.5,.5,16/9,true));
+  }
   function advanceExposure(dt){
     const story=active.story,event=story.step(dt,car,transfer,doorPlan,footLevel);
     if(!event){
@@ -9782,7 +9801,7 @@
     const capHint=summerHint(summerAction());
     const phoneHint=rankPrompt();
     const beachHint=sandHint(sandAction());
-    const chapter=chapterAction();
+    const chapter=chapterAction(),passengerShot=windowSubject();
     $("luzTicket").hidden=!luz.rider;
     $("jobKey").hidden=!!luz.rider;
     if(luz.rider){
@@ -9810,6 +9829,7 @@
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
     }else if(chapter==="commuter")contextHint("F",commuterHint());
     else if(chapter)contextHint("F",({order:"Read the public landing order",firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":BayLandingOrder.charter(luz.book)==="clinic"?"Check the clinic timetable":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
+    else if(passengerShot)contextHint("N","Give Mara the shot · "+BayLotNegative.locations[passengerShot.id].name);
     else if(active?.story?.offeredSleeve&&!campaign.book.sleeve&&!heat&&!transfer&&car===active.story.ride&&active.story.phase==="port"&&!active.story.remarked&&(active.story.sleeveStop(car)||elapsed-active.story.sleeveCall<9)){
       if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print");
       else contextHint("","Stop to look at Mara’s contact print");
@@ -10321,6 +10341,7 @@
     }
     function file(id){
       const frame=roll.frames[id];if(!filming()||!frame||story.phase!=="port")return;
+      developWindow();
       maraFilm.file(frame);story.phase="choice";campaign.advance("negative");
       if(campaign.book.intro)enterFilm("negative");else openPanel("contact");
     }
@@ -10424,6 +10445,16 @@
     }
   }
   function showCineProgram(body){
+    if(maraFilm.windowPrint){
+      const place=BayLotNegative.locations[maraFilm.windowPrint.place];
+      body.append(makeButton(maraFilm.onScreen?"Take back Frame 13":"Lend the projectionist Frame 13",
+        maraFilm.onScreen?"Remove your passenger-window print from the house program.":place.caption+". The booth can show your copy before the feature.",
+        maraFilm.onScreen?"Collect print":"Lend print",()=>{
+          maraFilm.lend(!maraFilm.onScreen);
+          room.cuedReel=maraFilm.onScreen?"frame-13":"";closePanel();
+          note("Cine Luna",maraFilm.onScreen?"The slide is in the gate. Take an aisle seat.":"The projectionist slips the print back into its envelope.",4);
+        }));
+    }
     if(houseLights.s.release)body.append(makeButton("Cue House Lights","Your two exposures, dissolved on the house projector.","Thread print",()=>{
       room.cuedReel="house-lights";closePanel();note("Cine Luna","Take an aisle seat for House Lights.",3.5);}));
     for(const reel of BayCineProgram.describe(filmOptions())){
@@ -10859,7 +10890,13 @@
         makeButton("Make a print","Take the negative to Cine Luna for tonight’s screening. No deadline.","$300",()=>chooseExposure("print")));
     }else if(next==="edition"){
       const article=BayExposure.routes[save.edition];title=article.headline;kicker="Bay Wire  /  Evening edition";showPhoto(b,maraFilm.published);
-      const copy=document.createElement("p");copy.className="edition-copy";copy.textContent=article.edition;b.append(copy,makeButton("Burner phone","Return to your contacts.","Back",()=>openPanel("jobs")));
+      const copy=document.createElement("p");copy.className="edition-copy";copy.textContent=article.edition;b.append(copy);
+      if(maraFilm.windowPrint){
+        const f=maraFilm.windowPrint,place=BayLotNegative.locations[f.place],figure=document.createElement("figure"),img=document.createElement("img"),caption=document.createElement("figcaption");
+        figure.className="contact-proof";img.src=f.image;img.alt=place.caption;img.style.width="100%";caption.textContent="13  /  "+place.caption+" · "+place.inscription;
+        figure.append(img,caption);b.append(figure);
+      }
+      b.append(makeButton("Burner phone","Return to your contacts.","Back",()=>openPanel("jobs")));
     }else if(next==="jobs"&&(airLine.aboard||airLine.reserved||active?.airmail)){
       title="Pelican Air";kicker="Fern 3  /  Dispatch";
       if(airLine.mailTo)b.append(makeButton(airLine.leaflet()[0],"Bring the sealed pouch to "+clerk(airLine.mailTo).name+" at "+airLine.mailTo.name+".","Resume",closePanel));
@@ -11129,6 +11166,7 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyN"){const brief=windowSubject();if(brief){photographWindow(brief);return;}}
     if(ev.code==="KeyN"&&!campaign.book.sleeve&&!heat&&!transfer&&active?.story?.sleeveStop(car)){enterFilm("film-sleeve");return;}
     if(luz.rider){
       if(ev.code==="Space"&&luz.rider.phase==="line"&&!luz.rider.rope)luz.rider.charge=0;
@@ -11383,7 +11421,7 @@
       }else if(art==="watchCopy"){
         if(!campaign.watch.printed){BaySixSharpArt.docket($("chapterInsert"),campaign.watch.departure);campaign.watch.printed=true;}
       }else if(art==="inscription"||art==="landingOrder")return;
-      else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="negative"?(maraFilm.pending||maraFilm.published):null);
+      else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
         if(isTop())tuneOverhead(delta);else tuneStreetResolution(delta,true);

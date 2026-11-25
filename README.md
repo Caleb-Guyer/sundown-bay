@@ -236,6 +236,8 @@ For **Last Exposure**, pick up Mara Vega outside the Marlin Motel and park at Lo
 
 On the first drive to Port Sol, Mara finds her father’s contact print. Pull up anywhere before the docks and press **N**. Hold **Space** to take the print out of its sleeve. If you study his camera position, Mara can match the old portrait when Luis raises the blue tin.
 
+Mara saves **Frame 13** for the drive. Pass the Coast Wheel on Ocean Drive or Cine Luna on Neon Mile with the landmark on her right. Ease off the gas and tap **N** when she has the shot. You can also go straight to Port Sol. After the handoff, Mara gives you a print with a memory from her father’s life. Find it with your Bay Wire edition on the phone. At the Cine Luna lobby case you can lend it to the projectionist, take an aisle seat to watch it, or ask for it back.
+
 After the handoff, stop by Luz’s blue news box north of the Marlin Motel or Vic’s in Old Palms. The street edition runs your frame as a newsprint photograph. Press **F** at the box to read it, then **Fold a copy for later** to keep that issue under **J → Folded copies**. Each saved paper keeps the photograph it carried that day.
 
 **The First Copy** starts when you bring a folded edition with Mara’s photograph back to Luis at the Lot 14 gate. Show him the paper with **F**. The picture determines what he writes. Turn the issue over in **J → Folded copies** to read his note later.
