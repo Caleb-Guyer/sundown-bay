@@ -8,6 +8,8 @@ For a burnout, stop a rear-drive car such as the Marlin GT on pavement. Hold **W
 
 At an **On Green** starting light, hold both pedals with the wheels straight to warm the rear tires. When the light goes green, release **S** and keep **W** down. Warm tires bite harder for the first car lengths. Overheat them and the car takes longer to get up to speed. Your timing slip shows the brake-release reaction and the measured **0–30 MPH** split.
 
+Officer Lina Solís works the curb opposite the Marlin and outside Cine Luna. Park close by and press **H** to ask her to check your brake lamps. Hold **S** when she reaches the rear of the car, then press **F** to take her signed copy at the window. Find it again under **J → Ocean Unit 12**. If she sees a fender-bender, pull over nearby for a warning. Later citations cost up to $25. Drive off and her marked cruiser joins the pursuit.
+
 Look across Tideway from Portside Tire for Romy’s chalk circle. For **Carbon Copies**, drive inside the chalk and close a full circle each way. Hold **V** to watch from the rail. Romy pays **$60** for the first direction and **$95** for its mate. Both spaces on the rail display the paths your actual rear wheels took. Press **F** at the rail to read them up close, or open **J → Carbon Copies** after discovering the job. A faster closed loop replaces that direction’s rubbing.
 
 Across from the Marlin, **Salt Print** is a camera trailer pointed north along Sol Promenade. Walk to the low end and press **F** to read Romy’s chalk, or drive straight up it in your own car. A longer run-up gives you more distance. **A/D** trims the car’s heading in the air. In chase view, hold **V** during the jump for the roadside camera. Land all four wheels between the painted stripes.

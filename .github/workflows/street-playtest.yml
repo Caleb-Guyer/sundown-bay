@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   play:
-    name: Pull tire prints and race the light in ${{ matrix.view }} view
+    name: Meet Ocean Unit 12 in ${{ matrix.view }} view
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
@@ -26,7 +26,7 @@ jobs:
         with:
           persist-credentials: false
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --carbon-copies --frames
-      - run: node .github/playtests/live.cjs ${{ matrix.view }} --on-green --brake-launch --frames
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --ocean-beat --frames
       - uses: actions/upload-artifact@v4
         if: always()
         with:
