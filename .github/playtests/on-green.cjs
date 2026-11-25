@@ -1,4 +1,5 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
+const oceanDriver=require("./ocean-driver.cjs");
 module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   const delay=ms=>new Promise(r=>setTimeout(r,ms)),held=new Set();
   async function controls(...next){
@@ -53,47 +54,33 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
       await waitFor("club.run.clock>.24&&ride.burn>.6");
       assert.equal(await js("club.run.react"),null);assert(Math.abs(await js("ride.speed"))<.5);
     }
-    await controls("KeyW");
-    if(process.argv.includes("--return-lap"))await js(`(()=>{
-      const pressed=new Set();let target=null;
-      function steer(){
-        const race=window.club.run?.phase==='running',v=window.ride;
-        if(v&&v.z>7&&target===null)target=traffic.some(q=>q!==site.v&&q.z>20&&q.z<62&&Math.abs(q.x-146.45)<1.95&&q.speed<15)?144.0:146.45;
-        const goal=v&&target!==null?Math.max(-.25,Math.min(.25,(target-v.x)*.17)):0;
-        const delta=v?Math.atan2(Math.sin(goal-v.yaw),Math.cos(goal-v.yaw)):0;
-        for(const [code,side] of [['KeyA',-1],['KeyD',1]]){
-          const want=race&&target!==null&&delta*side>.027;
-          if(want&&!pressed.has(code)){pressed.add(code);dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true,cancelable:true}));}
-          if(!want&&pressed.delete(code))dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));
+    const returnLap=process.argv.includes("--return-lap");
+    if(returnLap){
+      await controls();
+      await js(`window.oceanKeys=(${oceanDriver.toString()});window.driveOcean=function(leg,end){
+        const pressed=new Set();
+        function drive(){
+          const v=ride,done=leg==='race'?club.run?.phase!=='running':v.x>151.8&&Math.abs(v.speed)<.3;
+          const next=done?[]:oceanKeys(v,leg,end);
+          for(const k of pressed)if(!next.includes(k)){dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));pressed.delete(k);}
+          for(const k of next)if(!pressed.has(k)){dispatchEvent(new KeyboardEvent('keydown',{code:k,bubbles:true,cancelable:true}));pressed.add(k);}
+          if(done){if(leg==='curb')window.curbParked=true;return;}
+          requestAnimationFrame(drive);
         }
-        if(race)requestAnimationFrame(steer);
-      }
-      steer();
-    })()`);
-    await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1",45000);
+        drive();
+      };driveOcean('race',0);`);
+    }else await controls("KeyW");
+    await waitFor("!club.run||JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1",55000);
+    assert(await js("JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1"),"Race ended before the player's bumper reached the clock");
     await controls("KeyS");await waitFor("Math.abs(ride.speed)<1.5",40000);await controls();
     assert(await js("finishSeen"));const card=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).green.cards.ocean");
     assert(["first","second"].includes(card.slip.result)&&card.slip.time>1&&card.slip.reaction>=0);assert.equal(card.runs,1);
     if(brakeLaunch)assert(card.slip.reaction>=.24&&card.slip.toThirty>.4&&card.slip.toThirty<3.8&&["cold","ready","hot"].includes(card.slip.launch));
     if(process.argv.includes("--return-lap")){
-      // The finish is on an open street. Pull over beyond the parked coupe so
+      // The finish is on an open street. Pull onto the apron by the clock so
       // the player's car leaves both the crossing and its exit usable.
-      await js(`(()=>{const held=new Set(),end=Math.max(118,ride.z+12);window.curbParked=false;
-        function keyboard(next){
-          for(const k of held)if(!next.includes(k)){dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));held.delete(k);}
-          for(const k of next)if(!held.has(k)){dispatchEvent(new KeyboardEvent('keydown',{code:k,bubbles:true,cancelable:true}));held.add(k);}
-        }
-        function drive(){
-          const v=ride,lane=v.z<99?146.7:150.65,aim=Math.max(-.37,Math.min(.37,(lane-v.x)*.21));
-          const delta=Math.atan2(Math.sin(aim-v.yaw),Math.cos(aim-v.yaw));
-          const speed=Math.min(7.5,Math.sqrt(Math.max(0,5*(end-v.z)))),next=[];
-          if(v.z>end-1&&Math.abs(v.speed)<.5){keyboard([]);window.curbParked=true;return;}
-          if(v.speed<speed-.35)next.push('KeyW');if(v.speed>speed+.25)next.push('KeyS');
-          if(Math.abs(delta)>.025)next.push(delta>0?'KeyD':'KeyA');keyboard(next);requestAnimationFrame(drive);
-        }
-        drive();
-      })()`);
-      await waitFor("curbParked&&ride.x>149.5",75000);
+      await js("driveOcean('curb',ride.z+9)");
+      await waitFor("window.curbParked&&ride.x>151.8",75000);
     }
     await waitFor("!site.runOut&&(!site.out||Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>48)",90000);
     if(process.argv.includes("--return-lap")){
