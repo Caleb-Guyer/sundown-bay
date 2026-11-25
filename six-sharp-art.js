@@ -84,11 +84,14 @@
       for(const sign of [-1,1]){
         c.fillStyle="#414942";c.fillRect(sign*.11-.06,-.12+sign*swing*.16,.12,.32);
         circle(c,sign*.24,-sign*swing*.20,.084,skin);
-        if(tins){c.fillStyle="#5c6963";c.fillRect(sign*.34-.084,-.12-sign*swing*.20,.168,.26);
+        if(tins){c.fillStyle=sign>0?"#426e83":"#637a60";c.fillRect(sign*.34-.084,-.12-sign*swing*.20,.168,.26);
           line(c,sign*.34-.06,-sign*swing*.20,sign*.34+.06,-sign*swing*.20,"#d2c7a6",.028);}
       }
       c.fillStyle=shirt;c.beginPath();c.ellipse(0,0,.245,.14,0,0,tau);c.fill();circle(c,0,-.03,.117,skin);
       circle(c,0,.011,.105,"#4c4238");c.restore();
+    }
+    for(const [i,[x,z]] of BaySixSharp.crewSeats.entries()){
+      const q=BayDriving.world(v,x,z);person(q.x,q.z,v.yaw+i*2.38-.9,BaySixSharp.faces[i%4],BaySixSharp.clothes[i%6],0,0,false);
     }
     const l=w.luis();person(l.x,l.z,l.yaw,"#9b7557","#a89467",w.luisMotion.phase,w.luisMotion.weight,true);
     person(p.x-.33,p.z+1,2.46,"#997053","#537a72",0,0,false);

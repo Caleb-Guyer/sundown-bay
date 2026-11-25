@@ -19176,7 +19176,10 @@ window.buildBayCity = function buildBayCity(g,water) {
         const u=smooth(Math.min(1,this.age/4));eye=[p.x-8+u*1.4,4.2-u*.7,p.z+9];to=[p.x+2,1.24,p.z];focal=1.52;
       }else if(beat==="away"){
         const u=clamp(this.away/6,0,1);eye=[p.x-.4,2.0+u*1.2,p.z+5.6+u*2];to=[v.x-.95,1.43,v.z+.22];focal=1.55;
-      }else{eye=[p.x-.70,2.25,p.z+5.5];to=[p.x+1.9,1.3,p.z-.18];focal=1.49;}
+      }else{
+        const follow=smooth(this.travel);eye=[p.x+4.25+1.1*follow,2.90,p.z-7.2];
+        to=[p.x+1.15+2.7*follow,1.25,p.z];focal=1.57;
+      }
       return {x:eye[0],y:eye[1],z:eye[2],focal,yaw:Math.atan2(to[0]-eye[0],to[2]-eye[2]),pitch:Math.atan2(to[1]-eye[1],Math.hypot(to[0]-eye[0],to[2]-eye[2]))};
     }
     caption(){
@@ -19188,9 +19191,41 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   const brass="#b58a48",teal="#325d58",cream="#f0dbad",red="#a45740",casts=new WeakMap();
+  // Port side midships is the receiving space for Luis and his two tins.
+  const crewSeats=[[-.78,-3.18],[-.09,-3.42],[.63,-3.23],[1.04,-2.49],[-.34,-2.51],[.35,-1.97],[-.85,-1.64],
+    [.97,-1.42],[.03,-1.03],[.85,-.38],[.77,.51],[.02,1.18],[-.91,1.50],[1.05,1.49],[-.90,2.40],[-.14,2.96],[.58,3.46]];
+  const clothes=["#747f82","#b67c62","#5a7974","#b3a57f","#737491","#89977f"],faces=["#996c51","#be8b67","#70503e","#cc9d79"];
+  function passengers(g){
+    for(const [i,[x,z]] of crewSeats.entries()){
+      const s=Math.sin(i*2.38-.9),c=Math.cos(i*2.38-.9),short=i%4===0?.90:1;
+      const at=(u,h,v)=>[x+u*c+v*s,.82+h*short,z-u*s+v*c],yaw=Math.atan2(s,c);
+      const box=(u,h,v,w,height,depth,col)=>g.box(...at(u,h,v),w,height*short,depth,col,yaw);
+      const shirt=clothes[i%clothes.length],skin=faces[i%4],pant=i%3===0?"#585c69":"#454c49";
+      for(const k of [-1,1]){
+        box(k*.105,.49,k*.035,.145,.89,.165,pant);box(k*.105,.078,k*.035+.045,.15,.13,.235,"#383d3b");
+        g.pole(at(k*.176,1.31,0),at(k*.235,1.06,.035),.071,shirt,5);
+        g.pole(at(k*.235,1.06,.035),at(k*.20,.95,i%3===1?.21:.07),.051,skin,5);
+      }
+      box(0,1.12,0,.335,.45,.225,shirt);box(0,.927,0,.323,.055,.228,pant);
+      const head=at(0,1.56,.012);g.cyl(...head,.105,.093,.227*short,7,skin);
+      g.cyl(...at(0,1.686,0),.081,.116,.084*short,7,i%3===1?"#756550":"#483e36");
+      if(i%3===0)box(0,1.68,.045,.241,.028,.237,teal);
+      if(i%4===1){box(-.018,1.17,.118,.13,.285,.019,"#d0bb91");box(0,1.025,.126,.32,.16,.020,"#a4906d");}
+    }
+  }
+  function pier(g){
+    const d=BayMarina.docks[0];
+    for(let z=.38-d.headD/2;z<d.headD/2;z+=.44){
+      g.box(0,.011,z,d.headW-.03,.012,.021,"#927f69");
+      for(const side of [-1,1])g.box(side*(d.headW/2-.20),.018,z+.052,.043,.009,.047,"#766e5d");
+    }
+    for(const k of [-1,1])for(let n=0;n<4;n++)g.box(2.62+k*.63,.022,2.10+n*.43,.10,.017,.21,"#e1c99b");
+  }
   function street(w,view,model,person){
     const p=w.dock,l=w.luis(),v=w.boat,list=[];
     BayFirstCrossing.world(view,model,list,q=>Math.abs(q.x-p.x)<24&&Math.abs(q.z-p.z)<22,v,w.age,person);
+    model("watch/passengers",passengers);list.push(["watch/passengers",v.x,v.y,v.z,v.yaw]);
+    const dock=BayMarina.docks[0];model("watch/pier",pier);list.push(["watch/pier",dock.x,dock.level,dock.z]);
     model("watch/posts",g=>{
       for(const z of [-.69,.69]){
         g.box(0,.51,z,.12,1.03,.14,teal);g.cyl(0,1.05,z,.104,.10,.11,8,brass);
@@ -19199,15 +19234,18 @@ window.buildBayCity = function buildBayCity(g,water) {
       g.cyl(0,1.26,.69,.017,.028,.23,8,brass);g.cyl(0,1.22,.69,.10,.17,.18,10,brass);
       g.cyl(0,1.14,.69,.175,.177,.033,10,"#d1ab67");
     });
-    model("watch/bar",g=>{g.box(0,0,-.66,.085,.103,1.36,cream);for(let i=0;i<3;i++)g.box(0,0,-.24-i*.41,.087,.106,.20,red);});
+    model("watch/bar",g=>{g.box(0,0,-.66,.085,.103,1.36,cream);for(let i=0;i<3;i++)g.box(0,0,-.24-i*.41,.087,.106,.20,red);
+      g.pole([0,0,.07],[-.29,.09,.07],.037,brass,6);g.box(-.29,.09,.15,.078,.084,.24,"#766047");});
     list.push(["watch/posts",p.x,p.y,p.z],["watch/bar",p.x,p.y+.94,p.z+.69,0,w.gate*1.39]);
     if(w.away>0&&w.away<1.25){
       const u=smooth(w.away/1.25),a=u*1.36;
       const x=v.x-1.54-2.65*Math.cos(a);
       list.push(["luz/plank",x,v.y+.78+2.65*Math.sin(a),p.z,0,0,-a]);
     }
-    model("watch/tin",g=>{g.box(0,0,0,.27,.20,.19,"#5c6963");g.box(0,.11,0,.281,.045,.201,"#c1bdaa");
-      g.box(0,.126,.097,.056,.066,.021,brass);for(const x of [-.071,.071])g.box(x,.16,0,.017,.096,.022,"#4a4840");g.box(0,.207,0,.16,.019,.024,"#4a4840");});
+    for(const [name,col] of [["blue","#426e83"],["green","#637a60"]])model("watch/tin/"+name,g=>{
+      g.box(0,0,0,.27,.20,.19,col);g.box(0,.11,0,.281,.045,.201,"#c1bdaa");
+      g.box(0,-.057,0,.272,.015,.193,cream);g.box(0,.126,.097,.056,.066,.021,brass);
+      for(const x of [-.071,.071])g.box(x,.16,0,.017,.096,.022,"#4a4840");g.box(0,.207,0,.16,.019,.024,"#4a4840");});
     function rig(id,colors,motion,x,y,z,yaw){
       const key="watch/"+id;
       let cast=casts.get(view);if(!cast){cast={};casts.set(view,cast);}
@@ -19220,11 +19258,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(let i=0;i<2;i++){
       const hand=[0,0,0];
       mesh.sides[i].forearm.map(mesh.sides[i].handPivot,hand);
-      const at=BayDriving.world(l,hand[0],hand[2]);list.push(["watch/tin",at.x,l.y+hand[1]-.21,at.z,l.yaw]);
+      const at=BayDriving.world(l,hand[0],hand[2]);list.push([i?"watch/tin/blue":"watch/tin/green",at.x,l.y+hand[1]-.21,at.z,l.yaw]);
     }
     for(const a of list)view.draw(...a);
   }
-  window.BaySixSharp={Watch,read,time,street};
+  window.BaySixSharp={Watch,read,time,street,crewSeats,clothes,faces};
 })();
 
 ;
@@ -19315,11 +19353,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       for(const sign of [-1,1]){
         c.fillStyle="#414942";c.fillRect(sign*.11-.06,-.12+sign*swing*.16,.12,.32);
         circle(c,sign*.24,-sign*swing*.20,.084,skin);
-        if(tins){c.fillStyle="#5c6963";c.fillRect(sign*.34-.084,-.12-sign*swing*.20,.168,.26);
+        if(tins){c.fillStyle=sign>0?"#426e83":"#637a60";c.fillRect(sign*.34-.084,-.12-sign*swing*.20,.168,.26);
           line(c,sign*.34-.06,-sign*swing*.20,sign*.34+.06,-sign*swing*.20,"#d2c7a6",.028);}
       }
       c.fillStyle=shirt;c.beginPath();c.ellipse(0,0,.245,.14,0,0,tau);c.fill();circle(c,0,-.03,.117,skin);
       circle(c,0,.011,.105,"#4c4238");c.restore();
+    }
+    for(const [i,[x,z]] of BaySixSharp.crewSeats.entries()){
+      const q=BayDriving.world(v,x,z);person(q.x,q.z,v.yaw+i*2.38-.9,BaySixSharp.faces[i%4],BaySixSharp.clothes[i%6],0,0,false);
     }
     const l=w.luis();person(l.x,l.z,l.yaw,"#9b7557","#a89467",w.luisMotion.phase,w.luisMotion.weight,true);
     person(p.x-.33,p.z+1,2.46,"#997053","#537a72",0,0,false);
@@ -19366,7 +19407,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       {dur:4.5,art:"pass",who:"Dalia Cruz",line:"Luis has the little double-ender at North Float. He saved you the line. Mind your knuckles."}
     ],
     opening:[
-      {dur:4,watch:"wide",slug:"MARLIN PIER    /    ONE WEEK AGO",title:"Six Sharp",who:"Inez · captain of Luz",line:"Seventeen aboard, Dalia. Your bell. There’s Luis coming with his lunch tins."},
+      {dur:4.6,watch:"wide",slug:"MARLIN PIER    /    ONE WEEK AGO",title:"Six Sharp",who:"Inez · captain of Luz",line:"Seventeen aboard, Dalia. The clinic bus meets us at North Float. There’s Luis, still running."},
       {dur:0,watch:"work",who:"Dalia Cruz · dispatcher",line:""},
       {dur:5.4,watch:"away",who:"Luis · night shift",line:""},
       {dur:3.6,art:"watchCopy",who:"Dalia Cruz",line:"That was the last page I filled in before they put the chain across."},

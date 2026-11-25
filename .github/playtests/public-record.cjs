@@ -64,7 +64,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       await key("keyDown","Space");
       try{
         await waitFor("recQA.director.watch.crossing");await tap("KeyH");assert.equal(await js(book+"?.morning||null"),null);
-        await snap("gangway");await waitFor("recQA.director.watch.travel===1");
+        await waitFor("recQA.director.watch.travel>=.47");await snap("gangway");await waitFor("recQA.director.watch.travel===1");
       }finally{await key("keyUp","Space");}
       await waitFor("recQA.director.watch.gate<.035");
     }
@@ -141,6 +141,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await send("Page.reload");await ready();await js("document.querySelector('#play').click()");
     await waitFor("document.querySelector('#chapterFilm').hidden&&document.querySelector('#hud').hidden===false");
     assert.equal((await js(book)).credit,credit);assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).wallet"),347);
+    await loadFootAt({x:-151.9,z:-88.85});await waitFor("document.querySelector('#context').innerText.includes('dispatch copy')");
+    await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Dalia’s departure book'");
+    assert.equal((await js(book)).morning.luis,aboard?"aboard":"ashore");await tap("Escape");
     await loadFootAt({x:-151.1,z:-86.6});await waitFor("document.querySelector('#context').innerText.includes('Dalia Cruz')");
     await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').innerText==='First Crossing'",30000);
     await waitFor("!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterWho').textContent==='Dalia Cruz'");await snap("ticket");await tap("Enter");

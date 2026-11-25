@@ -31,7 +31,7 @@
       {dur:4.5,art:"pass",who:"Dalia Cruz",line:"Luis has the little double-ender at North Float. He saved you the line. Mind your knuckles."}
     ],
     opening:[
-      {dur:4,watch:"wide",slug:"MARLIN PIER    /    ONE WEEK AGO",title:"Six Sharp",who:"Inez · captain of Luz",line:"Seventeen aboard, Dalia. Your bell. There’s Luis coming with his lunch tins."},
+      {dur:4.6,watch:"wide",slug:"MARLIN PIER    /    ONE WEEK AGO",title:"Six Sharp",who:"Inez · captain of Luz",line:"Seventeen aboard, Dalia. The clinic bus meets us at North Float. There’s Luis, still running."},
       {dur:0,watch:"work",who:"Dalia Cruz · dispatcher",line:""},
       {dur:5.4,watch:"away",who:"Luis · night shift",line:""},
       {dur:3.6,art:"watchCopy",who:"Dalia Cruz",line:"That was the last page I filled in before they put the chain across."},
