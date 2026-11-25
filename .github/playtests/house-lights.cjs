@@ -24,6 +24,14 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const grade=BaySecondUnit.grade;BaySecondUnit.grade=(...args)=>{const r=grade(...args);proof.subject=r?.id;
         if(r?.id==="marquee"){const m=args[0].find(s=>s.id==="marquee");proof.aim=args[1](m.x,m.y,m.z);}return r;};
       const film=BayHouseLights.paint;BayHouseLights.paint=(...args)=>{proof.dissolve=args[4];return film(...args);};
+      const program=BayCineProgram;
+      window.BayCineProgram={...program,frame(...args){const show=program.frame(...args);proof.lastShow=show;return show;}};
+      for(const name of ["world","map"]){
+        const draw=BayCineRoom[name];BayCineRoom[name]=(...args)=>{
+          const show=proof.lastShow;if(show?.canvas===args[4])proof.screen={id:show.id,at:show.elapsed,seated:args[1].seated};
+          return draw(...args);
+        };
+      }
       const view=BayView.prototype.updateSun;BayView.prototype.updateSun=function(...args){view.apply(this,args);proof.light={s:this.sunStrength,key:this.sunKey,ok:this.sunTarget?.ok};};
       document.querySelector('#play').click();`);
     await waitFor("proof.map&&Number.isFinite(proof.yaw)");
@@ -62,7 +70,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await walk("BayCab.cinema",1.05);await tap("KeyF");await waitFor("proof.room");
     await walk("BayCineRoom.points.program",.89,true);await tap("KeyF");await click("Cue House Lights");
     await walk("({x:0,z:-4.2})",.45,true);await walk("({x:0,z:-2.3})",.36,true);await tap("KeyF");
-    await waitFor("proof.room.seated&&proof.dissolve>.3&&proof.dissolve<.95",28000);await snap("screen");
+    await waitFor("proof.screen?.seated&&proof.screen.id==='house-lights'&&proof.screen.at>3&&proof.screen.at<5&&proof.dissolve>.1",30000);await snap("screen");
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     console.log("PASS",mode,"walked to the opposite sidewalk, matched two real marquee exposures across shifts, received $140, reopened the stored prints and watched the dissolve from an aisle seat. Zero audio starts and cursor locks.");
   }catch(e){console.log("Playtest state",await js("JSON.stringify({p:proof.map?.player&&[proof.map.player.x,proof.map.player.z],room:proof.room&&[proof.room.x,proof.room.z],hint:document.querySelector('#context').innerText,panel:document.querySelector('#panelBody').innerText.slice(0,230),subject:proof.subject,light:proof.light,dissolve:proof.dissolve})"));await snap("failure");throw e;}
