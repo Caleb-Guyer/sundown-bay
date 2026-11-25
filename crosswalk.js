@@ -38,9 +38,10 @@
         const dx=Math.abs(v.x-s.x),dz=Math.abs(v.z-s.z);
         if(dx>10||dz>10)continue;
         const sh=v.footprint||bayCarLayout(v.kind),sn=Math.abs(Math.sin(v.yaw)),cs=Math.abs(Math.cos(v.yaw));
-        if(dx>=3.4+sn*sh.halfLength+cs*sh.track||dz>=3.4+cs*sh.halfLength+sn*sh.track)continue;
-        if(sn>.46)s.crossingEastWest=true;
-        if(cs>.46)s.crossingNorthSouth=true;
+        const widthX=s.x===144||s.x===0?5.55:3.4,widthZ=s.z===144||s.z===0?5.55:3.4;
+        const reachX=sn*sh.halfLength+cs*sh.track,reachZ=cs*sh.halfLength+sn*sh.track;
+        if(sn>.46&&dx<3.4+reachX&&dz<widthZ+reachZ)s.crossingEastWest=true;
+        if(cs>.46&&dz<3.4+reachZ&&dx<widthX+reachX)s.crossingNorthSouth=true;
         if(s.crossingEastWest&&s.crossingNorthSouth)break;
       }
     }

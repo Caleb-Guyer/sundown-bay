@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   play:
-    name: Refit the Marlin summer cap in ${{ matrix.view }} view
+    name: Merge on Ocean Drive in ${{ matrix.view }} view
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
@@ -25,8 +25,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --boulevard --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --summer-caps --frames
-      - run: node .github/playtests/live.cjs ${{ matrix.view }} --port-spur --frames
         if: ${{ !cancelled() }}
       - uses: actions/upload-artifact@v4
         if: always()

@@ -171,6 +171,17 @@
     if(distance>76)return;
     const pitch=v.pitch||0,lean=v.lean||0;
     const add=(key,glow=0)=>list.push([key,v.x,ground,v.z,v.yaw,pitch,lean,glow,v]);
+    if(BayBoulevardLanes.flash(v,t)){
+      const front=bayCarLayout(v.kind).sections.at(-1);
+      add(register(model,"registry/flash/"+v.kind,g=>{
+        for(const side of [-1,1]){
+          const x=side*(front[1]-.24);
+          g.box(x,front[2]-.098,front[0]+.045,.36,.112,.036,"#fffce4");
+          g.box(x,front[2]-.094,front[0]+.068,.21,.070,.018,"#ffffff");
+          g.quad([x-.13,.10,front[0]+.36],[x+.13,.10,front[0]+.36],[x+.42,.10,front[0]+2.8],[x-.42,.10,front[0]+2.8],"#cabc91");
+        }
+      }),1);
+    }
     const builder=window.bayCoachwork?.(v.kind);if(builder){
       const s=bayCarLayout(v.kind),rear=s.sections[0];
       if(distance<18){
@@ -223,6 +234,14 @@
     for(const [pts,ink] of shapes)paintShape(c,pts,ink);
   }
   function map(c,v,x,y,scale,t){
+    if(scale>=2.2&&BayBoulevardLanes.flash(v,t)){
+      const body=bayCarLayout(v.kind);c.save();c.translate(x,y);c.rotate(v.yaw);c.scale(scale,scale);
+      for(const side of [-1,1]){
+        const cx=side*(body.track-.24),z=-body.halfLength;
+        c.fillStyle="rgba(255,241,183,.57)";c.beginPath();c.moveTo(cx-.13,z);c.lineTo(cx-.49,z-2.8);c.lineTo(cx+.49,z-2.8);c.lineTo(cx+.13,z);c.fill();
+        c.fillStyle="#fffae1";c.fillRect(cx-.18,z-.05,.36,.15);
+      }c.restore();
+    }
     const p=profile(v.kind);if(!p||scale<2.2)return;
     const van=p.kind==="van",l=van?2.32:p.kind==="hatch"?1.82:2.16,b=van?.97:.91;
     const damage=v.damage?BayBodyworkArt.plan(v,l,b):null,on=lampsOn(v,t);

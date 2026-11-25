@@ -7,7 +7,7 @@
       this.people=[];
       for(const v of cars){
         if(!v.path||v.serviceCar||v.meetCar||v.recoveryOwner)continue;
-        if(v.path.length===4)BayMotorCourt.roundLoop(v);
+        if(v.path.length===4){v.cityLanes=true;BayMotorCourt.roundLoop(v);}
         const id=v.id%4,p=BayMotorCourt.actor("road"+id,v,"drive");
         Object.assign(p,{name:names[id],car:v,route:v.path,seat:1});v.owner=p;this.people.push(p);
       }

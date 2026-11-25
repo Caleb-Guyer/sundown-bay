@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+On the wide stretches of **Ocean Drive** and **Luna Boulevard**, watch the lane beside you. Drivers signal before they pass a stopped or slower car. If someone is already in that lane, they wait for a gap. At the wheel, use **comma** to signal left or **period** to signal right, then tap **H** to ask a driver behind you to let you in. Two headlight flashes mean they’re slowing to make room. You steer into the gap yourself.
+
 By the **Marlin Motel**, **Cine Luna**, and **El Mercado**, look for the cast-iron water post with a blue cap and a matching button on the sidewalk. Press **F** at the button for a summer shower. The local stand attendants open the spray on dry afternoons. Run through it on foot or drive under it to see the water hit your windshield and collect in the gutter.
 
 If a car knocks the cap loose, water shoots up over the curb. **F** at the blue button stops the jet. Find the loose cap, press **L** to pick it up, and press **L** back at the post to fit it. Luz, Art and Noé will put their own corner back together if you leave it to them.

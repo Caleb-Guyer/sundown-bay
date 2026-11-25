@@ -3888,13 +3888,19 @@
     b.append(makeButton("Find the starting light",r.street+" · "+r.driver,"Mark light",()=>clockPin({...r.grid,name:r.street+" · On Green start",kind:"green-start"})));
     if(c)b.append(makeButton("Your timing slips",c.wins+" wins from "+c.runs+" starts here.","Open",()=>openPanel("green-slips")));
   }
+  function askForGap(){
+    if(heat||!BayBoulevardLanes.ask(car,cars,streetTime))return false;
+    note("Driver behind you","Two flashes · They’re slowing to let you in.",2.8);return true;
+  }
   function honk(){
     if(elapsed<hornReady)return;hornReady=elapsed+.67;sound.cue("horn");
+    if(!active&&askForGap())return;
     if(cupEntry())return;
     if(beat.start("check",car,beatEnv))return;
     if(acceptGreen()||green.run?.accepted)return;
     if(canChallenge()){beginMeet("driver");return;}
     if(takeCurbFare())return;
+    if(active&&askForGap())return;
     if(curbVehicle()&&Math.abs(car.speed)<11){
       const w=curbWire.hail(car,wireEnv);
       if(w){note((w.curbName||w.name)+" · Camera rolling","Make your pass while the phone is up.",2.5);}
@@ -6719,10 +6725,11 @@
   }
   function traffic(dt){
     const p=pos(),driver=play&&!transfer&&!cycles.transfer?(car||motos.bike||cycles.riding||skate.rider||(transit.driving?transit.bus:null)):null;
+    const laneTraffic=cars.concat(patrol,motos.all,transit.bus);
     if(coffee.stage)coffee.step(dt,hero,coffeeEnv);
     const scan=streetTime>=nextJunctionScan;
     if(scan||BayStreetArt.signals.some(s=>s.call)){
-      const vehicles=cars.concat(patrol,motos.all,transit.bus);if(driver&&!vehicles.includes(driver))vehicles.push(driver);
+      const vehicles=driver&&!laneTraffic.includes(driver)?laneTraffic.concat(driver):laneTraffic;
       if(scan){BayCrosswalk.watchTraffic(BayStreetArt.signals,vehicles);nextJunctionScan=streetTime+.12;}
       for(const s of BayStreetArt.signals)BayCrosswalk.update(s,streetTime,vehicles,walkers,play&&onStreetFeet()?hero:null);
     }
@@ -6735,7 +6742,7 @@
         if(!v.impactSlide&&v===personalCar)BayMotelParking.write(v);
         continue;
       }
-      if(!v.path||v===car||v===transfer?.v){if(v!==car||v===transfer?.v)v.indicator=0;continue;}
+      if(!v.path||v===car||v===transfer?.v){v.lanes=null;if(v!==car||v===transfer?.v)v.indicator=0;continue;}
       const t=v.path[v.corner],from=v.path[(v.corner+v.path.length-1)%v.path.length];
       const dx=t.x-from.x,dz=t.z-from.z,n=Math.hypot(dx,dz)||1,ux=dx/n,uz=dz/n;
       const remaining=(t.x-v.x)*ux+(t.z-v.z)*uz,offset=(v.x-from.x)*uz-(v.z-from.z)*ux;
@@ -6762,8 +6769,23 @@
         }
       }
       const halfLength=bayCarLayout(v.kind).halfLength;
+      const lane=play&&v.cityLanes&&BayBoulevardLanes.update(v,{ux,uz,from,remaining,offset,time:streetTime,vehicles:laneTraffic,player:car,
+        override:!!(yielding||stop||v.reaction||v.finiteRoute||heat&&patrol.some(q=>dist(v,q)<25))});
+      if(lane?.signal)v.indicator=lane.signal;
+      if(v.cityLanes&&v.reversing&&!lane?.reverse){v.reversing=false;v.speed=Math.max(0,v.speed);}
+      if(lane?.reverse){
+        v.speed=0;v.reversing=true;v.brakes=1;
+        const step=.82*dt,x=v.x-ux*step,z=v.z-uz*step;
+        if(lane.back&&spaceToSwerve(v,x,z,v.yaw,0,true)&&
+          (!onStreetFeet()||BayDriving.clearance({kind:v.kind,x,z,yaw:v.yaw},hero)>.5)){
+          v.x=x;v.z=z;v.speed=-.82;v.brakes=.12;v.wheelSpin-=step/bayCarLayout(v.kind).wheel;
+        }
+        continue;
+      }
       let clearance=Math.min(v.z>224?bridge.stopDistance(v,ux,uz,halfLength):Infinity,spur.stopDistance(v,ux,uz,halfLength)),redAhead=Number.isFinite(clearance);
+      if(lane)clearance=Math.min(clearance,lane.gap,BayBoulevardLanes.holdGap(v,lane,ux,uz,streetTime));
       const ahead=(q,width,gap)=>{
+        if(lane&&q===lane.skip)return;
         const rx=q.x-v.x,rz=q.z-v.z,front=rx*ux+rz*uz;
         if(front>.10&&front<20&&Math.abs(rx*uz-rz*ux)<width)clearance=Math.min(clearance,Math.max(0,front-gap));
       };
@@ -6779,7 +6801,7 @@
         ahead(BaySlipTrailer.coupler(works.trailer),1.85,4.25);
         for(const p of works.trailer.sweep())ahead(p,2.72,5.65);
       }
-      if(Math.abs(v.x-transit.bus.x)<25&&Math.abs(v.z-transit.bus.z)<25){
+      if(lane?.skip!==transit.bus&&Math.abs(v.x-transit.bus.x)<25&&Math.abs(v.z-transit.bus.z)<25){
         const b=transit.bus;
         for(const along of [-2.85,0,2.85])ahead(BayDriving.world(b,0,along),2.18,3.95);
       }
@@ -6791,24 +6813,25 @@
       for(const s of BayStreetArt.signals){
         const rx=s.x-v.x,rz=s.z-v.z,d=rx*ux+rz*uz,side=Math.abs(rx*uz-rz*ux);
         const line=BayCrosswalk.setback(s,bayCarLayout(v.kind).halfLength,9.7);
-        if(side<4.4&&BayCrosswalk.beforeLine(s,d,line,9.7,v.speed)&&d<26&&BayCrosswalk.trafficWait(s,streetTime,vertical)){
+        if(side<(lane?6.45:4.4)&&BayCrosswalk.beforeLine(s,d,line,9.7,v.speed)&&d<26&&BayCrosswalk.trafficWait(s,streetTime,vertical)){
           clearance=Math.min(clearance,Math.max(0,d-line));redAhead=true;
         }
       }
       const response=v.reaction,evading=response&&streetTime<response.until,before=v.speed;
       let maximum=stop?Math.min(4.6,Math.max(.36,run*.94)):evading?(response.offset?v.pace*.52:0):v.pace;
+      if(lane)maximum=Math.min(maximum,lane.max);
       if(yielding)maximum=Math.min(maximum,yielding.max);
       if(v.finiteRoute&&v.corner===v.path.length-1)maximum=Math.min(maximum,Math.max(.5,remaining*1.3));
       if(v.indicator)maximum=Math.min(maximum,v.greenRacing?15:5.7);
       const pace=v.wait>0?0:Math.min(maximum,clearance*1.24);
       v.speed=ease(v.speed,pace,pace<v.speed?(evading?6.2:4.1):1.7,dt);
       let step=Math.min(remaining,clearance,run,v.speed*dt);
-      const goal=stop?2.8:yielding?yielding.goal:evading?response.offset*clamp((remaining-.4)/4,0,1):0;
-      const lateralLimit=step*((evading||yielding?.goal>.1) ? .76 : .48);
-      let lateral=clamp((goal-offset)*-Math.expm1(-(evading?5.6:3.9)*dt),-lateralLimit,lateralLimit);
+      const goal=stop?2.8:yielding?yielding.goal:evading?response.offset*clamp((remaining-.4)/4,0,1):lane?lane.goal:0;
+      const lateralLimit=step*((evading||yielding?.goal>.1||lane?.change) ? .76 : .48);
+      let lateral=clamp(step*(lane?.slope||0)+(goal-offset)*-Math.expm1(-(evading?5.6:3.9)*dt),-lateralLimit,lateralLimit);
       const x=v.x+ux*step,z=v.z+uz*step;
-      if((response||Math.abs(lateral)>.00001)&&step>0&&!spaceToSwerve(v,x+uz*lateral,z-ux*lateral,v.yaw,0,true)){
-        if(!lateral||!spaceToSwerve(v,x,z,v.yaw,0,true)){step=0;v.speed=0;}
+      if((response||lane?.change||Math.abs(lateral)>.00001)&&step>0&&!spaceToSwerve(v,x+uz*lateral,z-ux*lateral,v.yaw,0,true)){
+        if(lane?.change||!lateral||!spaceToSwerve(v,x,z,v.yaw,0,true)){step=0;v.speed=0;}
         lateral=0;
       }
       const oldX=v.x,oldZ=v.z,oldYaw=v.yaw;
@@ -6839,7 +6862,7 @@
           Object.assign(v,{x:oldX,z:oldZ,yaw:oldYaw,speed:0,brakes:1});
         }
       }
-      if(v.brisasLead||v.kind==="estate"||v.kind==="stepside"){
+      if(v.brisasLead||lane||v.kind==="estate"||v.kind==="stepside"){
         const s=bayCarLayout(v.kind),travel=Math.hypot(v.x-oldX,v.z-oldZ);
         v.wheelSpin=(v.wheelSpin+travel/s.wheel)%(Math.PI*2);
         const steer=travel>.008?Math.atan((s.axles[1]-s.axles[0])*angle(oldYaw,v.yaw)/travel):0;
@@ -8287,7 +8310,7 @@
     for(const v of cars)if(see(v,160)&&!(film&&BayTake.onSet(v))&&!(v===windowRide?.vehicle&&unit.eye?.window)&&!(v===car&&!transfer&&(hideActor||insideSeat()))){
       const ground=footLevel(v.x,v.z)+.008+serviceLift(v)+(v.towLift||0),body=roadBody(v);
       const rigBody=v===owned&&paintPreview?paintPreview:body;
-      const nativeWheels=(v.brisasLead||v.kind==="estate"||v.kind==="stepside")&&see(v,29);
+      const nativeWheels=(v.brisasLead||v.lanes?.change||v.lanes?.reverse||v.kind==="estate"||v.kind==="stepside")&&see(v,29);
       const split=v===owned||nativeWheels||v.hydraulic&&!v.hydraulic.rest&&see(v,85)||v===otherCar||v===afternoon.vehicle||v===windowRide?.vehicle||v===story?.ride||v===active?.ferry?.ride||v===active?.cabFare?.ride||v===band.june.ride||v===unit4&&(dist(cam,v)<72||v.rearOpen>.01)||v===taxi||v===wrecker||v.onLift||v.doorAngle>.01;
       if(split||v===bell.lid||v===engine7&&(v.passengerDoor>.01||see(v,38)))addRig(visible,rigBody,ground);
       else{
@@ -8999,7 +9022,8 @@
       $("roadTurn").textContent=spur.held?"Crossing occupied · Holding short":r?.phase==="drive"?spur.cargo+" · "+Math.round(spur.speed*2.237)+" mph · Reverser "+(spur.dir>0?"east":"west"):spur.cargo;
     }
     const capHint=summerHint(summerAction());
-    if(capHint)contextHint(...capHint);
+    if(car&&!active&&!heat&&BayBoulevardLanes.candidate(car,cars,streetTime))contextHint("H","Ask the driver behind to let you in");
+    else if(capHint)contextHint(...capHint);
     else if(freightHint)contextHint(...freightHint);
     else if(showing)contextHint(...showing);
     else if(atThreads())contextHint("F","Cora Vidal · Low Tide Exchange");
@@ -10129,6 +10153,7 @@
       const keysList=document.createElement("div");keysList.className="controls";const allControls=[["WASD / ↑↓←→","Move, drive or swim"],["Mouse","Look around"],["E","Enter, exit or climb aboard"],["Shift","Sprint or swim faster"],["S / ↓","Brake, then reverse"],["Space","Jump, handbrake or hold to dive"],["H / F","Horn / interact"],["J / M","Jobs / map"],["Q / C","Keyboard look"],["V / X","Look back / recenter"],["+ / −","Camera distance"]];
       allControls.push(["Y / P","Switch characters / Frankie’s camera"],["U / G","Umbrella stand or fold / share and walk alongside"],["L","Hold beside a storm drain to clear it"],["Z / I","Driving view / wipers"],["[ / ]","Previous / next radio station"],["R","Toggle all sound"]);
       allControls.push([", / .","Left / right turn signal"]);
+      allControls.push(["Signal + H","Ask a boulevard driver for room to merge"]);
       allControls.push(["Space","Vault a hood or pull up at a low ledge"],["F · W/S · E","Grip a ladder, climb, let go"]);
       for(const [key,text] of allControls){const span=document.createElement("span"),k=document.createElement("kbd");k.textContent=key;span.append(k,document.createTextNode(text));keysList.append(span);}b.append(keysList);
       b.append(makeButton("Back to the city","Resume free roam or your current job.","Resume",closePanel));
