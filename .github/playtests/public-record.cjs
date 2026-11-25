@@ -340,6 +340,36 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await send("Page.reload");await ready();await js("document.querySelector('#play').click()");
     await waitFor("document.querySelector('#chapterFilm').hidden&&document.querySelector('#hud').hidden===false");
     assert.equal((await js(book)).credit,credit);assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).wallet"),347);
+    const display=await js("BayOutsideCopy.sites.find(s=>s.route==="+JSON.stringify(route)+")");
+    const corner={x:display.x-1.85,z:display.z-.65};
+    await loadFootAt(corner);await waitFor("document.querySelector('#context').innerText.includes('outside copy')");
+    await tap("KeyF");await waitFor("document.querySelector('.hang-copy:enabled')");
+    const cropControls=await js(`(()=>{
+      const panel=document.querySelector('#panelBody');
+      for(const [name,value] of [['zoom',1.8],['cx',.74],['cy',.28]]){
+        const range=panel.querySelector('input[name='+name+']');range.value=value;range.dispatchEvent(new Event('input'));
+      }
+      return Array.from(panel.querySelectorAll('output'),o=>o.textContent);
+    })()`);
+    assert.deepEqual(cropControls,["1.80×","74%","28%"]);await snap("outside-copy");
+    const expected=await js("document.querySelector('#panelBody canvas').toDataURL()");
+    await js("document.querySelector('.hang-copy').click()");await waitFor("document.querySelector('#panel').hidden");
+    const postedCopy="JSON.parse(localStorage.getItem(BayOutsideCopy.key))["+JSON.stringify(route)+"]";
+    assert.deepEqual(await js(postedCopy),{...selected,zoom:1.8,cx:.74,cy:.28});
+    await loadFootAt(corner);await waitFor("document.querySelector('#context').innerText.includes('outside copy')");
+    if(mode==="street"){
+      await js("const drawCase=BayView.prototype.drawPrint;BayView.prototype.drawPrint=function(name,canvas,...args){if(name==='outside-case/face')window.casePixels=canvas.toDataURL();return drawCase.call(this,name,canvas,...args);};");
+      await waitFor("!!window.casePixels");assert.equal(await js("casePixels=== "+JSON.stringify(expected)),true);
+    }else{
+      await js("const drawCase=BayOutsideCopy.map;BayOutsideCopy.map=function(c,x,y,s,site,copy){if(copy)window.casePlotted=copy.frame;return drawCase.apply(this,arguments);};");
+      await waitFor("window.casePlotted==="+JSON.stringify(selected.frame));
+    }
+    await waitFor("document.querySelector('#speech').innerText.includes("+JSON.stringify(display.reader)+")",65000);
+    await snap("outside-case");
+    await tap("KeyF");await waitFor("document.querySelector('.hang-copy:enabled')");
+    assert.equal(await js("document.querySelector('#panelBody canvas').toDataURL()==="+JSON.stringify(expected)),true);
+    await tap("ArrowLeft");await tap("Escape");assert.equal(await js(postedCopy+".zoom"),1.8);
+    console.log("PASS outside copy, exact published crop, street reader, reload and unsaved edit at "+display.name);
     await loadFootAt({x:-151.9,z:-88.85});await waitFor("document.querySelector('#context').innerText.includes('dispatch copy')");
     await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Dalia’s departure book'");
     assert.equal((await js(book)).morning.luis,aboard?"aboard":"ashore");await tap("Escape");

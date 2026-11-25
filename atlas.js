@@ -998,6 +998,10 @@
       if(opt.wireTV)BayCurbDeskArt.mapScreen(ctx,px,py,s,BayCurbWire.desk,opt.wireTV);
     }
     if(street&&visible(px(BayNeedle.site.x),py(BayNeedle.site.z),15*s))BayNeedleArt.map(ctx,px,py,s,opt.arcadeSong);
+    if(street&&opt.outsideCopies)for(const site of BayOutsideCopy.sites){
+      const x=px(site.x),y=py(site.z);
+      if(visible(x,y,3*s))BayOutsideCopy.map(ctx,x,y,s,site,opt.outsideCopies[site.route]);
+    }
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){

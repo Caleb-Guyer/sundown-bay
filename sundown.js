@@ -15418,6 +15418,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(opt.wireTV)BayCurbDeskArt.mapScreen(ctx,px,py,s,BayCurbWire.desk,opt.wireTV);
     }
     if(street&&visible(px(BayNeedle.site.x),py(BayNeedle.site.z),15*s))BayNeedleArt.map(ctx,px,py,s,opt.arcadeSong);
+    if(street&&opt.outsideCopies)for(const site of BayOutsideCopy.sites){
+      const x=px(site.x),y=py(site.z);
+      if(visible(x,y,3*s))BayOutsideCopy.map(ctx,x,y,s,site,opt.outsideCopies[site.route]);
+    }
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){
@@ -19570,6 +19574,131 @@ window.buildBayCity = function buildBayCity(g,water) {
     model(name,g=>porter(g,step,paper));list.push([name,subject.x,ground(subject.x,subject.z),subject.z,subject.yaw]);
   }
   window.BayLotNegative={key,Archive,Roll,actor,subject,notice,photo,captions,readFrame,locations,passengerSubject,passengerEye};
+})();
+
+;
+/* outside-copy.js */
+/* The spare enlargement at Mara's two delivery stops. The negative stays intact. */
+(() => {
+  "use strict";
+  const key="sundownBay.outsideCopies.v1",yaw=-Math.PI/2;
+  const sites=[
+    {route:"print",name:"Cine Luna",x:8.1,z:50.8,yaw,style:1,reader:"Celia Paz",trim:"#92533d",ink:"#532e35",paper:"#f5e5bf"},
+    {route:"live",name:"Sol FM",x:152.9,z:122.8,yaw,style:4,reader:"Beto Mora",trim:"#427b78",ink:"#164e54",paper:"#e2e6cc"}
+  ];
+  const limit=(n,lo,hi,fallback)=>Number.isFinite(n)?Math.max(lo,Math.min(hi,n)):fallback;
+  function readCopy(raw){
+    const f=BayLotNegative.readFrame(raw);
+    return f&&{...f,zoom:limit(raw.zoom,1,2.5,1),cx:limit(raw.cx,0,1,.5),cy:limit(raw.cy,0,1,.5)};
+  }
+  function read(){
+    let data;try{data=JSON.parse(localStorage.getItem(key));}catch{}
+    return {print:readCopy(data?.print),live:readCopy(data?.live)};
+  }
+  class Cases{
+    constructor(){this.mounted=read();}
+    source(site,edition,negative){
+      const old=this.mounted[site.route];
+      if(edition!==site.route||!negative||old?.image===negative.image&&old.frame===negative.frame)return old;
+      return negative;
+    }
+    hang(site,edit){
+      const copy=readCopy(edit);if(!copy)return false;
+      try{const data=read();data[site.route]=copy;localStorage.setItem(key,JSON.stringify(data));}
+      catch{return false;}
+      this.mounted[site.route]=copy;return true;
+    }
+  }
+  function crop(width,height,copy){
+    const w=Math.min(width,height*16/9)/copy.zoom,h=w*9/16;
+    return [(width-w)*copy.cx,(height-h)*copy.cy,w,h];
+  }
+  function paint(canvas,site,copy,img){
+    const ctx=canvas.getContext("2d"),print=site.route==="print";
+    ctx.fillStyle=site.paper;ctx.fillRect(0,0,640,448);ctx.fillStyle=site.ink;
+    ctx.textAlign="left";ctx.font=print?"bold 28px Georgia, serif":"bold 27px sans-serif";
+    ctx.fillText(print?"CINE LUNA":"SOL FM   88.3",16,35);
+    ctx.textAlign="right";ctx.font="bold 14px monospace";ctx.fillText(print?"FROM THE PROJECTION BOOTH":"FIELD DESK  /  PORT SOL",624,30);
+    ctx.fillRect(16,43,608,2);ctx.fillStyle="#312e2a";ctx.fillRect(16,52,608,342);
+    ctx.drawImage(img,...crop(img.naturalWidth,img.naturalHeight,copy),16,52,608,342);
+    ctx.textAlign="left";ctx.fillStyle=site.ink;ctx.font=print?"bold 20px Georgia, serif":"bold 18px sans-serif";
+    ctx.fillText(copy.frame==="14A"?"The notice at Lot 14":"Luis Vega at the public landing",16,420);
+    ctx.font="12px monospace";ctx.fillText("PHOTOGRAPH BY MARA VEGA",17,438);
+    ctx.textAlign="right";ctx.font="bold 17px monospace";ctx.fillText("LOT 14  /  "+copy.frame,624,429);
+    ctx.textAlign="left";
+  }
+  // The image and the canvas survive between draws. A new hanging gets a new texture.
+  const plates=new WeakMap();
+  function plate(site,copy){
+    if(!copy)return null;
+    let canvas=plates.get(copy);if(canvas)return canvas;
+    const img=BayLotNegative.photo(copy);if(!img?.naturalWidth)return null;
+    canvas=document.createElement("canvas");canvas.width=640;canvas.height=448;
+    paint(canvas,site,copy,img);plates.set(copy,canvas);return canvas;
+  }
+  function edit(body,site,source,finish){
+    const draft=readCopy(source),img=BayLotNegative.photo(source);
+    body.append(document.getElementById("outsideCopyDesk").content.cloneNode(true));
+    const canvas=body.querySelector("canvas"),button=body.querySelector(".hang-copy"),status=body.querySelector("[role=status]");
+    canvas.setAttribute("aria-label",BayLotNegative.captions[source.frame]+", the outside copy for "+site.name);
+    const inputs=[...body.querySelectorAll("input")];
+    const refresh=()=>{
+      if(!canvas.isConnected)return;
+      button.disabled=!img?.naturalWidth;
+      if(!button.disabled)paint(canvas,site,draft,img);
+      for(const input of inputs){
+        const name=input.name;
+        input.nextElementSibling.textContent=name==="zoom"?draft.zoom.toFixed(2)+"×":Math.round(100*draft[name])+"%";
+        input.disabled=name!=="zoom"&&draft.zoom===1;
+      }
+    };
+    for(const input of inputs){input.value=draft[input.name];input.oninput=()=>{draft[input.name]=Number(input.value);refresh();};}
+    if(img&&!img.complete){
+      img.addEventListener("load",refresh,{once:true});
+      img.addEventListener("error",()=>{status.textContent="The photograph could not be opened.";},{once:true});
+    }
+    refresh();inputs[0].focus({preventScroll:true});
+    button.onclick=()=>{if(!finish(draft))status.textContent="The case is still as you found it. Your browser could not save the print.";};
+  }
+  function cabinet(g,site){
+    for(const side of [-1,1]){
+      g.box(side*.76,.35,-.04,.078,.70,.10,"#484d49");
+      g.box(side*.76,.035,-.04,.26,.07,.35,"#606461");
+    }
+    g.box(0,1.37,0,2.08,1.48,.16,site.trim);g.box(0,1.37,.088,1.97,1.37,.023,"#373e3e");
+    g.box(0,1.37,.105,1.91,1.32,.018,site.paper);
+    g.box(0,2.123,0,2.16,.055,.30,site.route==="print"?"#bb9564":"#849c99");
+    for(const side of [-1,1])g.box(side*.94,.69,.12,.045,.045,.025,"#bead90");
+  }
+  function face(g){
+    for(const [u,v] of [[0,0],[1,0],[1,1],[0,0],[1,1],[0,1]])
+      g.vertices.push(u?-.94:.94,v?.712:2.028,.119,u,v,0);
+  }
+  function map(ctx,x,y,s,site,mounted){
+    ctx.save();ctx.translate(x,y);
+    ctx.fillStyle="#3a4240";ctx.fillRect(-.28*s,-1.04*s,.56*s,2.08*s);
+    ctx.fillStyle=site.trim;ctx.fillRect(-.18*s,-1.09*s,.27*s,2.18*s);
+    ctx.fillStyle=mounted?site.paper:"#858975";ctx.fillRect(-.27*s,-.91*s,.12*s,1.82*s);
+    ctx.restore();
+  }
+  // A reader walks up the pavement, looks into the glass, and retraces their steps.
+  function reader(site,time){
+    const t=(time+(site.route==="live"?8:0))%28;
+    const ease=f=>f*f*(3-2*f);
+    const offset=t<6?4.2*(1-ease(t/6)):t<16?0:t<22?4.2*ease((t-16)/6):4.2;
+    const heading=t<6?Math.PI:t<7?Math.PI-ease(t-6)*Math.PI/2:t<15?Math.PI/2:t<16?(1-ease(t-15))*Math.PI/2:
+      t<26?0:ease((t-26)/2)*Math.PI;
+    const moving=t>.25&&t<5.75||t>16.25&&t<21.75;
+    return {x:site.x-1.3,z:site.z+offset,yaw:heading,pose:moving?1+Math.floor(time*4)%4:0,reading:t>=7&&t<15};
+  }
+  function line(site,copy){
+    if(copy.frame==="14B")return site.route==="print"?
+      (copy.zoom>=1.55?"See the handle? His brother wrapped that with bicycle tape.":"I went to school with Luis. Never saw him let anybody take his picture."):
+      (copy.zoom>=1.55?"I heard those tins knock together on the air. There they are.":"I know that face. He takes the first boat every morning.");
+    return site.route==="print"?(copy.zoom>=1.55?"That's our slip number. My mother still has the key.":"I walked past that notice all week. Look how little space they gave it."):
+      (copy.zoom>=1.55?"They read that date twice on the radio. Now I can copy it down.":"So that's where they pinned it. From the broadcast I pictured the other gate.");
+  }
+  window.BayOutsideCopy={key,sites,Cases,crop,plate,edit,cabinet,face,map,reader,line};
 })();
 
 ;
@@ -68584,6 +68713,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   for(const t of luggage.tags)solids.push({...luggage.placard(t),w:.30,d:.30,bottom:0,top:1.14,streetProp:true});
   solids.push(...BayOffClock.sites.map(s=>s.block),BayCurbWire.desk.block,BayPalmCoffee.block);
   for(const prop of BayExposure.props)solids.push({...prop,bottom:0,streetProp:true});
+  for(const s of BayOutsideCopy.sites)solids.push({x:s.x,z:s.z,w:.30,d:2.16,bottom:0,top:2.16,streetProp:true});
   for(const prop of BayMercadoArt.blocks)solids.push({...prop,bottom:0,top:prop.h,streetProp:true});
   solids.push(BayMotelParking.stop,...BayCutArt.blocks,...BayCutWildlife.blocks);
   solids.push(...BayRecoveryArt.blocks,...BayCoastWheelArt.blocks,...BayBoardwalkArt.blocks);
@@ -68745,6 +68875,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   const save=readSave(),houseLights=new BayHouseLights.Book();
   const campaign=new BayPublicRecord.Story();
   const maraFilm=new BayLotNegative.Archive();
+  const outsideCases=new BayOutsideCopy.Cases();
+  let lastCaseHeard=null;
   const ferryRadio=new BayRoomTone.Relay();
   const luz=new BayFirstCrossing.Service(campaign.book);
   const gateCrew={x:recordGate.x+1.15,z:recordGate.z+1.44,yaw:2.87,motion:new BayPlayerMotion()};
@@ -69385,7 +69517,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       note("Mara’s last roll","Shift + N opens her street map while stopped. N cues the shutter as you pass.",7);
     }
     else if(id==="negative"&&active?.story?.phase==="choice")openPanel("contact");
-    else if((id==="live"||id==="print")&&!active){waypoint=chapterTarget();note("Chapter two · The Six O’Clock Boat","Meet Mara at the timetable on the Port Sol fence.",5);}
+    else if((id==="live"||id==="print")&&!active){waypoint=chapterTarget();note("The Six O’Clock Boat","Hang the spare print "+(id==="print"?"outside Cine Luna":"beside the Sol FM van")+". Mara will meet you at the Port Sol timetable.",8);}
     else if(id==="crew"||id==="signed"){if(waypoint?.kind==="chapter")waypoint=null;note("Public Record · Filed","Dalia has the first sailing ticket. Find her next to the dispatch board.",5);}
     else if(id==="passDalia"||id==="passShift"){waypoint=chapterTarget();note("First Crossing",waypoint.name+" · Walk to the green post at the end of the pier.",5);}
   }
@@ -69470,9 +69602,21 @@ window.buildBayCity = function buildBayCity(g,water) {
     if($("chapterWho").textContent!==who)$("chapterWho").textContent=who;
     if($("chapterLine").textContent!==words)$("chapterLine").textContent=words;
   }
+  function outsideSite(){
+    return BayOutsideCopy.sites.find(s=>Math.abs(hero.z-s.z)<1.45&&hero.x<s.x+.1&&hero.x>s.x-2.15&&outsideCases.source(s,save.edition,maraFilm.published));
+  }
+  function listenAtCase(){
+    if(room||active||heat)return;
+    const p=pos(),site=BayOutsideCopy.sites.find(s=>outsideCases.mounted[s.route]&&Math.abs(p.x-s.x)<5&&Math.abs(p.z-s.z)<5);
+    if(!site){lastCaseHeard=null;return;}
+    const copy=outsideCases.mounted[site.route];
+    if(copy===lastCaseHeard||elapsed<speechTill||!BayOutsideCopy.reader(site,streetTime).reading)return;
+    lastCaseHeard=copy;speak(site.reader,BayOutsideCopy.line(site,copy));
+  }
   function chapterAction(){
     if(active||heat||!onStreetFeet()||unit.eye||afternoon.photo||rankPhones.lifted)return null;
     const stage=campaign.book.stage;
+    if(outsideSite())return "outside-copy";
     if(luz.regular?.action(hero))return "commuter";
     if(dist(hero,BayLotNegative.subject)<1.4&&pavement.forLuis(copyForLuis))return "firstCopy";
     if(BayLandingOrder.charter(campaign.book)&&dist(hero,BayLotNegative.notice)<1.85)return "order";
@@ -69486,6 +69630,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return null;
   }
   function doChapter(act){
+    if(act==="outside-copy"){openPanel(act);return;}
     if(act==="commuter"){talkCommuter();return;}
     if(act==="order"){enterFilm("landing-order");return;}
     if(act==="firstCopy"){
@@ -76817,6 +76962,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     const p=transfer||deckStep||cabs.playerHeld?hero:pos();
     if(exchangingKey())Object.assign(keyMapActor,{x:hero.x,y:hero.y,z:hero.z,yaw:hero.yaw,kit:worn()});
     const peds=[];
+    if(play&&modeName==="street")for(const s of BayOutsideCopy.sites){
+      if(!outsideCases.mounted[s.route]||Math.abs(s.x-cx)>85||Math.abs(s.z-cz)>85)continue;
+      const r=BayOutsideCopy.reader(s,streetTime);peds.push({...r,skin:personColors[s.style][0],shirt:personColors[s.style][1],gesture:r.reading?1:0});
+    }
     if(play&&modeName==="street"&&(active?.story?.phase==="port"||maraFilm.published||inscribedCopy))
       peds.push({...BayLotNegative.subject,shirt:"#a59569",skin:"#926349"});
     if(play&&modeName==="street"&&["return","filed"].includes(campaign.book.stage))peds.push({...gateCrew,shirt:"#547d78",skin:"#9b6b51"});
@@ -76849,7 +76998,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       airwaves:play?broadcastDesk.state:null,wheel:boardwalk.wheel,boardwalk,cycles,bridge,roofs,neon,transit:play?transit:null,band:play?band:null,wash:play?wash:null,
       marina:{boats,mantaRide,lead:unit.lead,rival:clubBoat,patrol:harbor.units,player:skiff,race:active?.regatta,bayChart:chartMode==="bay"},aboard:!!skiff&&!deckStep,
       swim:swim?.actor(hero),submerged:!!swim?.underwater,patrol:play?watchCrew:null,returned:save.shore.returned,found:save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned,
-      field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
+      field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,outsideCopies:outsideCases.mounted,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
       publicBoat:play&&luz.book.pass?luz:null,record:play&&modeName==="street"?campaign.book:null,sandBeach:play&&modeName==="street"?sandBeach:null,rankPhones:play?rankPhones:null,roadLights:modeName==="street"?roadLights:null,arcadeSong:play&&modeName==="street"&&dist(p,BayNeedle.site)<85?needleSong().r:null,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,houseMark:houseLights.mark,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
@@ -77592,6 +77741,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       BayLotNegative.actor(visible,model,footLevel,receiving?Math.min(1,campaign.scene.age/.85):0,receiving);
     }
     const posted=story?.phase==="port"?"":BayLandingOrder.charter(campaign.book);
+    if(play)for(const s of BayOutsideCopy.sites)if(see(s,65)){
+      const name="outside-case/"+s.route;model(name,g=>BayOutsideCopy.cabinet(g,s));
+      visible.push([name,s.x,footLevel(s.x,s.z),s.z,s.yaw]);
+      if(outsideCases.mounted[s.route]){
+        const r=BayOutsideCopy.reader(s,streetTime);
+        visible.push([personSkin(s.style,"local",r.pose,r.reading?1:0),r.x,footLevel(r.x,r.z),r.z,r.yaw]);
+      }
+    }
     for(const prop of BayExposure.props)if(see(prop,120)){
       if(!models.has("exposure-van"))BayExposureArt.install(model);
       const key=posted&&prop.kind==="notice"?"luz/public-notice":"exposure-"+prop.kind;
@@ -77834,6 +77991,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(play&&see(ada,65))visible.push([personSkin(4,"local",0,theatre.run?1:0),ada.x,footLevel(ada.x,ada.z),ada.z,ada.yaw]);
     }
     view.drawOpaque(visible);
+    if(play)for(const s of BayOutsideCopy.sites)if(outsideCases.mounted[s.route]&&see(s,38)){
+      const plate=BayOutsideCopy.plate(s,outsideCases.mounted[s.route]);if(!plate)continue;
+      model("outside-case/face",BayOutsideCopy.face);
+      view.drawPrint("outside-case/face",plate,1,s.x,footLevel(s.x,s.z),s.z,s.yaw);
+    }
     if(posted&&see(BayLotNegative.notice,38)){
       const p=BayLotNegative.notice;model("luz/order-face",BayLandingOrder.face);
       view.drawPrint("luz/order-face",BayLandingOrder.sign(posted),posted==="clinic"?1:2,p.x,footLevel(p.x,p.z),p.z,p.yaw);
@@ -78410,7 +78572,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       else if(r.phase==="wait")contextHint("",luz.regular?.gangway?"Waiting for the gangway to clear":"Scheduled departure in "+Math.max(0,Math.ceil(12-luz.clock))+" s");
       else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(chapter==="commuter")contextHint("F",commuterHint());
+    }else if(chapter==="outside-copy")contextHint("F","Frame the outside copy · "+outsideSite().name);
+    else if(chapter==="commuter")contextHint("F",commuterHint());
     else if(chapter)contextHint("F",({order:"Read the public landing order",firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":BayLandingOrder.charter(luz.book)==="clinic"?"Check the clinic timetable":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
     else if(passengerShot)contextHint("N","Give Mara the shot · "+BayLotNegative.locations[passengerShot.id].name);
     else if(active?.story?.offeredSleeve&&!campaign.book.sleeve&&!heat&&!transfer&&car===active.story.ride&&active.story.phase==="port"&&!active.story.remarked&&(active.story.sleeveStop(car)||elapsed-active.story.sleeveCall<9)){
@@ -79122,6 +79285,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const shop=next==="respray"||next==="upgrades";
     if((next==="viewfinder"||next==="contact")&&active?.story?.interaction(car)!==next)return;
     if(next==="edition"&&!save.edition)return;
+    if(next==="outside-copy"&&!outsideSite())return;
     if(shop){
       if(!readyForShop(car))return;
       BayDriving.settle(car);
@@ -79143,6 +79307,12 @@ window.buildBayCity = function buildBayCity(g,water) {
         button.onclick=()=>{if(panel!==button.value){openPanel(button.value);$("panelBody").querySelector(".shop-nav [aria-pressed='true']").focus();}};
       }
       if(next==="respray")showPaintTicket(b,car);else showPartsTicket(b,car);
+    }else if(next==="outside-copy"){
+      const site=outsideSite();title="The Outside Copy";kicker=site.name+"  /  Street window";
+      BayOutsideCopy.edit(b,site,outsideCases.source(site,save.edition,maraFilm.published),draft=>{
+        if(!outsideCases.hang(site,draft))return false;
+        closePanel();note(site.name,"Mara’s "+draft.frame+" is in the glass.",3);return true;
+      });
     }else if(next==="neighbors"){
       title="Word of mouth";kicker=BaySecondUnit.names[unit.lead]+"’s contacts";neighborBook(b);
     }else if(next==="court-line"){
@@ -80044,7 +80214,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       if(!pickup&&!room&&!boardwalk.player&&!cabs.playerHeld&&!windowRide?.held&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??(transit.aboard?transit.bus.speed:null)??motos.bike?.speed??skiff?.speed??car?.speed??(windowRide?.held?windowRide.vehicle.speed:cabs.playerHeld?taxi.speed:0));
       if(!panel){stepSand(dt);bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();ferryBulletin(Math.min(raw,.8));stepField(dt);}
-      if(!panel){theatreStep(dt);neighborStep();stepPavement(dt);}
+      if(!panel){theatreStep(dt);neighborStep();stepPavement(dt);listenAtCase();}
       for(const v of cars){BayPalma.weatherCar(v,dt,hours.wet);if(v!==car&&v.rubberHeat>0)BayDriving.cool(v,dt);}
       if(car)driverSeat.wipers(car,dt,Math.max(hours.rain,glassWater()));
       let spray=wash.spraying&&!room&&!swim?.underwater&&wash.target,sprayRange=spray?dist(p,spray):Infinity,sprayGain=1;

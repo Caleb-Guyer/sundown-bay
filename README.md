@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+After delivering Mara’s Lot 14 photograph, walk to the street display outside Cine Luna or beside the Sol FM van. Press **F** to frame **The Outside Copy**. Enlarge the print, move the crop, then hang it. Passersby stop and read it. Each venue keeps its own copy when you leave or replay the job.
+
 Open **Pause → One-minute frame check** while walking outside or driving. Resume and play for a minute. Pause shows average FPS, median and 95th-percentile frame times, frames in the slowest second, distance and resolution. Each new result includes the platform and rendering mode so you can compare the two views on your Chromebook.
 
 **Six Sharp** opens a new game at Marlin Pier. You are Dalia on the dispatch bell. Press **H** to send the ferry out with seventeen aboard, or hold **Space** to raise the gate for Luis and his two lunch tins. Let the gate close and ring the bell when he is aboard. The departure time and count stay in Dalia’s book at Lot 14, and Mara remembers the crossing on your first drive together. Returning players can play the opening through Pause. The first filed entry stays on the record.

@@ -496,3 +496,12 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 #luzTicket{position:absolute;left:clamp(12px,2vw,24px);bottom:clamp(139px,22vh,202px);width:min(234px,40vw);box-sizing:border-box;padding:9px 13px 11px;border-top:5px solid #32716a;border-right:2px dashed #9d9276;background:#eee1bfff;color:#283b3a;text-shadow:none;box-shadow:1px 3px 8px #182a2a60}
 #luzTicket small,#luzTicket strong,#luzTicket span{display:block}#luzTicket small{font:bold 10px/1.2 monospace;letter-spacing:.07em;color:#9e5340}#luzTicket strong{margin:3px 0;font:bold 21px/1.1 Georgia,serif}#luzTicket span{font:12px/1.25 system-ui,sans-serif}
 #luzMeter{position:relative;height:7px;margin:9px 3px 1px;background:#9d9781}#luzMeter i{position:absolute;left:var(--zone);width:28%;height:100%;background:#397968}#luzMeter b{position:absolute;left:var(--power);width:3px;top:-3px;bottom:-3px;background:#702f29;border:1px solid #fff5d7}
+.outside-desk{display:grid;gap:12px}
+.outside-desk canvas{display:block;max-width:100%;max-height:41vh;width:auto;height:auto;margin:auto;box-shadow:0 2px 7px #17110c88}
+.outside-tools{display:grid;gap:6px}
+.outside-tools p{margin:0 0 4px}
+.outside-tools label{display:grid;grid-template-columns:6.8em minmax(50px,1fr) 3.5em;align-items:center;gap:8px}
+.outside-tools input{width:100%;margin:0;accent-color:#bb8b57}
+.outside-tools output{font-variant-numeric:tabular-nums;text-align:right}
+.outside-tools .hang-copy{justify-self:start;margin-top:4px}
+.outside-tools [role=status]:empty{display:none}
