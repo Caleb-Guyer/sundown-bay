@@ -37,7 +37,7 @@
     const lane=sign>0?Math.floor(along/72+.0001)+1:Math.ceil(along/72-.0001)-1;
     return dx?point(clamp(lane,-2,2)*72,Math.round(p.z/72)*72):point(Math.round(p.x/72)*72,clamp(lane,-2,2)*72);
   }
-  function roadEdge(start,end){
+  function roadEdge(start,end,toward){
     const first=intersection(start,true),last=intersection(end,false);
     const queue=[{...first,dir:start.dir,prev:null}],seen=new Set();
     for(let i=0;i<queue.length;i++){
@@ -45,19 +45,24 @@
       if(gap(q,last)<1&&((q.dir+2)%4!==end.dir)){
         const line=[];for(let n=q;n;n=n.prev)line.unshift(point(n.x,n.z));return line;
       }
-      for(const n of [q.dir,(q.dir+1)%4,(q.dir+3)%4]){
+      const choices=[q.dir,(q.dir+1)%4,(q.dir+3)%4];
+      if(toward){
+        const distance=n=>Math.hypot(q.x+72*directions[n][0]-last.x,q.z+72*directions[n][1]-last.z);
+        choices.sort((a,b)=>distance(a)-distance(b));
+      }
+      for(const n of choices){
         const [dx,dz]=directions[n],x=q.x+72*dx,z=q.z+72*dz;
         if(Math.abs(x)<=144&&Math.abs(z)<=144)queue.push({x,z,dir:n,prev:q});
       }
     }
     return [first,last];
   }
-  function route(start,end){
+  function route(start,end,toward=false){
     const [dx,dz]=directions[start.dir],[ex,ez]=directions[end.dir];
     const center=p=>p.dir%2?point(p.x,Math.round(p.z/72)*72):point(Math.round(p.x/72)*72,p.z);
     const a=center(start),b=center(end),lane=2.48;
     const direct=start.dir===end.dir&&Math.abs((b.x-a.x)*dz-(b.z-a.z)*dx)<.1&&((b.x-a.x)*dx+(b.z-a.z)*dz)>0;
-    const street=[a,...(direct?[]:roadEdge(start,end)),b],corners=[];
+    const street=[a,...(direct?[]:roadEdge(start,end,toward)),b],corners=[];
     for(const p of street){
       const last=corners.at(-1),before=corners.at(-2);
       if(last&&gap(last,p)<.10)continue;
@@ -67,26 +72,36 @@
     const pts=[],push=p=>{const last=pts.at(-1);if(!last||gap(last,p)>.015)pts.push({...p,at:last?last.at+gap(last,p):0});};
     push(start);
     const straight=gap(start,end),merge=Math.min(8,straight*.22);
-    push(point(a.x+dx*merge+dz*lane,a.z+dz*merge-dx*lane));
+    const leaveCurb=d=>push(point(a.x+dx*d+dz*lane,a.z+dz*d-dx*lane));
+    if(corners.length<3)leaveCurb(merge);
     for(let i=1;i<corners.length-1;i++){
       const p=corners[i],left=corners[i-1],right=corners[i+1],l=gap(p,left),r=gap(p,right);
       const ux=(p.x-left.x)/l,uz=(p.z-left.z)/l,vx=(right.x-p.x)/r,vz=(right.z-p.z)/r;
-      const bend=point(p.x+lane*(uz+vz),p.z-lane*(ux+vx)),rad=Math.min(7,l*.30,r*.30);
+      const bend=point(p.x+lane*(uz+vz),p.z-lane*(ux+vx));
+      const approach=(bend.x-left.x)*ux+(bend.z-left.z)*uz,exit=(right.x-bend.x)*vx+(right.z-bend.z)*vz;
+      const rad=Math.max(.03,Math.min(7,l*.30,r*.30,approach*.75,exit*.75));
       const before=point(bend.x-ux*rad,bend.z-uz*rad),after=point(bend.x+vx*rad,bend.z+vz*rad);
+      if(i===1)leaveCurb(Math.min(merge,Math.max(0,approach-rad)*.65));
       for(let k=0;k<=8;k++){const u=k/8;push(mix(mix(before,bend,u),mix(bend,after,u),u));}
     }
-    push(point(b.x-ex*merge+ez*lane,b.z-ez*merge-ex*lane));push(end);
+    // A curb close to a corner can share the last few metres with its bend.
+    // Start the pull-in on the straight that is actually left after the turn.
+    const last=pts.at(-1),run=Math.max(0,(b.x-last.x)*ex+(b.z-last.z)*ez);
+    const pull=Math.min(merge,run*.65);
+    push(point(b.x-ex*pull+ez*lane,b.z-ez*pull-ex*lane));push(end);
     return track(pts);
   }
   function track(pts){
-    return {pts,length:pts.at(-1).at,closest(q){
-      let nearest=Infinity,at=0;
+    return {pts,length:pts.at(-1).at,closest(q,previous){
+      let nearest=Infinity,at=0,local=Infinity,localAt=0;
       for(let i=1;i<pts.length;i++){
         const a=pts[i-1],b=pts[i],dx=b.x-a.x,dz=b.z-a.z,u=clamp(((q.x-a.x)*dx+(q.z-a.z)*dz)/(dx*dx+dz*dz),0,1);
         const d=Math.hypot(q.x-a.x-u*dx,q.z-a.z-u*dz);
-        if(d<nearest){nearest=d;at=a.at+(b.at-a.at)*u;}
+        const along=a.at+(b.at-a.at)*u;
+        if(d<nearest){nearest=d;at=along;}
+        if(Math.abs(along-previous)<32&&d<local){local=d;localAt=along;}
       }
-      return {at,gap:nearest};
+      return local<12&&local<=nearest+2.5?{at:localAt,gap:local}:{at,gap:nearest};
     },sample(d){
       let lo=1,hi=pts.length-1;while(lo<hi){const m=(lo+hi)>>1;if(pts[m].at<d)lo=m+1;else hi=m;}
       const q=pts[lo],p=pts[lo-1],u=clamp((d-p.at)/(q.at-p.at),0,1);

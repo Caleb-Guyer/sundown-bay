@@ -1,7 +1,7 @@
 // A test driver reads the road sheet and produces the same digital inputs as the keyboard.
-function gullPilot(v,line,goal,stop,traffic,garage=false){
+function gullPilot(v,line,goal,stop,traffic,garage=false,previous){
   const turn=(a,b)=>Math.atan2(Math.sin(b-a),Math.cos(b-a));
-  const at=line.closest(v).at,finish=line.closest(goal).at,left=finish-at;
+  const at=line.closest(v,previous).at,finish=line.closest(goal).at,left=finish-at;
   const speed=Math.abs(v.speed),distance=Math.hypot(v.x-goal.x,v.z-goal.z);
   if(stop&&distance<(garage?1.12:1.50)&&speed<.80)return ["park"];
   const look=Math.min(6.4,2.55+speed*.45),base=line.sample(at),q=line.sample(at+look),p=line.sample(at+1.62*look);

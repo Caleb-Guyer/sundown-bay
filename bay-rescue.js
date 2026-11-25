@@ -36,12 +36,18 @@
       const v=service.v,line=service.line,at=service.cursor,left=line.length-at,nearEnd=left<9;
       const mid=line.sample(at),aim=line.sample(at+Math.min(9,left)),bend=Math.abs(turn(mid.yaw,aim.yaw));
       const closeBay=gap(v,service.site.bay)<25;
-      const roadSpeed=nearEnd?Math.max(.8,left*.94):closeBay?6.2:bend>.45?7.9:17.8;
+      const routine=!v.responseLights&&service.phase==="return"&&env.returningGap;
+      if(routine&&(service.gapLine!==line||(service.gapScan-=dt)<=0)){
+        service.gapLine=line;service.gapScan=.14;service.gapEnd=at+env.returningGap(v,line,at);
+      }
+      const space=routine?Math.max(0,service.gapEnd-at):Infinity;
+      const cruise=nearEnd?Math.max(.8,left*.94):closeBay?6.2:bend>.45?7.9:routine?10.8:17.8;
+      const roadSpeed=Math.min(cruise,Math.sqrt(6.4*space));
       const ahead=line.sample(Math.min(line.length,at+6.6)),warn=env.obstacle(v,ahead,mid.yaw);
       const passing=warn||Math.abs(service.lateral)>.15&&env.obstacle(v,line.sample(at+2.5),mid.yaw);
-      const desired=passing&&!nearEnd&&!closeBay?-2.67:0;
+      const desired=passing&&space>15&&!nearEnd&&!closeBay?-2.67:0;
       const offset=lerp(service.lateral,desired,1-Math.exp(-dt*2.4)),speed=lerp(Math.max(0,v.speed),roadSpeed,1-Math.exp(-dt*1.5));
-      const next=Math.min(line.length,at+speed*dt),q=line.sample(next);
+      const next=Math.min(line.length,at+speed*dt,at+space),q=line.sample(next);
       const pose={kind:v.kind,x:q.x+Math.cos(q.yaw)*offset,z:q.z-Math.sin(q.yaw)*offset,yaw:v.yaw+turn(v.yaw,q.yaw)*(1-Math.exp(-dt*11))};
       if(!env.carClear(v,pose)){
         service.blocked+=dt;v.brakes=1;v.speed=Math.max(0,v.speed-15*dt);v.vx=v.vz=0;
@@ -50,14 +56,14 @@
           const alt=service.freeBerth(env);if(alt){service.startDock(true,alt);return;}
         }
         // A yielding driver can be stopped halfway across our lane. Ease sideways on the open road.
-        if(!nearEnd&&!closeBay){for(const side of [-1,1]){
+        if(space>15&&!nearEnd&&!closeBay){for(const side of [-1,1]){
           const l=service.lateral+side*dt*1.65;if(Math.abs(l)>3.7)continue;
           const p={kind:v.kind,x:mid.x+Math.cos(mid.yaw)*l,z:mid.z-Math.sin(mid.yaw)*l,yaw:v.yaw};
           if(env.carClear(v,p)){service.lateral=l;v.x=p.x;v.z=p.z;break;}
         }}return;
       }
-      service.blocked=0;service.nextBerthTry=0;v.vx=(pose.x-v.x)/dt;v.vz=(pose.z-v.z)/dt;v.brakes=roadSpeed+1<v.speed?1:0;
-      v.wheelSpin=(v.wheelSpin||0)+speed*dt/.382;Object.assign(v,pose,{speed});service.cursor=next;service.lateral=offset;
+      service.blocked=0;service.nextBerthTry=0;v.vx=(pose.x-v.x)/dt;v.vz=(pose.z-v.z)/dt;v.brakes=space<.3||roadSpeed+1<v.speed?1:0;
+      v.wheelSpin=(v.wheelSpin||0)+(next-at)/.382;Object.assign(v,pose,{speed:(next-at)/dt});service.cursor=next;service.lateral=offset;
       if(next>=line.length-.03)service.startDock(service.phase==="outbound");
     }
 

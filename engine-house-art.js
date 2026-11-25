@@ -239,9 +239,12 @@
     say((Array.isArray(record.crew)?record.crew.join(" & "):String(record.crew||"Station Seven")),43,259,"italic 18px Georgia, serif",ink,"left",369);
     stroke(428,219,428,270,ruled);say("CALL FEE",445,238,"bold 10px monospace",teal);
     say("$"+Math.round(Number(record.fee)||0),445,259,"bold 20px monospace",ink);
-    say("Watch office / Company copy",44,312,"italic 16px Georgia, serif",teal);
+    if(record.homeDriver){
+      say("APPARATUS RECEIVED",44,291,"bold 10px monospace",teal);
+      say(record.homeDriver+"   /   $40 driver’s fee",44,315,"italic 17px Georgia, serif",ink,"left",414);
+    }else say("Watch office / Company copy",44,312,"italic 16px Georgia, serif",teal);
     c.save();c.translate(540,303);c.rotate(-.09);c.strokeStyle=red;c.lineWidth=2;c.strokeRect(-62,-16,124,32);
-    say("RETURNED",0,7,"bold 19px monospace",red,"center");c.restore();c.restore();return true;
+    say(record.homeDriver?"IN QUARTERS":"RETURNED",0,7,"bold 17px monospace",red,"center");c.restore();c.restore();return true;
   }
   window.BayEngineHouseArt=Object.freeze({world,overhead,blocks,docket});
 })();

@@ -26560,7 +26560,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const lane=sign>0?Math.floor(along/72+.0001)+1:Math.ceil(along/72-.0001)-1;
     return dx?point(clamp(lane,-2,2)*72,Math.round(p.z/72)*72):point(Math.round(p.x/72)*72,clamp(lane,-2,2)*72);
   }
-  function roadEdge(start,end){
+  function roadEdge(start,end,toward){
     const first=intersection(start,true),last=intersection(end,false);
     const queue=[{...first,dir:start.dir,prev:null}],seen=new Set();
     for(let i=0;i<queue.length;i++){
@@ -26568,19 +26568,24 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(gap(q,last)<1&&((q.dir+2)%4!==end.dir)){
         const line=[];for(let n=q;n;n=n.prev)line.unshift(point(n.x,n.z));return line;
       }
-      for(const n of [q.dir,(q.dir+1)%4,(q.dir+3)%4]){
+      const choices=[q.dir,(q.dir+1)%4,(q.dir+3)%4];
+      if(toward){
+        const distance=n=>Math.hypot(q.x+72*directions[n][0]-last.x,q.z+72*directions[n][1]-last.z);
+        choices.sort((a,b)=>distance(a)-distance(b));
+      }
+      for(const n of choices){
         const [dx,dz]=directions[n],x=q.x+72*dx,z=q.z+72*dz;
         if(Math.abs(x)<=144&&Math.abs(z)<=144)queue.push({x,z,dir:n,prev:q});
       }
     }
     return [first,last];
   }
-  function route(start,end){
+  function route(start,end,toward=false){
     const [dx,dz]=directions[start.dir],[ex,ez]=directions[end.dir];
     const center=p=>p.dir%2?point(p.x,Math.round(p.z/72)*72):point(Math.round(p.x/72)*72,p.z);
     const a=center(start),b=center(end),lane=2.48;
     const direct=start.dir===end.dir&&Math.abs((b.x-a.x)*dz-(b.z-a.z)*dx)<.1&&((b.x-a.x)*dx+(b.z-a.z)*dz)>0;
-    const street=[a,...(direct?[]:roadEdge(start,end)),b],corners=[];
+    const street=[a,...(direct?[]:roadEdge(start,end,toward)),b],corners=[];
     for(const p of street){
       const last=corners.at(-1),before=corners.at(-2);
       if(last&&gap(last,p)<.10)continue;
@@ -26590,26 +26595,36 @@ window.buildBayCity = function buildBayCity(g,water) {
     const pts=[],push=p=>{const last=pts.at(-1);if(!last||gap(last,p)>.015)pts.push({...p,at:last?last.at+gap(last,p):0});};
     push(start);
     const straight=gap(start,end),merge=Math.min(8,straight*.22);
-    push(point(a.x+dx*merge+dz*lane,a.z+dz*merge-dx*lane));
+    const leaveCurb=d=>push(point(a.x+dx*d+dz*lane,a.z+dz*d-dx*lane));
+    if(corners.length<3)leaveCurb(merge);
     for(let i=1;i<corners.length-1;i++){
       const p=corners[i],left=corners[i-1],right=corners[i+1],l=gap(p,left),r=gap(p,right);
       const ux=(p.x-left.x)/l,uz=(p.z-left.z)/l,vx=(right.x-p.x)/r,vz=(right.z-p.z)/r;
-      const bend=point(p.x+lane*(uz+vz),p.z-lane*(ux+vx)),rad=Math.min(7,l*.30,r*.30);
+      const bend=point(p.x+lane*(uz+vz),p.z-lane*(ux+vx));
+      const approach=(bend.x-left.x)*ux+(bend.z-left.z)*uz,exit=(right.x-bend.x)*vx+(right.z-bend.z)*vz;
+      const rad=Math.max(.03,Math.min(7,l*.30,r*.30,approach*.75,exit*.75));
       const before=point(bend.x-ux*rad,bend.z-uz*rad),after=point(bend.x+vx*rad,bend.z+vz*rad);
+      if(i===1)leaveCurb(Math.min(merge,Math.max(0,approach-rad)*.65));
       for(let k=0;k<=8;k++){const u=k/8;push(mix(mix(before,bend,u),mix(bend,after,u),u));}
     }
-    push(point(b.x-ex*merge+ez*lane,b.z-ez*merge-ex*lane));push(end);
+    // A curb close to a corner can share the last few metres with its bend.
+    // Start the pull-in on the straight that is actually left after the turn.
+    const last=pts.at(-1),run=Math.max(0,(b.x-last.x)*ex+(b.z-last.z)*ez);
+    const pull=Math.min(merge,run*.65);
+    push(point(b.x-ex*pull+ez*lane,b.z-ez*pull-ex*lane));push(end);
     return track(pts);
   }
   function track(pts){
-    return {pts,length:pts.at(-1).at,closest(q){
-      let nearest=Infinity,at=0;
+    return {pts,length:pts.at(-1).at,closest(q,previous){
+      let nearest=Infinity,at=0,local=Infinity,localAt=0;
       for(let i=1;i<pts.length;i++){
         const a=pts[i-1],b=pts[i],dx=b.x-a.x,dz=b.z-a.z,u=clamp(((q.x-a.x)*dx+(q.z-a.z)*dz)/(dx*dx+dz*dz),0,1);
         const d=Math.hypot(q.x-a.x-u*dx,q.z-a.z-u*dz);
-        if(d<nearest){nearest=d;at=a.at+(b.at-a.at)*u;}
+        const along=a.at+(b.at-a.at)*u;
+        if(d<nearest){nearest=d;at=along;}
+        if(Math.abs(along-previous)<32&&d<local){local=d;localAt=along;}
       }
-      return {at,gap:nearest};
+      return local<12&&local<=nearest+2.5?{at:localAt,gap:local}:{at,gap:nearest};
     },sample(d){
       let lo=1,hi=pts.length-1;while(lo<hi){const m=(lo+hi)>>1;if(pts[m].at<d)lo=m+1;else hi=m;}
       const q=pts[lo],p=pts[lo-1],u=clamp((d-p.at)/(q.at-p.at),0,1);
@@ -46213,12 +46228,18 @@ window.buildBayCity = function buildBayCity(g,water) {
       const v=service.v,line=service.line,at=service.cursor,left=line.length-at,nearEnd=left<9;
       const mid=line.sample(at),aim=line.sample(at+Math.min(9,left)),bend=Math.abs(turn(mid.yaw,aim.yaw));
       const closeBay=gap(v,service.site.bay)<25;
-      const roadSpeed=nearEnd?Math.max(.8,left*.94):closeBay?6.2:bend>.45?7.9:17.8;
+      const routine=!v.responseLights&&service.phase==="return"&&env.returningGap;
+      if(routine&&(service.gapLine!==line||(service.gapScan-=dt)<=0)){
+        service.gapLine=line;service.gapScan=.14;service.gapEnd=at+env.returningGap(v,line,at);
+      }
+      const space=routine?Math.max(0,service.gapEnd-at):Infinity;
+      const cruise=nearEnd?Math.max(.8,left*.94):closeBay?6.2:bend>.45?7.9:routine?10.8:17.8;
+      const roadSpeed=Math.min(cruise,Math.sqrt(6.4*space));
       const ahead=line.sample(Math.min(line.length,at+6.6)),warn=env.obstacle(v,ahead,mid.yaw);
       const passing=warn||Math.abs(service.lateral)>.15&&env.obstacle(v,line.sample(at+2.5),mid.yaw);
-      const desired=passing&&!nearEnd&&!closeBay?-2.67:0;
+      const desired=passing&&space>15&&!nearEnd&&!closeBay?-2.67:0;
       const offset=lerp(service.lateral,desired,1-Math.exp(-dt*2.4)),speed=lerp(Math.max(0,v.speed),roadSpeed,1-Math.exp(-dt*1.5));
-      const next=Math.min(line.length,at+speed*dt),q=line.sample(next);
+      const next=Math.min(line.length,at+speed*dt,at+space),q=line.sample(next);
       const pose={kind:v.kind,x:q.x+Math.cos(q.yaw)*offset,z:q.z-Math.sin(q.yaw)*offset,yaw:v.yaw+turn(v.yaw,q.yaw)*(1-Math.exp(-dt*11))};
       if(!env.carClear(v,pose)){
         service.blocked+=dt;v.brakes=1;v.speed=Math.max(0,v.speed-15*dt);v.vx=v.vz=0;
@@ -46227,14 +46248,14 @@ window.buildBayCity = function buildBayCity(g,water) {
           const alt=service.freeBerth(env);if(alt){service.startDock(true,alt);return;}
         }
         // A yielding driver can be stopped halfway across our lane. Ease sideways on the open road.
-        if(!nearEnd&&!closeBay){for(const side of [-1,1]){
+        if(space>15&&!nearEnd&&!closeBay){for(const side of [-1,1]){
           const l=service.lateral+side*dt*1.65;if(Math.abs(l)>3.7)continue;
           const p={kind:v.kind,x:mid.x+Math.cos(mid.yaw)*l,z:mid.z-Math.sin(mid.yaw)*l,yaw:v.yaw};
           if(env.carClear(v,p)){service.lateral=l;v.x=p.x;v.z=p.z;break;}
         }}return;
       }
-      service.blocked=0;service.nextBerthTry=0;v.vx=(pose.x-v.x)/dt;v.vz=(pose.z-v.z)/dt;v.brakes=roadSpeed+1<v.speed?1:0;
-      v.wheelSpin=(v.wheelSpin||0)+speed*dt/.382;Object.assign(v,pose,{speed});service.cursor=next;service.lateral=offset;
+      service.blocked=0;service.nextBerthTry=0;v.vx=(pose.x-v.x)/dt;v.vz=(pose.z-v.z)/dt;v.brakes=space<.3||roadSpeed+1<v.speed?1:0;
+      v.wheelSpin=(v.wheelSpin||0)+(next-at)/.382;Object.assign(v,pose,{speed:(next-at)/dt});service.cursor=next;service.lateral=offset;
       if(next>=line.length-.03)service.startDock(service.phase==="outbound");
     }
 
@@ -61561,9 +61582,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     say((Array.isArray(record.crew)?record.crew.join(" & "):String(record.crew||"Station Seven")),43,259,"italic 18px Georgia, serif",ink,"left",369);
     stroke(428,219,428,270,ruled);say("CALL FEE",445,238,"bold 10px monospace",teal);
     say("$"+Math.round(Number(record.fee)||0),445,259,"bold 20px monospace",ink);
-    say("Watch office / Company copy",44,312,"italic 16px Georgia, serif",teal);
+    if(record.homeDriver){
+      say("APPARATUS RECEIVED",44,291,"bold 10px monospace",teal);
+      say(record.homeDriver+"   /   $40 driver’s fee",44,315,"italic 17px Georgia, serif",ink,"left",414);
+    }else say("Watch office / Company copy",44,312,"italic 16px Georgia, serif",teal);
     c.save();c.translate(540,303);c.rotate(-.09);c.strokeStyle=red;c.lineWidth=2;c.strokeRect(-62,-16,124,32);
-    say("RETURNED",0,7,"bold 19px monospace",red,"center");c.restore();c.restore();return true;
+    say(record.homeDriver?"IN QUARTERS":"RETURNED",0,7,"bold 17px monospace",red,"center");c.restore();c.restore();return true;
   }
   window.BayEngineHouseArt=Object.freeze({world,overhead,blocks,docket});
 })();
@@ -61626,7 +61650,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     get roadGoal(){return {...this.goal,name:this.phase==="return"?"Station Seven":this.call.title};}
     route(home,start=null,trail=[]){
       const edge=start||this.call.road;
-      return BayRescue.track(home?[this.v,...BayCab.route(edge,homeRoad(back[0])).pts,...back]:
+      return BayRescue.track(home?[this.v,...trail,...BayCab.route(edge,homeRoad(back[0]),true).pts,...back]:
         start?[this.v,...trail,...BayCab.route(start,this.call.road).pts]:[this.v,...trail,...out,...BayCab.route(homeRoad(out.at(-1)),this.call.road).pts]);
     }
     travel(home,start=null,line=this.route(home,start)){
@@ -61634,6 +61658,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       this.v.responseLights=!home;this.v.pumpWorking=false;this.go(home?"return":"outbound");
     }
     dispatch(which,manual){
+      this.returnSlip=null;this.bookedHome=false;
       this.call=calls[which];this.next=(which+1)%calls.length;this.manual=this.joined=!!manual;
       this.seatWaiting=!!manual;this.holding=false;this.levels=[...this.call.initial];this.tank=320;this.spent=this.hits=this.fed=this.workTime=0;this.pump=1;this.aimX=0;this.water=null;this.recent=null;
       this.mate.seat=1;this.reported=false;this.travel(false);this.v.responseLights=!manual;
@@ -61641,6 +61666,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     canPark(){
       return this.phase==="outbound"&&Math.abs(this.v.speed)<1.25&&gap(this.v,this.call.road)<8&&gap(this.v,this.call)<13;
+    }
+    inHomeBay(){
+      const q=BayDriving.local(berth,this.v.x,this.v.z);
+      return this.phase==="return"&&Math.abs(this.v.speed)<.85&&Math.abs(q.x)<.95&&Math.abs(q.z)<1.9&&Math.cos(this.v.yaw-berth.yaw)>.94;
     }
     freeBerth(env){
       for(const off of [0,-3,3,-5,5]){const q={...here(this.call.road,0,off),yaw:this.call.road.yaw,kind:this.v.kind};
@@ -61658,6 +61687,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     claim(){this.joined=true;this.aimX=0;this.holding=true;this.mateStep="assist";this.path=null;}
     handBack(){this.holding=false;this.water=null;this.path=null;if(this.phase==="working")this.mateStep="line";}
     leave(env){
+      this.bookedHome=false;this.returnSlip=null;
       this.joined=false;this.handBack();
       if(this.manual){
         if(env.driving()||env.transition()){this.reclaim=true;this.v.responseLights=false;}
@@ -61666,18 +61696,19 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     resumeAI(env){
       this.reclaim=false;this.manual=false;this.seatWaiting=false;
-      if(this.phase!=="outbound")return;
-      const line=this.line,near=line.closest(this.v);
+      if(!this.traveling)return;
+      const home=this.phase==="return";
+      const line=this.line,near=line.closest(this.v,this.cursor);
       if(near.gap<3.8){
         const ahead=Math.min(line.length,near.at+3);
         const remaining=BayRescue.track([this.v,line.sample(ahead),...line.pts.filter(p=>p.at>ahead)]);
-        if(remaining.pts.length<2)this.startDock(true);
-        else this.travel(false,null,remaining);
+        if(remaining.pts.length<2)this.startDock(!home);
+        else this.travel(home,null,remaining);
         return;
       }
       const current=env.street(this.v),road=current||this.lastRoad;
       const trail=current?[]:this.trace.slice().reverse();
-      this.travel(false,road,this.route(false,road,trail));
+      this.travel(home,road,this.route(home,road,trail));
     }
     wet(x,dt,flow,player){
       this.spent+=flow*dt*10;if(player)this.tank=Math.max(0,this.tank-flow*dt*10);
@@ -61718,13 +61749,14 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(o.path?.length){if(move(o,o.path[0],dt,out?2.45:1.12))o.path.shift();}
         else{o.speed=0;o.yaw+=turn(o.yaw,Math.atan2(c.x-o.x,c.z-o.z))*Math.min(1,dt*4);}
       }
-      if(this.phase==="standby"){if(this.age>=this.idle&&!env.delay())this.dispatch(this.next,false);return;}
+      if(this.phase==="standby"){if(this.age>=this.idle&&!env.driving()&&!env.transition()&&!env.delay())this.dispatch(this.next,false);return;}
       if(this.reclaim&&!env.driving()&&!env.transition())this.resumeAI(env);
       if(this.traveling){
         if(this.manual){
           if(env.driving()&&!this.reclaim){
             this.seatWaiting=false;
             if(gap(this.v,this.trace.at(-1))>2.4){
+              this.cursor=this.line.closest(this.v,this.cursor).at;
               const road=env.street(this.v);
               if(road){this.lastRoad=road;this.trace.length=0;}
               this.trace.push({x:this.v.x,z:this.v.z});
@@ -61761,7 +61793,12 @@ window.buildBayCity = function buildBayCity(g,water) {
         const door=here(this.v,1.7,1.38);
         if(!this.mate.seat&&gap(this.mate,door)>.34){this.goFeet(door,dt,env);return;}
         this.mate.seat=Math.min(1,this.mate.seat+dt/.99);this.v.passengerDoor=Math.sin(this.mate.seat*Math.PI)*1.04;
-        if(this.mate.seat>=1){this.v.passengerDoor=0;this.travel(true,env.street(this.v));}
+        if(this.mate.seat>=1){
+          this.v.passengerDoor=0;
+          if(this.returnSlip&&!this.bookedHome&&this.age<25&&gap(env.hero,this.v)<15)return;
+          this.travel(true,env.street(this.v));
+          if(this.bookedHome){this.manual=this.seatWaiting=true;this.lastRoad=env.street(this.v);this.trace=[{x:this.v.x,z:this.v.z}];}
+        }
       }
     }
   }
@@ -66491,6 +66528,27 @@ window.buildBayCity = function buildBayCity(g,water) {
   const rescueEnv={
     hero,motion,ground:footLevel,driving:()=>car===unit4,transition:()=>transfer?.v===unit4,
     street:v=>BayCab.streetStop(v,chase.road(v)),
+    returningGap(v,line,at){
+      const road=line.sample(at),sn=Math.sin(road.yaw),cs=Math.cos(road.yaw),half=bayCarLayout(v.kind).halfLength;
+      const reach=Math.min(22,line.length-at);let limit=Infinity;
+      for(const signal of BayStreetArt.signals){
+        const dx=signal.x-v.x,dz=signal.z-v.z,f=dx*sn+dz*cs;
+        const stop=BayCrosswalk.setback(signal,half,8.1+half);
+        if(Math.abs(dx*cs-dz*sn)<6.5&&f<32&&BayCrosswalk.beforeLine(signal,f,stop,stop,v.speed)&&BayCrosswalk.trafficWait(signal,streetTime,Math.abs(cs)>.7)){
+          limit=Math.max(0,f-stop);break;
+        }
+      }
+      const nearby=cars.concat(patrol,motos.all,transit.bus).filter(q=>q!==v&&
+        (Math.abs(q.speed)>.5||q.path&&q.blocked<4)&&Math.abs(q.x-v.x)<29&&Math.abs(q.z-v.z)<29);
+      if(!nearby.length)return limit;
+      // Test the truck's swept lane around the bend, including the long rear body.
+      // A coupe already turning out of sight of the headlights still has priority.
+      for(let d=1;d<reach;d+=1.25){
+        const p=line.sample(at+d);p.kind=v.kind;
+        if(nearby.some(q=>Math.abs(q.x-p.x)<10&&Math.abs(q.z-p.z)<10&&Math.cos(q.yaw-p.yaw)>.65&&BayDriving.contact(p,q)))return Math.min(limit,Math.max(0,d-2.7));
+      }
+      return limit;
+    },
     axis:axis=>axis==="w"?Number(held("KeyW","ArrowUp"))-Number(held("KeyS","ArrowDown")):Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),
     obstacle(v,p,yaw){
       const probe={kind:v.kind,x:p.x,z:p.z,yaw};
@@ -66519,7 +66577,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return play&&!active&&!heat&&!room&&!transfer&&!unit.transition&&!unit.eye&&!afternoon.photo&&!theatre.run&&!windowRide&&crewFree();
   }
   function engineTarget(){
-    if(company.phase==="outbound")return car===engine7?company.roadGoal:{...engine7,name:"Engine 7 · Driver’s door"};
+    if(company.traveling||company.bookedHome)return car===engine7?company.roadGoal:{...engine7,name:"Engine 7 · Driver’s door"};
     if(car===engine7)return {...company.pumpStand,name:"Parked · Step outside"};
     if(company.holding)return {...company.call.stand,name:company.call.title};
     if(company.phase==="working")return {...company.mate,name:"Nel · Branch line"};
@@ -66527,9 +66585,9 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function engineGuide(){
     if(!active?.engineSeven||!company.manual||car!==engine7)return null;
-    const line=company.line,n=line.closest(car);if(n.gap>13)return null;
-    const points=[{x:car.x,z:car.z}];for(let a=n.at+3;a<line.length;a+=4)points.push(line.sample(a));points.push(company.call.road);
-    return {points,meters:line.length-n.at,turn:"Respond to "+company.call.title};
+    const line=company.line,n=line.closest(car,company.cursor);if(n.gap>13)return null;
+    const points=[{x:car.x,z:car.z}];for(let a=n.at+3;a<line.length;a+=4)points.push(line.sample(a));points.push(company.goal);
+    return {points,meters:line.length-n.at,turn:company.phase==="return"?"Take the east entrance into the engine shed":"Respond to "+company.call.title};
   }
   function engineReward(player){
     const c=company.call;
@@ -66539,6 +66597,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const seconds=Math.round(company.workTime),gallons=Math.round(company.spent),score=Math.round(55+32*precision+13*clamp(1-seconds/110,0,1));
       const fee=book.records[c.kind]?45+Math.round(score/10):105;
       const record={kind:c.kind,title:c.title,day:hours.day+1,seconds,gallons,score,fee,serial:book.number+1,crew:BaySecondUnit.names[unit.lead]+" / Nel Baptiste"};
+      company.returnSlip=record.serial;
       book.number++;book.rev++;book.log.push(record);book.log=book.log.slice(-6);book.records[c.kind]=Math.max(book.records[c.kind]||0,score);
       save.wallet+=fee;save.paid++;persist();sound.cue("paid");
       broadcastDesk.queue.unshift("Gantry watch reports all clear at "+c.title+". Nel Baptiste has the line back on Seven.");
@@ -66546,6 +66605,17 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     if(active?.engineSeven){active=null;lastHud=lastMap=-10;waypoint=null;}
     company.cooledAt=elapsed;if(dist(pos(),c)<26)speak(c.owner,c.thanks);
+  }
+  function returnEngineKeys(){
+    syncProgress(readSave());
+    const book=save.engineSeven,record=book.log.find(r=>r.serial===company.returnSlip&&r.kind===company.call.kind);
+    if(record&&!record.homeDriver){
+      record.homeDriver=BaySecondUnit.names[unit.lead];book.rev++;save.wallet+=40;persist();sound.cue("paid");
+      note("Station Seven","$40 · "+record.homeDriver+" signed Seven back into the bay",5);
+    }
+    company.returnSlip=null;company.bookedHome=false;company.joined=false;company.startDock(false);
+    active=null;waypoint=null;lastHud=lastMap=-10;
+    speak("Nel Baptiste","Right on the marks. Keys on the hook, I’ll put the kettle on.");
   }
   const sevenEnv={
     ...rescueEnv,driving:()=>car===engine7,transition:()=>transfer?.v===engine7,
@@ -66570,11 +66640,12 @@ window.buildBayCity = function buildBayCity(g,water) {
   function sevenStep(dt){
     const c=company;
     if(active?.engineSeven&&(heat||!c.manual&&!c.holding&&!car&&dist(hero,c.call)>140&&dist(hero,engine7)>85)){dropJob();}
-    if(c.phase==="standby"&&c.reserved!==null){
+    if(c.phase==="standby"&&c.reserved!==null&&car!==engine7&&transfer?.v!==engine7){
       if(!panel&&sevenFree()&&onStreetFeet()&&dist(hero,BayEngineSeven.desk)<11)signForEngine(c.reserved);
       else if(c.age>=90)c.reserved=null;
     }
     const before=c.phase;c.step(dt,sevenEnv);
+    if(before==="working"&&c.phase==="stow"&&c.returnSlip&&dist(hero,c.v)<14)note("Nel Baptiste","Want the drive back? Meet me at the cab while I put the hose away.",6);
     if(before==="standby"&&c.phase==="outbound")broadcastDesk.queue.unshift("Traffic desk · Engine 7 is responding to "+c.call.title+". Watch for the red cab at the crossings.");
     if(before==="return"&&c.phase==="standby"&&c.reserved!==null)note("Station Seven","Your driver’s seat is ready at the Gantry Street board.",5);
     if(c.holding&&!onStreetFeet())c.handBack();
@@ -66587,6 +66658,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!onStreetFeet()||room||transfer||unit.eye||unit.transition||afternoon.photo||theatre.run)return "";
     const c=company;
     if((!active||active.engineSeven)&&!heat){
+      if(c.phase==="stow"&&c.returnSlip&&!c.bookedHome&&dist(hero,c.v)<6)return "return-keys";
       if(c.phase==="working"&&(dist(hero,c.mate)<2.5||dist(hero,c.pumpStand)<2.8))return "line";
       if(dist(hero,BayEngineSeven.desk)<2.45)return "desk";
       if((c.burning||c.recent)&&dist(hero,c.owner)<2.55)return "owner";
@@ -66613,10 +66685,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(code==="Space"||code==="KeyF"||code==="KeyY"||code==="KeyG"||code==="KeyT"||code==="KeyL"||code==="KeyN")return true;
     }
     if(active?.engineSeven&&car===engine7){
-      if(code==="KeyH"){if(c.traveling&&c.manual)engine7.responseLights=!engine7.responseLights;lastHud=-10;return true;}
+      if(code==="KeyH"&&c.phase==="outbound"){if(c.manual)engine7.responseLights=!engine7.responseLights;lastHud=-10;return true;}
+      if(code==="KeyF"&&c.bookedHome&&c.manual&&c.inHomeBay()){returnEngineKeys();return true;}
       if(code==="KeyF"&&c.canPark()){c.startDock(true);lastHud=-10;speak("Nel Baptiste","I’ll bring the line round. Meet me by the smoke.");return true;}
     }
     if(code!=="KeyF")return false;
+    if(near==="return-keys"&&sevenFree()&&joinSeven()){
+      c.bookedHome=true;speak("Nel Baptiste","Take Seven in through the east door on Gantry and face her west between the floor marks. Forty on the slip.");return true;
+    }
     if(near==="desk"){openPanel("engine-house");return true;}
     if(near==="daybook"){
       const witness=sevenWitness(),place=BayEngineSeven.calls[company.owners.indexOf(witness)];
@@ -66636,6 +66712,12 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function engineHint(){
     const c=company,near=sevenNear();
+    if(near==="return-keys")return ["F","Take the keys · Drive Seven home · $40"];
+    if(c.bookedHome&&active?.engineSeven){
+      if(c.phase==="stow")return ["","Nel is putting the hose away"];
+      if(car!==engine7)return ["E","Take the wheel for the drive home"];
+      return c.inHomeBay()?["F","Set the brake and sign Seven back in"]:["",dist(engine7,fireHouse)<18?"Face west between the floor marks":"Return Engine 7 to Gantry Street"];
+    }
     if(c.holding){
       if(!c.tank)return ["F","Reserve tank · Walk to the pump panel"];
       const q=BayDriving.local(c.call,hero.x,hero.z);
@@ -68434,7 +68516,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(gull.exchange||gull.request)return null;
     if(active?.gull&&gull.drive){const v=gull.drive.v;return dist(hero,v)<5.1&&gull.keyFor(v)&&gull.drive.phase!=="receipt"?v:null;}
     if(active?.campana)return dist(hero,iceVan)<5.1?iceVan:null;
-    if(active?.engineSeven)return company.manual&&company.phase==="outbound"&&dist(hero,engine7)<6.4?engine7:null;
+    if(active?.engineSeven)return company.manual&&company.traveling&&dist(hero,engine7)<6.4?engine7:null;
     if(active?.rescue)return rescue.access()&&dist(hero,unit4)<5.7?unit4:null;
     if(swim||cabs.playerHeld||cycles.riding||boardwalk.player)return null;
     let best=null,d=5.1;
@@ -73711,7 +73793,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         $("roadTurn").textContent=guide?.turn||tar.name;
       }else if(active?.engineSeven){
         $("objectiveTag").textContent="Engine 7  /  "+company.call.owner;
-        $("objectiveText").textContent=company.holding?"Cool the three hot spots":company.phase==="outbound"?car===engine7?"Respond to "+company.call.title:"Take the wheel at Station Seven":car?"Step outside for the line":"Join Nel by the smoke";
+        $("objectiveText").textContent=company.bookedHome?car===engine7?"Park Seven in the Gantry Street bay":"Meet Nel at the driver’s door":company.holding?"Cool the three hot spots":company.phase==="outbound"?car===engine7?"Respond to "+company.call.title:"Take the wheel at Station Seven":car?"Step outside for the line":"Join Nel by the smoke";
         $("roadTurn").textContent=company.holding?"Heat "+company.levels.map(v=>Math.round(v*100)+"%").join("  ·  "):guide?.turn||tar.name;
       }else if(active?.rescue){
         $("objectiveTag").textContent="Rescue 4   /   "+rescue.call.name;

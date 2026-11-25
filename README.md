@@ -40,6 +40,8 @@ Engine 7 runs out of **Station Seven on Gantry Street**, just east of the Starli
 
 On foot, **F** takes the hose from Nel. Hold **Space** and sweep with the mouse or **A/D**. Let go to walk the line around the truck. **E** hands it back. The first completed call at each site pays **$105**. Read the signed slip under **J → Engine 7 daybook**, and look for the all-clear in the Bay Wire.
 
+After you work the hose, meet Nel at the cab as the crew packs up. **F** takes the return keys and **E** boards Seven. Drive into Station Seven from the east, stop facing west between the painted marks, then press **F** to sign the truck in. The watch office adds your name and a **$40** return fee to that call’s daybook slip.
+
 The ivory **Caleta Spider** is parked on Ocean Drive south of the Marlin. Press **O** while stopped to raise or fold the canvas top. Find the **Starlite Motor Theatre** on Gantry Street, face the outdoor screen in a numbered space, and press **F** to clip on the speaker. A ticket from the showing goes in your pocket. At the booth, Ada pays **$65** for the first clean change to each print. Start the other projector with **Space** on the first cue dot and switch shutters with **F** on the second.
 
 Find the **Bay Wire** box on the beach-side curb of Ocean Drive, a few car lengths north of the Marlin’s coral coupe. Press **F** on foot to read the front page. The paper carries local stories you’ve uncovered and the actual Cine Luna bill. Keep an issue and reopen it under **J → Folded copies**.

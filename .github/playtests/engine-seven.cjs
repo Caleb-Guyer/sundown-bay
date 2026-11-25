@@ -1,7 +1,8 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
 const nextStep=require("./sidewalk.cjs"),pilot=require("./road-driver.cjs");
 module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
-  const keys=new Set(),sleep=ms=>new Promise(f=>setTimeout(f,ms)),driver=mode==="overhead";
+  const home=process.argv.includes("--drive-home");
+  const keys=new Set(),sleep=ms=>new Promise(f=>setTimeout(f,ms)),driver=mode==="overhead"&&!home;
   const record="JSON.parse(localStorage.getItem('sundownBay.v1')||'{}')";
   const row=label=>"[...document.querySelectorAll('#panelBody button')].find(b=>b.querySelector('strong')?.textContent==="+JSON.stringify(label)+")";
   async function hold(codes){
@@ -34,7 +35,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     throw Error("Walk stalled "+JSON.stringify(st));
   }
   try{
-    if(driver){
+    if(home){
+      await js("(()=>{const u=new BaySecondUnit.Unit();u.met=true;u.remember({...BayEngineSeven.calls[0].stand,yaw:0},null);u.save();})()");await reload();
+    }else if(driver){
       await js("(()=>{const u=new BaySecondUnit.Unit();u.met=true;u.remember({...BayEngineSeven.desk,yaw:BayEngineSeven.house.yaw+Math.PI},null);u.save();})()");await reload();
       await tap("KeyF");await waitFor(row("Marlin laundry cart"));await js(row("Marlin laundry cart")+".click()");
       await waitFor("nav.co.manual");
@@ -67,12 +70,33 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert.equal(await js(record+".engineSeven.log.at(-1).fee"),105);
     assert(await js("nav.flowed&&nav.phases.has('outbound')&&nav.phases.has('unroll')&&nav.phases.has('working')"));
     if(!driver)assert(await js("nav.yielded.size>0"),"civilian traffic made room");
+    if(home){
+      await waitFor("nav.co.phase==='stow'&&document.querySelector('#context').innerText.includes('Drive Seven home')");
+      await tap("KeyF");await waitFor("nav.co.manual&&nav.co.phase==='return'",45000);
+      await tap("KeyE");await waitFor("nav.map.player.driving&&nav.car===nav.co.v",35000);
+      await js(`(()=>{const held=new Set();function apply(next){
+        for(const k of held)if(!next.includes(k)){dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));held.delete(k);}
+        for(const k of next)if(!held.has(k)){dispatchEvent(new KeyboardEvent('keydown',{code:k,bubbles:true,cancelable:true}));held.add(k);}
+      }
+      function steer(){const c=nav.co,v=c.v;
+        if(!c.bookedHome){apply([]);return;}
+        if(c.inHomeBay()){apply(Math.abs(v.speed)>.1?['Space']:[]);if(Math.abs(v.speed)<=.1){nav.homeParked=true;return;}}
+        else{const target=c.goal,near=Math.hypot(v.x-target.x,v.z-target.z)<14;
+          apply(nav.pilot(v,c.line,target,true,nav.map.cars,near,c.cursor).map(k=>k==='park'?'Space':k));}
+        requestAnimationFrame(steer);
+      }steer();})()`);
+      await waitFor("nav.homeParked&&nav.co.inHomeBay()",270000);await snap("home-bay");
+      await tap("KeyF");await waitFor(record+".engineSeven.log.at(-1).homeDriver");
+      assert.equal(await js(record+".wallet"),145);assert.equal(await js("nav.co.phase"),"standby");
+      await tap("KeyE");await waitFor("!nav.map.player.driving",30000);
+    }
     await tap("KeyJ");await waitFor(row("Engine 7 daybook"));await js(row("Engine 7 daybook")+".click()");
     await waitFor("document.querySelector('.company-return')?.width>400");await snap("daybook");
     const docket=await js("document.querySelector('.company-return').toDataURL()");await reload();
     await tap("KeyJ");await waitFor(row("Engine 7 daybook"));await js(row("Engine 7 daybook")+".click()");
     assert.equal(await js("document.querySelector('.company-return').toDataURL()"),docket);
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
+    if(home){assert.equal(await js(record+".wallet"),145);console.log("PASS",mode,"drove Seven from the Marlin to the station, parked facing west, earned $40 and recovered the signed daybook after reload. Audio starts 0, cursor locks 0.");}
     console.log("PASS",mode,driver?"signed on, drove Engine 7 on city streets and set the pump brake":"watched a real crew respond from the Marlin, with civilian drivers yielding","; carried line, swept three pockets, earned $105 and read the same return slip after reload. Audio starts 0, cursor locks 0.");
   }catch(e){
     console.log("Playtest state",await js("JSON.stringify({p:nav.map&&[nav.map.player.x,nav.map.player.z],v:nav.co&&[nav.co.v.x,nav.co.v.z,nav.co.v.speed,nav.co.v.yaw],phase:nav.co?.phase,m:nav.co?.manual,lead:nav.co?.mate,fire:nav.co?.levels,held:nav.co?.holding,aim:nav.co?.aimX,hint:document.querySelector('#context').innerText,toast:document.querySelector('#toast').innerText,errors:0})"));

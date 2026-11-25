@@ -1669,6 +1669,27 @@
   const rescueEnv={
     hero,motion,ground:footLevel,driving:()=>car===unit4,transition:()=>transfer?.v===unit4,
     street:v=>BayCab.streetStop(v,chase.road(v)),
+    returningGap(v,line,at){
+      const road=line.sample(at),sn=Math.sin(road.yaw),cs=Math.cos(road.yaw),half=bayCarLayout(v.kind).halfLength;
+      const reach=Math.min(22,line.length-at);let limit=Infinity;
+      for(const signal of BayStreetArt.signals){
+        const dx=signal.x-v.x,dz=signal.z-v.z,f=dx*sn+dz*cs;
+        const stop=BayCrosswalk.setback(signal,half,8.1+half);
+        if(Math.abs(dx*cs-dz*sn)<6.5&&f<32&&BayCrosswalk.beforeLine(signal,f,stop,stop,v.speed)&&BayCrosswalk.trafficWait(signal,streetTime,Math.abs(cs)>.7)){
+          limit=Math.max(0,f-stop);break;
+        }
+      }
+      const nearby=cars.concat(patrol,motos.all,transit.bus).filter(q=>q!==v&&
+        (Math.abs(q.speed)>.5||q.path&&q.blocked<4)&&Math.abs(q.x-v.x)<29&&Math.abs(q.z-v.z)<29);
+      if(!nearby.length)return limit;
+      // Test the truck's swept lane around the bend, including the long rear body.
+      // A coupe already turning out of sight of the headlights still has priority.
+      for(let d=1;d<reach;d+=1.25){
+        const p=line.sample(at+d);p.kind=v.kind;
+        if(nearby.some(q=>Math.abs(q.x-p.x)<10&&Math.abs(q.z-p.z)<10&&Math.cos(q.yaw-p.yaw)>.65&&BayDriving.contact(p,q)))return Math.min(limit,Math.max(0,d-2.7));
+      }
+      return limit;
+    },
     axis:axis=>axis==="w"?Number(held("KeyW","ArrowUp"))-Number(held("KeyS","ArrowDown")):Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),
     obstacle(v,p,yaw){
       const probe={kind:v.kind,x:p.x,z:p.z,yaw};
@@ -1697,7 +1718,7 @@
     return play&&!active&&!heat&&!room&&!transfer&&!unit.transition&&!unit.eye&&!afternoon.photo&&!theatre.run&&!windowRide&&crewFree();
   }
   function engineTarget(){
-    if(company.phase==="outbound")return car===engine7?company.roadGoal:{...engine7,name:"Engine 7 · Driver’s door"};
+    if(company.traveling||company.bookedHome)return car===engine7?company.roadGoal:{...engine7,name:"Engine 7 · Driver’s door"};
     if(car===engine7)return {...company.pumpStand,name:"Parked · Step outside"};
     if(company.holding)return {...company.call.stand,name:company.call.title};
     if(company.phase==="working")return {...company.mate,name:"Nel · Branch line"};
@@ -1705,9 +1726,9 @@
   }
   function engineGuide(){
     if(!active?.engineSeven||!company.manual||car!==engine7)return null;
-    const line=company.line,n=line.closest(car);if(n.gap>13)return null;
-    const points=[{x:car.x,z:car.z}];for(let a=n.at+3;a<line.length;a+=4)points.push(line.sample(a));points.push(company.call.road);
-    return {points,meters:line.length-n.at,turn:"Respond to "+company.call.title};
+    const line=company.line,n=line.closest(car,company.cursor);if(n.gap>13)return null;
+    const points=[{x:car.x,z:car.z}];for(let a=n.at+3;a<line.length;a+=4)points.push(line.sample(a));points.push(company.goal);
+    return {points,meters:line.length-n.at,turn:company.phase==="return"?"Take the east entrance into the engine shed":"Respond to "+company.call.title};
   }
   function engineReward(player){
     const c=company.call;
@@ -1717,6 +1738,7 @@
       const seconds=Math.round(company.workTime),gallons=Math.round(company.spent),score=Math.round(55+32*precision+13*clamp(1-seconds/110,0,1));
       const fee=book.records[c.kind]?45+Math.round(score/10):105;
       const record={kind:c.kind,title:c.title,day:hours.day+1,seconds,gallons,score,fee,serial:book.number+1,crew:BaySecondUnit.names[unit.lead]+" / Nel Baptiste"};
+      company.returnSlip=record.serial;
       book.number++;book.rev++;book.log.push(record);book.log=book.log.slice(-6);book.records[c.kind]=Math.max(book.records[c.kind]||0,score);
       save.wallet+=fee;save.paid++;persist();sound.cue("paid");
       broadcastDesk.queue.unshift("Gantry watch reports all clear at "+c.title+". Nel Baptiste has the line back on Seven.");
@@ -1724,6 +1746,17 @@
     }
     if(active?.engineSeven){active=null;lastHud=lastMap=-10;waypoint=null;}
     company.cooledAt=elapsed;if(dist(pos(),c)<26)speak(c.owner,c.thanks);
+  }
+  function returnEngineKeys(){
+    syncProgress(readSave());
+    const book=save.engineSeven,record=book.log.find(r=>r.serial===company.returnSlip&&r.kind===company.call.kind);
+    if(record&&!record.homeDriver){
+      record.homeDriver=BaySecondUnit.names[unit.lead];book.rev++;save.wallet+=40;persist();sound.cue("paid");
+      note("Station Seven","$40 · "+record.homeDriver+" signed Seven back into the bay",5);
+    }
+    company.returnSlip=null;company.bookedHome=false;company.joined=false;company.startDock(false);
+    active=null;waypoint=null;lastHud=lastMap=-10;
+    speak("Nel Baptiste","Right on the marks. Keys on the hook, I’ll put the kettle on.");
   }
   const sevenEnv={
     ...rescueEnv,driving:()=>car===engine7,transition:()=>transfer?.v===engine7,
@@ -1748,11 +1781,12 @@
   function sevenStep(dt){
     const c=company;
     if(active?.engineSeven&&(heat||!c.manual&&!c.holding&&!car&&dist(hero,c.call)>140&&dist(hero,engine7)>85)){dropJob();}
-    if(c.phase==="standby"&&c.reserved!==null){
+    if(c.phase==="standby"&&c.reserved!==null&&car!==engine7&&transfer?.v!==engine7){
       if(!panel&&sevenFree()&&onStreetFeet()&&dist(hero,BayEngineSeven.desk)<11)signForEngine(c.reserved);
       else if(c.age>=90)c.reserved=null;
     }
     const before=c.phase;c.step(dt,sevenEnv);
+    if(before==="working"&&c.phase==="stow"&&c.returnSlip&&dist(hero,c.v)<14)note("Nel Baptiste","Want the drive back? Meet me at the cab while I put the hose away.",6);
     if(before==="standby"&&c.phase==="outbound")broadcastDesk.queue.unshift("Traffic desk · Engine 7 is responding to "+c.call.title+". Watch for the red cab at the crossings.");
     if(before==="return"&&c.phase==="standby"&&c.reserved!==null)note("Station Seven","Your driver’s seat is ready at the Gantry Street board.",5);
     if(c.holding&&!onStreetFeet())c.handBack();
@@ -1765,6 +1799,7 @@
     if(!onStreetFeet()||room||transfer||unit.eye||unit.transition||afternoon.photo||theatre.run)return "";
     const c=company;
     if((!active||active.engineSeven)&&!heat){
+      if(c.phase==="stow"&&c.returnSlip&&!c.bookedHome&&dist(hero,c.v)<6)return "return-keys";
       if(c.phase==="working"&&(dist(hero,c.mate)<2.5||dist(hero,c.pumpStand)<2.8))return "line";
       if(dist(hero,BayEngineSeven.desk)<2.45)return "desk";
       if((c.burning||c.recent)&&dist(hero,c.owner)<2.55)return "owner";
@@ -1791,10 +1826,14 @@
       if(code==="Space"||code==="KeyF"||code==="KeyY"||code==="KeyG"||code==="KeyT"||code==="KeyL"||code==="KeyN")return true;
     }
     if(active?.engineSeven&&car===engine7){
-      if(code==="KeyH"){if(c.traveling&&c.manual)engine7.responseLights=!engine7.responseLights;lastHud=-10;return true;}
+      if(code==="KeyH"&&c.phase==="outbound"){if(c.manual)engine7.responseLights=!engine7.responseLights;lastHud=-10;return true;}
+      if(code==="KeyF"&&c.bookedHome&&c.manual&&c.inHomeBay()){returnEngineKeys();return true;}
       if(code==="KeyF"&&c.canPark()){c.startDock(true);lastHud=-10;speak("Nel Baptiste","I’ll bring the line round. Meet me by the smoke.");return true;}
     }
     if(code!=="KeyF")return false;
+    if(near==="return-keys"&&sevenFree()&&joinSeven()){
+      c.bookedHome=true;speak("Nel Baptiste","Take Seven in through the east door on Gantry and face her west between the floor marks. Forty on the slip.");return true;
+    }
     if(near==="desk"){openPanel("engine-house");return true;}
     if(near==="daybook"){
       const witness=sevenWitness(),place=BayEngineSeven.calls[company.owners.indexOf(witness)];
@@ -1814,6 +1853,12 @@
   }
   function engineHint(){
     const c=company,near=sevenNear();
+    if(near==="return-keys")return ["F","Take the keys · Drive Seven home · $40"];
+    if(c.bookedHome&&active?.engineSeven){
+      if(c.phase==="stow")return ["","Nel is putting the hose away"];
+      if(car!==engine7)return ["E","Take the wheel for the drive home"];
+      return c.inHomeBay()?["F","Set the brake and sign Seven back in"]:["",dist(engine7,fireHouse)<18?"Face west between the floor marks":"Return Engine 7 to Gantry Street"];
+    }
     if(c.holding){
       if(!c.tank)return ["F","Reserve tank · Walk to the pump panel"];
       const q=BayDriving.local(c.call,hero.x,hero.z);
@@ -3612,7 +3657,7 @@
     if(gull.exchange||gull.request)return null;
     if(active?.gull&&gull.drive){const v=gull.drive.v;return dist(hero,v)<5.1&&gull.keyFor(v)&&gull.drive.phase!=="receipt"?v:null;}
     if(active?.campana)return dist(hero,iceVan)<5.1?iceVan:null;
-    if(active?.engineSeven)return company.manual&&company.phase==="outbound"&&dist(hero,engine7)<6.4?engine7:null;
+    if(active?.engineSeven)return company.manual&&company.traveling&&dist(hero,engine7)<6.4?engine7:null;
     if(active?.rescue)return rescue.access()&&dist(hero,unit4)<5.7?unit4:null;
     if(swim||cabs.playerHeld||cycles.riding||boardwalk.player)return null;
     let best=null,d=5.1;
@@ -8889,7 +8934,7 @@
         $("roadTurn").textContent=guide?.turn||tar.name;
       }else if(active?.engineSeven){
         $("objectiveTag").textContent="Engine 7  /  "+company.call.owner;
-        $("objectiveText").textContent=company.holding?"Cool the three hot spots":company.phase==="outbound"?car===engine7?"Respond to "+company.call.title:"Take the wheel at Station Seven":car?"Step outside for the line":"Join Nel by the smoke";
+        $("objectiveText").textContent=company.bookedHome?car===engine7?"Park Seven in the Gantry Street bay":"Meet Nel at the driver’s door":company.holding?"Cool the three hot spots":company.phase==="outbound"?car===engine7?"Respond to "+company.call.title:"Take the wheel at Station Seven":car?"Step outside for the line":"Join Nel by the smoke";
         $("roadTurn").textContent=company.holding?"Heat "+company.levels.map(v=>Math.round(v*100)+"%").join("  ·  "):guide?.turn||tar.name;
       }else if(active?.rescue){
         $("objectiveTag").textContent="Rescue 4   /   "+rescue.call.name;

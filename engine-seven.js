@@ -54,7 +54,7 @@
     get roadGoal(){return {...this.goal,name:this.phase==="return"?"Station Seven":this.call.title};}
     route(home,start=null,trail=[]){
       const edge=start||this.call.road;
-      return BayRescue.track(home?[this.v,...BayCab.route(edge,homeRoad(back[0])).pts,...back]:
+      return BayRescue.track(home?[this.v,...trail,...BayCab.route(edge,homeRoad(back[0]),true).pts,...back]:
         start?[this.v,...trail,...BayCab.route(start,this.call.road).pts]:[this.v,...trail,...out,...BayCab.route(homeRoad(out.at(-1)),this.call.road).pts]);
     }
     travel(home,start=null,line=this.route(home,start)){
@@ -62,6 +62,7 @@
       this.v.responseLights=!home;this.v.pumpWorking=false;this.go(home?"return":"outbound");
     }
     dispatch(which,manual){
+      this.returnSlip=null;this.bookedHome=false;
       this.call=calls[which];this.next=(which+1)%calls.length;this.manual=this.joined=!!manual;
       this.seatWaiting=!!manual;this.holding=false;this.levels=[...this.call.initial];this.tank=320;this.spent=this.hits=this.fed=this.workTime=0;this.pump=1;this.aimX=0;this.water=null;this.recent=null;
       this.mate.seat=1;this.reported=false;this.travel(false);this.v.responseLights=!manual;
@@ -69,6 +70,10 @@
     }
     canPark(){
       return this.phase==="outbound"&&Math.abs(this.v.speed)<1.25&&gap(this.v,this.call.road)<8&&gap(this.v,this.call)<13;
+    }
+    inHomeBay(){
+      const q=BayDriving.local(berth,this.v.x,this.v.z);
+      return this.phase==="return"&&Math.abs(this.v.speed)<.85&&Math.abs(q.x)<.95&&Math.abs(q.z)<1.9&&Math.cos(this.v.yaw-berth.yaw)>.94;
     }
     freeBerth(env){
       for(const off of [0,-3,3,-5,5]){const q={...here(this.call.road,0,off),yaw:this.call.road.yaw,kind:this.v.kind};
@@ -86,6 +91,7 @@
     claim(){this.joined=true;this.aimX=0;this.holding=true;this.mateStep="assist";this.path=null;}
     handBack(){this.holding=false;this.water=null;this.path=null;if(this.phase==="working")this.mateStep="line";}
     leave(env){
+      this.bookedHome=false;this.returnSlip=null;
       this.joined=false;this.handBack();
       if(this.manual){
         if(env.driving()||env.transition()){this.reclaim=true;this.v.responseLights=false;}
@@ -94,18 +100,19 @@
     }
     resumeAI(env){
       this.reclaim=false;this.manual=false;this.seatWaiting=false;
-      if(this.phase!=="outbound")return;
-      const line=this.line,near=line.closest(this.v);
+      if(!this.traveling)return;
+      const home=this.phase==="return";
+      const line=this.line,near=line.closest(this.v,this.cursor);
       if(near.gap<3.8){
         const ahead=Math.min(line.length,near.at+3);
         const remaining=BayRescue.track([this.v,line.sample(ahead),...line.pts.filter(p=>p.at>ahead)]);
-        if(remaining.pts.length<2)this.startDock(true);
-        else this.travel(false,null,remaining);
+        if(remaining.pts.length<2)this.startDock(!home);
+        else this.travel(home,null,remaining);
         return;
       }
       const current=env.street(this.v),road=current||this.lastRoad;
       const trail=current?[]:this.trace.slice().reverse();
-      this.travel(false,road,this.route(false,road,trail));
+      this.travel(home,road,this.route(home,road,trail));
     }
     wet(x,dt,flow,player){
       this.spent+=flow*dt*10;if(player)this.tank=Math.max(0,this.tank-flow*dt*10);
@@ -146,13 +153,14 @@
         if(o.path?.length){if(move(o,o.path[0],dt,out?2.45:1.12))o.path.shift();}
         else{o.speed=0;o.yaw+=turn(o.yaw,Math.atan2(c.x-o.x,c.z-o.z))*Math.min(1,dt*4);}
       }
-      if(this.phase==="standby"){if(this.age>=this.idle&&!env.delay())this.dispatch(this.next,false);return;}
+      if(this.phase==="standby"){if(this.age>=this.idle&&!env.driving()&&!env.transition()&&!env.delay())this.dispatch(this.next,false);return;}
       if(this.reclaim&&!env.driving()&&!env.transition())this.resumeAI(env);
       if(this.traveling){
         if(this.manual){
           if(env.driving()&&!this.reclaim){
             this.seatWaiting=false;
             if(gap(this.v,this.trace.at(-1))>2.4){
+              this.cursor=this.line.closest(this.v,this.cursor).at;
               const road=env.street(this.v);
               if(road){this.lastRoad=road;this.trace.length=0;}
               this.trace.push({x:this.v.x,z:this.v.z});
@@ -189,7 +197,12 @@
         const door=here(this.v,1.7,1.38);
         if(!this.mate.seat&&gap(this.mate,door)>.34){this.goFeet(door,dt,env);return;}
         this.mate.seat=Math.min(1,this.mate.seat+dt/.99);this.v.passengerDoor=Math.sin(this.mate.seat*Math.PI)*1.04;
-        if(this.mate.seat>=1){this.v.passengerDoor=0;this.travel(true,env.street(this.v));}
+        if(this.mate.seat>=1){
+          this.v.passengerDoor=0;
+          if(this.returnSlip&&!this.bookedHome&&this.age<25&&gap(env.hero,this.v)<15)return;
+          this.travel(true,env.street(this.v));
+          if(this.bookedHome){this.manual=this.seatWaiting=true;this.lastRoad=env.street(this.v);this.trace=[{x:this.v.x,z:this.v.z}];}
+        }
       }
     }
   }

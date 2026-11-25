@@ -13,6 +13,26 @@ permissions:
   contents: read
 
 jobs:
+  station:
+    name: Bring Seven home in ${{ matrix.view }} view
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        view: [street, overhead]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --engine-seven --drive-home --frames
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: station-seven-${{ matrix.view }}
+          path: .github/playtests/curb-wire-proof/*.jpg
+          retention-days: 3
+          if-no-files-found: ignore
   play:
     name: Yield at the junction in ${{ matrix.view }} view
     runs-on: ubuntu-latest

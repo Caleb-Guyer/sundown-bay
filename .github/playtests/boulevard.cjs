@@ -54,11 +54,14 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
         for(const k of held)if(!next.includes(k)){dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));held.delete(k);}
         for(const k of next)if(!held.has(k)){dispatchEvent(new KeyboardEvent('keydown',{code:k,bubbles:true,cancelable:true}));held.add(k);}}
       function steer(){const v=road.car;
-        if(road.resumed||road.clock-road.friendAt>11){set([]);return;}
-        const aim=Math.min(.43,Math.max(-.43,(146.5-v.x)*.38)),delta=Math.atan2(Math.sin(aim-v.yaw),Math.cos(aim-v.yaw));
-        const next=[];if(v.speed<6.8)next.push('KeyW');if(Math.abs(delta)>.028)next.push(delta<0?'KeyA':'KeyD');set(next);requestAnimationFrame(steer);}
+        if(road.clock-road.friendAt>16){set([]);return;}
+        if(road.resumed&&Math.abs(v.x-146.5)<.6&&Math.cos(v.yaw)>.985)road.braking=true;
+        if(road.braking&&Math.abs(v.speed)<.45){set([]);road.parked=true;return;}
+        const aim=Math.min(.43,Math.max(-.43,(146.5-v.x)*.32)),delta=Math.atan2(Math.sin(aim-v.yaw),Math.cos(aim-v.yaw))-(v.yawRate||0)*.22;
+        const next=[];if(road.braking)next.push('Space');else if(v.speed<6.4)next.push('KeyW');
+        if(Math.abs(delta)>.028)next.push(delta<0?'KeyA':'KeyD');set(next);requestAnimationFrame(steer);}
       steer();})();`);
-    await waitFor("road.resumed&&road.car.indicator===0",45000);await snap("merged");
+    await waitFor("road.parked&&road.car.indicator===0",50000);await snap("merged");
     const result=await js("({yielded:road.issuedSpeed-road.slowest,flashed:road.flashed,litFrames:road.litFrames,touched:road.touched,x:road.car.x,heading:road.car.yaw})");
     assert(result.yielded>.35&&result.flashed&&!result.touched);assert(Math.abs(result.x-146.5)<1.1);assert.deepEqual(errors,[]);
     console.log("PASS",mode,"a regular Tideway hatch signalled out around a stopped coupe, passed beside it, and rejoined the outer lane. On Ocean Drive a motorist flashed twice, slowed for the player's signal and horn, and released the gap after the keyboard merge.",result,"Audio starts 0, cursor locks 0.");
