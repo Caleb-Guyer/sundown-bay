@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   play:
-    name: Cast and land a pier fish in ${{ matrix.view }} view
+    name: Work the Port Sol Belt in ${{ matrix.view }} view
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: node .github/playtests/live.cjs ${{ matrix.view }} --red-cork --frames
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --port-spur --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --bumpers --frames
         if: ${{ !cancelled() }}
       - uses: actions/upload-artifact@v4

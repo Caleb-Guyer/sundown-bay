@@ -4,6 +4,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+The **Port Sol Belt** hauls ice between the **Port Sol cold store** and the **Mercado team track**. As No. 9 approaches, two street crossings ring, flash and lower their arms. Queued cars and pedestrians can cross again after the wagon clears. Stop short if the red lights are flashing. Len Grant waits when someone is still on the track.
+
+Walk to either green crew board and press **F** to sign a waybill, or press **E** at the cab step to ride as a passenger. On a shift, **W** adds power and **S** or **Space** brakes. Hold **V** to sight the ice wagon against the yellow loading platform. Stop within a metre of the mark and press **F** to work the hoist. If you overshoot, stop, tap **G** to reverse, then ease back under power. Spotting accuracy earns up to **$115**. Press **E** to step down at the platform. **J → Port Sol Belt** keeps your signed deliveries and best score.
+
 Walk to the seaward end of **Marlin Pier** and press **F** beside Cal Bennett’s green measuring bench. Borrow a rod for **Red Cork Club**. Look for the little silver backs breaking the surface. Aim with **A/D**, hold **Space** to wind up and release it to cast. Tap **Space** when the red cork goes under. Hold it to reel when the fish turns and let go during a run. **E** returns the rod.
 
 Cal tags the fish and releases it. The first of each species pays **$55**, a new length record pays **$30**, and a repeat pays **$12**. Short and long casts find pinfish and jacks at Marlin Pier, or red drum and snook at **Pelican Cut Landing**. Your lengths stay in **J → Red Cork Club**. If you’ve returned Lark’s lost cedar lure to the lifeguard tower, Cal lends you a matching plug.

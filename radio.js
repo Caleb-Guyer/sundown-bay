@@ -677,6 +677,10 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="belt-crossing"){
+      const gain=.056*Math.max(0,1-(source.distance||0)/47);
+      tone(effects,728,at,.36,gain,"sine",721,.003);tone(effects,1682,at,.18,gain*.34,"sine",1665,.002);return;
+    }
     if(name==="campana-bell"){
       const gain=.095*Math.max(0,1-(source.distance||0)/56);if(gain<.001)return;
       for(const [delay,hz] of [[0,784],[.17,988],[.38,784]]){

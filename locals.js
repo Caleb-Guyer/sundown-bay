@@ -67,7 +67,7 @@
     return people;
   }
   const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
-  function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0){
+  function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0,rail=null){
     for(const p of people){
       if(p.onTour)continue;
       if(p.sprayWait>0){
@@ -108,6 +108,7 @@
           else{nx=p.x;nz=p.z;}break;
         }
       }
+      if(rail?.waitOnFoot(p,nx,nz)){p.moving=false;p.gesture=0;continue;}
       let clear=valid(nx,nz,.24);
       if(clear&&driver&&Math.abs(driver.x-nx)<4&&Math.abs(driver.z-nz)<4){
         const gap=BayDriving.clearance(driver,{x:nx,z:nz});

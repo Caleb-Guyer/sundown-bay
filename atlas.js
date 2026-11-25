@@ -1021,6 +1021,7 @@
     if(street&&opt.oceanBeat&&opt.oceanBeat.seat<.55){const a=opt.oceanBeat.actor;if(visible(px(a.x),py(a.z),12))BayOceanBeatArt.mapPerson(ctx,a,px,py,s,streetTime);}
     if(opt.coastCup)BayCoastCupArt.map(ctx,opt,px,py,s,visible);
     if(opt.redCork)BayRedCorkArt.map(ctx,opt,px,py,s,visible);
+    if(opt.portSpur)BayPortSpurArt.map(ctx,opt,px,py,s,visible);
     if(opt.recovery&&!street)BayRecoveryArt.map(ctx,opt,px,py,s,visible);
     if(street&&opt.courts){
       BayCourtBench.map(ctx,opt,px,py,s,visible);
