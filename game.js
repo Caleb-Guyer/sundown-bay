@@ -7041,6 +7041,7 @@
     }
   }
   let nextJunctionScan=-1;
+  const laneSpace=new BayLaneSpace();
   function slideClear(v,x,z,yaw){
     if(!fitsCar(v,x,z,yaw))return false;
     const next={kind:v.kind,x,z,yaw};
@@ -7064,7 +7065,13 @@
       if(scan){BayCrosswalk.watchTraffic(BayStreetArt.signals,vehicles);nextJunctionScan=streetTime+.12;}
       for(const s of BayStreetArt.signals)BayCrosswalk.update(s,streetTime,vehicles,walkers,play&&onStreetFeet()?hero:null);
     }
+    laneSpace.rebuild(cars,walkers,band.june.ride?band.local:null);
+    let previous=null,previousCell;
     for(const v of cars){
+      // Later drivers must see the final position of the preceding vehicle,
+      // including a sliding or reversing car that crossed a cell boundary.
+      if(previous)laneSpace.moved(previous,previousCell);
+      previous=v;previousCell=laneSpace.key(v);
       if(v.impactSlide&&v!==car&&v!==transfer?.v){
         const s=v.impactSlide,scrub=Math.abs(s.vx*Math.cos(v.yaw)-s.vz*Math.sin(v.yaw))+Math.abs(s.spin);
         if(scrub>1.7&&!s.tires)s.tires=carbon.contacts(v);
@@ -7131,7 +7138,7 @@
         ahead(hero,1.5,3);ahead(BayDriving.world(a.v,a.side*(s.hingeX+.65),s.back),1.45,3);
       }
       for(const b of motos.all)if(play&&b!==driver)ahead(b,1.49,3.45);
-      for(const other of cars)if(other!==v&&other!==car)ahead(other,1.75,4.65);
+      clearance=Math.min(clearance,laneSpace.ahead(v,ux,uz,car,lane?.skip));
       if(works&&Math.abs(works.trailer.x-v.x)<23&&Math.abs(works.trailer.z-v.z)<23){
         ahead(works.trailer,2.54,5.25);ahead(BayDriving.world(works.trailer,0,-1.98),2.52,4.6);
         ahead(BaySlipTrailer.coupler(works.trailer),1.85,4.25);
@@ -7144,12 +7151,12 @@
       if(v.z>228)ahead(bridge.walker,1.2,2.75);
       for(const unit of patrol)ahead(unit,unit.role==="roadblock"?3.1:1.85,4.7);
       if(backup.roadblock&&!backup.roadblock.rail.hit)ahead(backup.roadblock.rail,2.55,3);
-      for(const w of walkers)if(!w.palmPassenger&&!(w===band.local&&band.june.ride)&&Math.abs(w.x-v.x)<17&&Math.abs(w.z-v.z)<17)ahead(w,1.15,2.95);
       const vertical=Math.abs(uz)>.7;
       for(const s of BayStreetArt.signals){
         const rx=s.x-v.x,rz=s.z-v.z,d=rx*ux+rz*uz,side=Math.abs(rx*uz-rz*ux);
-        const line=BayCrosswalk.setback(s,bayCarLayout(v.kind).halfLength,9.7);
-        if(side<(lane?6.45:4.4)&&BayCrosswalk.beforeLine(s,d,line,9.7,v.speed)&&d<26&&BayCrosswalk.trafficWait(s,streetTime,vertical)){
+        if(d>=26||side>=(lane?6.45:4.4))continue;
+        const line=BayCrosswalk.setback(s,halfLength,9.7);
+        if(BayCrosswalk.beforeLine(s,d,line,9.7,v.speed)&&BayCrosswalk.trafficWait(s,streetTime,vertical)){
           clearance=Math.min(clearance,Math.max(0,d-line));redAhead=true;
         }
       }

@@ -259,14 +259,19 @@
   function groundPatch(opt,base,roofs,rx,rz){
     if(!base||!roofs||!opt.weather||rx>95||rz>95)return null;
     const light=opt.weather.sun,opacity=light.strength*(1-.88*opt.weather.rain)*(1-opt.dusk);
-    const key=Math.round(light.dx*13)+"/"+Math.round(light.dz*13)+"/"+Math.round(opacity*30);
+    const key=opacity<.012?"unlit":Math.round(light.dx*13)+"/"+Math.round(light.dz*13)+"/"+Math.round(opacity*30);
+    // The painted streets have 3.5 texels per metre. Reserve extra density for
+    // close shots where the sharp edges of the cast shadows are also visible.
+    const density=opt.scale>16?8:4;
     let patch=streetGround.get(opt.solids);
-    if(patch?.key===key&&patch.base===base&&patch.roofs===roofs&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
+    if(patch?.key===key&&patch.density===density&&patch.base===base&&patch.roofs===roofs&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
       opt.cx+rx<=patch.right&&opt.cz-rz>=patch.bottom)return patch;
-    const density=Math.min(12,Math.max(4,opt.scale)),pad=9;
-    const left=Math.floor(opt.cx-rx-pad),right=Math.ceil(opt.cx+rx+pad);
-    const top=Math.ceil(opt.cz+rz+pad),bottom=Math.floor(opt.cz-rz-pad);
-    const w=Math.ceil((right-left)*density),h=Math.ceil((top-bottom)*density);
+    // Centre the backing sheet on a city block. Turning a corner or moving
+    // a few metres keeps sampling the same sheet at the actual camera pose.
+    const block=32,halfX=(Math.ceil(rx/block)+1)*block,halfZ=(Math.ceil(rz/block)+1)*block;
+    const centerX=Math.round(opt.cx/block)*block,centerZ=Math.round(opt.cz/block)*block;
+    const left=centerX-halfX,right=centerX+halfX,top=centerZ+halfZ,bottom=centerZ-halfZ;
+    const w=(right-left)*density,h=(top-bottom)*density;
     if(w*h>1400000)return null;
     patch?.image.close?.();
     const canvas=patch?.canvas||mapSurface(w,h);
@@ -275,7 +280,7 @@
     c.clearRect(0,0,w,h);
     const draw=image=>drawGroundWindow(c,image,extent,left,bottom,right,top,px,py,density);
     draw(base);castBuildings(c,opt.solids,light,px,py,density,(x,y,p)=>x>=-p&&x<=w+p&&y>=-p&&y<=h+p,opacity);draw(roofs);
-    patch={canvas,image:freezeSurface(canvas),base,roofs,key,left,right:left+w/density,top,bottom:top-h/density};
+    patch={canvas,image:freezeSurface(canvas),base,roofs,key,density,left,right,top,bottom};
     streetGround.set(opt.solids,patch);return patch;
   }
   function castBuildings(c,solids,light,px,py,s,visible,opacity){

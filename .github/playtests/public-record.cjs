@@ -19,7 +19,26 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await js(`window.recQA={frames:[],held:new Set(),now:0,points:[],samples:false};
       const camera=BayCamera.prototype.update;BayCamera.prototype.update=function(...args){const out=camera.apply(this,args);recQA.rig=this;recQA.subject=args[1];recQA.yaw=this.yaw;return out;};
       const scene=BayPublicRecord.Story.prototype.step;BayPublicRecord.Story.prototype.step=function(dt){const changed=scene.call(this,dt);recQA.director=this;return changed;};
-      const begin=BayView.prototype.begin;BayView.prototype.begin=function(...args){recQA.view=this;return begin.apply(this,args);};
+      const begin=BayView.prototype.begin;BayView.prototype.begin=function(...args){
+        recQA.view=this;
+        if(this.multiDraw&&!recQA.batchesWrapped){
+          recQA.batchesWrapped=true;
+          for(const [name,countAt] of [["multiDrawArraysWEBGL",3],["multiDrawElementsWEBGL",1]]){
+            const ext=this.multiDraw,draw=ext[name];
+            ext[name]=function(...args){
+              if(recQA.samples){
+                const counts=args[countAt],offset=args[countAt+1],runs=args[args.length-1];
+                let vertices=0;for(let i=0;i<runs;i++)vertices+=counts[offset+i];
+                recQA.batches=(recQA.batches||0)+1;recQA.ranges=(recQA.ranges||0)+runs;
+                recQA.vertices=(recQA.vertices||0)+vertices;
+                const n=recQA.object;recQA.geometry[n]=(recQA.geometry[n]||0)+vertices;
+              }
+              return draw.apply(this,args);
+            };
+          }
+        }
+        return begin.apply(this,args);
+      };
       recQA.geometry={};const objectDraw=BayView.prototype.draw;BayView.prototype.draw=function(name,...args){recQA.object=name;return objectDraw.call(this,name,...args);};
       if(window.WebGLRenderingContext){
         const gl=WebGLRenderingContext.prototype;
@@ -57,7 +76,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         return {ms:performance.now()-t,sum,candidates:n/(poses.length*3)};};run(false);run(true);
       const base=run(false),indexed=run(true),a=recQA.frames.slice().sort((a,b)=>a-b);
       return {base,indexed,frameMedian:a[Math.floor(a.length*.5)],frameP95:a[Math.min(a.length-1,Math.floor(a.length*.95))],samples:a.length,
-        drawCalls:Math.round((recQA.calls||0)/a.length),vertices:Math.round((recQA.vertices||0)/a.length),width:document.querySelector('#'+(recQA.view?'world':'overhead')).width};})()`);
+        drawCalls:Math.round(((recQA.calls||0)+(recQA.batches||0))/a.length),batches:Math.round((recQA.batches||0)/a.length),batchedRanges:Math.round((recQA.ranges||0)/a.length),
+        vertices:Math.round((recQA.vertices||0)/a.length),width:document.querySelector('#'+(recQA.view?'world':'overhead')).width};})()`);
     assert.equal(perf.base.sum,perf.indexed.sum);assert(perf.indexed.candidates<perf.base.candidates*.18);
     console.log("PERF",mode,JSON.stringify(perf));
     if(mode==="street")console.log("PERF draws",await js("Object.entries(recQA.geometry).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([n,v])=>n+' '+Math.round(v/recQA.frames.length)).join(', ')"));

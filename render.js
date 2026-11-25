@@ -302,6 +302,7 @@
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;};
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
       this.largeIndices=!!gl.getExtension("OES_element_index_uint");
+      this.multiDraw=gl.getExtension("WEBGL_multi_draw");
       this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint","streetLight","airState","skyTone","driverLamp","immersion"])this.u[key]=gl.getUniformLocation(p,key);
       this.u.lowDetail=gl.getUniformLocation(p,"lowDetail");this.glow=0;
       this.sunKey=null;this.sunTarget=null;this.sunStrength=0;
@@ -367,9 +368,14 @@
         // Keep the original order of windows, paint and coplanar signs. Nearby
         // shop details can share a draw even when the next shop is behind us.
         model.sections=[];
-        for(let first=0;first<count;first+=288){
-          const end=Math.min(count,first+288);
+        const step=this.multiDraw?96:288;
+        for(let first=0;first<count;first+=step){
+          const end=Math.min(count,first+step);
           model.sections.push({first,end,bounds:meshBounds(data,first,end)});
+        }
+        if(this.multiDraw){
+          model.starts=new Int32Array(model.sections.length);
+          model.counts=new Int32Array(model.sections.length);
         }
         if(name==="city")this.sunKey=null;
       }
@@ -391,7 +397,34 @@
       model.distant=gl.createBuffer();model.indexSize=large?4:2;model.indexType=large?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT;
       model.indexCount=indices.length;
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,large?new Uint32Array(indices):new Uint16Array(indices),gl.STATIC_DRAW);
+      const Index=large?Uint32Array:Uint16Array;
+      if(this.multiDraw&&model.sections){
+        // Near and far sections share a buffer so one ordered command can mix both.
+        const joined=new Index(model.count+indices.length);
+        if(model.indices)joined.set(model.indices);
+        else for(let i=0;i<model.count;i++)joined[i]=i;
+        joined.set(indices,model.count);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,joined,gl.STATIC_DRAW);
+      }else gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Index(indices),gl.STATIC_DRAW);
+    }
+    drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,pad){
+      const gl=this.gl,packed=reduced&&model.distant;
+      const elements=packed||model.elements;
+      const bytes=packed?model.indexSize:elements?model.indices.BYTES_PER_ELEMENT:1;
+      let runs=0,lastEnd=-1;
+      for(const part of model.sections){
+        if(!this.inFrame(part.bounds,x,y,z,yaw,tiltX,tiltZ,pad))continue;
+        const far=packed&&!tiltX&&!tiltZ&&this.farFromCamera(part.bounds,x,y,z,yaw);
+        const start=far?model.count+part.indexStart:part.first,count=far?part.indexCount:part.end-part.first;
+        if(!count)continue;
+        if(lastEnd===start)model.counts[runs-1]+=count;
+        else{model.starts[runs]=start*bytes;model.counts[runs++]=count;}
+        lastEnd=start+count;
+      }
+      if(!runs)return;
+      if(elements){
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,elements);
+        this.multiDraw.multiDrawElementsWEBGL(gl.TRIANGLES,model.counts,0,packed?model.indexType:model.elementType,model.starts,0,runs);
+      }else this.multiDraw.multiDrawArraysWEBGL(gl.TRIANGLES,model.starts,0,model.counts,0,runs);
     }
     farFromCamera(b,x=0,y=0,z=0,yaw=0){
       const eye=this.basis.camera,c=Math.cos(yaw),s=Math.sin(yaw);
@@ -611,7 +644,9 @@
       if(tiltX!==this.tiltX||tiltZ!==this.tiltZ){gl.uniform4f(this.u.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));this.tiltX=tiltX;this.tiltZ=tiltZ;}
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
       gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
-      if(model.sections){
+      if(model.starts&&this.multiDraw){
+        this.drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0);
+      }else if(model.sections){
         let first=0,end=0,far=false;
         const flush=()=>{
           if(first===end)return;

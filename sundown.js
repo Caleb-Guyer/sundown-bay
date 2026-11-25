@@ -303,6 +303,7 @@
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;};
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
       this.largeIndices=!!gl.getExtension("OES_element_index_uint");
+      this.multiDraw=gl.getExtension("WEBGL_multi_draw");
       this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint","streetLight","airState","skyTone","driverLamp","immersion"])this.u[key]=gl.getUniformLocation(p,key);
       this.u.lowDetail=gl.getUniformLocation(p,"lowDetail");this.glow=0;
       this.sunKey=null;this.sunTarget=null;this.sunStrength=0;
@@ -368,9 +369,14 @@
         // Keep the original order of windows, paint and coplanar signs. Nearby
         // shop details can share a draw even when the next shop is behind us.
         model.sections=[];
-        for(let first=0;first<count;first+=288){
-          const end=Math.min(count,first+288);
+        const step=this.multiDraw?96:288;
+        for(let first=0;first<count;first+=step){
+          const end=Math.min(count,first+step);
           model.sections.push({first,end,bounds:meshBounds(data,first,end)});
+        }
+        if(this.multiDraw){
+          model.starts=new Int32Array(model.sections.length);
+          model.counts=new Int32Array(model.sections.length);
         }
         if(name==="city")this.sunKey=null;
       }
@@ -392,7 +398,34 @@
       model.distant=gl.createBuffer();model.indexSize=large?4:2;model.indexType=large?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT;
       model.indexCount=indices.length;
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,large?new Uint32Array(indices):new Uint16Array(indices),gl.STATIC_DRAW);
+      const Index=large?Uint32Array:Uint16Array;
+      if(this.multiDraw&&model.sections){
+        // Near and far sections share a buffer so one ordered command can mix both.
+        const joined=new Index(model.count+indices.length);
+        if(model.indices)joined.set(model.indices);
+        else for(let i=0;i<model.count;i++)joined[i]=i;
+        joined.set(indices,model.count);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,joined,gl.STATIC_DRAW);
+      }else gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Index(indices),gl.STATIC_DRAW);
+    }
+    drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,pad){
+      const gl=this.gl,packed=reduced&&model.distant;
+      const elements=packed||model.elements;
+      const bytes=packed?model.indexSize:elements?model.indices.BYTES_PER_ELEMENT:1;
+      let runs=0,lastEnd=-1;
+      for(const part of model.sections){
+        if(!this.inFrame(part.bounds,x,y,z,yaw,tiltX,tiltZ,pad))continue;
+        const far=packed&&!tiltX&&!tiltZ&&this.farFromCamera(part.bounds,x,y,z,yaw);
+        const start=far?model.count+part.indexStart:part.first,count=far?part.indexCount:part.end-part.first;
+        if(!count)continue;
+        if(lastEnd===start)model.counts[runs-1]+=count;
+        else{model.starts[runs]=start*bytes;model.counts[runs++]=count;}
+        lastEnd=start+count;
+      }
+      if(!runs)return;
+      if(elements){
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,elements);
+        this.multiDraw.multiDrawElementsWEBGL(gl.TRIANGLES,model.counts,0,packed?model.indexType:model.elementType,model.starts,0,runs);
+      }else this.multiDraw.multiDrawArraysWEBGL(gl.TRIANGLES,model.starts,0,model.counts,0,runs);
     }
     farFromCamera(b,x=0,y=0,z=0,yaw=0){
       const eye=this.basis.camera,c=Math.cos(yaw),s=Math.sin(yaw);
@@ -612,7 +645,9 @@
       if(tiltX!==this.tiltX||tiltZ!==this.tiltZ){gl.uniform4f(this.u.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));this.tiltX=tiltX;this.tiltZ=tiltZ;}
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
       gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
-      if(model.sections){
+      if(model.starts&&this.multiDraw){
+        this.drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0);
+      }else if(model.sections){
         let first=0,end=0,far=false;
         const flush=()=>{
           if(first===end)return;
@@ -655,6 +690,50 @@
     near(x,z,reach){return reach>this.padding?this.all:this.tiles.get(Math.floor(x/16)*4096+Math.floor(z/16))||this.empty;}
   }
   window.BayStreetSpace=StreetSpace;
+  // Moving traffic uses its own grid. A driver only needs the thin strip of
+  // road from its bumper to its stopping horizon, including on diagonal bends.
+  class LaneSpace {
+    constructor(){this.cells=new Map();this.used=[];}
+    key(p){return Math.floor(p.x/24)*65536+Math.floor(p.z/24);}
+    cell(key){
+      let cell=this.cells.get(key);
+      if(!cell){cell={cars:[],walkers:[]};this.cells.set(key,cell);}
+      if(!cell.cars.length&&!cell.walkers.length)this.used.push(cell);
+      return cell;
+    }
+    rebuild(cars,walkers,passenger){
+      for(const cell of this.used){cell.cars.length=0;cell.walkers.length=0;}
+      this.used.length=0;
+      for(const v of cars)this.cell(this.key(v)).cars.push(v);
+      for(const p of walkers)if(!p.palmPassenger&&p!==passenger)this.cell(this.key(p)).walkers.push(p);
+    }
+    moved(car,from){
+      const key=this.key(car);if(key===from)return;
+      const cars=this.cells.get(from).cars;
+      cars.splice(cars.indexOf(car),1);this.cell(key).cars.push(car);
+    }
+    ahead(v,ux,uz,driver,skip){
+      const endX=v.x+20*ux,endZ=v.z+20*uz;
+      const left=Math.floor((Math.min(v.x,endX)-1.75)/24),right=Math.floor((Math.max(v.x,endX)+1.75)/24);
+      const south=Math.floor((Math.min(v.z,endZ)-1.75)/24),north=Math.floor((Math.max(v.z,endZ)+1.75)/24);
+      let gap=Infinity;
+      for(let i=left;i<=right;i++)for(let j=south;j<=north;j++){
+        const cell=this.cells.get(i*65536+j);if(!cell)continue;
+        for(const q of cell.cars){
+          if(q===v||q===driver||q===skip)continue;
+          const x=q.x-v.x,z=q.z-v.z,front=x*ux+z*uz;
+          if(front>.1&&front<20&&Math.abs(x*uz-z*ux)<1.75)gap=Math.min(gap,Math.max(0,front-4.65));
+        }
+        for(const q of cell.walkers){
+          if(q===skip)continue;
+          const x=q.x-v.x,z=q.z-v.z,front=x*ux+z*uz;
+          if(Math.abs(x)<17&&Math.abs(z)<17&&front>.1&&front<20&&Math.abs(x*uz-z*ux)<1.15)gap=Math.min(gap,Math.max(0,front-2.95));
+        }
+      }
+      return gap;
+    }
+  }
+  window.BayLaneSpace=LaneSpace;
 })();
 
 ;
@@ -14131,14 +14210,19 @@ window.buildBayCity = function buildBayCity(g,water) {
   function groundPatch(opt,base,roofs,rx,rz){
     if(!base||!roofs||!opt.weather||rx>95||rz>95)return null;
     const light=opt.weather.sun,opacity=light.strength*(1-.88*opt.weather.rain)*(1-opt.dusk);
-    const key=Math.round(light.dx*13)+"/"+Math.round(light.dz*13)+"/"+Math.round(opacity*30);
+    const key=opacity<.012?"unlit":Math.round(light.dx*13)+"/"+Math.round(light.dz*13)+"/"+Math.round(opacity*30);
+    // The painted streets have 3.5 texels per metre. Reserve extra density for
+    // close shots where the sharp edges of the cast shadows are also visible.
+    const density=opt.scale>16?8:4;
     let patch=streetGround.get(opt.solids);
-    if(patch?.key===key&&patch.base===base&&patch.roofs===roofs&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
+    if(patch?.key===key&&patch.density===density&&patch.base===base&&patch.roofs===roofs&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
       opt.cx+rx<=patch.right&&opt.cz-rz>=patch.bottom)return patch;
-    const density=Math.min(12,Math.max(4,opt.scale)),pad=9;
-    const left=Math.floor(opt.cx-rx-pad),right=Math.ceil(opt.cx+rx+pad);
-    const top=Math.ceil(opt.cz+rz+pad),bottom=Math.floor(opt.cz-rz-pad);
-    const w=Math.ceil((right-left)*density),h=Math.ceil((top-bottom)*density);
+    // Centre the backing sheet on a city block. Turning a corner or moving
+    // a few metres keeps sampling the same sheet at the actual camera pose.
+    const block=32,halfX=(Math.ceil(rx/block)+1)*block,halfZ=(Math.ceil(rz/block)+1)*block;
+    const centerX=Math.round(opt.cx/block)*block,centerZ=Math.round(opt.cz/block)*block;
+    const left=centerX-halfX,right=centerX+halfX,top=centerZ+halfZ,bottom=centerZ-halfZ;
+    const w=(right-left)*density,h=(top-bottom)*density;
     if(w*h>1400000)return null;
     patch?.image.close?.();
     const canvas=patch?.canvas||mapSurface(w,h);
@@ -14147,7 +14231,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.clearRect(0,0,w,h);
     const draw=image=>drawGroundWindow(c,image,extent,left,bottom,right,top,px,py,density);
     draw(base);castBuildings(c,opt.solids,light,px,py,density,(x,y,p)=>x>=-p&&x<=w+p&&y>=-p&&y<=h+p,opacity);draw(roofs);
-    patch={canvas,image:freezeSurface(canvas),base,roofs,key,left,right:left+w/density,top,bottom:top-h/density};
+    patch={canvas,image:freezeSurface(canvas),base,roofs,key,density,left,right,top,bottom};
     streetGround.set(opt.solids,patch);return patch;
   }
   function castBuildings(c,solids,light,px,py,s,visible,opacity){
@@ -73960,6 +74044,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   let nextJunctionScan=-1;
+  const laneSpace=new BayLaneSpace();
   function slideClear(v,x,z,yaw){
     if(!fitsCar(v,x,z,yaw))return false;
     const next={kind:v.kind,x,z,yaw};
@@ -73983,7 +74068,13 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(scan){BayCrosswalk.watchTraffic(BayStreetArt.signals,vehicles);nextJunctionScan=streetTime+.12;}
       for(const s of BayStreetArt.signals)BayCrosswalk.update(s,streetTime,vehicles,walkers,play&&onStreetFeet()?hero:null);
     }
+    laneSpace.rebuild(cars,walkers,band.june.ride?band.local:null);
+    let previous=null,previousCell;
     for(const v of cars){
+      // Later drivers must see the final position of the preceding vehicle,
+      // including a sliding or reversing car that crossed a cell boundary.
+      if(previous)laneSpace.moved(previous,previousCell);
+      previous=v;previousCell=laneSpace.key(v);
       if(v.impactSlide&&v!==car&&v!==transfer?.v){
         const s=v.impactSlide,scrub=Math.abs(s.vx*Math.cos(v.yaw)-s.vz*Math.sin(v.yaw))+Math.abs(s.spin);
         if(scrub>1.7&&!s.tires)s.tires=carbon.contacts(v);
@@ -74050,7 +74141,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         ahead(hero,1.5,3);ahead(BayDriving.world(a.v,a.side*(s.hingeX+.65),s.back),1.45,3);
       }
       for(const b of motos.all)if(play&&b!==driver)ahead(b,1.49,3.45);
-      for(const other of cars)if(other!==v&&other!==car)ahead(other,1.75,4.65);
+      clearance=Math.min(clearance,laneSpace.ahead(v,ux,uz,car,lane?.skip));
       if(works&&Math.abs(works.trailer.x-v.x)<23&&Math.abs(works.trailer.z-v.z)<23){
         ahead(works.trailer,2.54,5.25);ahead(BayDriving.world(works.trailer,0,-1.98),2.52,4.6);
         ahead(BaySlipTrailer.coupler(works.trailer),1.85,4.25);
@@ -74063,12 +74154,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(v.z>228)ahead(bridge.walker,1.2,2.75);
       for(const unit of patrol)ahead(unit,unit.role==="roadblock"?3.1:1.85,4.7);
       if(backup.roadblock&&!backup.roadblock.rail.hit)ahead(backup.roadblock.rail,2.55,3);
-      for(const w of walkers)if(!w.palmPassenger&&!(w===band.local&&band.june.ride)&&Math.abs(w.x-v.x)<17&&Math.abs(w.z-v.z)<17)ahead(w,1.15,2.95);
       const vertical=Math.abs(uz)>.7;
       for(const s of BayStreetArt.signals){
         const rx=s.x-v.x,rz=s.z-v.z,d=rx*ux+rz*uz,side=Math.abs(rx*uz-rz*ux);
-        const line=BayCrosswalk.setback(s,bayCarLayout(v.kind).halfLength,9.7);
-        if(side<(lane?6.45:4.4)&&BayCrosswalk.beforeLine(s,d,line,9.7,v.speed)&&d<26&&BayCrosswalk.trafficWait(s,streetTime,vertical)){
+        if(d>=26||side>=(lane?6.45:4.4))continue;
+        const line=BayCrosswalk.setback(s,halfLength,9.7);
+        if(BayCrosswalk.beforeLine(s,d,line,9.7,v.speed)&&BayCrosswalk.trafficWait(s,streetTime,vertical)){
           clearance=Math.min(clearance,Math.max(0,d-line));redAhead=true;
         }
       }
