@@ -391,6 +391,6 @@
 
   window.BayExposureArt=Object.freeze({
     palette:Object.freeze(["#ab7158","#dfaa54","#4c5267"]),
-    photoNotice,install,dress,drawMap,drawPhoto
+    photoNotice,saleNotice,install,dress,drawMap,drawPhoto
   });
 })();

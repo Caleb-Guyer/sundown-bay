@@ -93,14 +93,14 @@
       }
     }
     remember(name,make){
-      if(!this.collecting||this.models.has(name)||!name.startsWith("coastwheel-")&&!name.startsWith("marlin-neon-")&&!name.startsWith("marlin-bent-glass/"))return;
+      if(!this.collecting||this.models.has(name)||!name.startsWith("coastwheel-")&&!name.startsWith("marlin-neon-")&&!name.startsWith("marlin-bent-glass/")&&!name.startsWith("lot-porter/")&&name!=="exposure-notice")return;
       if(name.startsWith("coastwheel-")&&!/distant|lamps|far-/.test(name))return;
       const g=new BayMesh();make(g);this.models.set(name,pack(g.vertices));
     }
     paint(out,eye,c,t,env,force=false){
       if(this.source){this.prepare(this.source());this.source=null;}
       if(!this.canvas)this.canvas=document.createElement("canvas");
-      const canvas=this.canvas,w=env.curb?Math.min(320,out.width):352,h=env.curb?Math.round(w*out.height/out.width):Math.max(136,Math.min(280,Math.round(w*out.height/out.width)));
+      const canvas=this.canvas,w=env.curb?Math.min(env.sensorWidth||320,out.width):352,h=env.curb?Math.round(w*out.height/out.width):Math.max(136,Math.min(280,Math.round(w*out.height/out.width)));
       if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;this.image=null;}
       const ctx=canvas.getContext("2d",{alpha:false});
       const project=basis(eye,w,h),q=[0,0,0];
@@ -147,6 +147,7 @@
         const list=[];this.collecting=true;
         if(c.id==="wheel"){if(!this.wheel){BayCoastWheelArt.install(env.model);this.wheel=true;}BayCoastWheelArt.world(list,(_p,range)=>range>120,t,env.hours,env.wheel);}
         if(c.id==="marlin"){if(!this.neon){BayMarlinNeonArt.install(env.model);this.neon=true;}BayMarlinNeonArt.world(list,(_p,range)=>range>100,env.neon,t,env.hours);}
+        if(env.scene)env.scene(list);
         this.collecting=false;
         for(const command of list){
           const name=command[0];

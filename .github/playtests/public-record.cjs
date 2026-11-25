@@ -151,6 +151,28 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     const minute=await js(result),blocks=await js("recQA.blocks.size");
     console.log("PERF minute drive",mode,JSON.stringify({...minute,blocks}));assert(minute.seconds>=60&&minute.metres>120&&blocks>=4);
     await snap("drive");await tap("Escape");await waitFor("document.querySelector('#panelBody').innerText.includes('95th percentile')");await tap("Escape");
+    async function parkAt(point){
+      await js(`(()=>{const v=recQA.map.streetCar;Object.assign(v,{x:${point.x},z:${point.z},yaw:0,path:null});BayDriving.settle(v);})()`);
+    }
+    await parkAt({x:-149.5,z:-91});await waitFor("document.querySelector('#context').innerText.includes('Mara’s camera')");
+    await tap("KeyF");await waitFor("document.querySelector('.finder-cross.locked')");
+    await snap("lens");await tap("Space");await waitFor("document.querySelector('.file-notice')?.hidden===false");
+    if(aboard){
+      await tap("KeyH");for(let i=0;i<8;i++)await tap("ArrowRight");
+      await waitFor("document.querySelector('.finder-status')?.textContent.includes('tin in focus')");await snap("portrait");
+      await tap("Space");await waitFor("document.querySelector('.file-portrait')?.hidden===false");await tap("Digit2");
+    }else await tap("Digit1");
+    const film="JSON.parse(localStorage.getItem(BayLotNegative.key)||'{}')";
+    const selected=await js(film+".pending");assert.equal(selected.frame,aboard?"14B":"14A");
+    assert(selected.image.startsWith("data:image/jpeg;base64,/9j/")&&selected.image.length>1500);
+    await waitFor("!document.querySelector('#chapterFilm').hidden");await tap("Enter");
+    await waitFor("document.querySelector('#panelBody figcaption')?.textContent.includes("+JSON.stringify(selected.frame)+")");await snap("proof");
+    await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes("+JSON.stringify(aboard?"Make a print":"Go live")+")).click()");
+    await parkAt(await js("BayExposure.routes["+JSON.stringify(route)+"]"));
+    await waitFor(film+".published?.frame==="+JSON.stringify(selected.frame),45000);
+    assert.deepEqual(await js(film+".published"),selected);assert.equal(await js(film+".pending"),null);
+    await waitFor("!document.querySelector('#chapterFilm').hidden");await tap("Enter");
+    console.log("PASS Lot 14 shutter, "+selected.frame+" handoff to "+route+", exact "+selected.image.length+"-byte data URL retained.");
     // Load a delivered legacy save through the normal startup path and play its sequel on foot.
     const save=await js(`(()=>{const u=new BaySecondUnit.Unit();u.met=true;u.remember({x:-151.05,z:-87.8,yaw:-Math.PI/2},null);u.save();
       const data=JSON.parse(localStorage.getItem('sundownBay.v1')||'{}');data.edition='${route}';data.wallet=347;

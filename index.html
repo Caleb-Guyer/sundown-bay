@@ -149,10 +149,11 @@
     </template>
     <template id="exposureCamera">
       <div class="finder-body">
-        <div class="finder-strip"><strong>VEGA / 35</strong><span>COLOR NEG. &nbsp; 24 EXP.</span></div>
-        <div class="finder-frame"><canvas width="960" height="540" tabindex="0" aria-label="Viewfinder. Aim at the red Lot 14 sign by clicking it or using the arrow keys. Press Space to take the photo."></canvas><i class="finder-cross" aria-hidden="true"></i></div>
-        <div class="finder-footer"><span class="finder-status" role="status">Frame the red Lot 14 sign.</span><button class="shutter">Take photo <kbd>Space</kbd></button></div>
-      </div><p class="finder-help">Click the sign to focus, or use the arrow keys.</p>
+        <div class="finder-strip"><strong>VEGA / 35</strong><span class="film-counter">14A</span></div>
+        <div class="finder-frame"><canvas width="512" height="288" tabindex="0" aria-label="Mara’s camera. Aim with the arrows or click the scene. W and S change the zoom. Space takes a photograph."></canvas><i class="finder-cross" aria-hidden="true"></i></div>
+        <div class="finder-footer"><span class="finder-status" role="status"></span><button class="shutter">Take photo <kbd>Space</kbd></button></div>
+        <div class="finder-actions"><button class="ask-portrait" hidden>Ask Luis for a portrait</button><button class="file-notice" hidden>File 14A · Notice</button><button class="file-portrait" hidden>File 14B · Luis</button></div>
+      </div><p class="finder-help">Click to aim or use the arrow keys. W / S changes the zoom.</p>
     </template>
     <template id="exposureProof">
       <figure class="contact-proof"><canvas width="768" height="432" aria-label="Mara Vega’s photograph of the Lot 14 sale notice at Port Sol"></canvas><figcaption>M. VEGA &nbsp; / &nbsp; PORT SOL <span>14A ▸</span></figcaption></figure>
@@ -250,6 +251,7 @@
   "marsh-line.js",
   "exposure-art.js",
   "exposure.js",
+  "lot-negative.js",
   "room-audio.js",
   "room-voices.js",
   "room-tone.js",
@@ -412,6 +414,6 @@
   "frame-check.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=4b59e1ec46363396"></script>
+  <script src="sundown.js?v=dc23773b359c5d92"></script>
 </body>
 </html>

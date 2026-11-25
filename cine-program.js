@@ -524,7 +524,7 @@
     label(c,"Romy Vale",278,185,"italic 16px Georgia,serif",ink);
     label(c,"& Jules",278,202,"italic 16px Georgia,serif",ink);
   }
-  function showEdition(c){
+  function showEdition(c,frame){
     paintSet(c,"edition",set=>{
       rect(set,0,0,width,height,"#e1d8bc");
       label(set,"Bay Wire",15,36,"italic bold 32px Georgia,serif","#414942");
@@ -538,6 +538,12 @@
       label(set,"Mara Vega",307,158,"bold 14px Georgia,serif","#424a42");
       line(set,15,221,401,221,"#828773",.85);
     });
+    const img=window.BayLotNegative?.photo(frame);
+    if(img?.naturalWidth){
+      c.drawImage(img,15,55,282,158.625);
+      rect(c,305,89,96,28,"#e1d8bc");label(c,frame.frame==="14B"?"Luis Vega":"Lot 14",305,107,"italic bold 21px Georgia,serif","#424a42");
+      label(c,frame.frame,307,192,"bold 10px monospace","#6d6956");
+    }
   }
 
   let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse;
@@ -572,13 +578,14 @@
     return schedule;
   }
 
-  let projector=null,context=null,lastProgram=null,lastTick=-1,lastDecode=-1,revision=0,projection=null;
+  let projector=null,context=null,lastProgram=null,lastTick=-1,lastDecode=-1,lastPierPhoto=null,lastPierReady=false,revision=0,projection=null;
   function frame(time,options){
     const program=describe(options);
     const raw=Number.isFinite(time)?Math.floor(time*fps+.000001):0;
     const tick=((raw%programFrames)+programFrames)%programFrames;
     const decode=decodedStamp+(window.BaySkateFilm?.revision||0)+(window.BayHouseLights?.revision||0);
-    if(program===lastProgram&&tick===lastTick&&lastDecode===decode)return projection;
+    const pierPhoto=options?.edition==="print"?options.pierPhoto:null,pierReady=!!(pierPhoto&&window.BayLotNegative?.photo(pierPhoto)?.naturalWidth);
+    if(program===lastProgram&&tick===lastTick&&lastDecode===decode&&pierPhoto===lastPierPhoto&&pierReady===lastPierReady)return projection;
     let inSlot=tick,item=program[0];
     for(const entry of program){
       item=entry;
@@ -610,9 +617,9 @@
       if(!locationCard){locationCard=surface(720,610);window.BayScoutPrints.print(locationCard,listedLocation);}
       rect(context,0,0,width,height,"#222825");const w=height*720/610;
       context.drawImage(locationCard,(width-w)*.5,0,w,height);
-    }else showEdition(context);
+    }else showEdition(context,pierPhoto);
     finishFrame(context,inSlot);
-    lastProgram=program;lastTick=tick;lastDecode=decode;
+    lastProgram=program;lastTick=tick;lastDecode=decode;lastPierPhoto=pierPhoto;lastPierReady=pierReady;
     projection={canvas:projector,revision:++revision,id:item.id,title:item.title,credit:item.credit,elapsed,seconds:item.seconds};
     return projection;
   }

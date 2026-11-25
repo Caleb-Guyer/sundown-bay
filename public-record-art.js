@@ -59,10 +59,20 @@
     c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d",{alpha:false});
     print(g,id);plates.set(id,c);return c;
   }
-  function show(canvas,id,age,table){
+  function show(canvas,id,age,table,frame){
     if(!id)return;const g=canvas.getContext("2d",{alpha:false});
     if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
     const f=Math.min(1,age/5);g.setTransform(1,0,0,1,0,0);g.drawImage(plate(id),-4-5*f,-2-3*f,W+10+10*f,H+5+6*f);
+    if(id==="negative"&&frame){
+      const img=BayLotNegative.photo(frame);
+      if(img?.naturalWidth){
+        g.save();g.translate(-4-5*f,-2-3*f);g.scale((W+10+10*f)/W,(H+5+6*f)/H);
+        g.translate(500,254);g.rotate(.045);g.fillStyle="#292522";g.fillRect(-333,-151,660,300);
+        g.drawImage(img,-244,-151,488,274.5);
+        label(g,-301,141,"MV   /   "+frame.frame+"   /   "+BayLotNegative.captions[frame.frame],13,"#fee8b4","monospace");
+        g.restore();
+      }
+    }
     if(!table)return;
     g.save();g.translate(500,254);g.rotate(-.031);
     for(let i=0;i<32;i++)if(!table.bins[i]){g.fillStyle=i%3?"#c1b18c":"#bbab85";g.fillRect(-299+i*18.6,78,19.1,68);}
