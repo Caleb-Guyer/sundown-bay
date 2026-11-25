@@ -18,7 +18,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await waitFor("!document.querySelector('#chapterFilm').hidden");
     await js(`window.recQA={frames:[],held:new Set(),now:0,points:[],samples:false};
       const camera=BayCamera.prototype.update;BayCamera.prototype.update=function(...args){const out=camera.apply(this,args);recQA.rig=this;recQA.subject=args[1];recQA.yaw=this.yaw;return out;};
-      const scene=BayPublicRecord.Story.prototype.step;BayPublicRecord.Story.prototype.step=function(dt){const changed=scene.call(this,dt);recQA.director=this;return changed;};
+      const scene=BayPublicRecord.Story.prototype.step;BayPublicRecord.Story.prototype.step=function(...args){const changed=scene.apply(this,args);recQA.director=this;return changed;};
       const begin=BayView.prototype.begin;BayView.prototype.begin=function(...args){
         recQA.view=this;
         if(this.multiDraw&&!recQA.batchesWrapped){
@@ -58,6 +58,18 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         q.held=want;return out;};
       let last=performance.now();function sample(t){if(recQA.samples)recQA.frames.push(t-last);last=t;requestAnimationFrame(sample);}requestAnimationFrame(sample);`);
     await snap("port");
+    await waitFor("recQA.director?.beat()?.watch==='work'&&!document.querySelector('#dispatchClock').hidden");await snap("watch");
+    const aboard=mode==="street";
+    if(aboard){
+      await key("keyDown","Space");
+      try{
+        await waitFor("recQA.director.watch.crossing");await tap("KeyH");assert.equal(await js(book+"?.morning||null"),null);
+        await snap("gangway");await waitFor("recQA.director.watch.travel===1");
+      }finally{await key("keyUp","Space");}
+      await waitFor("recQA.director.watch.gate<.035");
+    }
+    await tap("KeyH");await waitFor(book+"?.morning?.luis==="+JSON.stringify(aboard?"aboard":"ashore"));
+    await waitFor("recQA.director.beat()?.art==='watchCopy'");await snap("docket");
     await waitFor("!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterLine').textContent.includes('sale notice')",70000);await snap("notice");
     await waitFor("document.querySelector('#chapterLine').textContent.includes('coral coupe')",60000);await snap("key");
     await waitFor("document.querySelector('#chapterFilm').hidden&&recQA.hero&&recQA.rig",60000);
@@ -82,7 +94,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     console.log("PERF",mode,JSON.stringify(perf));
     if(mode==="street")console.log("PERF draws",await js("Object.entries(recQA.geometry).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([n,v])=>n+' '+Math.round(v/recQA.frames.length)).join(', ')"));
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
-    await waitFor("recQA.director.scene?.id==='boarded'",90000);await snap("passenger");await tap("Enter");
+    await waitFor("recQA.director.scene?.id==='boarded'",90000);await snap("passenger");
+    await waitFor("document.querySelector('#chapterLine').textContent.includes("+JSON.stringify(aboard?"blue tin":"crackers")+")");await tap("Enter");
     await waitFor("document.querySelector('#chapterFilm').hidden");
     await js("recQA.frames=[];recQA.samples=true;recQA.start=[recQA.subject.x,recQA.subject.z]");
     await key("keyDown","KeyW");
@@ -171,6 +184,6 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     const signal=await js(`(()=>{const sink=new OfflineAudioContext(1,128,11025);
       const pcm=BayRoomVoices.buffer(sink,'${voice}').getChannelData(0);return pcm.reduce((v,x)=>v+x*x,0)/pcm.length;})()`);assert(signal>.0001);
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
-    console.log("PASS",mode,"Public Record, First Crossing, Room Tone edit, car radio broadcast and Dalia’s response",route,credit);
+    console.log("PASS",mode,"Six Sharp departure, gangway or sailing bell, carbon and Mara callback; Public Record, First Crossing, Room Tone edit, car radio broadcast and Dalia’s response",route,credit);
   }catch(e){console.log("Campaign state",await js("JSON.stringify({book:"+book+",who:document.querySelector('#chapterWho').textContent,line:document.querySelector('#chapterLine').textContent,hint:document.querySelector('#context').innerText,at:window.recQA?.hero&&[recQA.hero.x,recQA.hero.z],goal:window.recQA?.goal,panel:document.querySelector('#panelTitle').innerText})"));await snap("failure");throw e;}
 };

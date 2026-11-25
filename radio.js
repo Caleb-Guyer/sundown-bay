@@ -716,6 +716,20 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="watch-bell"){
+      for(const [pitch,life,gain] of [[526,.87,.073],[1327,.47,.028],[1996,.29,.014]]){
+        tone(effects,pitch,at,life,gain,"sine",pitch*.997,.002);
+        tone(effects,pitch,at+.20,life*.70,gain*.17,"sine",pitch*.995,.008);
+      }return;
+    }
+    if(name==="watch-latch"||name==="watch-close"){
+      const closed=name==="watch-close";waterNoise(effects,at,closed?.12:.065,closed?.054:.040,closed?590:1320,210);
+      tone(effects,closed?174:390,at+.022,.10,.025,"triangle",closed?96:274,.002);return;
+    }
+    if(name==="watch-tins"){
+      waterNoise(effects,at,.054,source.aboard?.033:.020,720,215);
+      tone(effects,806,at+.035,.092,.014,"sine",753,.002);tone(effects,1264,at+.071,.076,.008,"sine",1173,.002);return;
+    }
     if(name==="luz-cast"){tone(effects,147,at,.71,.085,"horn",151,.075);tone(effects,219,at+.03,.62,.04,"reed",224,.06);return;}
     if(name==="luz-bell"){for(const delay of [0,.34]){tone(effects,672,at+delay,.47,.071,"sine",664,.003);
       tone(effects,1546,at+delay,.18,.027,"sine",1530,.003);}return;}

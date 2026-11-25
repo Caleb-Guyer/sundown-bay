@@ -752,6 +752,13 @@
   }
   function setFilmPage(){
     const b=campaign.beat(),table=campaign.table;
+    chapterSoundLabel();
+    $("dispatchClock").hidden=b?.watch!=="work";
+    if(table?.kind==="watchBook"){
+      $("chapterSlug").textContent=$("chapterTitle").textContent="";$("chapterWho").textContent="Dalia’s departure book";
+      $("chapterLine").textContent="Marlin Pier · Last sailing before the closure. Press Esc to put the book back.";
+      $("chapterInsert").hidden=false;$("chapterSkip").hidden=true;BaySixSharpArt.docket($("chapterInsert"),campaign.book.morning,campaign.book.credit);return;
+    }
     if(table?.kind==="splice"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";
       $("chapterSkip").hidden=true;$("chapterInsert").hidden=false;lastFilmPaint=-Infinity;spliceCaption(table);return;
@@ -760,6 +767,7 @@
     $("chapterTitle").textContent=b?.title||"";
     $("chapterWho").textContent=table?"Mara Vega":b?.who||"";
     $("chapterLine").textContent=table?(table.cover>=.92?"Who gets the credit?   1  Dalia Cruz     2  The night shift":"Hold Space and sweep A / D across the covered line."):(b?.line||"");
+    if(b?.watch==="work")$("chapterLine").textContent=campaign.watch.caption();
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
     if(b?.art==="negative")sound.cue("record-shutter");
     if(b?.title)sound.cue("record-theme",{ending:campaign.scene?.id==="crew"||campaign.scene?.id==="signed"});
@@ -768,12 +776,12 @@
   function enterFilm(id,replay=false){
     if(panel)closePanel();
     sound.reel(null);
-    filmReplay=replay;if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id);else campaign.beginTable();
+    filmReplay=replay;if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
   function endFilm(id){
     if(campaign.table?.kind==="splice")sound.reel(null);
-    campaign.scene=null;campaign.table=null;filmPage=null;$("chapterFilm").hidden=true;$("game").classList.toggle("in-chapter",false);
+    campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("game").classList.toggle("in-chapter",false);
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
     if(filmReplay){filmReplay=false;return;}
     if(id==="reelOpen"){enterFilm("edit-reel");return;}
@@ -790,7 +798,19 @@
     if(!campaign.scene&&!campaign.table)return false;
     if(ev.ctrlKey||ev.altKey||ev.metaKey)return false;
     ev.preventDefault();if(ev.repeat)return true;
-    if(campaign.scene){if(ev.code==="Enter"||ev.code==="Escape")endFilm(campaign.scene.id);return true;}
+    if(ev.code==="KeyR"){chapterVolume();return true;}
+    if(campaign.scene){
+      if(ev.code==="Enter"||ev.code==="Escape"){endFilm(campaign.scene.id);return true;}
+      if(campaign.beat().watch==="work"){
+        if(ev.code==="Space")keys.add(ev.code);
+        if(ev.code==="KeyH"&&campaign.watch.ring()){
+          sound.cue("watch-bell");
+          if(!campaign.book.morning){campaign.book.morning={...campaign.watch.departure};campaign.write();}
+        }
+      }
+      return true;
+    }
+    if(campaign.table?.kind==="watchBook"){if(["Escape","Enter","KeyF"].includes(ev.code))endFilm("");return true;}
     if(campaign.table?.kind==="splice"){
       const edit=campaign.table;
       if(ev.code==="Escape"){endFilm("");return true;}
@@ -811,6 +831,9 @@
     keys.add(ev.code);return true;
   }
   $("chapterSkip").addEventListener("click",()=>{if(campaign.scene)endFilm(campaign.scene.id);});
+  function chapterSoundLabel(){$("chapterSoundLabel").textContent=radio?"Sound on":"Sound off";$("chapterSound").setAttribute("aria-pressed",String(!!radio));}
+  function chapterVolume(){radioToggle();chapterSoundLabel();}
+  $("chapterSound").addEventListener("click",chapterVolume);
   function spliceCaption(edit){
     const part=BayRoomTone.position(BayRoomTone.tape,edit.head),line=BayRoomTone.lines[part?.id];
     const who=edit.playing&&line?line[0]:"Mara’s field reel";
@@ -827,9 +850,11 @@
       if(campaign.book.pass&&luz.near(hero)>=0)return "luz";
       if(dist(hero,recordGate)<3)return stage==="filed"?"read":"rub";
     }else if(dist(hero,BayExposure.pickup)<2.85)return "mara";
+    if(campaign.book.morning&&dist(hero,recordGate)<2.6)return "watchBook";
     return null;
   }
   function doChapter(act){
+    if(act==="watchBook"||act==="read"&&campaign.book.morning){enterFilm("watch-book");return;}
     if(act==="reel"){sound.warmReel();enterFilm(campaign.book.cut?"edit-reel":"reelOpen");return;}
     if(act==="pass"){luz.grant();campaign.write();enterFilm(campaign.book.credit==="crew"?"passShift":"passDalia");return;}
     if(act==="service"&&campaign.book.cut&&campaign.book.airings){speak("Dalia Cruz",campaign.book.cut.who==="dalia"?
@@ -9620,7 +9645,7 @@
         contextHint("Space",r.rope?"Line out":r.charge==null?"Hold to cast the mooring line · F asks the deckhand":"Release near "+target+"% · "+power+"%");
       }else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(chapter)contextHint("F",({reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
+    }else if(chapter)contextHint("F",({watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
     else if(beachHint)contextHint(...beachHint);
     else if(phoneHint)contextHint(...phoneHint);
     else if(nearNeedle())contextHint("F","Play Needle Drop · Tideway Arcade");
@@ -10779,7 +10804,7 @@
       title="Paused";kicker="Sundown Bay  /  "+district(pos());const stats=document.createElement("div");stats.className="statline";stats.textContent=cash(save.wallet)+"  /  Jobs "+save.paid+"  /  Tapes "+save.tapes.length+" of 5";b.append(stats);
       if(!active&&!room&&!transfer&&!unit.eye&&!skiff&&!motos.bike&&!luz.rider){
         b.append(makeButton("Public Record",campaign.book.pass?"Find the public ferry landing.":campaign.book.stage==="filed"?"Find Dalia beside the Port Sol dispatch board.":"Find the next scene in the city.","Locate story",()=>{closePanel();clockPin(chapterTarget());}),
-          makeButton("Sundown Bay · Opening","The morning the sale notice went up at Port Sol.","Watch opening",()=>enterFilm("opening",true)));
+          makeButton("Six Sharp · Opening",campaign.book.morning?"Work the gate again. Dalia keeps the original entry.":"Work Dalia’s last watch and file the missing departure entry.","Play opening",()=>enterFilm("opening",true)));
         if(campaign.book.route)b.append(makeButton("Last Exposure · "+(campaign.book.route==="live"?"On air":"The late show"),
           "Mara’s photograph reaches its audience.","Watch scene",()=>enterFilm(campaign.book.route,true)));
         if(campaign.book.credit)b.append(makeButton("The Six O’Clock Boat","The dispatch copy that went on the record.","Watch ending",()=>enterFilm(campaign.book.credit,true)));
@@ -11096,8 +11121,16 @@
     if(campaign.scene||campaign.table){
       const delta=Math.min(campaign.scene ? .85 : .18,Math.max(0,(now-last)/1000));last=now;
       if(campaign.scene){
-        const id=campaign.scene.id;
-        if(campaign.step(delta)){if(!campaign.scene){endFilm(id);return;}setFilmPage();}
+        const id=campaign.scene.id,morning=campaign.beat().watch;
+        if(campaign.step(delta,held("Space"))){if(!campaign.scene){endFilm(id);return;}setFilmPage();}
+        if(morning&&radio){
+          const w=campaign.watch;if(w.gateSound)sound.cue(w.gateSound);
+          if(w.tinSound)sound.cue("watch-tins",{aboard:w.crossing});if(w.horn)sound.cue("luz-cast");
+        }
+        if(campaign.beat().watch==="work"){
+          const words=campaign.watch.caption();if($("chapterLine").textContent!==words)$("chapterLine").textContent=words;
+        }
+      }else if(campaign.table.kind==="watchBook"){return;
       }else if(campaign.table.kind==="splice"){
         const edit=campaign.table,dir=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
         const old=edit.head;edit.move(delta,dir);sound.reel(edit.playing?BayRoomTone.position(BayRoomTone.tape,edit.head):null,edit.head);
@@ -11114,7 +11147,19 @@
       if(now-lastFilmPaint<1000/30-1)return;
       const d=Math.min(.12,Math.max(0,(now-lastFilmPaint)/1000));lastFilmPaint=now;
       const art=campaign.table?"rubbing":filmPage?.art;
-      if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table);
+      if(filmPage?.watch){
+        const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;
+        scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
+        if(top)BaySixSharpArt.overhead(map,w,beat);
+        else{
+          tuneStreetResolution(delta,true);const eye=w.eye(beat);
+          view.begin(eye,w.sun.night,w.sun);skyPainter.draw(view,eye,w.age,w.sun.night,w.sun);view.drawCityAndWater(w.age);
+          BaySixSharp.street(w,view,model,personSkin);
+        }
+        if(beat==="work")BaySixSharpArt.clock($("dispatchClock"),w.second());
+      }else if(art==="watchCopy"){
+        if(!campaign.watch.printed){BaySixSharpArt.docket($("chapterInsert"),campaign.watch.departure);campaign.watch.printed=true;}
+      }else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
         if(isTop())tuneOverhead(delta);else tuneStreetResolution(delta,true);

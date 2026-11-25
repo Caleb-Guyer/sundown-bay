@@ -159,8 +159,10 @@
     </template>
     <section id="chapterFilm" hidden aria-label="Story scene">
       <canvas id="chapterInsert" width="1000" height="500" hidden></canvas>
+      <canvas id="dispatchClock" width="160" height="160" hidden aria-label="Dalia’s dispatch clock"></canvas>
       <div class="chapter-slate"><small id="chapterSlug"></small><strong id="chapterTitle"></strong></div>
       <div class="chapter-caption" aria-live="polite"><b id="chapterWho"></b><span id="chapterLine"></span></div>
+      <button id="chapterSound" type="button" aria-pressed="false"><span id="chapterSoundLabel">Sound off</span> <kbd>R</kbd></button>
       <button id="chapterSkip" type="button">Skip scene <kbd>Enter</kbd></button>
     </section>
     <div id="shade" hidden></div>
@@ -252,6 +254,8 @@
   "room-voices.js",
   "room-tone.js",
   "room-tone-art.js",
+  "six-sharp.js",
+  "six-sharp-art.js",
   "public-record.js",
   "public-record-art.js",
   "marina-art.js",
@@ -408,6 +412,6 @@
   "frame-check.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=3dd601cbd2ca21c1"></script>
+  <script src="sundown.js?v=98bae4b12f8558b5"></script>
 </body>
 </html>

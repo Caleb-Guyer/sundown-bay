@@ -31,10 +31,12 @@
       {dur:4.5,art:"pass",who:"Dalia Cruz",line:"Luis has the little double-ender at North Float. He saved you the line. Mind your knuckles."}
     ],
     opening:[
-      {dur:4.3,shot:"portWide",slug:"PORT SOL",line:"",title:"Sundown Bay"},
-      {dur:4.7,shot:"fence",who:"Dock recording · 6:12 AM",line:"First boat’s at six. Been that way since my mother ran the gate."},
+      {dur:4,watch:"wide",slug:"MARLIN PIER    /    ONE WEEK AGO",title:"Six Sharp",who:"Inez · captain of Luz",line:"Seventeen aboard, Dalia. Your bell. There’s Luis coming with his lunch tins."},
+      {dur:0,watch:"work",who:"Dalia Cruz · dispatcher",line:""},
+      {dur:5.4,watch:"away",who:"Luis · night shift",line:""},
+      {dur:3.6,art:"watchCopy",who:"Dalia Cruz",line:"That was the last page I filled in before they put the chain across."},
       {dur:4.8,art:"notice",who:"Mara Vega",line:"Somebody put up a sale notice before breakfast. They used the back of the old timetable."},
-      {dur:4.6,shot:"ocean",slug:"OCEAN DRIVE",who:"Mara Vega",line:"I rang every driver I know. You’re the only one who picked up."},
+      {dur:4.6,shot:"ocean",slug:"OCEAN DRIVE    /    TODAY",title:"Sundown Bay",who:"Mara Vega",line:"I rang every driver I know. You’re the only one who picked up."},
       {dur:4.8,art:"key",who:"Marlin night clerk",line:"Fourteen’s your room. The coral coupe is outside. Bring that key back on Monday."},
       {dur:4.7,shot:"mara",slug:"MARLIN MOTEL",who:"Mara Vega",line:"I’m by the curb with the camera. Come find me before somebody takes it down."}
     ],
@@ -69,17 +71,38 @@
   const read=(raw={})=>({stage:stages.includes(raw?.stage)?raw.stage:"arrival",route:["print","live"].includes(raw?.route)?raw.route:"",
     credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true,
     pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
-    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),
+    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),
     airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
     constructor(){try{this.book=read(JSON.parse(localStorage.getItem(key)));}catch{this.book=read();}this.scene=null;this.table=null;}
     write(){try{localStorage.setItem(key,JSON.stringify(this.book));}catch{}}
     advance(stage){if(stages.indexOf(stage)>stages.indexOf(this.book.stage)){this.book.stage=stage;this.write();}}
-    start(id){if(!scenes[id])return;this.scene={id,index:0,age:0};return this.beat();}
-    beat(){const s=this.scene;return s?scenes[s.id][s.index]:null;}
-    step(dt){if(!this.scene)return false;this.scene.age+=dt;
-      if(this.scene.age<this.beat().dur)return false;
-      this.scene.age-=this.beat().dur;this.scene.index++;if(!this.beat())this.scene=null;return true;}
+    start(id,replay=false){
+      if(!scenes[id])return;this.watch=id==="opening"?new BaySixSharp.Watch():null;this.scene={id,index:0,age:0};
+      if(this.watch&&!replay&&this.book.morning){this.watch.departure={...this.book.morning};this.scene.index=scenes.opening.findIndex(b=>b.art==="watchCopy");}
+      return this.beat();
+    }
+    beat(){
+      const s=this.scene,b=s&&scenes[s.id][s.index];if(!b)return null;
+      if(b.watch==="away")return {...b,line:this.watch.departure.luis==="aboard"?"One’s mine. The other’s my brother’s. He’d have had crackers for supper.":"Tell my brother I’ve got his lunch. I’ll catch the next one."};
+      const recorded=this.book.morning;
+      if(recorded&&s.id==="boarded"&&s.index===1)return {...b,line:recorded.luis==="aboard"?
+        "Dad was on the far side. The morning Dalia held the gate, Uncle Luis brought his lunch across in that blue tin.":
+        "Dad worked the far side. He kept crackers in the glove box for mornings Uncle Luis missed the six."};
+      if(recorded&&(s.id==="passDalia"||s.id==="passShift")&&s.index===0)return {...b,line:recorded.luis==="aboard"?
+        "Eighteen that last morning. Luis counted the tins twice. I still have the carbon. Here’s the first ticket back.":
+        "Seventeen that last morning. Luis was my eighteenth today. I made him come in early. Here’s your ticket."};
+      return b;
+    }
+    step(dt,hold=false){if(!this.scene)return false;const b=this.beat();
+      if(b.watch)this.watch.tick(dt,hold&&b.watch==="work");
+      if(b.watch==="work"){
+        if(!this.watch.departure)return false;
+        this.scene.age=0;
+      }else{
+        this.scene.age+=dt;if(this.scene.age<b.dur)return false;this.scene.age-=b.dur;
+      }
+      this.scene.index++;if(!this.beat())this.scene=null;return true;}
     frame(ride){
       const beat=this.beat(),cam=camera[beat?.shot];if(!cam)return null;
       const [set,a,b,target,focal,span]=cam,at=set==="ride"?(ride||spots.motel):spots[set];
