@@ -324,6 +324,48 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert((await js("document.querySelector('.bay-front-page').getAttribute('aria-label')")).includes(aboard?"orange":"left-handed"));
     await js(button("Luis’s note")+".click()");assert.deepEqual(await js(pocket+".pierPhoto"),selected);
     console.log("PASS The First Copy, signed at the gate and read on the reverse after reload");
+    const service=mode==="street"?"shift":"clinic";
+    await loadFootAt(await js("BayFirstCrossing.stop("+book+".berth)"));
+    await waitFor("document.querySelector('#context').innerText.includes('Board Luz')");
+    await js(`window.hearQA={goal:null,held:new Set()};
+      const advance=BayFirstCrossing.Service.prototype.step;
+      BayFirstCrossing.Service.prototype.step=function(...a){
+        const q=hearQA;if(q.goal&&this.rider&&a[3]){
+          const p=BayLandingOrder.people[q.goal],dx=p.x-this.rider.x,dz=p.z-this.rider.z;
+          const yaw=a[3].yaw-this.yaw,c=Math.cos(yaw),s=Math.sin(yaw),x=dx*c-dz*s,z=dx*s+dz*c,want=new Set();
+          if(Math.hypot(dx,dz)<.22)q.goal=null;
+          else{const gate=.44*Math.max(Math.abs(x),Math.abs(z));
+            if(Math.abs(x)>gate)want.add(x>0?'KeyD':'KeyA');if(Math.abs(z)>gate)want.add(z>0?'KeyW':'KeyS');}
+          for(const k of q.held)if(!want.has(k))dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));
+          for(const k of want)if(!q.held.has(k))dispatchEvent(new KeyboardEvent('keydown',{code:k,bubbles:true}));
+          q.held=want;
+        }
+        q.boat=this;return advance.apply(this,a);
+      };`);
+    await tap("KeyF");await waitFor("hearQA.boat?.rider?.phase==='sail'",35000);
+    async function visit(id){
+      await js("hearQA.goal="+JSON.stringify(id));await waitFor("!hearQA.goal",18000);
+      assert.equal(await js("BayLandingOrder.nearby(hearQA.boat.rider)"),id);await tap("KeyF");
+    }
+    await visit("clerk");assert.equal(await js("document.querySelector('#chapterFilm').hidden"),true);
+    for(const id of (aboard?["shift","clinic"]:["clinic","shift"])){
+      await visit(id);await waitFor(book+".hearing."+id);
+      await waitFor("document.querySelector('#speech').innerText.includes("+JSON.stringify(id==="shift"?"last crate":"bus door")+")");
+    }
+    await snap("hearing");await visit("clerk");
+    await waitFor("document.querySelector('#chapterLine').textContent.includes('Which service')");
+    await snap("order");await tap("Escape");assert.equal((await js(book)).hearing.draft,"");
+    await tap("KeyF");await tap(aboard?"Digit2":"Digit1");await waitFor(book+".hearing.draft==="+JSON.stringify(service));
+    assert.equal((await js(book)).hearing.filed,false);
+    await waitFor("hearQA.boat.rider.phase==='line'",95000);await tap("KeyF");
+    await waitFor(book+".hearing.filed&&document.querySelector('#chapterTitle').textContent==='The Public Slip'",22000);
+    await snap("posted");await waitFor("document.querySelector('#chapterLine').textContent.includes("+JSON.stringify(aboard?"either pier":"timetable")+")");
+    await tap("Enter");await loadFootAt({x:-153.1,z:-91});
+    await waitFor("document.querySelector('#context').innerText.includes('public landing order')");await tap("KeyF");
+    await waitFor("document.querySelector('#chapterLine').textContent.includes('Public access recorded')");
+    assert.equal(await js("BayLandingOrder.charter("+book+")"),service);
+    await tap("Digit1");assert.equal((await js(book)).hearing.draft,service);await tap("Enter");
+    console.log("PASS The Public Slip",service,"moving-deck testimony, paper order, mooring, ending, posted deed after reload");
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     console.log("PASS",mode,"Six Sharp departure, gangway or sailing bell, carbon and Mara callback; Public Record, First Crossing, Room Tone edit, car radio broadcast and Dalia’s response",route,credit);
   }catch(e){console.log("Campaign state",await js("JSON.stringify({book:"+book+",who:document.querySelector('#chapterWho').textContent,line:document.querySelector('#chapterLine').textContent,hint:document.querySelector('#context').innerText,at:window.recQA?.hero&&[recQA.hero.x,recQA.hero.z],goal:window.recQA?.goal,panel:document.querySelector('#panelTitle').innerText})"));await snap("failure");throw e;}

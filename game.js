@@ -747,6 +747,8 @@
     $("toast").children[0].textContent=head;$("toast").children[1].textContent=line;$("toast").hidden=false;toastTill=elapsed+seconds;
   }
   function chapterTarget(){
+    if(BayLandingOrder.charter(campaign.book))return {...BayLotNegative.notice,kind:"chapter",name:"Lot 14 · Public landing order"};
+    if(campaign.book.airings&&!campaign.book.hearing)return {...gateCrew,kind:"chapter",name:"Dalia Cruz · Port hearing"};
     if(campaign.book.pass)return BayFirstCrossing.stop(luz.phase==="sail"?1-luz.at:luz.at);
     const end=campaign.book.stage==="return"||campaign.book.stage==="filed";
     return {...(end?recordGate:BayExposure.pickup),kind:"chapter",name:end?"Lot 14 · Ferry timetable":"Mara Vega · Marlin Motel"};
@@ -755,6 +757,13 @@
     const b=campaign.beat(),table=campaign.table;
     chapterSoundLabel();
     $("dispatchClock").hidden=b?.watch!=="work";
+    if(table?.kind==="landingOrder"){
+      $("chapterSlug").textContent=$("chapterTitle").textContent="";
+      $("chapterWho").textContent="Nora Abreu · port clerk";
+      $("chapterLine").textContent=campaign.book.hearing.filed?"Public access recorded. Enter folds the order.":
+        "Which service goes in the deed?  1  Clinic timetable     2  Shift bell     Esc  Put down";
+      $("chapterSkip").hidden=true;$("chapterInsert").hidden=false;BayLandingOrder.docket($("chapterInsert"),campaign.book);return;
+    }
     if(table?.kind==="filmSleeve"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";
       $("chapterWho").textContent="Mara Vega";
@@ -778,6 +787,7 @@
     if(b?.watch==="work")$("chapterLine").textContent=campaign.watch.caption();
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
     if(b?.art==="inscription")BayStreetEditionArt.reverse($("chapterInsert"),inscribedCopy);
+    if(b?.art==="landingOrder")BayLandingOrder.docket($("chapterInsert"),campaign.book);
     if(b?.art==="negative")sound.cue("record-shutter");
     if(b?.title)sound.cue("record-theme",{ending:campaign.scene?.id==="crew"||campaign.scene?.id==="signed"});
     filmPage=b;lastFilmPaint=-Infinity;
@@ -793,6 +803,7 @@
         hours:{minute:385,night:0,rain:0},cars:[],scene:list=>BayLotNegative.actor(list,model,footLevel,1)},true);
       BayRecordArt.tone(photo);campaign.table={kind:"filmSleeve",pull:0,photo};
     }
+    else if(id==="landing-order")campaign.table={kind:"landingOrder"};
     else if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
     if(id==="firstCopy")campaign.negativeNumber=inscribedCopy.pierPhoto.frame;
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
@@ -802,6 +813,10 @@
     campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("game").classList.toggle("in-chapter",false);
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
     if(filmReplay){filmReplay=false;return;}
+    if(id==="landingClinic"||id==="landingShift"){
+      if(waypoint?.kind==="crossing"||waypoint?.kind==="chapter")waypoint=null;
+      note("The Public Slip · Filed","The new service is running. The order is posted at Lot 14.",5);return;
+    }
     if(id==="firstCopy"){
       inscribedCopy=null;if(waypoint?.kind==="luis")waypoint=null;
       note("Luis Vega","His note is on the back of your folded copy.",4);return;
@@ -831,6 +846,14 @@
         }
       }
       return true;
+    }
+    if(campaign.table?.kind==="landingOrder"){
+      const h=campaign.book.hearing;
+      if(!h.filed&&luz.rider&&/^(Digit|Numpad)[12]$/.test(ev.code)&&BayLandingOrder.select(h,ev.code.endsWith("1")?"clinic":"shift")){
+        campaign.write();luz.closeHearing();endFilm("");
+        speak("Nora Abreu","I’ll file it when we tie up. The blank beside the seal is for the landing.");return true;
+      }
+      if(ev.code==="Escape"||ev.code==="Enter")endFilm("");return true;
     }
     if(campaign.table?.kind==="filmSleeve"){
       if(ev.code==="Space")keys.add("Space");
@@ -872,6 +895,7 @@
     if(active||heat||!onStreetFeet()||unit.eye||afternoon.photo||rankPhones.lifted)return null;
     const stage=campaign.book.stage;
     if(dist(hero,BayLotNegative.subject)<1.4&&pavement.forLuis(copyForLuis))return "firstCopy";
+    if(BayLandingOrder.charter(campaign.book)&&dist(hero,BayLotNegative.notice)<1.85)return "order";
     if(stage==="return"||stage==="filed"){
       if(campaign.book.trips&&dist(hero,BayRoomTone.site)<1.52&&dist(hero,BayRoomTone.site)<dist(hero,radioSite.stand))return "reel";
       if(stage==="filed"&&dist(hero,gateCrew)<1.75&&dist(hero,gateCrew)<dist(hero,recordGate))return campaign.book.pass?"service":"pass";
@@ -882,6 +906,7 @@
     return null;
   }
   function doChapter(act){
+    if(act==="order"){enterFilm("landing-order");return;}
     if(act==="firstCopy"){
       const issue=pavement.forLuis(copyForLuis);if(!issue)return;
       inscribedCopy=pavement.sign(issue);copyForLuis=null;
@@ -891,16 +916,26 @@
     if(act==="watchBook"||act==="read"&&campaign.book.morning){enterFilm("watch-book");return;}
     if(act==="reel"){sound.warmReel();enterFilm(campaign.book.cut?"edit-reel":"reelOpen");return;}
     if(act==="pass"){luz.grant();campaign.write();enterFilm(campaign.book.credit==="crew"?"passShift":"passDalia");return;}
-    if(act==="service"&&campaign.book.cut&&campaign.book.airings){speak("Dalia Cruz",campaign.book.cut.who==="dalia"?
-      "I was buttering toast when my own voice came out of the kitchen radio. Burnt both slices.":
-      "Luis heard that bit about the lunch tins. He’s been signing his like a movie star.");return;}
+    if(act==="service"&&campaign.book.hearing){
+      const route=BayLandingOrder.charter(campaign.book);
+      speak("Dalia Cruz",route==="clinic"?"Alma’s written the time on her sun visor in red. First bus has a boat again.":
+        route==="shift"?"I hear that bell from my kitchen now. Means there’s somebody still coming home.":"The clerk’s aboard Luz. Alma’s up forward, Luis is aft.");
+      waypoint=chapterTarget();return;
+    }
+    if(act==="service"&&campaign.book.cut&&campaign.book.airings){
+      campaign.book.hearing=BayLandingOrder.read({voice:campaign.book.cut.who});campaign.write();waypoint=chapterTarget();
+      speak("Dalia Cruz",campaign.book.cut.who==="dalia"?
+        "My own voice came on the kitchen radio. Burnt my toast. The port clerk wants us aboard Luz.":
+        "Luis heard the bit about the lunch tins. Now the port clerk wants us aboard Luz.");
+      note("The Public Slip","Ride Luz with the clerk. The town is deciding what goes in the deed.",5);return;}
     if(act==="service"){waypoint=chapterTarget();speak("Dalia Cruz",campaign.book.trips?
       "I’ve got "+campaign.book.trips+" crossing"+(campaign.book.trips===1?"":"s")+" beside your name. Luz is on the board again.":"Hold on to that green ticket. The crew’s expecting you.");return;}
     if(act==="luz"){
       if(luz.board(luz.near(hero),hero)){keys.clear();resetPointer();if(waypoint?.kind==="crossing")waypoint=null;
         speak(campaign.book.credit==="crew"?"Luis · night shift":"Inez Cruz","Watch the brass edge. There’s room by the rail.");}
-      else{if(luz.phase==="berth"&&campaign.book.trips)luz.clock=Math.max(14,luz.clock);
-        note("Luz · Public crossing",luz.phase==="sail"?"Look for the red roof. The boat is on its way.":"One bell. The other landing heard you.",3);}
+      else{luz.call(luz.near(hero));
+        note("Luz · Public crossing",luz.phase==="sail"?"Look for the red roof. The boat is on its way.":
+          BayLandingOrder.charter(luz.book)==="clinic"?"Next departure from the far side in "+Math.ceil(12-luz.clock)+" s.":"One bell. The other landing heard you.",3);}
       return;
     }
     if(act==="mara"){startJob("exposure");return;}
@@ -5265,6 +5300,19 @@
       Object.assign(hero,seatPoint(skiff));pilot(skiff,1,dt);
     }
   }
+  function hearingTalk(){
+    const h=luz.hearing(),r=luz.rider;
+    if(!h||h.draft||!["sail","hearing"].includes(r.phase))return false;
+    const id=BayLandingOrder.nearby(r);
+    if(id==="clerk"){
+      if(h.clinic&&h.shift)enterFilm("landing-order");
+      else speak("Nora Abreu",h.clinic?"I’ve got Alma’s statement. Luis is aft with the lunch tins.":"Alma drives the clinic bus. Catch her by the bow and hear what a late boat costs her.");
+    }else if(id){
+      BayLandingOrder.testimony(h,id);campaign.write();
+      const p=BayLandingOrder.people[id];speak(p.name,p.line);
+    }
+    return true;
+  }
   function stepLuz(dt){
     const r=luz.rider,x=hero.x,z=hero.z;
     const input=r?{x:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),
@@ -5273,12 +5321,18 @@
     if(!r)return;
     const moving=r.phase==="board"||r.phase==="off"?Math.hypot(hero.x-x,hero.z-z):Math.hypot(r.x-ux,r.z-uz);
     motion.step(dt,moving,0);
-    if(event==="cast"){sound.cue("luz-cast");speak("Luz · deckhand",luz.book.credit==="crew"?"That’s my brother’s L on your pass. He takes the early shift.":"Dalia’s my sister. First ticket she’s written in nine months.");}
-    if(event==="channel")speak("Luz · deckhand","There’s the red channel bell. Give them a ring as we pass.");
+    if(event==="wait")speak("Alma Reyes","We’ve got a minute. They can see the awning from my bus.");
+    if(event==="cast"){sound.cue("luz-cast");speak(luz.hearing()?"Nora Abreu":"Luz · deckhand",luz.hearing()?"I’ve seen the print and heard the tape. Let’s hear the people who need the boat.":
+      luz.book.credit==="crew"?"That’s my brother’s L on your pass. He takes the early shift.":"Dalia’s my sister. First ticket she’s written in nine months.");}
+    if(event==="channel"&&!luz.hearing())speak("Luz · deckhand","There’s the red channel bell. Give them a ring as we pass.");
+    if(event==="hearing")speak("Nora Abreu","We can finish at the pier. If you need to get off, I’ll keep the statements for our next crossing.");
     if(event==="line")speak("Luz · deckhand","Take the coil. Hold Space to wind up, let go on the mark. Or give it to me with F.");
     if(event==="miss")speak("Luz · deckhand","Just water. I’ve hauled it back in. Have another go.");
     if(event==="tied"){sound.cue("luz-bell");speak("Luz · deckhand","Got the iron. That’ll hold us.");}
-    if(event==="land"){luz.book.berth=luz.at;campaign.write();resetFeet();cameraSnap();saveCrewPlace();
+    if(event==="land"){luz.book.berth=luz.at;const hearing=luz.hearing(),filed=!!hearing?.draft;
+      if(filed)hearing.filed=true;
+      campaign.write();resetFeet();cameraSnap();saveCrewPlace();
+      if(filed){enterFilm(hearing.draft==="clinic"?"landingClinic":"landingShift");return;}
       if(luz.book.trips===1&&!luz.book.cut){waypoint={...BayRoomTone.site};speak("Mara Vega · voicemail","Bring your ears to the Sol van. I caught the first boat on tape.");}
       note("Luz · "+bay.docks[luz.at].name,"Pass punched · Crossing "+luz.book.trips+(r.clean?" · First-throw catch":""),4.6);}
   }
@@ -7480,7 +7534,8 @@
     if(!campaign.book.cut)return;
     const desk=broadcastDesk,tuned=desk.device&&desk.station==="sol"&&!desk.mix&&!onAir&&!band.tape&&!skateTape.active&&!active?.take;
     if(tuned&&!ferryRadio.station)sound.warmReel();
-    if(ferryRadio.step(dt,tuned,campaign.book)){campaign.book.airings++;campaign.write();desk.nextNews=elapsed+14;}
+    if(ferryRadio.step(dt,tuned,campaign.book)){campaign.book.airings++;campaign.write();desk.nextNews=elapsed+14;
+      if(campaign.book.airings===1&&!campaign.book.hearing){note("Message from Dalia","The port clerk heard your broadcast. Meet me at Lot 14.",5);if(!waypoint)waypoint=chapterTarget();}}
     sound.reel(ferryRadio.clip,ferryRadio.at);
   }
   function windowListener(){
@@ -8912,9 +8967,12 @@
       const receiving=campaign.scene?.id==="firstCopy";
       BayLotNegative.actor(visible,model,footLevel,receiving?Math.min(1,campaign.scene.age/.85):0,receiving);
     }
+    const posted=story?.phase==="port"?"":BayLandingOrder.charter(campaign.book);
     for(const prop of BayExposure.props)if(see(prop,120)){
       if(!models.has("exposure-van"))BayExposureArt.install(model);
-      visible.push(["exposure-"+prop.kind,prop.x,footLevel(prop.x,prop.z),prop.z,prop.yaw]);
+      const key=posted&&prop.kind==="notice"?"luz/public-notice":"exposure-"+prop.kind;
+      if(key==="luz/public-notice")model(key,BayLandingOrder.notice);
+      visible.push([key,prop.x,footLevel(prop.x,prop.z),prop.z,prop.yaw]);
     }
     const mara=story?.mara||maraOnBreak();
     const partnerMotion=story?.motion||(mara===BayRoomTone.mara?(mara.motion??=new BayPlayerMotion()):idlePose);
@@ -9150,6 +9208,10 @@
       if(play&&see(ada,65))visible.push([personSkin(4,"local",0,theatre.run?1:0),ada.x,footLevel(ada.x,ada.z),ada.z,ada.yaw]);
     }
     view.drawOpaque(visible);
+    if(posted&&see(BayLotNegative.notice,38)){
+      const p=BayLotNegative.notice;model("luz/order-face",BayLandingOrder.face);
+      view.drawPrint("luz/order-face",BayLandingOrder.sign(posted),posted==="clinic"?1:2,p.x,footLevel(p.x,p.z),p.z,p.yaw);
+    }
     if(play&&maraFilm.published)BayPavementArt.rackPrint(view,model,see,pavement,BayPavement.pierLead(hours.day+1,neighbors.editions,save,maraFilm));
     if(play&&see(starliteSite,76)){
       const dx=starliteSite.x-eye.x,dz=starliteSite.z+9.89-eye.z;
@@ -9700,13 +9762,14 @@
     $("luzTicket").hidden=!luz.rider;
     $("jobKey").hidden=!!luz.rider;
     if(luz.rider){
-      const r=luz.rider;
+      const r=luz.rider,h=luz.hearing(),route=BayLandingOrder.charter(luz.book);
       $("mode").textContent="M/V Luz · Passenger";
       $("speed").textContent="";$("objective").hidden=true;
       $("luzNumber").textContent="M/V LUZ   •   Nº "+String(luz.book.trips+1).padStart(4,"0");
-      $("luzTo").textContent=bay.docks[r.phase==="board"?1-luz.at:1-luz.departure].name;
+      $("luzTo").textContent=bay.docks[r.phase==="board"||r.phase==="wait"?1-luz.at:1-luz.departure].name;
       $("luzLine").textContent=r.phase==="line"?"Cast to the iron cleat":r.phase==="off"?"Made fast · Gangway open":
-        r.bell?"Two bells · Channel clear":r.phase==="board"?"First ticket aboard":"Public landing service";
+        h?h.draft?"Signed order · File at the landing":"Public hearing · "+(Number(h.clinic)+Number(h.shift))+"/2 statements":
+        route?BayLandingOrder.terms[route].title:r.bell?"Two bells · Channel clear":r.phase==="board"?"First ticket aboard":"Public landing service";
       $("luzMeter").hidden=r.phase!=="line";if(r.phase==="line"){
         $("luzMeter").style.setProperty("--zone",(luz.goal()-.14)*100+"%");
         $("luzMeter").style.setProperty("--power",(r.charge??r.rope?.power??0)*100+"%");
@@ -9714,9 +9777,12 @@
       if(r.phase==="line"){
         const power=r.charge==null?0:Math.round(r.charge*100),target=Math.round(luz.goal()*100);
         contextHint("Space",r.rope?"Line out":r.charge==null?"Hold to cast the mooring line · F asks the deckhand":"Release near "+target+"% · "+power+"%");
-      }else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
+      }else if(h&&!h.draft&&(r.phase==="sail"||r.phase==="hearing")){
+        const [key,line]=BayLandingOrder.hint(h,r);contextHint(key,line+(r.phase==="hearing"?" · E ashore":""));
+      }else if(r.phase==="wait")contextHint("","Scheduled departure in "+Math.max(0,Math.ceil(12-luz.clock))+" s");
+      else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(chapter)contextHint("F",({firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
+    }else if(chapter)contextHint("F",({order:"Read the public landing order",firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":BayLandingOrder.charter(luz.book)==="clinic"?"Check the clinic timetable":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
     else if(active?.story?.offeredSleeve&&!campaign.book.sleeve&&!heat&&!transfer&&car===active.story.ride&&active.story.phase==="port"&&!active.story.remarked&&(active.story.sleeveStop(car)||elapsed-active.story.sleeveCall<9)){
       if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print");
       else contextHint("","Stop to look at Mara’s contact print");
@@ -10918,13 +10984,15 @@
     }else{
       title="Paused";kicker="Sundown Bay  /  "+district(pos());const stats=document.createElement("div");stats.className="statline";stats.textContent=cash(save.wallet)+"  /  Jobs "+save.paid+"  /  Tapes "+save.tapes.length+" of 5";b.append(stats);
       if(!active&&!room&&!transfer&&!unit.eye&&!skiff&&!motos.bike&&!luz.rider){
-        b.append(makeButton("Public Record",campaign.book.pass?"Find the public ferry landing.":campaign.book.stage==="filed"?"Find Dalia beside the Port Sol dispatch board.":"Find the next scene in the city.","Locate story",()=>{closePanel();clockPin(chapterTarget());}),
+        b.append(makeButton("Public Record",chapterTarget().name,"Locate story",()=>{closePanel();clockPin(chapterTarget());}),
           makeButton("Six Sharp · Opening",campaign.book.morning?"Work the gate again. Dalia keeps the original entry.":"Work Dalia’s last watch and file the missing departure entry.","Play opening",()=>enterFilm("opening",true)));
         if(campaign.book.route)b.append(makeButton("Last Exposure · "+(campaign.book.route==="live"?"On air":"The late show"),
           "Mara’s photograph reaches its audience.","Watch scene",()=>enterFilm(campaign.book.route,true)));
         if(campaign.book.credit)b.append(makeButton("The Six O’Clock Boat","The dispatch copy that went on the record.","Watch ending",()=>enterFilm(campaign.book.credit,true)));
         if(campaign.book.pass)b.append(makeButton("First Crossing",luz.book.trips+" punched crossings · "+luz.book.clean+" first-throw catches.",
           "See ticket",()=>enterFilm(campaign.book.credit==="crew"?"passShift":"passDalia",true)));
+        const route=BayLandingOrder.charter(campaign.book);
+        if(route)b.append(makeButton("The Public Slip",BayLandingOrder.terms[route].term,"Replay ruling",()=>enterFilm(route==="clinic"?"landingClinic":"landingShift",true)));
       }
       const keysList=document.createElement("div");keysList.className="controls";const allControls=[["WASD / ↑↓←→","Move, drive or swim"],["Mouse","Look around"],["E","Enter, exit or climb aboard"],["Shift","Sprint or swim faster"],["S / ↓","Brake, then reverse"],["Space","Jump, handbrake or hold to dive"],["H / F","Horn / interact"],["J / M","Jobs / map"],["Q / C","Keyboard look"],["V / X","Look back / recenter"],["+ / −","Camera distance"]];
       allControls.push(["Y / P","Switch characters / Frankie’s camera"],["U / G","Umbrella stand or fold / share and walk alongside"],["L","Hold beside a storm drain to clear it"],["Z / I","Driving view / wipers"],["[ / ]","Previous / next radio station"],["R","Toggle all sound"]);
@@ -11037,7 +11105,8 @@
     if(ev.code==="KeyN"&&!campaign.book.sleeve&&!heat&&!transfer&&active?.story?.sleeveStop(car)){enterFilm("film-sleeve");return;}
     if(luz.rider){
       if(ev.code==="Space"&&luz.rider.phase==="line"&&!luz.rider.rope)luz.rider.charge=0;
-      if(ev.code==="KeyF")luz.assist();
+      if(ev.code==="KeyF"&&!hearingTalk())luz.assist();
+      if(ev.code==="KeyE")luz.stepAshore();
       if(ev.code==="KeyH"&&luz.bell()){sound.cue("luz-bell");speak("Channel watch","Two bells back. Come on through, Luz.");}
       if(ev.code==="Escape")openPanel("pause");if(ev.code==="KeyM")openPanel("map");if(ev.code==="KeyR")radioToggle();
       return;
@@ -11254,7 +11323,7 @@
           else if(now-lastFilmPaint>=1000/24){BayRecordArt.sleeve($("chapterInsert"),sleeve.pull,sleeve.photo);lastFilmPaint=now;}
         }
         return;
-      }else if(campaign.table.kind==="watchBook"){return;
+      }else if(campaign.table.kind==="watchBook"||campaign.table.kind==="landingOrder"){return;
       }else if(campaign.table.kind==="splice"){
         const edit=campaign.table,dir=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
         const old=edit.head;edit.move(delta,dir);sound.reel(edit.playing?BayRoomTone.position(BayRoomTone.tape,edit.head):null,edit.head);
@@ -11283,7 +11352,7 @@
         if(beat==="work")BaySixSharpArt.clock($("dispatchClock"),w.second());
       }else if(art==="watchCopy"){
         if(!campaign.watch.printed){BaySixSharpArt.docket($("chapterInsert"),campaign.watch.departure);campaign.watch.printed=true;}
-      }else if(art==="inscription")return;
+      }else if(art==="inscription"||art==="landingOrder")return;
       else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}

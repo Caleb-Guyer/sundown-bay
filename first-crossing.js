@@ -27,7 +27,21 @@
     board(i,hero){
       if(!this.book.pass||this.rider||this.phase!=="berth"||i!==this.at)return false;
       this.rider={phase:"board",age:0,from:{...hero},x:-.8,z:0,tries:0,bell:false,clean:false,charge:null,rope:null};
-      this.clock=0;return true;
+      if(BayLandingOrder.charter(this.book)!=="clinic")this.clock=0;
+      return true;
+    }
+    call(i){
+      if(this.phase!=="berth"||i===this.at||!this.book.trips)return;
+      const route=BayLandingOrder.charter(this.book);
+      if(route==="shift")this.depart();
+      else if(route!=="clinic")this.clock=Math.max(14,this.clock);
+    }
+    hearing(){return this.book.hearing&&!this.book.hearing.filed?this.book.hearing:null;}
+    closeHearing(){if(this.rider?.phase==="hearing"&&this.hearing()?.draft)this.rider.phase="line";}
+    stepAshore(){
+      const r=this.rider;
+      if(r?.phase!=="hearing")return false;
+      r.phase="off";r.age=0;r.from=this.onDeck();return true;
     }
     release(){
       const r=this.rider;if(r?.phase!=="line"||r.charge==null||r.rope)return;
@@ -57,9 +71,15 @@
         if(r&&Math.abs(this.u-.5)<.15&&!this.prompted){this.prompted=true;event="channel";}
         if(this.clock===span){
           this.at=1-this.departure;this.phase="berth";this.clock=0;this.speed=0;
-          if(r){r.phase="line";r.age=0;event="line";}
+          if(r){r.phase=this.hearing()&&!this.hearing().draft?"hearing":"line";r.age=0;event=r.phase;}
         }
-      }else if(!r&&this.book.trips){this.clock+=dt;if(this.clock>=16)this.depart();}
+      }else if(this.book.trips){
+        const route=BayLandingOrder.charter(this.book);
+        if(route==="clinic"){
+          this.clock+=dt;
+          if(this.clock>=12&&(!r||r.phase==="wait")){this.depart();if(r){r.phase="sail";r.age=0;event="cast";}}
+        }else if(!r&&route!=="shift"){this.clock+=dt;if(this.clock>=16)this.depart();}
+      }
       while(this.wake.length&&t-this.wake[0].t>2.8)this.wake.shift();
       if(!r)return event;
       r.age+=dt;const shore=stop(this.at);
@@ -69,7 +89,11 @@
         const s=first?r.from:via,e=first?via:end,k=first?f*2:(f-.5)*2;
         Object.assign(hero,{x:mix(s.x,e.x,k),z:mix(s.z,e.z,k),y:mix(s.y,e.y,k),yaw:Math.atan2(e.x-s.x,e.z-s.z)});
         if(f===1){
-          if(boarding){r.phase="sail";r.age=0;this.depart();return "cast";}
+          if(boarding){
+            r.age=0;
+            if(BayLandingOrder.charter(this.book)==="clinic"&&this.clock<12){r.phase="wait";return "wait";}
+            r.phase="sail";this.depart();return "cast";
+          }
           this.book.trips++;if(r.clean)this.book.clean++;this.book.berth=this.at;this.rider=null;return "land";
         }
       }else{
@@ -127,11 +151,25 @@
   }
   function world(view,model,visible,see,s,t,person){
     if(!s.book.pass)return;
+    const charter=BayLandingOrder.charter(s.book);
     for(let i=0;i<2;i++){
       const p=stop(i);if(!see(p,75))continue;
       model("luz/post",g=>{g.box(0,.77,0,.13,1.55,.13,ink);g.box(0,1.30,0,.12,.50,.82,teal);
         g.box(.072,1.42,0,.02,.062,.62,cream);g.box(.074,1.25,-.06,.022,.039,.45,cream);});
       visible.push(["luz/post",p.x-.74,p.y,p.z+.77,0]);
+      if(charter){
+        const key="luz/station/"+charter;
+        model(key,g=>{
+          if(charter==="clinic"){
+            g.box(0,1.83,0,.12,.48,.55,ink);g.box(.07,1.83,0,.025,.40,.47,cream);
+            g.box(.093,1.90,0,.023,.15,.022,ink);g.box(.095,1.83,.079,.025,.022,.175,ink);
+          }else{
+            g.pole([0,1.53,0],[0,1.85,0],.038,ink,5);g.pole([0,1.84,0],[.3,1.84,0],.035,ink,5);
+            g.cyl(.28,1.67,0,.063,.152,.28,10,"#c6a15b");g.cyl(.28,1.50,0,.041,.037,.083,7,ink);
+          }
+        });
+        visible.push([key,p.x-.74,p.y,p.z+.77,0]);
+      }
       model("luz/cleat",g=>{g.box(0,.12,0,.21,.24,.21,ink);g.box(0,.25,0,.22,.08,.49,ink);});
       const k=cleat(i);visible.push(["luz/cleat",k.x,p.y,k.z,0]);
     }
@@ -148,6 +186,7 @@
     const captain=point(s,.61,2.31,.82),mate=point(s,-.96,-2.43,.82);
     visible.push([person(2,"local",0,1),captain.x,captain.y,captain.z,s.yaw+(s.departure?Math.PI:0)],
       [person(s.book.credit==="crew"?4:1,"local",0,s.rider?.phase==="line"?1:0),mate.x,mate.y,mate.z,s.yaw-.6]);
+    if(s.book.hearing)BayLandingOrder.world(visible,model,s);
     if(s.phase==="berth"){
       const p=stop(s.at);model("luz/plank",g=>{g.box(0,0,0,5.30,.10,.85,wood);
         for(let i=-5;i<=5;i++)g.box(i*.46,.057,0,.041,.025,.82,cream);});
@@ -179,6 +218,7 @@
     c.fillStyle=cream;c.fillRect(-1.42,2.73,2.84,.15);c.fillRect(-1.42,-2.87,2.84,.14);
     if(street){c.fillStyle="#c99a68";c.beginPath();c.arc(.61,2.31,.24,0,tau);c.fill();
       c.fillStyle=ink;c.beginPath();c.arc(-.96,-2.43,.25,0,tau);c.fill();
+      if(s.book.hearing)BayLandingOrder.map(c,s);
       if(s.phase==="berth"){c.fillStyle=wood;c.fillRect(-6.78,-.39,5.35,.78);}
       if(s.rider?.rope){const r=s.rider.rope,f=Math.min(1,r.age/.69),reach=r.hit?1:.55+r.power*.78;
         const dock=cleat(s.at),x=mix(s.rider.x,dock.x-s.x,f*reach),z=mix(s.rider.z,dock.z-s.z,f*reach);

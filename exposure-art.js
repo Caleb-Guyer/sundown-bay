@@ -200,10 +200,10 @@
       rect("#779289",-.49,-.33,.98,.61);
       rect(gold,-.62,-.45,1.24,.082);
       rect(ink,-.28,-.29,.56,.09);
-    } else if(kind==="notice"){
+    } else if(kind==="notice"||kind==="order"){
       for(const sx of [-.79,.79])rect(ink,sx-.078,-.04,.156,.24);
       rect(ink,-1.12,-.07,2.24,.16);
-      rect(oxide,-1.1,-.085,2.2,.072);
+      rect(kind==="order"?"#26554f":oxide,-1.1,-.085,2.2,.072);
       rect(cream,-.86,-.088,1.72,.023);
     } else if(kind==="mara"){
       rect("#b97951",.13,-.08,.14,.22);

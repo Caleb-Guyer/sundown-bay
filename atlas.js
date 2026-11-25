@@ -1013,7 +1013,10 @@
       }
     }
     if(street)for(const prop of BayExposure.props){
-      if(visible(px(prop.x),py(prop.z),6*s))BayExposureArt.drawMap(ctx,prop.kind,px(prop.x),py(prop.z),s,prop.yaw);
+      if(visible(px(prop.x),py(prop.z),6*s)){
+        const posted=prop.kind==="notice"&&opt.story?.phase!=="port"&&opt.record&&BayLandingOrder.charter(opt.record);
+        BayExposureArt.drawMap(ctx,posted?"order":prop.kind,px(prop.x),py(prop.z),s,prop.yaw);
+      }
     }
     const partner=opt.story?.mara||opt.mara;
     if(street&&partner&&!(opt.story?.progress>=.65)&&visible(px(partner.x),py(partner.z))){
