@@ -427,7 +427,7 @@
         this.flush();view.draw(...item);return;
       }
       let indices=model.indices,sources=model.batchSources,count=model.count,n=model.vertexCount;
-      if(view.scale<=.65&&!model.actor&&model.bounds&&model.count>330&&!tiltX&&!tiltZ&&view.farFromCamera(model.bounds,x,y,z,yaw)){
+      if(view.scale<=.65&&!model.actor&&!model.crowdDetail&&model.bounds&&model.count>330&&!tiltX&&!tiltZ&&view.farFromCamera(model.bounds,x,y,z,yaw)){
         if(!model.distanceReady)view.prepareDistanceMesh(model,data);
         if(model.batchDistant){
           indices=model.batchDistant.indices;sources=model.batchDistant.sources;count=indices.length;n=sources.length;
@@ -446,7 +446,7 @@
         sources=model.batchSources=new Uint32Array(n);
         for(let i=0;i<model.count;i++)sources[indices[i]]=i*6;
       }
-      if(!model.dynamic&&!vapor&&!car?.damage){
+      if(!model.dynamic&&!model.crowdDetail&&!vapor&&!car?.damage){
         const small=this.distanceDetail(model,data,x,y,z);
         if(small&&small.count<count*.82){
           data=small.data;indices=small.indices;sources=null;count=small.count;n=data.length/6;
@@ -797,7 +797,7 @@
         model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,model.indices,gl.STATIC_DRAW);
       }
-      model.actor=!!rig;
+      model.actor=!!rig;model.crowdDetail=name.startsWith("sidewalk/far/");
       if(rig&&packed){
         model.actorStream=packed.vertices.slice();model.copies=packed.copies;model.batchSources=packed.sources;
       }
@@ -882,8 +882,11 @@
       const dx=x+c*b.x+s*b.z-eye.x,dy=y+b.y-eye.y,dz=z+c*b.z-s*b.x-eye.z;
       return dx*dx+dy*dy+dz*dz>(55+b.r)*(55+b.r);
     }
-    updateAnimated(name){
+    updateAnimated(name,deferUpload=false){
       const model=this.models.get(name);if(!model||this.lost)return;
+      // A crowd pose enters the low-resolution street batch directly from CPU memory.
+      // Its own GPU buffer is needed only if a shadow or individual draw uses it.
+      if(deferUpload){model.needsUpload=true;return;}
       if(model.actor){model.poseChanged=true;model.needsUpload=true;model.checkCopies=!!model.copies;return;}
       const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);
       gl.bufferSubData(gl.ARRAY_BUFFER,0,this.cpu.get(name));this.bound=null;
@@ -1070,7 +1073,8 @@
     drawGhost(name,x,y,z,yaw){
       this.gl.uniform1f(this.u.ghost,1);this.drawEffect(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
     }
-    drawOpaque(list){
+    drawOpaque(list){this.drawStreetList(list);}
+    drawStreetList(list){
       if(this.scale>.75){for(const item of list)this.draw(...item);return;}
       const batch=this.streetBatch??=new StreetBatch(this);
       batch.buildDetail=true;
@@ -1154,7 +1158,7 @@
         else gl.bufferSubData(gl.ARRAY_BUFFER,0,stream||data);
         this.bound=null;base.needsUpload=false;
       }
-      const reduced=this.scale<=.65&&base===model&&!base.actor&&base.bounds&&base.count>330&&
+      const reduced=this.scale<=.65&&base===model&&!base.actor&&!base.crowdDetail&&base.bounds&&base.count>330&&
         (model.sections||!tiltX&&!tiltZ&&this.farFromCamera(base.bounds,x,y,z,yaw));
       if(reduced&&!model.distanceReady)this.prepareDistanceMesh(model,this.cpu.get(name));
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}

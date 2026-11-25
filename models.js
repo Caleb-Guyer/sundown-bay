@@ -389,10 +389,10 @@
     g.quad([x-.038,y-.033,z-.005],[x+.038,y-.033,z-.005],[x+.035,y-.047,z+.034],[x-.035,y-.047,z+.034],sole);
   }
 
-  window.buildBayPerson = function buildBayPerson(g,skin="#ae785c",shirt="#39af9e",trousers="#334557",phase=0,role="local",gesture=0,markPart) {
+  window.buildBayPerson = function buildBayPerson(g,skin="#ae785c",shirt="#39af9e",trousers="#334557",phase=0,role="local",gesture=0,markPart,walk=null) {
     const driver=role==="driver", runner=role==="runner", tourist=role==="tourist";
     const dock=role==="dockhand", courier=role==="courier", fisher=role==="fisher";
-    const stride=Math.sin(phase),bob=.012*Math.abs(stride);
+    const stride=Math.sin(phase),bob=(walk?.moving ? .022 : .012)*Math.abs(stride);
     const talking=gesture===1,reading=gesture===2;
     const top=driver?"#398e86":shirt;
     const pants=driver?"#556d80":trousers;
@@ -407,8 +407,9 @@
     for(const side of [-1,1]){
       markPart?.("leg",side);
       const swing=stride*side,hip=[side*.101,.967+bob,0];
-      const knee=[side*.109,.55+bob,.112*swing+.014];
-      const ankle=[side*.111,.169+.037*Math.max(0,swing),.205*swing];
+      const lift=walk?.moving?Math.max(0,side*Math.cos(phase))**2:0;
+      const knee=[side*.109,.55+bob+.055*lift,.112*swing+.014+.115*lift];
+      const ankle=[side*.111,.169+(walk?.moving ? .112*lift : .037*Math.max(0,swing)),(walk?.moving ? .285 : .205)*swing];
       if(runner||tourist){
         const cut=runner?.76:.68, t=(hip[1]-cut)/(hip[1]-knee[1]);
         const edge=[mix(hip[0],knee[0],t),cut+bob,mix(hip[2],knee[2],t)];
@@ -425,7 +426,8 @@
           section(g,cuff,ankle,.119,.125,.115,.123,hem,tint(hem,"#485768",.20));
         }
       }
-      shoe(g,ankle,shoeTop,shoeHeel,dock?"#5b534c":"#dcceb0",dock?"#a68867":"#c0ba9d");
+      if(walk?.distant)g.box(ankle[0],ankle[1]-.092,ankle[2]+.034,.125,.122,.246,shoeTop);
+      else shoe(g,ankle,shoeTop,shoeHeel,dock?"#5b534c":"#dcceb0",dock?"#a68867":"#c0ba9d");
       markPart?.("arm",side);
       const shoulder=[side*.204,1.410+bob,-.004];
       let sleeveEnd=[side*.237,1.268+bob,-swing*.065];
@@ -452,10 +454,10 @@
         }
       }
       section(g,sleeveEnd,elbow,.104,.114,.095,.109,skin,shadeSkin);
-      section(g,elbow,hand,.101,.110,.074,.085,skin,shadeSkin);
+      if(!walk?.distant)section(g,elbow,hand,.101,.110,.074,.085,skin,shadeSkin);
       const fingers=[hand[0]+.006*side,hand[1]-(reading?.023:.045),hand[2]+(reading?.033:.016)];
-      section(g,hand,fingers,.075,.087,.063,.070,skin,shadeSkin);
-      g.quad([fingers[0]-.031,fingers[1],fingers[2]-.034],[fingers[0]+.031,fingers[1],fingers[2]-.034],
+      section(g,walk?.distant?elbow:hand,fingers,walk?.distant ? .101 : .075,walk?.distant ? .110 : .087,.063,.070,skin,shadeSkin);
+      if(!walk?.distant)g.quad([fingers[0]-.031,fingers[1],fingers[2]-.034],[fingers[0]+.031,fingers[1],fingers[2]-.034],
         [fingers[0]+.031,fingers[1],fingers[2]+.035],[fingers[0]-.031,fingers[1],fingers[2]+.035],shadeSkin);
       hands.push(hand);
     }
@@ -475,7 +477,11 @@
       const dx=b[0]-a[0],dy=b[1]-a[1],f=width*.5/Math.hypot(dx,dy),ox=dy*f,oy=-dx*f;
       cloth([[a[0]+ox,a[1]+oy],[b[0]+ox,b[1]+oy],[b[0]-ox,b[1]-oy],[a[0]-ox,a[1]-oy]],side,color,depth);
     };
-    if(driver) {
+    if(walk?.distant){
+      if(dock||fisher)g.quad([-.145,1.41+bob,.121],[.145,1.41+bob,.121],[.124,1.02+bob,.113],[-.124,1.02+bob,.113],dock?"#d2a26a":"#909a78");
+      if(courier)g.box(.14,1.011+bob,.086,.186,.172,.10,"#a78666");
+      if(tourist)g.box(0,1.216+bob,.153,.132,.082,.057,"#637375");
+    }else if(driver) {
       cloth([[-.063,1.427],[.065,1.427],[.031,1.26],[.058,.973],[-.055,.973],[-.032,1.23]],1,"#e6d8b5");
       for(const side of [-1,1]){
         cloth([[side*.087,1.423],[side*.120,1.389],[side*.052,1.302],[side*.040,1.39]],1,"#80ac98",.009);
@@ -532,36 +538,44 @@
     const headQuad=(a,b,c,d,color)=>g.quad(head(a),head(b),head(c),head(d),color);
     const jaw=ring(1.519,.074,.077,.066),cheeks=ring(1.613,.099,.103,.088),brow=ring(1.692,.096,.094,.092);
     const tones=[skin,sunSkin,shadeSkin,shadeSkin,shadeSkin,shadeSkin,skin,sunSkin];
-    joinRings(g,brow,cheeks,tones);joinRings(g,cheeks,jaw,tones);
-    headTri([-.019,1.660,.102],[.013,1.660,.102],[.004,1.606,.124],sunSkin);
-    headTri([.013,1.660,.102],[.022,1.605,.101],[.004,1.606,.124],shadeSkin);
-    headQuad([-.021,1.579,.096],[.024,1.579,.096],[.014,1.574,.095],[-.018,1.574,.095],tint(skin,"#824f52",.61));
-    for(const side of [-1,1]){
-      headTri([side*.095,1.650,.015],[side*.112,1.627,.006],[side*.094,1.592,.019],sunSkin);
-      headQuad([side*.026,1.657,.101],[side*.061,1.658,.101],[side*.059,1.648,.102],[side*.027,1.648,.102],"#574a46");
-      headTri([side*.024,1.679,.1],[side*.068,1.676,.097],[side*.031,1.669,.101],hair);
-    }
-    const capped=tourist||dock||fisher;
-    const hairline=ring(1.687,.101,.092,.096);
-    const crown=ring(driver?1.753:1.751,.094,driver?.121:.091,.090);
-    joinRings(g,hairline,crown,[hair,hairLight,hair,hair,hair,hair,hair,hairLight]);
-    const crest=head([driver?-.034:.008,driver?1.801:1.778,driver?.037:0]);
-    for(let i=0;i<8;i++)g.tri(crown[i],crown[(i+1)%8],crest,i%3?hair:hairLight);
-    headQuad([-.075,1.704,-.095],[.076,1.704,-.095],[.065,1.608,-.091],[-.062,1.597,-.091],hair);
-    if(driver) {
-      headTri([-.090,1.724,.087],[.062,1.717,.107],[-.067,1.665,.102],hair);
-      headTri([-.079,1.753,-.055],[-.011,1.773,-.067],[-.060,1.713,-.092],hairLight);
-      headTri([.027,1.745,-.092],[.078,1.737,-.069],[.046,1.688,-.096],hairLight);
-    } else if(capped){
-      const hat=tourist?"#cfb07d":fisher?"#839680":"#557e83";
-      const brim=ring(1.721,tourist?.145:.11,tourist?.15:.154,tourist?.135:.094);
-      const cap=ring(1.743,.104,.097,.098),upper=ring(tourist?1.806:1.777,.079,.078,.07);
-      joinRings(g,brim,cap,[tint(hat,"#6d6a5b",.19)]);
-      joinRings(g,cap,upper,[hat,hat,tint(hat,"#cec49d",.19),hat]);
-      const topPoint=head([0,tourist?1.810:1.802,0]);
-      for(let i=0;i<8;i++)g.tri(upper[i],upper[(i+1)%8],topPoint,hat);
-    } else if(runner){
-      joinRings(g,ring(1.678,.102,.099,.097),ring(1.704,.104,.10,.097),["#deaa83"]);
+    if(walk?.distant){
+      joinRings(g,brow,jaw,tones);
+      const capped=tourist||dock||fisher,hat=tourist?"#cfb07d":fisher?"#839680":"#557e83";
+      const rim=ring(1.68,capped?.122:.098,capped?.15:.10,.097);
+      const top=head([0,capped?1.807:1.778,0]);
+      for(let i=0;i<8;i++)g.tri(rim[i],rim[(i+1)%8],top,capped?hat:hair);
+    }else{
+      joinRings(g,brow,cheeks,tones);joinRings(g,cheeks,jaw,tones);
+      headTri([-.019,1.660,.102],[.013,1.660,.102],[.004,1.606,.124],sunSkin);
+      headTri([.013,1.660,.102],[.022,1.605,.101],[.004,1.606,.124],shadeSkin);
+      headQuad([-.021,1.579,.096],[.024,1.579,.096],[.014,1.574,.095],[-.018,1.574,.095],tint(skin,"#824f52",.61));
+      for(const side of [-1,1]){
+        headTri([side*.095,1.650,.015],[side*.112,1.627,.006],[side*.094,1.592,.019],sunSkin);
+        headQuad([side*.026,1.657,.101],[side*.061,1.658,.101],[side*.059,1.648,.102],[side*.027,1.648,.102],"#574a46");
+        headTri([side*.024,1.679,.1],[side*.068,1.676,.097],[side*.031,1.669,.101],hair);
+      }
+      const capped=tourist||dock||fisher;
+      const hairline=ring(1.687,.101,.092,.096);
+      const crown=ring(driver?1.753:1.751,.094,driver?.121:.091,.090);
+      joinRings(g,hairline,crown,[hair,hairLight,hair,hair,hair,hair,hair,hairLight]);
+      const crest=head([driver?-.034:.008,driver?1.801:1.778,driver?.037:0]);
+      for(let i=0;i<8;i++)g.tri(crown[i],crown[(i+1)%8],crest,i%3?hair:hairLight);
+      headQuad([-.075,1.704,-.095],[.076,1.704,-.095],[.065,1.608,-.091],[-.062,1.597,-.091],hair);
+      if(driver) {
+        headTri([-.090,1.724,.087],[.062,1.717,.107],[-.067,1.665,.102],hair);
+        headTri([-.079,1.753,-.055],[-.011,1.773,-.067],[-.060,1.713,-.092],hairLight);
+        headTri([.027,1.745,-.092],[.078,1.737,-.069],[.046,1.688,-.096],hairLight);
+      } else if(capped){
+        const hat=tourist?"#cfb07d":fisher?"#839680":"#557e83";
+        const brim=ring(1.721,tourist?.145:.11,tourist?.15:.154,tourist?.135:.094);
+        const cap=ring(1.743,.104,.097,.098),upper=ring(tourist?1.806:1.777,.079,.078,.07);
+        joinRings(g,brim,cap,[tint(hat,"#6d6a5b",.19)]);
+        joinRings(g,cap,upper,[hat,hat,tint(hat,"#cec49d",.19),hat]);
+        const topPoint=head([0,tourist?1.810:1.802,0]);
+        for(let i=0;i<8;i++)g.tri(upper[i],upper[(i+1)%8],topPoint,hat);
+      } else if(runner){
+        joinRings(g,ring(1.678,.102,.099,.097),ring(1.704,.104,.10,.097),["#deaa83"]);
+      }
     }
     if(reading){
       g.quad([-.059,1.177+bob,.241],[.047,1.177+bob,.241],[.047,1.252+bob,.209],[-.059,1.252+bob,.209],"#394f59");
@@ -577,4 +591,28 @@
     if(role==="photographer")BayExposureArt.dress(g,markPart);
     if(role==="ferry-engineer")BayFerryPassengerArt.dress(g,markPart);
   };
+
+  // Paint is shared by all eight poses. Only coordinates that move enter the clip.
+  class WalkCycle {
+    constructor(colors,role,gesture=0){
+      const make=(phase,moving)=>{
+        const mesh=new BayMesh();
+        buildBayPerson(mesh,...colors,phase,role,gesture,null,{moving});
+        return new Float32Array(mesh.vertices);
+      };
+      this.rest=make(0,false);
+      const poses=Array.from({length:8},(_,i)=>make(i*Math.PI/4,true)),offsets=[];
+      for(let i=0;i<this.rest.length;i+=6)for(let k=0;k<3;k++){
+        const j=i+k;if(poses.some(p=>p[j]!==this.rest[j]))offsets.push(j);
+      }
+      this.offsets=Uint32Array.from(offsets);
+      this.frames=poses.map(p=>Float32Array.from(offsets,j=>p[j]-this.rest[j]));
+    }
+    pose(vertices,phase,weight){
+      const at=((phase*4/Math.PI)%8+8)%8,lo=Math.floor(at),part=at-lo;
+      const a=this.frames[lo],b=this.frames[(lo+1)%8],off=this.offsets,rest=this.rest;
+      for(let i=0;i<off.length;i++){const j=off[i];vertices[j]=rest[j]+weight*(a[i]+(b[i]-a[i])*part);}
+    }
+  }
+  window.BayWalkCycle=WalkCycle;
 })();

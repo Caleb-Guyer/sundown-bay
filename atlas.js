@@ -424,7 +424,12 @@
     const guard=recoil?.guard||0,air=recoil?.air||0,lead=recoil?.lead||1;
     if(p.gesture===4){line(c,.19,.01,.40,-.17,p.shirt,.12);disc(c,.42,-.20,.087,p.skin||"#c58b68");}
     for(const side of [-1,1]){
-      rect(c,side*.14-.065,.04+air*side*lead*.17,.13,.35,"#374650");
+      const stride=side*(p.stride||0);
+      rect(c,side*.14-.065,.04+air*side*lead*.17-.245*stride,.13,.35,"#374650");
+      if(!guard&&Math.abs(stride)>.03&&p.gesture!==4){
+        line(c,side*.21,.01,side*.24,.16*stride,p.shirt,.10);
+        disc(c,side*.24,.16*stride,.06,p.skin||"#c58b68");
+      }
       if(guard>.015){
         const handX=side*(.26+.24*guard),handY=-.06-(side===lead?.40:.22)*guard;
         line(c,side*.21,.01,handX,handY,p.shirt,.13);disc(c,handX,handY,.085,p.skin||"#c58b68");

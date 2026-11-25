@@ -1,5 +1,5 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
-module.exports=async function footPursuit({js,send,waitFor,tap,mode,errors}){
+module.exports=async function footPursuit({js,send,waitFor,key,tap,mode,errors}){
   async function snap(name){
     const {data}=await send("Page.captureScreenshot",{format:"jpeg",quality:88});
     const dir=path.join(__dirname,"curb-wire-proof");fs.mkdirSync(dir,{recursive:true});
@@ -21,7 +21,9 @@ module.exports=async function footPursuit({js,send,waitFor,tap,mode,errors}){
       return result;
     };
     q.at=(a,x,z,yaw)=>Object.assign(a,{x,z,y:q.floor(x,z),yaw});`);
-  await waitFor("q.hero&&q.rig&&q.crowd?.length");await js(`q.at(q.hero,146,0,0);q.rig.reset(q.hero);
+  await waitFor("q.hero&&q.rig&&q.crowd?.length");
+  await require("./passing.cjs")({js,waitFor,key,snap,mode});
+  await js(`q.at(q.hero,146,0,0);q.rig.reset(q.hero);
     const p=q.crowd.find(w=>!w.name&&!w.onTour&&!w.palmManaged);q.at(p,146,6,0);p.wait=70;`);
   await tap("Digit1");await tap("Space");await waitFor("!!q.v");await tap("Digit0");
   await js("q.hero.yaw=Math.atan2(-4,-8);q.rig.reset(q.hero);true");

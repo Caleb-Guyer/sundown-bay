@@ -69,9 +69,30 @@
     return people;
   }
   const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
-  function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0,rail=null){
+  // A passerby commits to one shoulder until clear of the person ahead.
+  function passDirection(p,player,ux,uz,valid,cars){
+    const dx=player.x-p.x,dz=player.z-p.z,ahead=dx*ux+dz*uz,side=dx*uz-dz*ux;
+    if(ahead<-.22||ahead>2.55||Math.abs(side)>1.12){p.passing=0;return null;}
+    const safe=sign=>{
+      const x=p.x+ux*.22+sign*uz*.63,z=p.z+uz*.22-sign*ux*.63;
+      if(!valid(x,z,.28))return false;
+      // Stay on the pavement when the other shoulder would enter a traffic lane.
+      const curb=(x,z)=>Math.min(Math.abs(x-Math.round(x/72)*72),Math.abs(z-Math.round(z/72)*72));
+      if(curb(p.x,p.z)>=6.35&&curb(x,z)<6.35)return false;
+      return cars.every(v=>Math.abs(v.x-x)>4||Math.abs(v.z-z)>4||BayDriving.clearance(v,{x,z})>.38);
+    };
+    let sign=p.passing||(Math.abs(side)>.17?-Math.sign(side):(p.offset||0)<0?-1:1);
+    if(!safe(sign)){if(!p.passing&&safe(-sign))sign=-sign;else return {x:0,z:0};}
+    p.passing=sign;
+    const cross=sign*Math.max(.12,1.06+sign*side),forward=Math.max(.22,ahead-.48),len=Math.hypot(forward,cross);
+    return {x:(ux*forward+uz*cross)/len,z:(uz*forward-ux*cross)/len};
+  }
+  function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0,rail=null,player=null){
+    const ease=-Math.expm1(-12*dt);
     for(const p of people){
       if(p.onTour)continue;
+      const weight=p.walkWeight||0,goal=p.moving&&!p.down?1:0;
+      p.walkWeight=Math.abs(goal-weight)<.003?goal:weight+(goal-weight)*ease;
       if((p.down||p.flee)&&BayStreetAction.stepPerson(p,dt,valid))continue;
       if(p.sprayWait>0){
         p.sprayWait=Math.max(0,p.sprayWait-dt);p.sprayAge+=dt;
@@ -100,8 +121,12 @@
       if(p.alert>0){p.alert-=dt;p.gesture=1;continue;}
       if(p.wait>0){p.wait-=dt;p.gesture=p.name?2:(Math.floor(time*.32+p.phase)%3===0?1:0);continue;}
       if(d<.3||p.stuck>2.4){p.wait=target[2];p.index=(p.index+1)%p.path.length;p.stuck=0;continue;}
-      const ux=dx/d,uz=dz/d;
+      let ux=dx/d,uz=dz/d;
       if(!BayCrosswalk.ready(p,time,signals,cars,driver,dt))continue;
+      if(player&&!p.crossing?.entered&&!p.fieldSource&&Math.abs(p.x-player.x)<3&&Math.abs(p.z-player.z)<3){
+        const pass=passDirection(p,player,ux,uz,valid,cars);
+        if(pass){if(!pass.x&&!pass.z)continue;ux=pass.x;uz=pass.z;}
+      }else p.passing=0;
       const pace=p.crossing?.entered?Math.max(1.72,p.pace):p.pace;
       const step=Math.min(d,pace*dt);let nx=p.x+ux*step,nz=p.z+uz*step;
       if(p.crossing?.entered){
@@ -120,7 +145,7 @@
         const gap=BayDriving.clearance(driver,{x:nx,z:nz});
         clear=gap>.48||gap>BayDriving.clearance(driver,p);
       }
-      if(clear){p.x=nx;p.z=nz;p.stuck=0;p.moving=true;p.phase+=step*4.8;}
+      if(clear){const priorX=p.x,priorZ=p.z;p.x=nx;p.z=nz;p.stuck=0;p.moving=true;p.phase+=Math.hypot(nx-priorX,nz-priorZ)*4.8;}
       else{p.stuck+=dt;}
       p.gesture=p.crossing?.wave>time?4:0;p.yaw+=wrap(Math.atan2(ux,uz)-p.yaw)*Math.min(1,dt*6.8);
     }
