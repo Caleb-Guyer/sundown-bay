@@ -384,7 +384,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       await js("const drawCase=BayOutsideCopy.map;BayOutsideCopy.map=function(c,x,y,s,site,copy){if(copy)window.casePlotted=copy.frame;return drawCase.apply(this,arguments);};");
       await waitFor("window.casePlotted==="+JSON.stringify(selected.frame));
     }
-    await waitFor("!document.querySelector('#speech').hidden&&document.querySelector('#speech').innerText.includes("+JSON.stringify(display.reader)+")",65000);
+    await waitFor("!document.querySelector('#speech').hidden&&document.querySelector('#speech strong').textContent==="+JSON.stringify(display.reader),65000);
     await js("window.readerPainted=false;requestAnimationFrame(()=>requestAnimationFrame(()=>{window.readerPainted=true;}))");await waitFor("window.readerPainted");
     await snap("outside-case");
     await tap("KeyF");await waitFor("document.querySelector('.hang-copy:enabled')");
