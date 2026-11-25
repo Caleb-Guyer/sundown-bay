@@ -15,28 +15,46 @@ const engineSeven = process.argv.includes("--engine-seven");
 const play = require(junction ? "./junction.cjs" : engineSeven ? "./engine-seven.cjs" : starlite ? "./starlite.cjs" : pavement ? "./pavement.cjs" : partnerDrive ? "./partner-drive.cjs" : neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
 
 const mode = process.argv[2];
-const site = "https://caleb-guyer.github.io/sundown-bay/";
+const publicSite = "https://caleb-guyer.github.io/sundown-bay/";
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function waitForRelease() {
-  const html = fs.readFileSync(path.join(__dirname, "../../index.html"), "utf8");
-  const asset = html.match(/<script src="(sundown\.js\?v=[a-f0-9]+)"/)[1];
-  const end = Date.now() + 210000;
+async function liveRelease(asset,timeout) {
+  const end = Date.now() + timeout;
   while (Date.now() < end) {
-    const response = await fetch(site + "?playtest=" + Date.now(), {
-      cache: "no-store", signal: AbortSignal.timeout(15000)
-    });
-    if (response.ok && (await response.text()).includes(asset)) return asset;
+    try {
+      const response = await fetch(publicSite + "?playtest=" + Date.now(), {
+        cache: "no-store", signal: AbortSignal.timeout(10000)
+      });
+      if (response.ok && (await response.text()).includes(asset)) return true;
+    } catch { /* A failed deployment must not prevent collecting gameplay evidence. */ }
     await delay(4000);
   }
-  throw Error("Pages did not serve " + asset + " within the deployment window");
+  return false;
+}
+async function serveCheckout() {
+  const files = new Map([["","index.html"],["index.html","index.html"],["sundown.js","sundown.js"],
+    ["style.css","style.css"],["wordmark.svg","wordmark.svg"]]);
+  const types = {".html":"text/html",".js":"application/javascript",".css":"text/css",".svg":"image/svg+xml"};
+  const server = require("node:http").createServer((req,res) => {
+    const name = files.get(req.url.split("?")[0].slice(1));
+    if (!name) { res.writeHead(404).end(); return; }
+    res.setHeader("Content-Type",types[path.extname(name)] + "; charset=utf-8");
+    fs.createReadStream(path.join(__dirname,"../..",name)).pipe(res);
+  });
+  await new Promise((resolve,reject)=>{server.once("error",reject);server.listen(0,"127.0.0.1",resolve);});
+  server.unref();
+  return server;
 }
 
 async function run() {
   assert.equal(process.platform, "linux", "Browser playtests run on GitHub's Linux machines");
   assert.equal(process.env.GITHUB_ACTIONS, "true", "Use a hosted runner for browser tests");
   assert(["overhead", "street"].includes(mode));
-  const asset = await waitForRelease();
+  const html = fs.readFileSync(path.join(__dirname, "../../index.html"), "utf8");
+  const asset = html.match(/<script src="(sundown\.js\?v=[a-f0-9]+)"/)[1];
+  const server = await liveRelease(asset,45000) ? null : await serveCheckout();
+  const site = server ? "http://127.0.0.1:" + server.address().port + "/" : publicSite;
+  console.log("Playtesting " + (server ? "runner checkout" : "GitHub Pages") + " · " + asset);
   const profile = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP, "bay-wire-"));
   const chrome = spawn("google-chrome", [
     "--headless", "--mute-audio", "--window-size=1024,640", "--no-first-run",
@@ -142,8 +160,16 @@ async function run() {
     await (campaign ? require("./public-record.cjs") : sand ? require("./soft-sand.cjs") : lights ? require("./road-lights.cjs") : rank ? require("./ring-twice.cjs") : activity)({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
     assert.equal(await js("audioStarts+cursorRequests"), 0);
+    if(server){
+      console.log("Verified runner checkout " + asset);
+      assert(await liveRelease(asset,30000),"Pages has not published the tested release");
+      const response=await fetch(publicSite+asset,{signal:AbortSignal.timeout(20000)});
+      assert(response.ok);
+      assert(fs.readFileSync(path.join(__dirname,"../../sundown.js")).equals(Buffer.from(await response.arrayBuffer())));
+    }
     console.log("Verified public bundle " + asset);
   } finally {
+    server?.close();
     if (chrome.exitCode === null) chrome.kill();
   }
 }
