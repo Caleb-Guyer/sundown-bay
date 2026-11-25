@@ -132,11 +132,12 @@ async function run() {
     const needle = process.argv.includes("--needle-drop");
     const rank = process.argv.includes("--ring-twice");
     const lights = process.argv.includes("--road-lights");
+    const sand = process.argv.includes("--soft-sand");
     const beat = process.argv.includes("--ocean-beat");
     const carbon = process.argv.includes("--carbon-copies");
-    if (!lights && !rank && !needle && !windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
+    if (!sand && !lights && !rank && !needle && !windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
     const activity = needle ? require("./needle-drop.cjs") : windows ? require("./open-windows.cjs") : lanes ? require("./boulevard.cjs") : caps ? require("./summer-caps.cjs") : freight ? require("./port-spur.cjs") : angling ? require("./red-cork.cjs") : bumpers ? require("./bumpers.cjs") : houseLights ? require("./house-lights.cjs") : cup ? require("./coast-cup.cjs") : beat ? require("./ocean-beat.cjs") : carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
-    await (lights ? require("./road-lights.cjs") : rank ? require("./ring-twice.cjs") : activity)({ js, send, waitFor, key, tap, errors, mode, local: false });
+    await (sand ? require("./soft-sand.cjs") : lights ? require("./road-lights.cjs") : rank ? require("./ring-twice.cjs") : activity)({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
     assert.equal(await js("audioStarts+cursorRequests"), 0);
     console.log("Verified public bundle " + asset);

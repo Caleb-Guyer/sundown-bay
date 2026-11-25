@@ -4,6 +4,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+Look for the burnt-orange hatch with two surfboards on its roof, on the sand just north of the striped lifeguard tower. Ro Vega has buried the front wheels. Come to the tailgate and press **F**. Ease off as the wagon rolls back. After the two amber flashes, hold **W** as Ro pulls forward, then release for the next rock. **E** steps away. Once free, she parks beside the promenade and leaves her red traction boards out for you.
+
+Borrow the pair from Ro’s rack with **F**. Stand beside a stationary car on Sol Beach and press **F** to wedge the boards under its drive wheels. You can also lay them on a clear patch, move them, or return them to the rack. Their position survives a reload. Dry sand slows your launch. Down by the wet shoreline, or running back over a fresh pair of ruts, the car finds firmer footing. Tires and shoes both leave prints.
+
 After dark, drive north from Ocean Drive onto Pelican Cut. **Shift + L** switches between dipped headlights and high beams. Cars and buildings cast shadows across the road. Watch oncoming traffic for a double flash asking you to dip. Tap **L** to flash your own lamps. In the rain, brake lights leave a red pool behind a stopped car and reverse lamps light the pavement white.
 
 If a cab regular is waiting when a rank phone rings, hang back. On the third double ring they pick it up. Walk over and press **L** while they’re holding the receiver to take the call.

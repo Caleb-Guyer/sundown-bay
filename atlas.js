@@ -693,6 +693,7 @@
     }
     if(street&&opt.weather){
       BayCoastArt.mapSurface(ctx,opt,px,py,visible);
+      if(opt.sandBeach)BaySandArt.mapGround(ctx,px,py,s,opt.sandBeach,visible);
       if(opt.roadLights&&visible(px(149),py(243),95*s))BayCutArt.guideMap(ctx,px,py,s,opt.roadLights);
       if(visible(px(12),py(44),55*s))BayHouseLights.overhead(ctx,px,py,s,opt.weather,streetTime,opt.houseMark);
       if(opt.recovery)BayRecoveryArt.groundMap(ctx,opt,px,py,s,visible);
@@ -1126,6 +1127,12 @@
         if(street)personSprite(ctx,g,x,y,Math.max(3,s*1.8),true,rotation,true);
         else{disc(ctx,x,y,3.1*ui,"#296d6c");disc(ctx,x,y,1.9*ui,"#a5ffec");}
       }
+    }
+    if(opt.sandBeach){
+      BaySandArt.map(ctx,px,py,s,opt.sandBeach,player,visible);
+      const p=opt.sandBeach.ro;
+      if((opt.sandBeach.phase==="stand"||opt.sandBeach.unload>.5)&&visible(px(p.x),py(p.z),3*s))
+        personSprite(ctx,{...p,shirt:"#ba7250",skin:"#ac7254"},px(p.x),py(p.z),Math.max(2.3,s*1.42),false,rotation);
     }
     if(player) {
       const rider=opt.boardwalk?.player;

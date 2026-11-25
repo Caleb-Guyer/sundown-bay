@@ -122,10 +122,11 @@
     const launchGrip=1+(warm*.13-greasy*.43)*clamp(1-Math.max(0,forward)/15,0,1)*surface;
     const shove=v.reversing?-6.4*(1-.17*load)*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*launchGrip*
       (v.shift>0?.39:1)*clamp((1.06-ratio)*5,0,1);
-    const drag=.36+.00092*forward*forward+(gas||reverse?0:.63)+
+    const soft=v.sandSoft||0;
+    const drag=.36+.00092*forward*forward+(gas||reverse?0:.63)+soft*(1.1+.14*speed)+
       (1-surface)*2.5+v.handbrake*4.3+v.brakes*spec.brake*(1-.23*load)+flat*(.7+.045*speed)+
       ((water?.front||0)+(water?.rear||0))*Math.min(speed*.072,1.4);
-    let along=forward+(brake?0:shove*v.throttle)*dt-frontForce*turnSin*dt;
+    let along=forward+(brake?0:shove*v.throttle*(1-soft*(v.reversing?.22:.54)))*dt-frontForce*turnSin*dt;
     along=Math.sign(along)*Math.max(0,Math.abs(along)-drag*dt);
     const sideways=lateral+sideForce*dt;
     v.vx=sn*along+cs*sideways;v.vz=cs*along-sn*sideways;
@@ -137,7 +138,7 @@
     const slipSpeed=Math.abs(rearSlip)+v.handbrake*Math.abs(forward)*.27;
     v.slip=damp(v.slip,Math.max(v.burn,clamp((slipSpeed-1.2)/4.5,0,1)*clamp((speed-3)/5,0,1)),9,dt);
     if(v.burn>.01)v.rearSpin=(v.rearSpin+v.burn*45*dt)%(Math.PI*2);
-    v.wheelSpin=(v.wheelSpin+along/shape.wheel*dt)%(Math.PI*2);
+    v.wheelSpin=(v.wheelSpin+(along/shape.wheel+soft*v.throttle*5.1*(v.reversing?-1:1))*dt)%(Math.PI*2);
   }
   function world(v,x,z){
     const c=Math.cos(v.yaw),s=Math.sin(v.yaw);return {x:v.x+c*x+s*z,z:v.z-s*x+c*z};
