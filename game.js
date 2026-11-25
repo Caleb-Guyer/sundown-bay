@@ -1781,11 +1781,21 @@
   function sevenStep(dt){
     const c=company;
     if(active?.engineSeven&&(heat||!c.manual&&!c.holding&&!car&&dist(hero,c.call)>140&&dist(hero,engine7)>85)){dropJob();}
+    if(c.bookedHome&&active?.engineSeven&&!car&&!transfer&&dist(hero,engine7)>48)dropJob();
     if(c.phase==="standby"&&c.reserved!==null&&car!==engine7&&transfer?.v!==engine7){
       if(!panel&&sevenFree()&&onStreetFeet()&&dist(hero,BayEngineSeven.desk)<11)signForEngine(c.reserved);
       else if(c.age>=90)c.reserved=null;
     }
     const before=c.phase;c.step(dt,sevenEnv);
+    if(c.bookedHome&&car===engine7&&!transfer&&c.manual&&Math.abs(car.speed)>1){
+      if(c.homeLine<2&&dist(car,fireHouse)<26){
+        c.homeLine=2;speak("Nel Baptiste","Amber’s the bay. When the bottom lamp goes green, set the brake.");
+      }else if(!c.homeLine&&dist(car,c.call)>24){
+        c.homeLine=1;
+        const line={linen:"My first week here, Ema sewed my name in my coat. Still in there, same blue thread.",oven:"Pilar used to send us the burnt rolls. Said we knew what to do with them.",rope:"Teo carved a float for my little girl. She keeps it on the end of her bed."};
+        speak("Nel Baptiste",line[c.call.kind]);
+      }
+    }
     if(before==="working"&&c.phase==="stow"&&c.returnSlip&&dist(hero,c.v)<14)note("Nel Baptiste","Want the drive back? Meet me at the cab while I put the hose away.",6);
     if(before==="standby"&&c.phase==="outbound")broadcastDesk.queue.unshift("Traffic desk · Engine 7 is responding to "+c.call.title+". Watch for the red cab at the crossings.");
     if(before==="return"&&c.phase==="standby"&&c.reserved!==null)note("Station Seven","Your driver’s seat is ready at the Gantry Street board.",5);
@@ -1832,7 +1842,7 @@
     }
     if(code!=="KeyF")return false;
     if(near==="return-keys"&&sevenFree()&&joinSeven()){
-      c.bookedHome=true;speak("Nel Baptiste","Take Seven in through the east door on Gantry and face her west between the floor marks. Forty on the slip.");return true;
+      c.bookedHome=true;c.homeLine=0;speak("Nel Baptiste","Take Seven in through the east door on Gantry and face her west between the floor marks. Forty on the slip.");return true;
     }
     if(near==="desk"){openPanel("engine-house");return true;}
     if(near==="daybook"){
@@ -1916,7 +1926,7 @@
   }
   function drawSeven(list,see,t){
     const c=company,s=BayEngineSeven.house;
-    if(see(s,115))BayEngineHouseArt.world(list,model,s,t,c.phase!=="standby");
+    if(see(s,115))BayEngineHouseArt.world(list,model,s,t,c.phase!=="standby",c.bayLamp);
     for(const [i,place] of BayEngineSeven.calls.entries()){
       const phase=sevenScene(place);if(!see(place,phase==="call"?124:70))continue;
       BayEngineSceneArt.world(list,model,place,phase==="call"?c.levels:null,t,phase);
@@ -8588,11 +8598,11 @@
         });
         view.draw("meet-turn",tar.x,0,tar.z,tar.yaw,0,0,.50);
         view.draw("destRing",tar.x,0,tar.z);
-      }else if(active?.job.id!=="dash"&&!active?.regatta&&tar.kind!=="ferry-gate"){
+      }else if(active?.job.id!=="dash"&&!active?.regatta&&tar.kind!=="ferry-gate"&&!(tar.kind==="engine-bay"&&company.bayLamp)){
         const ground=active?.neon?tar.y:tar.z>181?footLevel(tar.x,tar.z):0;view.draw("destRing",tar.x,ground,tar.z);view.draw("beacon",tar.x,ground+2.6+Math.sin(t*3)*.17,tar.z,eye.yaw);
       }
       const mark=view.project(tar.x,3.6+(active?.neon?tar.y:tar.z>181?footLevel(tar.x,tar.z):0),tar.z),label=$("targetTag");
-      if(play&&!panel&&mark&&mark.x>48&&mark.x<innerWidth-48&&mark.y>55&&mark.y<innerHeight-75&&dist(pos(),tar)>9){
+      if(play&&!panel&&mark&&mark.x>48&&mark.x<innerWidth-48&&mark.y>55&&mark.y<innerHeight-75&&dist(pos(),tar)>9&&!(tar.kind==="engine-bay"&&company.bayLamp)){
         label.hidden=false;label.style.left=mark.x+"px";label.style.top=mark.y+"px";label.textContent=(tar.kind==="ferry-gate"?"PALOMA · ":"")+Math.round(dist(pos(),tar))+" m";
       }else label.hidden=true;
     }else $("targetTag").hidden=true;

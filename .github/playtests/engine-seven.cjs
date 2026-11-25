@@ -18,7 +18,11 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await js(`window.nav={nextStep:${nextStep.toString()},pilot:${pilot.toString()},yielded:new Set(),phases:new Set()};
       const dm=drawBayMap;window.drawBayMap=(ctx,o)=>{if(o.mode==='radar'){nav.map=o;nav.car=o.streetCar;for(const v of o.cars)if(v.sevenYield)nav.yielded.add(v.id);}return dm(ctx,o);};
       const u=BayCamera.prototype.update;BayCamera.prototype.update=function(...a){const r=u.apply(this,a);nav.yaw=this.yaw;return r;};
-      const st=BayEngineSeven.Company.prototype.step;BayEngineSeven.Company.prototype.step=function(...a){nav.co=this;const r=st.apply(this,a);nav.phases.add(this.phase);if(this.water)nav.flowed=true;return r;};`);
+      const st=BayEngineSeven.Company.prototype.step;BayEngineSeven.Company.prototype.step=function(...a){nav.co=this;const r=st.apply(this,a);nav.phases.add(this.phase);if(this.water)nav.flowed=true;return r;};
+      const art=BayEngineHouseArt;nav.lamps=new Set();window.BayEngineHouseArt={...art,
+        world(...a){const r=art.world(...a);if(a[0].some(row=>row[0]==='station-seven-lamp-'+a[5]))nav.lamps.add(a[5]);return r;},
+        overhead(...a){const r=art.overhead(...a);if(a[7]!==undefined)nav.lamps.add(a[7]);return r;}
+      };`);
   }
   async function reload(){await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayEngineSeven==='object'");await observe();
     await js("document.querySelector('#play').click()");await waitFor("nav.co&&nav.map&&Number.isFinite(nav.yaw)",26000);}
@@ -85,7 +89,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
           apply(nav.pilot(v,c.line,target,true,nav.map.cars,near,c.cursor).map(k=>k==='park'?'Space':k));}
         requestAnimationFrame(steer);
       }steer();})()`);
-      await waitFor("nav.homeParked&&nav.co.inHomeBay()",270000);await snap("home-bay");
+      await waitFor("nav.homeParked&&nav.co.inHomeBay()&&nav.lamps.has(1)&&nav.lamps.has(2)",270000);await snap("home-bay");
       await tap("KeyF");await waitFor(record+".engineSeven.log.at(-1).homeDriver");
       assert.equal(await js(record+".wallet"),145);assert.equal(await js("nav.co.phase"),"standby");
       await tap("KeyE");await waitFor("!nav.map.player.driving",30000);

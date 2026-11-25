@@ -58,10 +58,10 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     if(returnLap){
       await controls();
       await js(`window.oceanKeys=(${oceanDriver.toString()});window.driveOcean=function(leg,end){
-        const pressed=new Set();
+        const pressed=new Set(),memory={};
         function drive(){
-          const v=ride,done=leg==='race'?club.run?.phase!=='running':v.x>151.8&&Math.abs(v.speed)<.3;
-          const next=done?[]:oceanKeys(v,leg,end);
+          const v=ride,done=leg==='race'?club.run?.phase!=='running':v.x>154.2&&Math.abs(v.speed)<.3;
+          const next=done?[]:oceanKeys(v,leg,end,traffic,memory);
           for(const k of pressed)if(!next.includes(k)){dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));pressed.delete(k);}
           for(const k of next)if(!pressed.has(k)){dispatchEvent(new KeyboardEvent('keydown',{code:k,bubbles:true,cancelable:true}));pressed.add(k);}
           if(done){if(leg==='curb')window.curbParked=true;return;}
@@ -80,7 +80,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
       // The finish is on an open street. Pull onto the apron by the clock so
       // the player's car leaves both the crossing and its exit usable.
       await js("driveOcean('curb',ride.z+9)");
-      await waitFor("window.curbParked&&ride.x>151.8",75000);
+      await waitFor("window.curbParked&&ride.x>154.2",75000);
     }
     await waitFor("!site.runOut&&(!site.out||Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>48)",90000);
     if(process.argv.includes("--return-lap")){

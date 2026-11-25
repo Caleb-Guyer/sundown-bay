@@ -164,11 +164,24 @@
     g.pole([x-.28,y,z+.043],[x-(away?.32:.40),y+(away?.18:-.02),z+.075],.019,brass,6);
   }
   const inBoard=g=>board(g,false),outBoard=g=>board(g,true);
-  function world(list,model,site,t,away){
+  // Two hooded lenses face the east entrance beside the watch office post.
+  const lampX=-2.28,lampZ=2.52,amber="#ffd16c",go="#a6edaf";
+  function lenses(g,state){
+    g.box(lampX,2.48,lampZ-.20,.48,.94,.19,iron);
+    g.box(lampX,2.48,lampZ-.308,.407,.835,.03,"#373e37");
+    for(const [y,col] of [[2.69,state===1?amber:"#7c6647"],[2.29,state===2?go:"#4c6759"]]){
+      g.pole([lampX,y,lampZ-.31],[lampX,y,lampZ-.36],.16,brass,10);
+      g.pole([lampX,y,lampZ-.36],[lampX,y,lampZ-.38],.129,col,10);
+      g.box(lampX,y+.166,lampZ-.43,.39,.04,.25,green);
+    }
+  }
+  const lampModels=[g=>lenses(g,0),g=>lenses(g,1),g=>lenses(g,2)];
+  function world(list,model,site,t,away,lamp=0){
     model("station-seven-house",house);
     const name=away?"station-seven-out":"station-seven-in";
     model(name,away?outBoard:inBoard);
-    for(const id of ["station-seven-house",name])list.push([id,site.x,site.y??.09,site.z,site.yaw||0]);
+    const lampId="station-seven-lamp-"+lamp;model(lampId,lampModels[lamp]);
+    for(const id of ["station-seven-house",name,lampId])list.push([id,site.x,site.y??.09,site.z,site.yaw||0]);
   }
   function blocks(site){
     const yaw=site.yaw||0,c=Math.cos(yaw),s=Math.sin(yaw);
@@ -176,7 +189,7 @@
     return [block(-4.27,-2.06,3.82,6.40,3.42),block(-3.76,1.44,2.39,.61,1.12),
       block(3.13,-3,.22,3.56,1.87),...posts.map(([x,z])=>block(x,z,.48,.48,4.02))];
   }
-  function overhead(c,px,py,scale,site,t,away){
+  function overhead(c,px,py,scale,site,t,away,lamp=0){
     c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
     const rect=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
     const path=(p,col,w)=>{c.beginPath();c.moveTo(...p[0]);for(let i=1;i<p.length;i++)c.lineTo(...p[i]);c.strokeStyle=col;c.lineWidth=w;c.stroke();};
@@ -201,6 +214,10 @@
     c.restore();
     rect(-2.33,-2.90,5.70,.20,green);rect(-1.26,-3.22,3.57,.39,ivory);
     if(scale>3){c.fillStyle=rust;c.textAlign="center";c.textBaseline="middle";c.font="bold .27px sans-serif";c.fillText("ENGINE 7",.53,-3.015);}
+    rect(lampX-.28,-lampZ+.15,.56,.80,iron);
+    for(const [offset,col] of [[.37,lamp===1?amber:"#7c6647"],[.74,lamp===2?go:"#4c6759"]]){
+      c.fillStyle=col;c.beginPath();c.arc(lampX,-lampZ+offset,.154,0,Math.PI*2);c.fill();
+    }
     c.restore();
   }
   function docket(canvas,record){

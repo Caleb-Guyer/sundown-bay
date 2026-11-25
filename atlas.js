@@ -778,7 +778,7 @@
     if(opt.motos&&(!atlas||!opt.marina?.bayChart&&!opt.countyChart))BayCoastCamera.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.engineCompany){
       const e=opt.engineCompany,house=BayEngineSeven.house;
-      if(street&&visible(px(house.x),py(house.z),s*10))BayEngineHouseArt.overhead(ctx,px,py,s,house,streetTime,e.phase!=="standby");
+      if(street&&visible(px(house.x),py(house.z),s*10))BayEngineHouseArt.overhead(ctx,px,py,s,house,streetTime,e.phase!=="standby",e.bayLamp);
       if(atlas){disc(ctx,px(house.x),py(house.z),3.3*ui,"#aa4c3e");ctx.save();ctx.fillStyle="#633e32";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.textAlign="center";ctx.fillText("STN 7",px(house.x),py(house.z)-5*ui);ctx.restore();}
       for(const place of BayEngineSeven.calls){
         const live=place===e.call&&e.burning;
@@ -1101,7 +1101,7 @@
         BayCrosswalkArt.map(ctx,px,py,s,sig,BayCrosswalk.phase(sig,streetTime),streetTime);
       }
     }
-    if(opt.target&&(street||opt.target.kind!=="garage")&&!(street&&opt.target.kind==="ferry-gate"&&visible(px(opt.target.x),py(opt.target.z),-12))&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {
+    if(opt.target&&(street||opt.target.kind!=="garage")&&!(street&&opt.target.kind==="engine-bay"&&opt.engineCompany?.bayLamp)&&!(street&&opt.target.kind==="ferry-gate"&&visible(px(opt.target.x),py(opt.target.z),-12))&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {
       const x=px(opt.target.x),y=py(opt.target.z);
       const pt=edgePoint(screenX(x,y),screenY(x,y),w,h,radar,(radar?11:15)*ui);
       ctx.save();ctx.setTransform(1,0,0,1,0,0);

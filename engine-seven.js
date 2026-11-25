@@ -51,9 +51,9 @@
     get socket(){return {...here(this.v,-1.14,.13),y:1.12};}
     get pumpStand(){return here(this.v,-1.80,.13);}
     get mateStand(){return here(this.call,.14,-2.85);}
-    get roadGoal(){return {...this.goal,name:this.phase==="return"?"Station Seven":this.call.title};}
+    get roadGoal(){return this.phase==="return"?{...berth,kind:"engine-bay",name:"Station Seven"}:{...this.goal,name:this.call.title};}
     route(home,start=null,trail=[]){
-      const edge=start||this.call.road;
+      const edge=home&&start&&!trail.length&&gap(this.v,start)<9?{...start,x:this.v.x,z:this.v.z}:start||this.call.road;
       return BayRescue.track(home?[this.v,...trail,...BayCab.route(edge,homeRoad(back[0]),true).pts,...back]:
         start?[this.v,...trail,...BayCab.route(start,this.call.road).pts]:[this.v,...trail,...out,...BayCab.route(homeRoad(out.at(-1)),this.call.road).pts]);
     }
@@ -75,6 +75,11 @@
       const q=BayDriving.local(berth,this.v.x,this.v.z);
       return this.phase==="return"&&Math.abs(this.v.speed)<.85&&Math.abs(q.x)<.95&&Math.abs(q.z)<1.9&&Math.cos(this.v.yaw-berth.yaw)>.94;
     }
+    get bayLamp(){
+      if(this.phase==="standby")return this.parkedLamp&&this.age<6?2:0;
+      if(this.phase!=="return"||gap(this.v,berth)>25)return 0;
+      return this.inHomeBay()?2:1;
+    }
     freeBerth(env){
       for(const off of [0,-3,3,-5,5]){const q={...here(this.call.road,0,off),yaw:this.call.road.yaw,kind:this.v.kind};
         if(env.carClear(this.v,q))return q;}
@@ -86,7 +91,7 @@
       BayDriving.settle(this.v);this.v.brakes=1;this.v.responseLights=outbound;this.v.pumpWorking=outbound;
       this.manual=false;this.seatWaiting=false;
       if(outbound){this.go("unroll");this.mate.seat=1;this.mateStep="exit";this.path=null;}
-      else{this.go("standby");this.idle=140;this.mate.seat=1;}
+      else{this.go("standby");this.parkedLamp=true;this.idle=140;this.mate.seat=1;}
     }
     claim(){this.joined=true;this.aimX=0;this.holding=true;this.mateStep="assist";this.path=null;}
     handBack(){this.holding=false;this.water=null;this.path=null;if(this.phase==="working")this.mateStep="line";}

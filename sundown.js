@@ -13901,7 +13901,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(opt.motos&&(!atlas||!opt.marina?.bayChart&&!opt.countyChart))BayCoastCamera.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.engineCompany){
       const e=opt.engineCompany,house=BayEngineSeven.house;
-      if(street&&visible(px(house.x),py(house.z),s*10))BayEngineHouseArt.overhead(ctx,px,py,s,house,streetTime,e.phase!=="standby");
+      if(street&&visible(px(house.x),py(house.z),s*10))BayEngineHouseArt.overhead(ctx,px,py,s,house,streetTime,e.phase!=="standby",e.bayLamp);
       if(atlas){disc(ctx,px(house.x),py(house.z),3.3*ui,"#aa4c3e");ctx.save();ctx.fillStyle="#633e32";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.textAlign="center";ctx.fillText("STN 7",px(house.x),py(house.z)-5*ui);ctx.restore();}
       for(const place of BayEngineSeven.calls){
         const live=place===e.call&&e.burning;
@@ -14224,7 +14224,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         BayCrosswalkArt.map(ctx,px,py,s,sig,BayCrosswalk.phase(sig,streetTime),streetTime);
       }
     }
-    if(opt.target&&(street||opt.target.kind!=="garage")&&!(street&&opt.target.kind==="ferry-gate"&&visible(px(opt.target.x),py(opt.target.z),-12))&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {
+    if(opt.target&&(street||opt.target.kind!=="garage")&&!(street&&opt.target.kind==="engine-bay"&&opt.engineCompany?.bayLamp)&&!(street&&opt.target.kind==="ferry-gate"&&visible(px(opt.target.x),py(opt.target.z),-12))&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {
       const x=px(opt.target.x),y=py(opt.target.z);
       const pt=edgePoint(screenX(x,y),screenY(x,y),w,h,radar,(radar?11:15)*ui);
       ctx.save();ctx.setTransform(1,0,0,1,0,0);
@@ -61507,11 +61507,24 @@ window.buildBayCity = function buildBayCity(g,water) {
     g.pole([x-.28,y,z+.043],[x-(away?.32:.40),y+(away?.18:-.02),z+.075],.019,brass,6);
   }
   const inBoard=g=>board(g,false),outBoard=g=>board(g,true);
-  function world(list,model,site,t,away){
+  // Two hooded lenses face the east entrance beside the watch office post.
+  const lampX=-2.28,lampZ=2.52,amber="#ffd16c",go="#a6edaf";
+  function lenses(g,state){
+    g.box(lampX,2.48,lampZ-.20,.48,.94,.19,iron);
+    g.box(lampX,2.48,lampZ-.308,.407,.835,.03,"#373e37");
+    for(const [y,col] of [[2.69,state===1?amber:"#7c6647"],[2.29,state===2?go:"#4c6759"]]){
+      g.pole([lampX,y,lampZ-.31],[lampX,y,lampZ-.36],.16,brass,10);
+      g.pole([lampX,y,lampZ-.36],[lampX,y,lampZ-.38],.129,col,10);
+      g.box(lampX,y+.166,lampZ-.43,.39,.04,.25,green);
+    }
+  }
+  const lampModels=[g=>lenses(g,0),g=>lenses(g,1),g=>lenses(g,2)];
+  function world(list,model,site,t,away,lamp=0){
     model("station-seven-house",house);
     const name=away?"station-seven-out":"station-seven-in";
     model(name,away?outBoard:inBoard);
-    for(const id of ["station-seven-house",name])list.push([id,site.x,site.y??.09,site.z,site.yaw||0]);
+    const lampId="station-seven-lamp-"+lamp;model(lampId,lampModels[lamp]);
+    for(const id of ["station-seven-house",name,lampId])list.push([id,site.x,site.y??.09,site.z,site.yaw||0]);
   }
   function blocks(site){
     const yaw=site.yaw||0,c=Math.cos(yaw),s=Math.sin(yaw);
@@ -61519,7 +61532,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return [block(-4.27,-2.06,3.82,6.40,3.42),block(-3.76,1.44,2.39,.61,1.12),
       block(3.13,-3,.22,3.56,1.87),...posts.map(([x,z])=>block(x,z,.48,.48,4.02))];
   }
-  function overhead(c,px,py,scale,site,t,away){
+  function overhead(c,px,py,scale,site,t,away,lamp=0){
     c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
     const rect=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
     const path=(p,col,w)=>{c.beginPath();c.moveTo(...p[0]);for(let i=1;i<p.length;i++)c.lineTo(...p[i]);c.strokeStyle=col;c.lineWidth=w;c.stroke();};
@@ -61544,6 +61557,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.restore();
     rect(-2.33,-2.90,5.70,.20,green);rect(-1.26,-3.22,3.57,.39,ivory);
     if(scale>3){c.fillStyle=rust;c.textAlign="center";c.textBaseline="middle";c.font="bold .27px sans-serif";c.fillText("ENGINE 7",.53,-3.015);}
+    rect(lampX-.28,-lampZ+.15,.56,.80,iron);
+    for(const [offset,col] of [[.37,lamp===1?amber:"#7c6647"],[.74,lamp===2?go:"#4c6759"]]){
+      c.fillStyle=col;c.beginPath();c.arc(lampX,-lampZ+offset,.154,0,Math.PI*2);c.fill();
+    }
     c.restore();
   }
   function docket(canvas,record){
@@ -61647,9 +61664,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     get socket(){return {...here(this.v,-1.14,.13),y:1.12};}
     get pumpStand(){return here(this.v,-1.80,.13);}
     get mateStand(){return here(this.call,.14,-2.85);}
-    get roadGoal(){return {...this.goal,name:this.phase==="return"?"Station Seven":this.call.title};}
+    get roadGoal(){return this.phase==="return"?{...berth,kind:"engine-bay",name:"Station Seven"}:{...this.goal,name:this.call.title};}
     route(home,start=null,trail=[]){
-      const edge=start||this.call.road;
+      const edge=home&&start&&!trail.length&&gap(this.v,start)<9?{...start,x:this.v.x,z:this.v.z}:start||this.call.road;
       return BayRescue.track(home?[this.v,...trail,...BayCab.route(edge,homeRoad(back[0]),true).pts,...back]:
         start?[this.v,...trail,...BayCab.route(start,this.call.road).pts]:[this.v,...trail,...out,...BayCab.route(homeRoad(out.at(-1)),this.call.road).pts]);
     }
@@ -61671,6 +61688,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       const q=BayDriving.local(berth,this.v.x,this.v.z);
       return this.phase==="return"&&Math.abs(this.v.speed)<.85&&Math.abs(q.x)<.95&&Math.abs(q.z)<1.9&&Math.cos(this.v.yaw-berth.yaw)>.94;
     }
+    get bayLamp(){
+      if(this.phase==="standby")return this.parkedLamp&&this.age<6?2:0;
+      if(this.phase!=="return"||gap(this.v,berth)>25)return 0;
+      return this.inHomeBay()?2:1;
+    }
     freeBerth(env){
       for(const off of [0,-3,3,-5,5]){const q={...here(this.call.road,0,off),yaw:this.call.road.yaw,kind:this.v.kind};
         if(env.carClear(this.v,q))return q;}
@@ -61682,7 +61704,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       BayDriving.settle(this.v);this.v.brakes=1;this.v.responseLights=outbound;this.v.pumpWorking=outbound;
       this.manual=false;this.seatWaiting=false;
       if(outbound){this.go("unroll");this.mate.seat=1;this.mateStep="exit";this.path=null;}
-      else{this.go("standby");this.idle=140;this.mate.seat=1;}
+      else{this.go("standby");this.parkedLamp=true;this.idle=140;this.mate.seat=1;}
     }
     claim(){this.joined=true;this.aimX=0;this.holding=true;this.mateStep="assist";this.path=null;}
     handBack(){this.holding=false;this.water=null;this.path=null;if(this.phase==="working")this.mateStep="line";}
@@ -66640,11 +66662,21 @@ window.buildBayCity = function buildBayCity(g,water) {
   function sevenStep(dt){
     const c=company;
     if(active?.engineSeven&&(heat||!c.manual&&!c.holding&&!car&&dist(hero,c.call)>140&&dist(hero,engine7)>85)){dropJob();}
+    if(c.bookedHome&&active?.engineSeven&&!car&&!transfer&&dist(hero,engine7)>48)dropJob();
     if(c.phase==="standby"&&c.reserved!==null&&car!==engine7&&transfer?.v!==engine7){
       if(!panel&&sevenFree()&&onStreetFeet()&&dist(hero,BayEngineSeven.desk)<11)signForEngine(c.reserved);
       else if(c.age>=90)c.reserved=null;
     }
     const before=c.phase;c.step(dt,sevenEnv);
+    if(c.bookedHome&&car===engine7&&!transfer&&c.manual&&Math.abs(car.speed)>1){
+      if(c.homeLine<2&&dist(car,fireHouse)<26){
+        c.homeLine=2;speak("Nel Baptiste","Amber’s the bay. When the bottom lamp goes green, set the brake.");
+      }else if(!c.homeLine&&dist(car,c.call)>24){
+        c.homeLine=1;
+        const line={linen:"My first week here, Ema sewed my name in my coat. Still in there, same blue thread.",oven:"Pilar used to send us the burnt rolls. Said we knew what to do with them.",rope:"Teo carved a float for my little girl. She keeps it on the end of her bed."};
+        speak("Nel Baptiste",line[c.call.kind]);
+      }
+    }
     if(before==="working"&&c.phase==="stow"&&c.returnSlip&&dist(hero,c.v)<14)note("Nel Baptiste","Want the drive back? Meet me at the cab while I put the hose away.",6);
     if(before==="standby"&&c.phase==="outbound")broadcastDesk.queue.unshift("Traffic desk · Engine 7 is responding to "+c.call.title+". Watch for the red cab at the crossings.");
     if(before==="return"&&c.phase==="standby"&&c.reserved!==null)note("Station Seven","Your driver’s seat is ready at the Gantry Street board.",5);
@@ -66691,7 +66723,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     if(code!=="KeyF")return false;
     if(near==="return-keys"&&sevenFree()&&joinSeven()){
-      c.bookedHome=true;speak("Nel Baptiste","Take Seven in through the east door on Gantry and face her west between the floor marks. Forty on the slip.");return true;
+      c.bookedHome=true;c.homeLine=0;speak("Nel Baptiste","Take Seven in through the east door on Gantry and face her west between the floor marks. Forty on the slip.");return true;
     }
     if(near==="desk"){openPanel("engine-house");return true;}
     if(near==="daybook"){
@@ -66775,7 +66807,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function drawSeven(list,see,t){
     const c=company,s=BayEngineSeven.house;
-    if(see(s,115))BayEngineHouseArt.world(list,model,s,t,c.phase!=="standby");
+    if(see(s,115))BayEngineHouseArt.world(list,model,s,t,c.phase!=="standby",c.bayLamp);
     for(const [i,place] of BayEngineSeven.calls.entries()){
       const phase=sevenScene(place);if(!see(place,phase==="call"?124:70))continue;
       BayEngineSceneArt.world(list,model,place,phase==="call"?c.levels:null,t,phase);
@@ -73447,11 +73479,11 @@ window.buildBayCity = function buildBayCity(g,water) {
         });
         view.draw("meet-turn",tar.x,0,tar.z,tar.yaw,0,0,.50);
         view.draw("destRing",tar.x,0,tar.z);
-      }else if(active?.job.id!=="dash"&&!active?.regatta&&tar.kind!=="ferry-gate"){
+      }else if(active?.job.id!=="dash"&&!active?.regatta&&tar.kind!=="ferry-gate"&&!(tar.kind==="engine-bay"&&company.bayLamp)){
         const ground=active?.neon?tar.y:tar.z>181?footLevel(tar.x,tar.z):0;view.draw("destRing",tar.x,ground,tar.z);view.draw("beacon",tar.x,ground+2.6+Math.sin(t*3)*.17,tar.z,eye.yaw);
       }
       const mark=view.project(tar.x,3.6+(active?.neon?tar.y:tar.z>181?footLevel(tar.x,tar.z):0),tar.z),label=$("targetTag");
-      if(play&&!panel&&mark&&mark.x>48&&mark.x<innerWidth-48&&mark.y>55&&mark.y<innerHeight-75&&dist(pos(),tar)>9){
+      if(play&&!panel&&mark&&mark.x>48&&mark.x<innerWidth-48&&mark.y>55&&mark.y<innerHeight-75&&dist(pos(),tar)>9&&!(tar.kind==="engine-bay"&&company.bayLamp)){
         label.hidden=false;label.style.left=mark.x+"px";label.style.top=mark.y+"px";label.textContent=(tar.kind==="ferry-gate"?"PALOMA · ":"")+Math.round(dist(pos(),tar))+" m";
       }else label.hidden=true;
     }else $("targetTag").hidden=true;
