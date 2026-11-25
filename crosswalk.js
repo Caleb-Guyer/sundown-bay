@@ -29,6 +29,23 @@
     return q&&q.start-t<=1.65?direction+"-amber":direction;
   }
   function waiting(s,t,vertical){return lamps(s,t)!==(vertical?"ns":"ew");}
+  function watchTraffic(signals,vehicles){
+    // A long coach can still be crossing when the lamps change. Test the
+    // footprint against the center of the junction, including a turning tail.
+    for(const s of signals){
+      s.crossingEastWest=s.crossingNorthSouth=false;
+      for(const v of vehicles){
+        const dx=Math.abs(v.x-s.x),dz=Math.abs(v.z-s.z);
+        if(dx>10||dz>10)continue;
+        const sh=v.footprint||bayCarLayout(v.kind),sn=Math.abs(Math.sin(v.yaw)),cs=Math.abs(Math.cos(v.yaw));
+        if(dx>=3.4+sn*sh.halfLength+cs*sh.track||dz>=3.4+cs*sh.halfLength+sn*sh.track)continue;
+        if(sn>.46)s.crossingEastWest=true;
+        if(cs>.46)s.crossingNorthSouth=true;
+        if(s.crossingEastWest&&s.crossingNorthSouth)break;
+      }
+    }
+  }
+  const trafficWait=(s,t,vertical)=>waiting(s,t,vertical)||(vertical?s.crossingEastWest:s.crossingNorthSouth);
   function setback(s,halfLength,normal){return s.call?10.05+halfLength:normal;}
   function beforeLine(s,d,line,normal,speed){
     // A new call can move the line behind a car already waiting at the old one.
@@ -91,5 +108,5 @@
     }
     return true;
   }
-  window.BayCrosswalk={corners,button,call,phase,lamps,waiting,setback,beforeLine,update,ready};
+  window.BayCrosswalk={corners,button,call,phase,lamps,waiting,watchTraffic,trafficWait,setback,beforeLine,update,ready};
 })();

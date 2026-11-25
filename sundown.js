@@ -11351,6 +11351,23 @@ window.buildBayCity = function buildBayCity(g,water) {
     return q&&q.start-t<=1.65?direction+"-amber":direction;
   }
   function waiting(s,t,vertical){return lamps(s,t)!==(vertical?"ns":"ew");}
+  function watchTraffic(signals,vehicles){
+    // A long coach can still be crossing when the lamps change. Test the
+    // footprint against the center of the junction, including a turning tail.
+    for(const s of signals){
+      s.crossingEastWest=s.crossingNorthSouth=false;
+      for(const v of vehicles){
+        const dx=Math.abs(v.x-s.x),dz=Math.abs(v.z-s.z);
+        if(dx>10||dz>10)continue;
+        const sh=v.footprint||bayCarLayout(v.kind),sn=Math.abs(Math.sin(v.yaw)),cs=Math.abs(Math.cos(v.yaw));
+        if(dx>=3.4+sn*sh.halfLength+cs*sh.track||dz>=3.4+cs*sh.halfLength+sn*sh.track)continue;
+        if(sn>.46)s.crossingEastWest=true;
+        if(cs>.46)s.crossingNorthSouth=true;
+        if(s.crossingEastWest&&s.crossingNorthSouth)break;
+      }
+    }
+  }
+  const trafficWait=(s,t,vertical)=>waiting(s,t,vertical)||(vertical?s.crossingEastWest:s.crossingNorthSouth);
   function setback(s,halfLength,normal){return s.call?10.05+halfLength:normal;}
   function beforeLine(s,d,line,normal,speed){
     // A new call can move the line behind a car already waiting at the old one.
@@ -11413,7 +11430,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     return true;
   }
-  window.BayCrosswalk={corners,button,call,phase,lamps,waiting,setback,beforeLine,update,ready};
+  window.BayCrosswalk={corners,button,call,phase,lamps,waiting,watchTraffic,trafficWait,setback,beforeLine,update,ready};
 })();
 
 ;
@@ -66300,7 +66317,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const s of BayStreetArt.signals){
       const x=s.x-v.x,z=s.z-v.z,d=x*sn+z*cs;
       const stop=BayCrosswalk.setback(s,4.8,11.1);
-      if(BayCrosswalk.beforeLine(s,d,stop,11.1,v.speed)&&d<30&&Math.abs(x*cs-z*sn)<4.5&&BayCrosswalk.waiting(s,streetTime,Math.abs(cs)>.7)){
+      if(BayCrosswalk.beforeLine(s,d,stop,11.1,v.speed)&&d<30&&Math.abs(x*cs-z*sn)<4.5&&BayCrosswalk.trafficWait(s,streetTime,Math.abs(cs)>.7)){
         space=Math.min(space,Math.max(0,d-stop));pass=false;
       }
     }
@@ -68506,12 +68523,6 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function cupPanel(body){
     const book=save.clubCup,r=book.last;
-    signedNote(body,"Pili’s in the teal No. 7. Vic’s in the brick-red No. 4. Bring your own car to the brackets on Ocean. Two laps, all left turns. First across gets $205.","Luz Quintero · Sol Motor Club");
-    if(!active){
-      body.append(makeButton("Race the field","Park facing north beside the two club cars, then honk.","Find grid",()=>{
-        active={job:BayCoastCup.job,cup:true};waypoint=null;closePanel();lastHud=lastMap=-10;
-      }),makeButton("Run the solo clock","The original four-checkpoint run"+(save.best?" · Best "+watch(save.best):""),"Time trial",()=>startJob("race")));
-    }
     if(r){
       const title=document.createElement("h3");title.className="cup-sheet-title";title.textContent="Last classification";body.append(title);
       const table=document.createElement("table");table.className="cup-classification";table.setAttribute("aria-label","Coastline Circuit finishing order");
@@ -68531,6 +68542,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       info.textContent=r.car+(r.laps?" · Lap 1 "+raceWatch(r.laps[0])+" · Lap 2 "+raceWatch(r.laps[1]):" · Fast lap "+raceWatch(r.lap));body.append(info);
     }
     if(book.best){const p=document.createElement("p");p.className="statline";p.textContent=book.wins+" wins in "+book.starts+" finishes · Best two laps "+raceWatch(book.best)+" · Fast lap "+raceWatch(book.lap);body.append(p);}
+    if(!r)signedNote(body,"Pili’s in the teal No. 7. Vic’s in the brick-red No. 4. Bring your own car to the brackets on Ocean. Two laps, all left turns. First across gets $205.","Luz Quintero · Sol Motor Club");
+    if(!active){
+      body.append(makeButton("Race the field","Park facing north beside the two club cars, then honk.","Find grid",()=>{
+        active={job:BayCoastCup.job,cup:true};waypoint=null;closePanel();lastHud=lastMap=-10;
+      }),makeButton("Run the solo clock","The original four-checkpoint run"+(save.best?" · Best "+watch(save.best):""),"Time trial",()=>startJob("race")));
+    }
   }
   function cupHint(){
     if(cupNear())return ["F","Luz’s timing stand · Coastline Circuit"];
@@ -69663,11 +69680,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       }else{p.yaw+=angle(p.yaw,Math.atan2(v.x-p.x,v.z-p.z))*Math.min(1,dt*3);p.motion.step(dt,0,0);}
     }
   }
+  let nextJunctionScan=-1;
   function traffic(dt){
     const p=pos(),driver=play&&!transfer&&!cycles.transfer?(car||motos.bike||cycles.riding||skate.rider||(transit.driving?transit.bus:null)):null;
     if(coffee.stage)coffee.step(dt,hero,coffeeEnv);
-    if(BayStreetArt.signals.some(s=>s.call)){
+    const scan=streetTime>=nextJunctionScan;
+    if(scan||BayStreetArt.signals.some(s=>s.call)){
       const vehicles=cars.concat(patrol,motos.all,transit.bus);if(driver&&!vehicles.includes(driver))vehicles.push(driver);
+      if(scan){BayCrosswalk.watchTraffic(BayStreetArt.signals,vehicles);nextJunctionScan=streetTime+.12;}
       for(const s of BayStreetArt.signals)BayCrosswalk.update(s,streetTime,vehicles,walkers,play&&onStreetFeet()?hero:null);
     }
     for(const v of cars){
@@ -69725,7 +69745,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       for(const s of BayStreetArt.signals){
         const rx=s.x-v.x,rz=s.z-v.z,d=rx*ux+rz*uz,side=Math.abs(rx*uz-rz*ux);
         const line=BayCrosswalk.setback(s,bayCarLayout(v.kind).halfLength,9.7);
-        if(side<4.4&&BayCrosswalk.beforeLine(s,d,line,9.7,v.speed)&&d<26&&BayCrosswalk.waiting(s,streetTime,vertical)){
+        if(side<4.4&&BayCrosswalk.beforeLine(s,d,line,9.7,v.speed)&&d<26&&BayCrosswalk.trafficWait(s,streetTime,vertical)){
           clearance=Math.min(clearance,Math.max(0,d-line));redAhead=true;
         }
       }
