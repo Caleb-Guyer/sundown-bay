@@ -19407,9 +19407,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     return null;
   }
-  function passengerEye(v,brief){
-    const layout=bayCarLayout(v.kind),c=Math.cos(v.yaw),s=Math.sin(v.yaw);
-    const x=v.x+layout.seatX*c+layout.seatZ*s,z=v.z-layout.seatX*s+layout.seatZ*c,y=v.y+layout.seatY+.72;
+  function passengerEye(v,brief,ground){
+    const layout=bayCarLayout(v.kind),{x,z}=BayDriving.world(v,layout.seatX,layout.seatZ),y=ground(x,z)+layout.seatY+.72;
     const p=brief.subject,dx=p.x-x,dz=p.z-z,range=Math.hypot(dx,dz);
     return {x,y,z,yaw:Math.atan2(dx,dz),pitch:Math.atan2(p.y-y,range),focal:Math.min(2.8,range/(brief.id==="wheel"?15:8))};
   }
@@ -19426,7 +19425,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       this.latent=this.windowPending?null:readLatent(s?.latent);
       this.onScreen=!!this.windowPrint&&s?.onScreen===true;this.inEdition=!!this.windowPrint&&s?.inEdition===true;}
     write(){try{localStorage.setItem(key,JSON.stringify({pending:this.pending,published:this.published,day:this.day,windowPending:this.windowPending,windowPrint:this.windowPrint,onScreen:this.onScreen,inEdition:this.inEdition,latent:this.latent}));}catch{}}
-    wind(brief,vehicle,hours,wheel,time,cars){
+    wind(brief,vehicle,hours,wheel,time,cars,ground){
       if(this.windowPending||this.latent)return false;
       const traffic=[];
       for(const v of cars){
@@ -19434,7 +19433,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         traffic.push({x:v.x,z:v.z,yaw:v.yaw,kind:v.kind,color:v.color,track:v.footprint?.track||.9,length:v.footprint?.halfLength||2.1});
         if(traffic.length===48)break;
       }
-      this.latent=readLatent({place:brief.id,eye:passengerEye(vehicle,brief),time,night:hours.night,rain:hours.rain,angle:wheel.angle||0,traffic});
+      this.latent=readLatent({place:brief.id,eye:passengerEye(vehicle,brief,ground),time,night:hours.night,rain:hours.rain,angle:wheel.angle||0,traffic});
       if(!this.latent)return false;this.write();return true;
     }
     lend(lent){this.onScreen=!!this.windowPrint&&lent===true;this.write();}
@@ -74895,13 +74894,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     $("filmRoll").textContent=(elapsed-meet.lastShot<2&&meet.feedback)||("M. VEGA   /   "+String(meet.shots+1).padStart(2,"0")+(score?"   •   IN FRAME":""));
   }
   function maraOnBreak(){return campaign.book.trips?BayRoomTone.mara:campaign.book.stage==="return"?gateMara:BayExposure.routes[save.edition]?.stand||BayExposure.pickup;}
-  function windowSubject(){
+  function maraWindowSubject(){
     const story=active?.story;
     if(!story||story.phase!=="port"||!car||car!==story.ride||transfer||heat||maraFilm.latent||maraFilm.windowPending)return null;
     return BayLotNegative.passengerSubject(car);
   }
   function photographWindow(brief){
-    if(!maraFilm.wind(brief,car,hours,boardwalk.wheel,streetTime,cars))return;
+    if(!maraFilm.wind(brief,car,hours,boardwalk.wheel,streetTime,cars,footLevel))return;
     sound.cue("record-shutter");speak("Mara Vega",BayLotNegative.locations[brief.id].reply);
     note("Frame 13","Mara winds on to the pier photograph.",3);lastHud=-10;
   }
@@ -78234,7 +78233,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const capHint=summerHint(summerAction());
     const phoneHint=rankPrompt();
     const beachHint=sandHint(sandAction());
-    const chapter=chapterAction(),passengerShot=windowSubject();
+    const chapter=chapterAction(),passengerShot=maraWindowSubject();
     $("luzTicket").hidden=!luz.rider;
     $("jobKey").hidden=!!luz.rider;
     if(luz.rider){
@@ -79599,7 +79598,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
-    if(ev.code==="KeyN"){const brief=windowSubject();if(brief){photographWindow(brief);return;}}
+    if(ev.code==="KeyN"){const brief=maraWindowSubject();if(brief){photographWindow(brief);return;}}
     if(ev.code==="KeyN"&&!campaign.book.sleeve&&!heat&&!transfer&&active?.story?.sleeveStop(car)){enterFilm("film-sleeve");return;}
     if(luz.rider){
       if(ev.code==="Space"&&luz.rider.phase==="line"&&!luz.rider.rope)luz.rider.charge=0;

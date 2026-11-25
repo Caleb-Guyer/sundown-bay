@@ -28,9 +28,8 @@
     }
     return null;
   }
-  function passengerEye(v,brief){
-    const layout=bayCarLayout(v.kind),c=Math.cos(v.yaw),s=Math.sin(v.yaw);
-    const x=v.x+layout.seatX*c+layout.seatZ*s,z=v.z-layout.seatX*s+layout.seatZ*c,y=v.y+layout.seatY+.72;
+  function passengerEye(v,brief,ground){
+    const layout=bayCarLayout(v.kind),{x,z}=BayDriving.world(v,layout.seatX,layout.seatZ),y=ground(x,z)+layout.seatY+.72;
     const p=brief.subject,dx=p.x-x,dz=p.z-z,range=Math.hypot(dx,dz);
     return {x,y,z,yaw:Math.atan2(dx,dz),pitch:Math.atan2(p.y-y,range),focal:Math.min(2.8,range/(brief.id==="wheel"?15:8))};
   }
@@ -47,7 +46,7 @@
       this.latent=this.windowPending?null:readLatent(s?.latent);
       this.onScreen=!!this.windowPrint&&s?.onScreen===true;this.inEdition=!!this.windowPrint&&s?.inEdition===true;}
     write(){try{localStorage.setItem(key,JSON.stringify({pending:this.pending,published:this.published,day:this.day,windowPending:this.windowPending,windowPrint:this.windowPrint,onScreen:this.onScreen,inEdition:this.inEdition,latent:this.latent}));}catch{}}
-    wind(brief,vehicle,hours,wheel,time,cars){
+    wind(brief,vehicle,hours,wheel,time,cars,ground){
       if(this.windowPending||this.latent)return false;
       const traffic=[];
       for(const v of cars){
@@ -55,7 +54,7 @@
         traffic.push({x:v.x,z:v.z,yaw:v.yaw,kind:v.kind,color:v.color,track:v.footprint?.track||.9,length:v.footprint?.halfLength||2.1});
         if(traffic.length===48)break;
       }
-      this.latent=readLatent({place:brief.id,eye:passengerEye(vehicle,brief),time,night:hours.night,rain:hours.rain,angle:wheel.angle||0,traffic});
+      this.latent=readLatent({place:brief.id,eye:passengerEye(vehicle,brief,ground),time,night:hours.night,rain:hours.rain,angle:wheel.angle||0,traffic});
       if(!this.latent)return false;this.write();return true;
     }
     lend(lent){this.onScreen=!!this.windowPrint&&lent===true;this.write();}

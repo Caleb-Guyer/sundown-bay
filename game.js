@@ -6462,13 +6462,13 @@
     $("filmRoll").textContent=(elapsed-meet.lastShot<2&&meet.feedback)||("M. VEGA   /   "+String(meet.shots+1).padStart(2,"0")+(score?"   •   IN FRAME":""));
   }
   function maraOnBreak(){return campaign.book.trips?BayRoomTone.mara:campaign.book.stage==="return"?gateMara:BayExposure.routes[save.edition]?.stand||BayExposure.pickup;}
-  function windowSubject(){
+  function maraWindowSubject(){
     const story=active?.story;
     if(!story||story.phase!=="port"||!car||car!==story.ride||transfer||heat||maraFilm.latent||maraFilm.windowPending)return null;
     return BayLotNegative.passengerSubject(car);
   }
   function photographWindow(brief){
-    if(!maraFilm.wind(brief,car,hours,boardwalk.wheel,streetTime,cars))return;
+    if(!maraFilm.wind(brief,car,hours,boardwalk.wheel,streetTime,cars,footLevel))return;
     sound.cue("record-shutter");speak("Mara Vega",BayLotNegative.locations[brief.id].reply);
     note("Frame 13","Mara winds on to the pier photograph.",3);lastHud=-10;
   }
@@ -9801,7 +9801,7 @@
     const capHint=summerHint(summerAction());
     const phoneHint=rankPrompt();
     const beachHint=sandHint(sandAction());
-    const chapter=chapterAction(),passengerShot=windowSubject();
+    const chapter=chapterAction(),passengerShot=maraWindowSubject();
     $("luzTicket").hidden=!luz.rider;
     $("jobKey").hidden=!!luz.rider;
     if(luz.rider){
@@ -11166,7 +11166,7 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
-    if(ev.code==="KeyN"){const brief=windowSubject();if(brief){photographWindow(brief);return;}}
+    if(ev.code==="KeyN"){const brief=maraWindowSubject();if(brief){photographWindow(brief);return;}}
     if(ev.code==="KeyN"&&!campaign.book.sleeve&&!heat&&!transfer&&active?.story?.sleeveStop(car)){enterFilm("film-sleeve");return;}
     if(luz.rider){
       if(ev.code==="Space"&&luz.rider.phase==="line"&&!luz.rider.rope)luz.rider.charge=0;
