@@ -271,8 +271,9 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .finder-actions {display:flex;gap:8px;flex-wrap:wrap}.finder-actions button {margin-top:8px;border:1px solid #a99570;background:#293e37;color:#f4e3c2;padding:7px 10px;border-radius:2px;cursor:pointer}
 .contact-sheet .finder-frame,.contact-sheet+.finder-help {display:none}.contact-sheet .finder-actions {display:grid;grid-template-columns:1fr 1fr}
 .contact-sheet .finder-actions button {padding:4px 4px 8px;text-align:left;font:650 .76rem Consolas,monospace}.finder-actions img {display:block;width:100%;height:auto;margin-bottom:6px}
+@media (max-height:650px){.finder-frame {max-width:68vh;margin-inline:auto}}
 .finder-footer {margin-top:10px}.finder-status {font-size:.9rem}.shutter {background:#f5d490;color:#26382e;padding:8px 12px;border:0;border-radius:2px;font-weight:750}.shutter kbd {margin-left:6px;color:#2b4036;border-color:#968b62}
-.panel .finder-help {margin:8px 0 0;font-size:.86rem}.contact-proof {margin:4px 0 10px;background:#273731;padding:7px 8px 5px;color:#f2d597}.contact-proof canvas {max-height:min(29vh,185px);object-fit:cover;object-position:50% 49%}.contact-proof figcaption {padding:5px 2px 0}.panel .edition-copy {font:1.08rem/1.48 Georgia,serif}
+.panel .finder-help {margin:8px 0 0;font-size:.86rem}.contact-proof {margin:4px 0 10px;background:#273731;padding:7px 8px 5px;color:#f2d597}.contact-proof canvas {max-height:min(29vh,185px);object-fit:contain;background:#1b2522}.contact-proof figcaption {padding:5px 2px 0}.panel .edition-copy {font:1.08rem/1.48 Georgia,serif}
 .jobcard.story-job {border-left:4px solid #a04d35;background:#e9d8b2;padding-left:9px}.story-job strong {font:bold italic 1.22rem Georgia,serif}
 @media(max-width:480px){.finder-body {padding:6px}.finder-footer {gap:5px}.shutter {padding:8px}.shutter kbd {display:none}}
 .panel[data-screen="marina"],.panel[data-screen="regatta-result"] {width:min(600px,94vw);background:#f3e7ca}

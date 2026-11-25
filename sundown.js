@@ -178,6 +178,7 @@
       this.vertexBuffer=gl.createBuffer();this.indexBuffer=gl.createBuffer();
       this.vertices=new Float32Array(24576*6);
       this.indices=new Uint16Array(65532);
+      this.savedPoses=new Set();this.poseBytes=0;
       gl.bindBuffer(gl.ARRAY_BUFFER,this.vertexBuffer);
       gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength,gl.STREAM_DRAW);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
@@ -198,6 +199,20 @@
       if(view.glow!==this.glow){gl.uniform1f(view.u.glow,this.glow);view.glow=this.glow;}
       gl.drawElements(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0);
       view.bound=null;this.count=0;this.used=0;
+    }
+    forgetPose(p){
+      if(!p.vertices)return;
+      this.poseBytes-=p.vertices.byteLength;this.savedPoses.delete(p);p.vertices=null;
+    }
+    repeatedPose(model,sources,x,y,z,yaw,tiltX,tiltZ){
+      const p=model.batchPose??={x:NaN,vertices:null};
+      if(p.x===x&&p.y===y&&p.z===z&&p.yaw===yaw&&p.tiltX===tiltX&&p.tiltZ===tiltZ&&p.sources===sources)return p;
+      this.forgetPose(p);
+      p.x=x;p.y=y;p.z=z;p.yaw=yaw;p.tiltX=tiltX;p.tiltZ=tiltZ;p.sources=sources;return null;
+    }
+    rememberPose(p,vertices){
+      while(this.poseBytes+vertices.byteLength>3*1024*1024)this.forgetPose(this.savedPoses.values().next().value);
+      p.vertices=vertices.slice();this.poseBytes+=p.vertices.byteLength;this.savedPoses.add(p);
     }
     append(item){
       const view=this.view;
@@ -232,15 +247,23 @@
         sources=model.batchSources=new Uint32Array(n);
         for(let i=0;i<model.count;i++)sources[indices[i]]=i*6;
       }
-      const co=Math.cos(yaw),si=Math.sin(yaw),cx=Math.cos(tiltX),sx=Math.sin(tiltX),cz=Math.cos(tiltZ),sz=Math.sin(tiltZ);
       const dest=this.vertices;
-      for(let i=0,j=this.used*6;i<n;i++,j+=6){
-        const p=sources?sources[i]:i*6;
-        let u=data[p],v=data[p+1],w=data[p+2];
-        if(tiltX){const h=v;v=h*cx-w*sx;w=h*sx+w*cx;}
-        if(tiltZ){const side=u;u=side*cz-v*sz;v=side*sz+v*cz;}
-        dest[j]=x+u*co+w*si;dest[j+1]=y+v;dest[j+2]=z-u*si+w*co;
-        dest[j+3]=data[p+3];dest[j+4]=data[p+4];dest[j+5]=data[p+5];
+      const start=this.used*6;
+      // The source list changes with distance and the visible sides of a closed
+      // model. Only two identical consecutive static draws can admit a pose.
+      const pose=!model.dynamic&&!car&&n>=48?this.repeatedPose(model,sources,x,y,z,yaw,tiltX,tiltZ):null;
+      if(pose?.vertices)dest.set(pose.vertices,start);
+      else{
+        const co=Math.cos(yaw),si=Math.sin(yaw),cx=Math.cos(tiltX),sx=Math.sin(tiltX),cz=Math.cos(tiltZ),sz=Math.sin(tiltZ);
+        for(let i=0,j=start;i<n;i++,j+=6){
+          const p=sources?sources[i]:i*6;
+          let u=data[p],v=data[p+1],w=data[p+2];
+          if(tiltX){const h=v;v=h*cx-w*sx;w=h*sx+w*cx;}
+          if(tiltZ){const side=u;u=side*cz-v*sz;v=side*sz+v*cz;}
+          dest[j]=x+u*co+w*si;dest[j+1]=y+v;dest[j+2]=z-u*si+w*co;
+          dest[j+3]=data[p+3];dest[j+4]=data[p+4];dest[j+5]=data[p+5];
+        }
+        if(pose)this.rememberPose(pose,dest.subarray(start,start+n*6));
       }
       for(let i=0;i<count;i++)this.indices[this.count+i]=this.used+(indices?indices[i]:i);
       this.used+=n;this.count+=count;

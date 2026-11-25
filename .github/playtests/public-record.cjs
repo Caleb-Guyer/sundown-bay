@@ -105,7 +105,25 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
           const path=[0,3].includes(block%4)?'stream':'separate',now=performance.now();
           if(frame%10>=2&&q.previous)q[path].push(now-q.previous);
           q.previous=now;q.block=block;q.frames.push(path);
-          if(block>=8){q.pixels=comparePixels(this,items,batchDraw);return batchDraw.call(this,items);}
+          if(block>=8){
+            q.pixels=comparePixels(this,items,batchDraw);
+            const batch=this.streetBatch,pose=batch.repeatedPose,flush=batch.flush;
+            const props=items.filter(([name,,,,,,,,car,,vapor])=>{const m=this.models.get(name);
+              return m?.count&&!m.dynamic&&!m.sections&&!car&&!vapor&&m.count<=batch.indices.length&&m.vertexCount<=batch.vertices.length/6;});
+            const times=[[],[]],counts=[0,0];let hits=0,triIndices=0;
+            try{
+              batch.flush=function(){triIndices+=this.count;this.count=this.used=0;};
+              for(let i=0;i<16;i++){
+                const enabled=[0,3].includes(i%4)?1:0;
+                batch.repeatedPose=enabled?function(...args){const p=pose.apply(this,args);if(p?.vertices)hits++;return p;}:()=>null;
+                triIndices=0;const start=performance.now();
+                for(let k=0;k<4;k++){for(const p of props)batch.append(p);batch.flush();}
+                if(i>=4)times[enabled].push((performance.now()-start)/4);counts[enabled]=triIndices/4;
+              }
+            }finally{batch.flush=flush;batch.repeatedPose=pose;batch.count=batch.used=0;}
+            q.poses={props:props.length,hits,bytes:batch.poseBytes,indices:counts,medianMs:times.map(a=>a.sort((x,y)=>x-y)[a.length>>1])};
+            return batchDraw.call(this,items);
+          }
           const before=(recQA.calls||0)+(recQA.batches||0),vertices=recQA.vertices||0;recQA.samples=true;
           if(path==='stream')batchDraw.call(this,items);else for(const item of items)this.draw(...item);
           recQA.samples=false;q.calls[path]+=(recQA.calls||0)+(recQA.batches||0)-before;
@@ -120,6 +138,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       assert(pair.stream.draws<pair.separate.draws*.85,"street geometry shares submissions");
       const pixels=await js("recQA.compare.pixels");console.log("PERF same-frame pixels",JSON.stringify(pixels));
       assert(pixels.painted>350&&pixels.silhouette<pixels.painted*.01&&pixels.recolored<pixels.painted*.015);
+      const poses=await js("recQA.compare.poses");console.log("PERF stationary scenery",JSON.stringify(poses));
+      assert(poses.hits>0&&poses.bytes>0&&poses.bytes<=3*1024*1024&&poses.indices[0]===poses.indices[1]);
       assert.equal(await js("recQA.view.gl.getError()"),0);
     }
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
