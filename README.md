@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+**First Crossing** opens after the Lot 14 dispatch copy is filed. Speak to Dalia beside the board to collect a passenger pass. A signed dispatch starts the M/V Luz at Marlin Pier. The night shift’s ticket starts at North Float. Walk to the green post at the end of the marked pier and press **F** to board. Walk around the open deck and press **H** beside the red channel bell. At the other landing, hold **Space** and release in the green band to throw the line, or press **F** to hand it to the deckhand. The pass records your crossings and first-throw catches. The ferry continues to serve both piers.
+
 **Public Record** begins after Play. Mara Vega wants one photograph of a sale notice before it disappears from Port Sol. Watch the opening or press **Enter** to skip a scene. Find Mara outside the Marlin Motel, press **F** to talk, then take a car and pick her up. At Lot 14, photograph the notice and decide whether to risk the Sol FM deadline or send the print to Cine Luna.
 
 After the delivery, return on foot to the timetable at Lot 14. Press **F**, hold **Space**, and sweep **A / D** across the paper to reveal the old dispatch line. **1** credits dispatcher Dalia Cruz. **2** credits the night shift. Your published route and credit are saved. The pause menu can locate the next story scene or replay the opening.

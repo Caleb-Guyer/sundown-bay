@@ -17,7 +17,14 @@
     g.fillStyle=bg;g.fillRect(0,0,W,H);
     for(let i=0;i<18;i++)line(g,0,30*i,1000,22+30*i,i%2?"#47443a":"#383d36",1+i%3);
     g.translate(500,254);g.rotate(id==="key"?-.087:id==="negative"?.045:-.031);
-    if(id==="key"){
+    if(id==="pass"){
+      stock(g,-291,-135,584,270);g.fillStyle="#296d64";g.fillRect(-291,-135,584,55);
+      label(g,-264,-97,"PORT SOL   •   PUBLIC LANDING",22,"#f5e5bd","monospace","bold");
+      label(g,-262,-21,"First Crossing",50);label(g,-260,20,"MARLIN PIER   /   NORTH FLOAT",19,red,"monospace");
+      line(g,-261,42,258,42,"#9a896b",2);label(g,-256,83,"Good for passage both ways",21,ink,"Georgia","italic");
+      for(let i=0;i<16;i++)line(g,191,-78+i*12,191,-71+i*12,"#a79776",2);
+      g.save();g.translate(233,25);g.rotate(-Math.PI/2);label(g,-59,3,"Nº 0001",22,red,"monospace","bold");g.restore();
+    }else if(id==="key"){
       stock(g,-335,-133,662,266);line(g,-335,-132,-4,42,"#b5a57f",2);line(g,-4,42,327,-132,"#b5a57f",2);
       label(g,-297,-83,"MARLIN MOTOR COURT",17,red,"monospace","bold");label(g,-299,-53,"Ocean Drive, Sundown Bay",15,ink);
       label(g,-290,97,"For the driver in fourteen.",31,ink,"Georgia","italic");

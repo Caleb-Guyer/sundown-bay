@@ -8,6 +8,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
   }
   async function ready(){await waitFor("document.readyState==='complete'&&typeof BayPublicRecord==='object'");}
   const book="JSON.parse(localStorage.getItem(BayPublicRecord.key)||'{}')";
+  async function loadFootAt(point){
+    const before=await send("Page.addScriptToEvaluateOnNewDocument",{source:`const data=JSON.parse(localStorage.getItem('sundownBay.secondUnit.v1'));
+      data[data.lead]=Object.assign({},${JSON.stringify(point)},{yaw:1.57,ride:''});localStorage.setItem('sundownBay.secondUnit.v1',JSON.stringify(data));`});
+    await send("Page.reload");await ready();await send("Page.removeScriptToEvaluateOnNewDocument",{identifier:before.identifier});
+    await js("document.querySelector('#play').click()");
+  }
   try{
     await waitFor("!document.querySelector('#chapterFilm').hidden");
     await js(`window.recQA={frames:[],held:new Set(),now:0,points:[],samples:false};
@@ -84,7 +90,21 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await send("Page.reload");await ready();await js("document.querySelector('#play').click()");
     await waitFor("document.querySelector('#chapterFilm').hidden&&document.querySelector('#hud').hidden===false");
     assert.equal((await js(book)).credit,credit);assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).wallet"),347);
+    await loadFootAt({x:-151.1,z:-86.6});await waitFor("document.querySelector('#context').innerText.includes('Dalia Cruz')");
+    await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').innerText==='First Crossing'",30000);await snap("ticket");await tap("Enter");
+    const gate=await js("BayFirstCrossing.stop("+book+".berth)");await loadFootAt(gate);
+    await waitFor("document.querySelector('#context').innerText.includes('Board Luz')");
+    await js(`const move=BayFirstCrossing.Service.prototype.step;BayFirstCrossing.Service.prototype.step=function(...a){
+      window.rideTest=this;const result=move.apply(this,a);
+      if(this.rider?.charge>=this.goal()&&!window.letGo){window.letGo=true;dispatchEvent(new KeyboardEvent('keyup',{code:'Space',bubbles:true}));}
+      return result;};`);
+    await tap("KeyF");await waitFor("window.rideTest?.rider?.phase==='sail'",35000);
+    await key("keyDown","KeyD");try{await waitFor("Math.hypot(rideTest.rider.x+.8,rideTest.rider.z)>.27",16000);}finally{await key("keyUp","KeyD");}
+    await waitFor("Math.abs(rideTest.u-.5)<.13",95000);await tap("KeyH");await waitFor("rideTest.rider.bell");await snap("deck");
+    await waitFor("rideTest.rider.phase==='line'",90000);await snap("quay");
+    await key("keyDown","Space");await waitFor("window.letGo&&"+book+".trips===1",35000);await key("keyUp","Space");
+    assert.equal((await js(book)).clean,1);await send("Page.reload");await ready();assert.equal((await js(book)).trips,1);
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
-    console.log("PASS",mode,"fresh six-shot opening, free movement, real passenger boarding, scene skip, published edition, interactive dispatch sheet and persistent ending",route,credit);
+    console.log("PASS",mode,"Public Record, Dalia’s ticket, moving ferry deck, channel reply, mooring cast, arrival on foot and persistent passage",route,credit);
   }catch(e){console.log("Campaign state",await js("JSON.stringify({book:"+book+",who:document.querySelector('#chapterWho').textContent,line:document.querySelector('#chapterLine').textContent,hint:document.querySelector('#context').innerText,at:window.recQA?.hero&&[recQA.hero.x,recQA.hero.z],goal:window.recQA?.goal,panel:document.querySelector('#panelTitle').innerText})"));await snap("failure");throw e;}
 };

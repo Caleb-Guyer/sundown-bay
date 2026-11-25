@@ -16,6 +16,14 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    passDalia:[
+      {dur:4,shot:"fence",who:"Dalia Cruz",line:"Used to sign the ticket books right here. First leaf’s yours. They gave me the south run back."},
+      {dur:4.5,art:"pass",slug:"MARLIN PIER",title:"First Crossing",who:"Dalia Cruz",line:"Look for the red awning at Marlin Pier. My sister takes the helm. I’m putting you on the line."}
+    ],
+    passShift:[
+      {dur:4,shot:"fence",who:"Dalia Cruz",line:"You put the whole shift down. Forty of us signed this first ticket. There wasn’t room on the front."},
+      {dur:4.5,art:"pass",slug:"NORTH FLOAT",title:"First Crossing",who:"Dalia Cruz",line:"Luis has the little double-ender at North Float. He saved you the line. Mind your knuckles."}
+    ],
     opening:[
       {dur:4.3,shot:"portWide",slug:"PORT SOL",line:"",title:"Sundown Bay"},
       {dur:4.7,shot:"fence",who:"Dock recording · 6:12 AM",line:"First boat’s at six. Been that way since my mother ran the gate."},
@@ -53,7 +61,9 @@
     ]
   };
   const read=(raw={})=>({stage:stages.includes(raw?.stage)?raw.stage:"arrival",route:["print","live"].includes(raw?.route)?raw.route:"",
-    credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true});
+    credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true,
+    pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
+    berth:raw?.berth===1?1:0});
   class Story {
     constructor(){try{this.book=read(JSON.parse(localStorage.getItem(key)));}catch{this.book=read();}this.scene=null;this.table=null;}
     write(){try{localStorage.setItem(key,JSON.stringify(this.book));}catch{}}

@@ -79,8 +79,11 @@
   }
   class Scenery{
     constructor(city){
-      this.cityTiles=streetTiles(city);this.streetCars=new Map();this.models=new Map();this.sectors={};this.canvas=null;this.time=-50;this.collecting=false;
-      // These three pieces are retained before the large city mesh is released. No second city is built.
+      this.streetCars=new Map();this.models=new Map();this.sectors={};this.canvas=null;this.time=-50;this.collecting=false;
+      if(typeof city==="function")this.source=city;else this.prepare(city);
+    }
+    prepare(city){
+      this.cityTiles=streetTiles(city);
       for(const c of BaySecondSeat.briefs){const {x,z}=c.subject;
         this.sectors[c.id]=pack(city,(v,i)=>{
           const minX=Math.min(v[i],v[i+6],v[i+12]),maxX=Math.max(v[i],v[i+6],v[i+12]),minZ=Math.min(v[i+2],v[i+8],v[i+14]),maxZ=Math.max(v[i+2],v[i+8],v[i+14]);
@@ -95,6 +98,7 @@
       const g=new BayMesh();make(g);this.models.set(name,pack(g.vertices));
     }
     paint(out,eye,c,t,env,force=false){
+      if(this.source){this.prepare(this.source());this.source=null;}
       if(!this.canvas)this.canvas=document.createElement("canvas");
       const canvas=this.canvas,w=env.curb?Math.min(320,out.width):352,h=env.curb?Math.round(w*out.height/out.width):Math.max(136,Math.min(280,Math.round(w*out.height/out.width)));
       if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;this.image=null;}

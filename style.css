@@ -481,3 +481,6 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 #chapterSkip{position:absolute;right:3%;top:2%;pointer-events:auto;padding:3px 8px;border:0;color:#ddd5c5;background:#13191b;font:500 12px/1.3 system-ui,sans-serif}
 #chapterSkip kbd{margin-left:5px;color:#f4cb8c}
 #game.in-chapter #hud,#game.in-chapter #vignette,#game.in-chapter #targetTag,#game.in-chapter #driverGlass,#game.in-chapter #speech,#game.in-chapter #toast{visibility:hidden}
+#luzTicket{position:absolute;left:clamp(12px,2vw,24px);bottom:clamp(139px,22vh,202px);width:min(234px,40vw);box-sizing:border-box;padding:9px 13px 11px;border-top:5px solid #32716a;border-right:2px dashed #9d9276;background:#eee1bfff;color:#283b3a;text-shadow:none;box-shadow:1px 3px 8px #182a2a60}
+#luzTicket small,#luzTicket strong,#luzTicket span{display:block}#luzTicket small{font:bold 10px/1.2 monospace;letter-spacing:.07em;color:#9e5340}#luzTicket strong{margin:3px 0;font:bold 21px/1.1 Georgia,serif}#luzTicket span{font:12px/1.25 system-ui,sans-serif}
+#luzMeter{position:relative;height:7px;margin:9px 3px 1px;background:#9d9781}#luzMeter i{position:absolute;left:var(--zone);width:28%;height:100%;background:#397968}#luzMeter b{position:absolute;left:var(--power);width:3px;top:-3px;bottom:-3px;background:#702f29;border:1px solid #fff5d7}

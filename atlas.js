@@ -809,6 +809,7 @@
       }
     }
     BayMarinaView.map(ctx,opt,px,py,s,ui,visible);
+    if(opt.publicBoat)BayFirstCrossing.map(ctx,opt.publicBoat,px,py,s,visible,street);
     if(opt.brisas)BayBrisas.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.palmHouse)BayPalmRoom.furniture(ctx,opt,px,py,s,visible,streetTime);
     if(opt.motorSales&&(!atlas||!opt.marina?.bayChart&&!opt.countyChart))BayGullMotors.map(ctx,opt,px,py,s,visible,streetTime);

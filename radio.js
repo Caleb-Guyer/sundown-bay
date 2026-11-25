@@ -689,6 +689,9 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="luz-cast"){tone(effects,147,at,.71,.085,"horn",151,.075);tone(effects,219,at+.03,.62,.04,"reed",224,.06);return;}
+    if(name==="luz-bell"){for(const delay of [0,.34]){tone(effects,672,at+delay,.47,.071,"sine",664,.003);
+      tone(effects,1546,at+delay,.18,.027,"sine",1530,.003);}return;}
     if(name==="record-theme"){
       for(const [delay,pitch,len] of [[0,55,.85],[.40,62,.60],[.76,source.ending?67:65,1.10]]){
         tone(effects,hz(pitch),at+delay,len,.062,"triangle",0,.035);
