@@ -263,16 +263,19 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await waitFor("document.querySelector('#panel').hidden&&recQA.map?.streetCar");
     const checkId=mode==="street"?"Street drive":"Overhead drive";
     await js(`const driveKeys=(${require("./coast-driver.cjs").toString()});
-      const mem={},held=new Set();recQA.driving=true;recQA.blocks=new Set();
+      const mem={cruise:true},held=new Set();recQA.driving=true;recQA.blocks=new Set();
       function driveLoop(t){
-        const map=recQA.map,v=map.streetCar;recQA.blocks.add(Math.floor(v.x/36)+','+Math.floor(v.z/36));
+        const map=recQA.map,v=map.streetCar;
+        if(v)recQA.blocks.add(Math.floor(v.x/36)+','+Math.floor(v.z/36));
+        else{recQA.driving=false;recQA.interruption=document.querySelector('#toast').innerText||'Driver left the car';}
         const wanted=new Set(recQA.driving?driveKeys({...map,coastCup:{phase:'race',clock:t/1000}},mem):[]);
         for(const code of held)if(!wanted.has(code)){dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));held.delete(code);}
         for(const code of wanted)if(!held.has(code)){dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true}));held.add(code);}
         if(recQA.driving)requestAnimationFrame(driveLoop);
       }requestAnimationFrame(driveLoop);`);
     const result="JSON.parse(localStorage.getItem('sundownBay.frameCheck.v1')||'{}')["+JSON.stringify(checkId)+"]";
-    try{await waitFor(result,100000);}finally{await js("recQA.driving=false");}
+    try{await waitFor("recQA.interruption||"+result,100000);}finally{await js("recQA.driving=false");}
+    assert.equal(await js("recQA.interruption||null"),null,"The full measurement must stay behind the wheel");
     const minute=await js(result),blocks=await js("recQA.blocks.size");
     console.log("PERF minute drive",mode,JSON.stringify({...minute,blocks}));assert(minute.seconds>=60&&minute.metres>120&&blocks>=4);
     assert(minute.device.startsWith("Linux · "+(mode==="street"?"WebGL":"Canvas 2D"))&&Number.isInteger(minute.slowestSecond));

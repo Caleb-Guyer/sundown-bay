@@ -11,7 +11,7 @@ function coastKeys(map,driver){
   if(!driver.anchor||Math.hypot(v.x-driver.anchor.x,v.z-driver.anchor.z)>1.6){
     driver.anchor={x:v.x,z:v.z,clock};driver.attempts=0;
   }
-  if(speed<1.4&&clock-driver.anchor.clock>1.15&&clock>(driver.escapeUntil||0)){
+  if(speed<1.4&&clock-driver.anchor.clock>(driver.cruise?3:1.15)&&clock>(driver.escapeUntil||0)){
     driver.attempts=(driver.attempts||0)+1;
     driver.escapeLane=(side>0?-1:1)*(driver.attempts%2?4.9:-4.9);
     driver.reverseUntil=clock+1.12;driver.escapeUntil=clock+3.5;driver.anchor.clock=clock;
@@ -19,7 +19,7 @@ function coastKeys(map,driver){
   const escaping=clock<(driver.escapeUntil||0);
   if(clock<(driver.reverseUntil||0)){
     const behind=BayDriving.world(v,0,-3.6);
-    if(speed<.5&&clock>driver.reverseUntil-.62&&nearby.some(t=>BayDriving.clearance(t,behind)<1.05))driver.reverseUntil=clock;
+    if((driver.cruise||(speed<.5&&clock>driver.reverseUntil-.62))&&nearby.some(t=>BayDriving.clearance(t,behind)<1.05))driver.reverseUntil=clock;
     else return ["KeyS",driver.escapeLane>0?"KeyA":"KeyD"];
   }
   const lanes=escaping?[driver.escapeLane,-driver.escapeLane,0]:[1.7,-1.5,3.7,-3.9,.1,5.0,-5.0];
@@ -44,7 +44,12 @@ function coastKeys(map,driver){
   driver.lane=goal;
   const aim=road.sample(at+(escaping?4.4:ahead),goal),yaw=Math.atan2(aim.x-v.x,aim.z-v.z);
   const error=wrap(yaw-v.yaw),bend=Math.abs(wrap(road.sample(at+15).yaw-road.sample(at+1).yaw));
-  const desired=Math.min(17,Math.max(6.2,17-bend*9.6-Math.abs(error)*5),room<1?1.65:Math.sqrt(2*7*room));
+  // The campaign benchmark carries a passenger in ordinary traffic. Leave
+  // braking distance and let a blocked lane clear before setting off again.
+  const limit=driver.cruise?9.5:17,gap=driver.cruise?Math.max(0,room-2.2):room;
+  const desired=Math.min(limit,Math.max(6.2,limit-bend*9.6-Math.abs(error)*5),
+    gap<1?(driver.cruise?0:1.65):Math.sqrt(2*7*gap));
+  if(driver.cruise&&desired===0&&speed<1)return ["Space"];
   const steer=error-(v.yawRate||0)*.13;
   return [speed<desired-.24?"KeyW":speed>desired+.9?"KeyS":"",steer>.038?"KeyD":steer<-.038?"KeyA":""].filter(Boolean);
 }
