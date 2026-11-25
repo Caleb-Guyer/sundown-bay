@@ -81,6 +81,41 @@
         (bx-ax)**2+(by-ay)**2+(bz-az)**2>4)indices.push(i,i+1,i+2);
     }
   }
+  // Share vertices only when all six Float32 words match. Painted seams and
+  // layered signs keep their colours and the original triangle ordering.
+  function indexGeometry(data,largeIndices){
+    const count=data.length/6;
+    if(count<192||count>65535&&!largeIndices)return null;
+    const words=new Uint32Array(data.buffer,data.byteOffset,data.length);
+    let size=1;while(size<count*2)size*=2;
+    const slots=new Uint32Array(size),remap=count>65535?new Uint32Array(count):new Uint16Array(count);
+    const packed=new Float32Array(data.length);let used=0;
+    for(let i=0;i<count;i++){
+      const p=i*6;let hash=2166136261;
+      for(let n=0;n<6;n++)hash=Math.imul(hash^words[p+n],16777619);
+      let slot=(hash^(hash>>>16))&(size-1);
+      while(slots[slot]){
+        const q=(slots[slot]-1)*6;
+        if(words[q]===words[p]&&words[q+1]===words[p+1]&&words[q+2]===words[p+2]&&
+          words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5])break;
+        slot=(slot+1)&(size-1);
+      }
+      if(slots[slot])remap[i]=remap[slots[slot]-1];
+      else{
+        slots[slot]=i+1;remap[i]=used;
+        for(let n=0;n<6;n++)packed[used*6+n]=data[p+n];
+        used++;
+      }
+    }
+    if(used>count*.85)return null;
+    const indices=used<=65535&&remap.BYTES_PER_ELEMENT===4?new Uint16Array(remap):remap;
+    return {vertices:packed.subarray(0,used*6),indices};
+  }
+  function drawRange(gl,model,first,count){
+    if(!model.elements){gl.drawArrays(gl.TRIANGLES,first,count);return;}
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
+    gl.drawElements(gl.TRIANGLES,count,model.elementType,first*model.indices.BYTES_PER_ELEMENT);
+  }
   const LIGHT = `
     uniform vec3 sunDir,sunAcross,sunUp;
     vec3 lightClip(vec3 world){
@@ -310,14 +345,20 @@
       const data=mesh.vertices instanceof Float32Array?mesh.vertices:new Float32Array(mesh.vertices);
       if(name==="city")tagMaterials(data,builtMaterials);
       else if(name==="cut-guides")tagMaterials(data,new Map([[0xe7e0bf,7],[0xc8965a,7]]));
-      else if(/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
+      else if(name.startsWith("traffic-shell/")||/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
       if(animated)this.animated.add(name);
       this.cpu.set(name,data);if(!this.lost)this.upload(name,data);
     }
     upload(name,data){
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
-      gl.bufferData(gl.ARRAY_BUFFER,data,this.animated.has(name)?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
+      const dynamic=this.animated.has(name),packed=dynamic?null:indexGeometry(data,this.largeIndices);
+      gl.bufferData(gl.ARRAY_BUFFER,packed?.vertices||data,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
       const count=data.length/6,model={buf,count};
+      if(packed){
+        model.indices=packed.indices;model.elementType=model.indices.BYTES_PER_ELEMENT===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT;
+        model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,model.indices,gl.STATIC_DRAW);
+      }
       if(count&&!this.animated.has(name))model.bounds=meshBounds(data,0,count);
       if(name==="city"){
         // City geometry is generated building by building. Keep the original triangle
@@ -342,7 +383,8 @@
       }
       // A distant car or person must still have an outline.
       if(indices.length<18||indices.length>model.count*.8)return;
-      const gl=this.gl,large=model.count>65535;
+      if(model.indices)for(let i=0;i<indices.length;i++)indices[i]=model.indices[indices[i]];
+      const gl=this.gl,large=model.indices?model.indices.BYTES_PER_ELEMENT===4:model.count>65535;
       model.distant=gl.createBuffer();model.indexSize=large?4:2;model.indexType=large?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT;
       model.indexCount=indices.length;
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);
@@ -393,7 +435,7 @@
         basis(this.sunUniforms);
         gl.disableVertexAttribArray(this.pos);gl.disableVertexAttribArray(this.col);
         const p=gl.getAttribLocation(this.sunProgram,"pos");gl.enableVertexAttribArray(p);gl.bindBuffer(gl.ARRAY_BUFFER,city.buf);gl.vertexAttribPointer(p,3,gl.FLOAT,false,24,0);
-        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);gl.drawArrays(gl.TRIANGLES,0,city.count);gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
+        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);drawRange(gl,city,0,city.count);gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
         gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.useProgram(this.program);basis(this.u);
         gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
         this.sunKey=key;this.bound=null;
@@ -402,6 +444,7 @@
     }
     begin(camera,dusk=0,weather=null,headlights=null,seaTime=null,inset=null){
       if(!this.gl||this.lost)return;
+      this.streetWalls=null;
       const gl=this.gl,c=this.canvas, factor=Math.min(this.maxWidth/innerWidth,this.maxHeight/innerHeight,devicePixelRatio||1)*this.scale;
       gl.uniform1f(this.u.lowDetail,this.scale<=.65?1:0);
       if(weather)this.updateSun(weather,dusk);
@@ -456,8 +499,17 @@
       if(this.casting){x+=this.castX*(y-.15);z+=this.castZ*(y-.15);y=.153;r*=Math.hypot(1,this.castX,this.castZ);}
       x-=v.camera.x;y-=v.camera.y;z-=v.camera.z;
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
-      return depth+r>=.13&&depth-r<=1100&&Math.abs(x*v.cs-z*v.sn)<=depth*v.horizontal+r*v.xMargin&&
-        Math.abs(y*v.cp-along*v.sp)<=depth*v.vertical+r*v.yMargin;
+      if(depth+r<.13||depth-r>1100||Math.abs(x*v.cs-z*v.sn)>depth*v.horizontal+r*v.xMargin||
+        Math.abs(y*v.cp-along*v.sp)>depth*v.vertical+r*v.yMargin)return false;
+      // At the same fraction along every sight line to the sphere its radius
+      // is r*t. Cull only when that whole cross-section fits inside a solid.
+      if(this.streetWalls&&depth>12)for(const b of this.streetWalls){
+        const t=b.across?b.x/x:b.z/z;
+        if(!(t>0&&t<1))continue;
+        const span=r*t;
+        if(Math.abs(y*t-b.y)+span<b.hh&&Math.abs(x*t-b.x)+span<b.hw&&Math.abs(z*t-b.z)+span<b.hd)return false;
+      }
+      return true;
     }
     project(x,y,z){
       if(!this.basis)return null;
@@ -474,6 +526,16 @@
       this.gl.uniform1f(this.u.ghost,1);this.draw(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
     }
     drawCityAndWater(t){
+      if(this.scale<=.75&&this.buildings){
+        const v=this.basis,c=v.camera,walls=[];
+        for(const b of this.buildings){
+          const x=b.x-c.x,y=b.y-c.y,z=b.z-c.z;
+          if(Math.abs(x)>100||Math.abs(z)>100||Math.abs(x)<b.hw&&Math.abs(z)<b.hd||
+            (x*v.sn+z*v.cs)*v.cp+y*v.sp+Math.hypot(b.hw,b.hh,b.hd)<0)continue;
+          walls.push({x,y,z,hw:b.hw,hh:b.hh,hd:b.hd,across:Math.abs(x)*b.hd>Math.abs(z)*b.hw});
+        }
+        this.streetWalls=walls;
+      }
       this.draw("city");
       // Opaque land masks the water shader. Keep city surfaces on equal-depth shore pixels.
       const gl=this.gl;gl.depthFunc(gl.LESS);this.drawWater(t);gl.depthFunc(gl.LEQUAL);
@@ -531,20 +593,19 @@
       gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
       if(model.sections){
         let first=-1;
-        if(reduced&&model.distant)gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);
         for(const section of model.sections){
           if(this.inFrame(section.bounds,x,y,z,yaw,tiltX,tiltZ)){
             if(reduced&&model.distant&&this.farFromCamera(section.bounds)){
-              if(first>=0){gl.drawArrays(gl.TRIANGLES,first,section.first-first);first=-1;}
-              if(section.indexCount)gl.drawElements(gl.TRIANGLES,section.indexCount,model.indexType,section.indexStart*model.indexSize);
+              if(first>=0){drawRange(gl,model,first,section.first-first);first=-1;}
+              if(section.indexCount){gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,section.indexCount,model.indexType,section.indexStart*model.indexSize);}
             }else if(first<0)first=section.first;
           }
-          else if(first>=0){gl.drawArrays(gl.TRIANGLES,first,section.first-first);first=-1;}
+          else if(first>=0){drawRange(gl,model,first,section.first-first);first=-1;}
         }
-        if(first>=0)gl.drawArrays(gl.TRIANGLES,first,model.count-first);
+        if(first>=0)drawRange(gl,model,first,model.count-first);
       }else if(reduced&&model.distant){
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,model.indexCount,model.indexType,0);
-      }else gl.drawArrays(gl.TRIANGLES,0,model.count);
+      }else drawRange(gl,model,0,model.count);
       if(vapor){gl.uniform1f(this.u.beam,0);gl.disable(gl.BLEND);gl.depthMask(true);}
     }
   }

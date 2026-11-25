@@ -6,7 +6,8 @@
   const ease=(value,to,rate,dt)=>value+(to-value)*(1-Math.exp(-rate*dt));
   const axes=[-144,-72,0,72,144], nearestAxis=v=>axes.reduce((a,b)=>Math.abs(a-v)<Math.abs(b-v)?a:b);
   const nearStreet=(x,z)=>Math.min(Math.abs(nearestAxis(x)-x),Math.abs(nearestAxis(z)-z))<9;
-  const cash=n=>"$"+Math.round(n).toLocaleString("en-US");
+  const moneyFormat=new Intl.NumberFormat("en-US");
+  const cash=n=>"$"+moneyFormat.format(Math.round(n));
   const watch=t=>Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0")+"."+Math.floor(t*10)%10;
   const raceWatch=t=>{
     const n=Math.round(t*100);return Math.floor(n/6000)+":"+String(Math.floor(n/100)%60).padStart(2,"0")+"."+String(n%100).padStart(2,"0");
@@ -14,6 +15,7 @@
   const deltaText=d=>Math.abs(d)<.005?"Level with best":Math.abs(d).toFixed(2)+" s "+(d<0?"ahead":"behind");
   const course=BayBeachDash.gates;
   const view=new BayView($("world")), cityMesh=new BayMesh(),waterMesh=new BayMesh(),city=buildBayCity(cityMesh,waterMesh);
+  view.buildings=city.opaqueBuildings;
   const jumps=BayPictureJumps;
   const carbon=BayCarbonCopies,tireCloud=[];let puffAt=-10,puffId=0,copySide="left";
   BayPictureJumpArt.build(cityMesh,jumps.sites);
@@ -8475,6 +8477,7 @@
       if(paintPreview)scale=h/24;
       const offset=besideTicket?w*.14/scale:0;
       const state=collectMap("street",p.x+Math.sin(yaw)*ahead-offset,p.z+Math.cos(yaw)*ahead,scale);
+      state.lowDetail=overheadQuality.scale<=.8;
       rainWalk.zoom=ease(rainWalk.zoom||0,rainWalk.trip?1:0,4,dt);
       if(rainWalk.zoom>.003){
         state.scale+=(h/(13*cameraRig.zoom)-state.scale)*rainWalk.zoom;
@@ -8755,6 +8758,17 @@
     if(play&&see(beat.v,110))BayOceanBeatArt.car(visible,model,beat.v,footLevel(beat.v.x,beat.v.z)+.008,t,beat.v.beatLights);
     for(const v of cars)if(see(v,160)&&!(film&&BayTake.onSet(v))&&!(v===windowRide?.vehicle&&unit.eye?.window)&&!(v===car&&!transfer&&(hideActor||insideSeat()))){
       const ground=footLevel(v.x,v.z)+.008+serviceLift(v)+(v.towLift||0),body=roadBody(v);
+      if(view.scale<=.65&&v!==owned&&v!==story?.ride&&!v.damage&&!v.doorAngle&&!v.passengerDoor&&
+        !v.hydraulic&&!v.serviceCar&&!v.cupNumber&&!v.greenId&&v!==surfWagon&&v!==iceVan&&["coupe","cab","hatch","van","marea","cayo","estate","stepside","solena"].includes(v.kind)&&
+        Math.hypot(eye.x-v.x,eye.z-v.z)>25){
+        const name="traffic-shell/"+v.kind+"/"+v.color;
+        model(name,g=>buildBayTrafficShell(g,v.kind,v.color));visible.push([name,v.x,ground,v.z,v.yaw,body.pitch,body.lean]);
+        BayStreetCars.world(visible,model,body,ground,t,dist(eye,v));
+        if(v.brakes>.35){
+          const key="traffic-brakes/"+v.kind;model(key,g=>buildBayBrakeLights(g,v.kind));visible.push([key,v.x,ground,v.z,v.yaw,body.pitch,body.lean]);
+        }
+        continue;
+      }
       const rigBody=v===owned&&paintPreview?paintPreview:body;
       const nativeWheels=(v.brisasLead||v.lanes?.change||v.lanes?.reverse||v.kind==="estate"||v.kind==="stepside")&&see(v,29);
       const split=v===owned||nativeWheels||v.hydraulic&&!v.hydraulic.rest&&see(v,85)||v===otherCar||v===afternoon.vehicle||v===windowRide?.vehicle||v===story?.ride||v===active?.ferry?.ride||v===active?.cabFare?.ride||v===band.june.ride||v===unit4&&(dist(cam,v)<72||v.rearOpen>.01)||v===taxi||v===wrecker||v.onLift||v.doorAngle>.01;
@@ -10946,13 +10960,18 @@
       elapsed+=dt;hours.step(dt);stepRankPhones();gutters.weather(hours);if(hours.total-savedAt>=20)saveTime();
       bumpLock=Math.max(0,bumpLock-dt);
       // Small steps keep steering and collision response consistent on slower hardware.
-      let left=dt;while(left>.00001&&!panel){
+      let left=dt,trafficTime=0;while(left>.00001&&!panel){
         const d=Math.min(left,motos.bike||car||skiff||cycles.riding||skate.rider||pickup||active?.take?1/60:1/45);
+        // Traffic follows the same clock as the wheels. On a long frame, advance
+        // ambient drivers and walkers together in at most two physics steps.
+        trafficTime+=d;
+        const streetStep=trafficTime>=1/30-.00001||left-d<.00001?trafficTime:0;
+        if(streetStep)trafficTime=0;
         iceVan.campanaDriver=!campana.manual&&car!==iceVan&&transfer?.v!==iceVan;
         stepSummer(d);stepSpur(d);campana.step(d,paletaEnv);radioStep(d);stepButtonwood(d);stepBridge(d);stepNeon(d);stepAir(d);stepRescue(d);sevenStep(d);brisasStep(d);palmUpdate(d);gull.step(d,gullEnv);stepMotorcycles(d);stepSkate(d);transit.step(d,transitEnv);
         const onBoardwalk=!!(boardwalk.player||cycles.riding);stepCourts(d);boardwalkStep(d);
         if(car!==wrecker&&tow.busy)tow.step(d,towClear,recoveryEvent);
-        if(room){walkRoom(d);traffic(d);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);left-=d;continue;}
+        if(room){walkRoom(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);left-=d;continue;}
         if(needle){
           const score=needle.score,banks=needle.banks;
           needle.step(d,held("KeyA","ArrowLeft"),held("KeyD","ArrowRight"),held("Space"));
@@ -10962,7 +10981,7 @@
         else if(swim)swimStep(d);
         else if(car){if(car!==meet.jules&&!(active?.meet&&meet.phase==="countdown"))drive(d,!!unit.transition);}
         else if(!unit.transition&&!unit.eye&&!afternoon.photo&&!windowRide?.held&&!broadcastDesk.mix&&!palm.match&&!palm.playerSeat&&!gull.exchange&&!motos.player&&!motos.job?.swapping&&!rescue.holding&&!airLine.aboard&&!skate.rider&&!transit.engaged&&!band.take&&!pickup&&!onBoardwalk&&!cabs.playerHeld&&!skiff&&!listening()&&!exchangingKey())walk(d);
-        stepWater(d);traffic(d);beat.step(d,beatEnv);cupStep(d);greenStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);
+        stepWater(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);greenStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);
         if(windowRide)windowRide.step(d,windowEnv,windowRideEvent);recovery.step(d,recoveryEnv,recoveryEvent);pursuit(d);stepMeet(d);advanceJob(d);serviceGarage(d);stepBeach(d);
         pavement.physics(d,cars,pavementEnv);left-=d;
       }
@@ -10988,7 +11007,9 @@
       if(pickup)courtMeter();
       if(needle)paintNeedle();
       if(band.take)drumHud();
-      if(elapsed-lastHud>.10){hud();lastHud=elapsed;}if(elapsed-lastMap>.09){drawMini();lastMap=elapsed;}
+      if(elapsed-lastHud>.10){hud();lastHud=elapsed;}
+      const radarInterval=(isTop()?overheadQuality.scale:view.scale)<=.75?(speed>8?.15:.24):.09;
+      if(elapsed-lastMap>radarInterval){drawMini();lastMap=elapsed;}
     }
     if(wireView&&panel==="curb-wire")paintWire(now);
     if(timingFilm?.playing)drawTimingFilm(now);

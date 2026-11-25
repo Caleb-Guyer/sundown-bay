@@ -82,6 +82,41 @@
         (bx-ax)**2+(by-ay)**2+(bz-az)**2>4)indices.push(i,i+1,i+2);
     }
   }
+  // Share vertices only when all six Float32 words match. Painted seams and
+  // layered signs keep their colours and the original triangle ordering.
+  function indexGeometry(data,largeIndices){
+    const count=data.length/6;
+    if(count<192||count>65535&&!largeIndices)return null;
+    const words=new Uint32Array(data.buffer,data.byteOffset,data.length);
+    let size=1;while(size<count*2)size*=2;
+    const slots=new Uint32Array(size),remap=count>65535?new Uint32Array(count):new Uint16Array(count);
+    const packed=new Float32Array(data.length);let used=0;
+    for(let i=0;i<count;i++){
+      const p=i*6;let hash=2166136261;
+      for(let n=0;n<6;n++)hash=Math.imul(hash^words[p+n],16777619);
+      let slot=(hash^(hash>>>16))&(size-1);
+      while(slots[slot]){
+        const q=(slots[slot]-1)*6;
+        if(words[q]===words[p]&&words[q+1]===words[p+1]&&words[q+2]===words[p+2]&&
+          words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5])break;
+        slot=(slot+1)&(size-1);
+      }
+      if(slots[slot])remap[i]=remap[slots[slot]-1];
+      else{
+        slots[slot]=i+1;remap[i]=used;
+        for(let n=0;n<6;n++)packed[used*6+n]=data[p+n];
+        used++;
+      }
+    }
+    if(used>count*.85)return null;
+    const indices=used<=65535&&remap.BYTES_PER_ELEMENT===4?new Uint16Array(remap):remap;
+    return {vertices:packed.subarray(0,used*6),indices};
+  }
+  function drawRange(gl,model,first,count){
+    if(!model.elements){gl.drawArrays(gl.TRIANGLES,first,count);return;}
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
+    gl.drawElements(gl.TRIANGLES,count,model.elementType,first*model.indices.BYTES_PER_ELEMENT);
+  }
   const LIGHT = `
     uniform vec3 sunDir,sunAcross,sunUp;
     vec3 lightClip(vec3 world){
@@ -311,14 +346,20 @@
       const data=mesh.vertices instanceof Float32Array?mesh.vertices:new Float32Array(mesh.vertices);
       if(name==="city")tagMaterials(data,builtMaterials);
       else if(name==="cut-guides")tagMaterials(data,new Map([[0xe7e0bf,7],[0xc8965a,7]]));
-      else if(/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
+      else if(name.startsWith("traffic-shell/")||/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
       if(animated)this.animated.add(name);
       this.cpu.set(name,data);if(!this.lost)this.upload(name,data);
     }
     upload(name,data){
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
-      gl.bufferData(gl.ARRAY_BUFFER,data,this.animated.has(name)?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
+      const dynamic=this.animated.has(name),packed=dynamic?null:indexGeometry(data,this.largeIndices);
+      gl.bufferData(gl.ARRAY_BUFFER,packed?.vertices||data,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
       const count=data.length/6,model={buf,count};
+      if(packed){
+        model.indices=packed.indices;model.elementType=model.indices.BYTES_PER_ELEMENT===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT;
+        model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,model.indices,gl.STATIC_DRAW);
+      }
       if(count&&!this.animated.has(name))model.bounds=meshBounds(data,0,count);
       if(name==="city"){
         // City geometry is generated building by building. Keep the original triangle
@@ -343,7 +384,8 @@
       }
       // A distant car or person must still have an outline.
       if(indices.length<18||indices.length>model.count*.8)return;
-      const gl=this.gl,large=model.count>65535;
+      if(model.indices)for(let i=0;i<indices.length;i++)indices[i]=model.indices[indices[i]];
+      const gl=this.gl,large=model.indices?model.indices.BYTES_PER_ELEMENT===4:model.count>65535;
       model.distant=gl.createBuffer();model.indexSize=large?4:2;model.indexType=large?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT;
       model.indexCount=indices.length;
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);
@@ -394,7 +436,7 @@
         basis(this.sunUniforms);
         gl.disableVertexAttribArray(this.pos);gl.disableVertexAttribArray(this.col);
         const p=gl.getAttribLocation(this.sunProgram,"pos");gl.enableVertexAttribArray(p);gl.bindBuffer(gl.ARRAY_BUFFER,city.buf);gl.vertexAttribPointer(p,3,gl.FLOAT,false,24,0);
-        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);gl.drawArrays(gl.TRIANGLES,0,city.count);gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
+        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);drawRange(gl,city,0,city.count);gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
         gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.useProgram(this.program);basis(this.u);
         gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
         this.sunKey=key;this.bound=null;
@@ -403,6 +445,7 @@
     }
     begin(camera,dusk=0,weather=null,headlights=null,seaTime=null,inset=null){
       if(!this.gl||this.lost)return;
+      this.streetWalls=null;
       const gl=this.gl,c=this.canvas, factor=Math.min(this.maxWidth/innerWidth,this.maxHeight/innerHeight,devicePixelRatio||1)*this.scale;
       gl.uniform1f(this.u.lowDetail,this.scale<=.65?1:0);
       if(weather)this.updateSun(weather,dusk);
@@ -457,8 +500,17 @@
       if(this.casting){x+=this.castX*(y-.15);z+=this.castZ*(y-.15);y=.153;r*=Math.hypot(1,this.castX,this.castZ);}
       x-=v.camera.x;y-=v.camera.y;z-=v.camera.z;
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
-      return depth+r>=.13&&depth-r<=1100&&Math.abs(x*v.cs-z*v.sn)<=depth*v.horizontal+r*v.xMargin&&
-        Math.abs(y*v.cp-along*v.sp)<=depth*v.vertical+r*v.yMargin;
+      if(depth+r<.13||depth-r>1100||Math.abs(x*v.cs-z*v.sn)>depth*v.horizontal+r*v.xMargin||
+        Math.abs(y*v.cp-along*v.sp)>depth*v.vertical+r*v.yMargin)return false;
+      // At the same fraction along every sight line to the sphere its radius
+      // is r*t. Cull only when that whole cross-section fits inside a solid.
+      if(this.streetWalls&&depth>12)for(const b of this.streetWalls){
+        const t=b.across?b.x/x:b.z/z;
+        if(!(t>0&&t<1))continue;
+        const span=r*t;
+        if(Math.abs(y*t-b.y)+span<b.hh&&Math.abs(x*t-b.x)+span<b.hw&&Math.abs(z*t-b.z)+span<b.hd)return false;
+      }
+      return true;
     }
     project(x,y,z){
       if(!this.basis)return null;
@@ -475,6 +527,16 @@
       this.gl.uniform1f(this.u.ghost,1);this.draw(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
     }
     drawCityAndWater(t){
+      if(this.scale<=.75&&this.buildings){
+        const v=this.basis,c=v.camera,walls=[];
+        for(const b of this.buildings){
+          const x=b.x-c.x,y=b.y-c.y,z=b.z-c.z;
+          if(Math.abs(x)>100||Math.abs(z)>100||Math.abs(x)<b.hw&&Math.abs(z)<b.hd||
+            (x*v.sn+z*v.cs)*v.cp+y*v.sp+Math.hypot(b.hw,b.hh,b.hd)<0)continue;
+          walls.push({x,y,z,hw:b.hw,hh:b.hh,hd:b.hd,across:Math.abs(x)*b.hd>Math.abs(z)*b.hw});
+        }
+        this.streetWalls=walls;
+      }
       this.draw("city");
       // Opaque land masks the water shader. Keep city surfaces on equal-depth shore pixels.
       const gl=this.gl;gl.depthFunc(gl.LESS);this.drawWater(t);gl.depthFunc(gl.LEQUAL);
@@ -532,20 +594,19 @@
       gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
       if(model.sections){
         let first=-1;
-        if(reduced&&model.distant)gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);
         for(const section of model.sections){
           if(this.inFrame(section.bounds,x,y,z,yaw,tiltX,tiltZ)){
             if(reduced&&model.distant&&this.farFromCamera(section.bounds)){
-              if(first>=0){gl.drawArrays(gl.TRIANGLES,first,section.first-first);first=-1;}
-              if(section.indexCount)gl.drawElements(gl.TRIANGLES,section.indexCount,model.indexType,section.indexStart*model.indexSize);
+              if(first>=0){drawRange(gl,model,first,section.first-first);first=-1;}
+              if(section.indexCount){gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,section.indexCount,model.indexType,section.indexStart*model.indexSize);}
             }else if(first<0)first=section.first;
           }
-          else if(first>=0){gl.drawArrays(gl.TRIANGLES,first,section.first-first);first=-1;}
+          else if(first>=0){drawRange(gl,model,first,section.first-first);first=-1;}
         }
-        if(first>=0)gl.drawArrays(gl.TRIANGLES,first,model.count-first);
+        if(first>=0)drawRange(gl,model,first,model.count-first);
       }else if(reduced&&model.distant){
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,model.indexCount,model.indexType,0);
-      }else gl.drawArrays(gl.TRIANGLES,0,model.count);
+      }else drawRange(gl,model,0,model.count);
       if(vapor){gl.uniform1f(this.u.beam,0);gl.disable(gl.BLEND);gl.depthMask(true);}
     }
   }
@@ -4935,7 +4996,7 @@
 window.buildBayCity = function buildBayCity(g,water) {
   "use strict";
   water??=g;
-  const solids = [], cameraObstacles = [];
+  const solids = [], cameraObstacles = [], opaqueBuildings=[];
   const roads = [-144, -72, 0, 72, 144];
   const garage={kind:"garage",name:"Portside Tire",x:-109,z:-17,halfWidth:4.7,halfDepth:7};
   let state = 76219;
@@ -5077,6 +5138,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }else{
       block(x,z,sx+.35,sz+.35,h+(style==="house"?2.43:.70));
       f.box(0,h/2+.15,0,w,h,d,body);
+      opaqueBuildings.push({x,y:h/2+.15,z,hw:sx/2-.05,hh:h/2-.05,hd:sz/2-.05});
       f.box(0,.43,0,w+.26,.6,d+.25,trim);
     }
     if(style === "house") {
@@ -6000,7 +6062,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const x=between(-202,129),z=(i%2?1:-1)*between(233,267),h=between(8,27);
     g.box(z>228&&x>52?x-190:x,h/2,z,between(12,23),h,between(11,21),pick(["#aba8a0","#a8a29f","#92a0a1"]));
   }
-  return {solids,cameraObstacles,garage};
+  return {solids,cameraObstacles,opaqueBuildings,garage};
 };
 
 ;
@@ -9693,6 +9755,31 @@ window.buildBayCity = function buildBayCity(g,water) {
     s.floorY=van?.41:Math.min(.265,s.seatY-.175);s.halfLength=Math.max(-s.sections[0][0],s.sections.at(-1)[0]);
   }
   window.bayCarLayout=kind=>shapes[kind]||shapes.coupe;
+  // The smaller street silhouette keeps each model's wheelbase, cabin and paint.
+  window.buildBayTrafficShell=function(g,kind,paint){
+    const shape=window.bayCarLayout(kind),[rear,roofRear,roofFront,front,sill,roof,bottom,top]=shape.glass;
+    bodyMesh(g,shape,paint,{"-1":g,"1":g});
+    const windshield=y=>[[-bottom,sill,y],[bottom,sill,y]];
+    const [a,b]=windshield(rear),[c,d]=windshield(front);
+    const A=[-top,roof,roofRear],B=[top,roof,roofRear],C=[-top,roof,roofFront],D=[top,roof,roofFront];
+    g.quad(a,b,B,A,darkGlass);g.quad(c,d,D,C,brightGlass);g.quad(A,B,D,C,paint);
+    g.quad(a,c,C,A,darkGlass);g.quad(b,d,D,B,kind==="van"?paint:darkGlass);
+    for(const side of [-1,1]){
+      for(const axle of shape.axles){
+        const x=side*shape.track,r=shape.wheel;
+        const point=(i,radius)=>[x,r+radius*Math.cos(i*Math.PI/4),axle+radius*Math.sin(i*Math.PI/4)];
+        for(let i=0;i<8;i++){
+          g.quad(point(i,r),point(i+1,r),point(i+1,r*.50),point(i,r*.50),rubber);
+          g.tri(point(i,r*.50),point(i+1,r*.50),[x,r,axle],metal);
+        }
+      }
+      for(const end of [-1,1]){
+        const [z,w,h]=end<0?shape.sections[0]:shape.sections.at(-1);
+        g.box(side*w*.69,h-.13,z+end*.013,w*.42,.15,.032,end<0?redLamp:warmLamp);
+      }
+    }
+    if(kind==="cab")g.box(0,roof+.11,roofFront-.18,.52,.21,.28,"#f6d67b");
+  };
   BayWreckerArt.fit(shapes.wrecker);BayAmbulanceArt.fit(shapes.ambulance);
   for(const [kind,builder] of coachwork)builder.fit(shapes[kind]);
 
@@ -13978,6 +14065,25 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
 
   const shadowBuildings=new WeakMap();
+  const streetGround=new WeakMap();
+  function groundPatch(opt,base,roofs,rx,rz){
+    if(!base||!roofs||!opt.weather||rx>95||rz>95)return null;
+    const light=opt.weather.sun,opacity=light.strength*(1-.88*opt.weather.rain)*(1-opt.dusk);
+    const key=Math.round(light.dx*13)+"/"+Math.round(light.dz*13)+"/"+Math.round(opacity*30);
+    let patch=streetGround.get(opt.solids);
+    if(patch?.key===key&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
+      opt.cx+rx<=patch.right&&opt.cz-rz>=patch.bottom)return patch;
+    const density=Math.min(12,Math.max(4,opt.scale)),pad=9;
+    const left=Math.floor(opt.cx-rx-pad),right=Math.ceil(opt.cx+rx+pad);
+    const top=Math.ceil(opt.cz+rz+pad),bottom=Math.floor(opt.cz-rz-pad);
+    const w=Math.ceil((right-left)*density),h=Math.ceil((top-bottom)*density);
+    if(w*h>1400000)return null;
+    const canvas=patch?.canvas||document.createElement("canvas");canvas.width=w;canvas.height=h;
+    const c=canvas.getContext("2d"),px=x=>(x-left)*density,py=z=>(top-z)*density;
+    const draw=image=>c.drawImage(image,px(extent.left),py(extent.top),(extent.right-extent.left)*density,(extent.top-extent.bottom)*density);
+    draw(base);castBuildings(c,opt.solids,light,px,py,density,(x,y,p)=>x>=-p&&x<=w+p&&y>=-p&&y<=h+p,opacity);draw(roofs);
+    patch={canvas,key,left,right:left+w/density,top,bottom:top-h/density};streetGround.set(opt.solids,patch);return patch;
+  }
   function castBuildings(c,solids,light,px,py,s,visible,opacity){
     if(!light||opacity<.012)return;
     c.save();c.fillStyle="rgba(43,54,79,"+(.31*opacity)+")";c.beginPath();
@@ -14415,15 +14521,17 @@ window.buildBayCity = function buildBayCity(g,water) {
       ctx.drawImage(image,(x-extent.left)*sx,(extent.top-z)*sz,(endX-x)*sx,(z-endZ)*sz,
         px(x),py(z),(endX-x)*s,(z-endZ)*s);
     }
-    if(base) drawLayer(base);
+    const roofs=street?staticImage(solids,true,true):null;
+    const patch=street&&opt.lowDetail&&groundPatch(opt,base,roofs,reachX,reachZ);
+    if(patch)ctx.drawImage(patch.canvas,px(patch.left),py(patch.top),(patch.right-patch.left)*s,(patch.top-patch.bottom)*s);
+    else if(base) drawLayer(base);
     else {
       ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);
       if(street)paintLand(ctx,true);else paintStatic(ctx,solids,false);ctx.restore();
     }
-    if(street){
+    if(street&&!patch){
       const light=opt.weather?.sun;
       castBuildings(ctx,solids,light,px,py,s,visible,(light?.strength||0)*(1-.88*(opt.weather?.rain||0))*(1-(opt.dusk||0)));
-      const roofs=staticImage(solids,true,true);
       if(roofs)drawLayer(roofs);
       else{ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);paintBuildings(ctx,solids,true);oceanFrontages(ctx);ctx.restore();}
     }
@@ -66292,7 +66400,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   const ease=(value,to,rate,dt)=>value+(to-value)*(1-Math.exp(-rate*dt));
   const axes=[-144,-72,0,72,144], nearestAxis=v=>axes.reduce((a,b)=>Math.abs(a-v)<Math.abs(b-v)?a:b);
   const nearStreet=(x,z)=>Math.min(Math.abs(nearestAxis(x)-x),Math.abs(nearestAxis(z)-z))<9;
-  const cash=n=>"$"+Math.round(n).toLocaleString("en-US");
+  const moneyFormat=new Intl.NumberFormat("en-US");
+  const cash=n=>"$"+moneyFormat.format(Math.round(n));
   const watch=t=>Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0")+"."+Math.floor(t*10)%10;
   const raceWatch=t=>{
     const n=Math.round(t*100);return Math.floor(n/6000)+":"+String(Math.floor(n/100)%60).padStart(2,"0")+"."+String(n%100).padStart(2,"0");
@@ -66300,6 +66409,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const deltaText=d=>Math.abs(d)<.005?"Level with best":Math.abs(d).toFixed(2)+" s "+(d<0?"ahead":"behind");
   const course=BayBeachDash.gates;
   const view=new BayView($("world")), cityMesh=new BayMesh(),waterMesh=new BayMesh(),city=buildBayCity(cityMesh,waterMesh);
+  view.buildings=city.opaqueBuildings;
   const jumps=BayPictureJumps;
   const carbon=BayCarbonCopies,tireCloud=[];let puffAt=-10,puffId=0,copySide="left";
   BayPictureJumpArt.build(cityMesh,jumps.sites);
@@ -74761,6 +74871,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(paintPreview)scale=h/24;
       const offset=besideTicket?w*.14/scale:0;
       const state=collectMap("street",p.x+Math.sin(yaw)*ahead-offset,p.z+Math.cos(yaw)*ahead,scale);
+      state.lowDetail=overheadQuality.scale<=.8;
       rainWalk.zoom=ease(rainWalk.zoom||0,rainWalk.trip?1:0,4,dt);
       if(rainWalk.zoom>.003){
         state.scale+=(h/(13*cameraRig.zoom)-state.scale)*rainWalk.zoom;
@@ -75041,6 +75152,17 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(play&&see(beat.v,110))BayOceanBeatArt.car(visible,model,beat.v,footLevel(beat.v.x,beat.v.z)+.008,t,beat.v.beatLights);
     for(const v of cars)if(see(v,160)&&!(film&&BayTake.onSet(v))&&!(v===windowRide?.vehicle&&unit.eye?.window)&&!(v===car&&!transfer&&(hideActor||insideSeat()))){
       const ground=footLevel(v.x,v.z)+.008+serviceLift(v)+(v.towLift||0),body=roadBody(v);
+      if(view.scale<=.65&&v!==owned&&v!==story?.ride&&!v.damage&&!v.doorAngle&&!v.passengerDoor&&
+        !v.hydraulic&&!v.serviceCar&&!v.cupNumber&&!v.greenId&&v!==surfWagon&&v!==iceVan&&["coupe","cab","hatch","van","marea","cayo","estate","stepside","solena"].includes(v.kind)&&
+        Math.hypot(eye.x-v.x,eye.z-v.z)>25){
+        const name="traffic-shell/"+v.kind+"/"+v.color;
+        model(name,g=>buildBayTrafficShell(g,v.kind,v.color));visible.push([name,v.x,ground,v.z,v.yaw,body.pitch,body.lean]);
+        BayStreetCars.world(visible,model,body,ground,t,dist(eye,v));
+        if(v.brakes>.35){
+          const key="traffic-brakes/"+v.kind;model(key,g=>buildBayBrakeLights(g,v.kind));visible.push([key,v.x,ground,v.z,v.yaw,body.pitch,body.lean]);
+        }
+        continue;
+      }
       const rigBody=v===owned&&paintPreview?paintPreview:body;
       const nativeWheels=(v.brisasLead||v.lanes?.change||v.lanes?.reverse||v.kind==="estate"||v.kind==="stepside")&&see(v,29);
       const split=v===owned||nativeWheels||v.hydraulic&&!v.hydraulic.rest&&see(v,85)||v===otherCar||v===afternoon.vehicle||v===windowRide?.vehicle||v===story?.ride||v===active?.ferry?.ride||v===active?.cabFare?.ride||v===band.june.ride||v===unit4&&(dist(cam,v)<72||v.rearOpen>.01)||v===taxi||v===wrecker||v.onLift||v.doorAngle>.01;
@@ -77232,13 +77354,18 @@ window.buildBayCity = function buildBayCity(g,water) {
       elapsed+=dt;hours.step(dt);stepRankPhones();gutters.weather(hours);if(hours.total-savedAt>=20)saveTime();
       bumpLock=Math.max(0,bumpLock-dt);
       // Small steps keep steering and collision response consistent on slower hardware.
-      let left=dt;while(left>.00001&&!panel){
+      let left=dt,trafficTime=0;while(left>.00001&&!panel){
         const d=Math.min(left,motos.bike||car||skiff||cycles.riding||skate.rider||pickup||active?.take?1/60:1/45);
+        // Traffic follows the same clock as the wheels. On a long frame, advance
+        // ambient drivers and walkers together in at most two physics steps.
+        trafficTime+=d;
+        const streetStep=trafficTime>=1/30-.00001||left-d<.00001?trafficTime:0;
+        if(streetStep)trafficTime=0;
         iceVan.campanaDriver=!campana.manual&&car!==iceVan&&transfer?.v!==iceVan;
         stepSummer(d);stepSpur(d);campana.step(d,paletaEnv);radioStep(d);stepButtonwood(d);stepBridge(d);stepNeon(d);stepAir(d);stepRescue(d);sevenStep(d);brisasStep(d);palmUpdate(d);gull.step(d,gullEnv);stepMotorcycles(d);stepSkate(d);transit.step(d,transitEnv);
         const onBoardwalk=!!(boardwalk.player||cycles.riding);stepCourts(d);boardwalkStep(d);
         if(car!==wrecker&&tow.busy)tow.step(d,towClear,recoveryEvent);
-        if(room){walkRoom(d);traffic(d);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);left-=d;continue;}
+        if(room){walkRoom(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);left-=d;continue;}
         if(needle){
           const score=needle.score,banks=needle.banks;
           needle.step(d,held("KeyA","ArrowLeft"),held("KeyD","ArrowRight"),held("Space"));
@@ -77248,7 +77375,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         else if(swim)swimStep(d);
         else if(car){if(car!==meet.jules&&!(active?.meet&&meet.phase==="countdown"))drive(d,!!unit.transition);}
         else if(!unit.transition&&!unit.eye&&!afternoon.photo&&!windowRide?.held&&!broadcastDesk.mix&&!palm.match&&!palm.playerSeat&&!gull.exchange&&!motos.player&&!motos.job?.swapping&&!rescue.holding&&!airLine.aboard&&!skate.rider&&!transit.engaged&&!band.take&&!pickup&&!onBoardwalk&&!cabs.playerHeld&&!skiff&&!listening()&&!exchangingKey())walk(d);
-        stepWater(d);traffic(d);beat.step(d,beatEnv);cupStep(d);greenStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);
+        stepWater(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);greenStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);
         if(windowRide)windowRide.step(d,windowEnv,windowRideEvent);recovery.step(d,recoveryEnv,recoveryEvent);pursuit(d);stepMeet(d);advanceJob(d);serviceGarage(d);stepBeach(d);
         pavement.physics(d,cars,pavementEnv);left-=d;
       }
@@ -77274,7 +77401,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(pickup)courtMeter();
       if(needle)paintNeedle();
       if(band.take)drumHud();
-      if(elapsed-lastHud>.10){hud();lastHud=elapsed;}if(elapsed-lastMap>.09){drawMini();lastMap=elapsed;}
+      if(elapsed-lastHud>.10){hud();lastHud=elapsed;}
+      const radarInterval=(isTop()?overheadQuality.scale:view.scale)<=.75?(speed>8?.15:.24):.09;
+      if(elapsed-lastMap>radarInterval){drawMini();lastMap=elapsed;}
     }
     if(wireView&&panel==="curb-wire")paintWire(now);
     if(timingFilm?.playing)drawTimingFilm(now);

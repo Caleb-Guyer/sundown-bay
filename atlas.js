@@ -241,6 +241,25 @@
   }
 
   const shadowBuildings=new WeakMap();
+  const streetGround=new WeakMap();
+  function groundPatch(opt,base,roofs,rx,rz){
+    if(!base||!roofs||!opt.weather||rx>95||rz>95)return null;
+    const light=opt.weather.sun,opacity=light.strength*(1-.88*opt.weather.rain)*(1-opt.dusk);
+    const key=Math.round(light.dx*13)+"/"+Math.round(light.dz*13)+"/"+Math.round(opacity*30);
+    let patch=streetGround.get(opt.solids);
+    if(patch?.key===key&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
+      opt.cx+rx<=patch.right&&opt.cz-rz>=patch.bottom)return patch;
+    const density=Math.min(12,Math.max(4,opt.scale)),pad=9;
+    const left=Math.floor(opt.cx-rx-pad),right=Math.ceil(opt.cx+rx+pad);
+    const top=Math.ceil(opt.cz+rz+pad),bottom=Math.floor(opt.cz-rz-pad);
+    const w=Math.ceil((right-left)*density),h=Math.ceil((top-bottom)*density);
+    if(w*h>1400000)return null;
+    const canvas=patch?.canvas||document.createElement("canvas");canvas.width=w;canvas.height=h;
+    const c=canvas.getContext("2d"),px=x=>(x-left)*density,py=z=>(top-z)*density;
+    const draw=image=>c.drawImage(image,px(extent.left),py(extent.top),(extent.right-extent.left)*density,(extent.top-extent.bottom)*density);
+    draw(base);castBuildings(c,opt.solids,light,px,py,density,(x,y,p)=>x>=-p&&x<=w+p&&y>=-p&&y<=h+p,opacity);draw(roofs);
+    patch={canvas,key,left,right:left+w/density,top,bottom:top-h/density};streetGround.set(opt.solids,patch);return patch;
+  }
   function castBuildings(c,solids,light,px,py,s,visible,opacity){
     if(!light||opacity<.012)return;
     c.save();c.fillStyle="rgba(43,54,79,"+(.31*opacity)+")";c.beginPath();
@@ -678,15 +697,17 @@
       ctx.drawImage(image,(x-extent.left)*sx,(extent.top-z)*sz,(endX-x)*sx,(z-endZ)*sz,
         px(x),py(z),(endX-x)*s,(z-endZ)*s);
     }
-    if(base) drawLayer(base);
+    const roofs=street?staticImage(solids,true,true):null;
+    const patch=street&&opt.lowDetail&&groundPatch(opt,base,roofs,reachX,reachZ);
+    if(patch)ctx.drawImage(patch.canvas,px(patch.left),py(patch.top),(patch.right-patch.left)*s,(patch.top-patch.bottom)*s);
+    else if(base) drawLayer(base);
     else {
       ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);
       if(street)paintLand(ctx,true);else paintStatic(ctx,solids,false);ctx.restore();
     }
-    if(street){
+    if(street&&!patch){
       const light=opt.weather?.sun;
       castBuildings(ctx,solids,light,px,py,s,visible,(light?.strength||0)*(1-.88*(opt.weather?.rain||0))*(1-(opt.dusk||0)));
-      const roofs=staticImage(solids,true,true);
       if(roofs)drawLayer(roofs);
       else{ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);paintBuildings(ctx,solids,true);oceanFrontages(ctx);ctx.restore();}
     }

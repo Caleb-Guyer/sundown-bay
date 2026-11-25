@@ -68,6 +68,31 @@
     s.floorY=van?.41:Math.min(.265,s.seatY-.175);s.halfLength=Math.max(-s.sections[0][0],s.sections.at(-1)[0]);
   }
   window.bayCarLayout=kind=>shapes[kind]||shapes.coupe;
+  // The smaller street silhouette keeps each model's wheelbase, cabin and paint.
+  window.buildBayTrafficShell=function(g,kind,paint){
+    const shape=window.bayCarLayout(kind),[rear,roofRear,roofFront,front,sill,roof,bottom,top]=shape.glass;
+    bodyMesh(g,shape,paint,{"-1":g,"1":g});
+    const windshield=y=>[[-bottom,sill,y],[bottom,sill,y]];
+    const [a,b]=windshield(rear),[c,d]=windshield(front);
+    const A=[-top,roof,roofRear],B=[top,roof,roofRear],C=[-top,roof,roofFront],D=[top,roof,roofFront];
+    g.quad(a,b,B,A,darkGlass);g.quad(c,d,D,C,brightGlass);g.quad(A,B,D,C,paint);
+    g.quad(a,c,C,A,darkGlass);g.quad(b,d,D,B,kind==="van"?paint:darkGlass);
+    for(const side of [-1,1]){
+      for(const axle of shape.axles){
+        const x=side*shape.track,r=shape.wheel;
+        const point=(i,radius)=>[x,r+radius*Math.cos(i*Math.PI/4),axle+radius*Math.sin(i*Math.PI/4)];
+        for(let i=0;i<8;i++){
+          g.quad(point(i,r),point(i+1,r),point(i+1,r*.50),point(i,r*.50),rubber);
+          g.tri(point(i,r*.50),point(i+1,r*.50),[x,r,axle],metal);
+        }
+      }
+      for(const end of [-1,1]){
+        const [z,w,h]=end<0?shape.sections[0]:shape.sections.at(-1);
+        g.box(side*w*.69,h-.13,z+end*.013,w*.42,.15,.032,end<0?redLamp:warmLamp);
+      }
+    }
+    if(kind==="cab")g.box(0,roof+.11,roofFront-.18,.52,.21,.28,"#f6d67b");
+  };
   BayWreckerArt.fit(shapes.wrecker);BayAmbulanceArt.fit(shapes.ambulance);
   for(const [kind,builder] of coachwork)builder.fit(shapes[kind]);
 

@@ -11,7 +11,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
   try{
     await waitFor("!document.querySelector('#chapterFilm').hidden");
     await js(`window.recQA={frames:[],held:new Set(),now:0,points:[],samples:false};
-      const camera=BayCamera.prototype.update;BayCamera.prototype.update=function(...args){const out=camera.apply(this,args);recQA.rig=this;recQA.yaw=this.yaw;return out;};
+      const camera=BayCamera.prototype.update;BayCamera.prototype.update=function(...args){const out=camera.apply(this,args);recQA.rig=this;recQA.subject=args[1];recQA.yaw=this.yaw;return out;};
       const scene=BayPublicRecord.Story.prototype.step;BayPublicRecord.Story.prototype.step=function(dt){const changed=scene.call(this,dt);recQA.director=this;return changed;};
       const begin=BayView.prototype.begin;BayView.prototype.begin=function(...args){recQA.view=this;return begin.apply(this,args);};
       recQA.geometry={};const objectDraw=BayView.prototype.draw;BayView.prototype.draw=function(name,...args){recQA.object=name;return objectDraw.call(this,name,...args);};
@@ -58,6 +58,13 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
     await waitFor("recQA.director.scene?.id==='boarded'",90000);await snap("passenger");await tap("Enter");
     await waitFor("document.querySelector('#chapterFilm').hidden");
+    await js("recQA.frames=[];recQA.samples=true;recQA.start=[recQA.subject.x,recQA.subject.z]");
+    await key("keyDown","KeyW");
+    try{
+      await waitFor("recQA.frames.length>=36&&Math.hypot(recQA.subject.x-recQA.start[0],recQA.subject.z-recQA.start[1])>4",45000);
+    }finally{await key("keyUp","KeyW");}
+    await js("recQA.samples=false");
+    console.log("PERF drive",mode,await js("(()=>{const a=recQA.frames.sort((a,b)=>a-b);return {median:a[Math.floor(a.length*.5)],p95:a[Math.floor(a.length*.95)],samples:a.length,metres:Math.round(Math.hypot(recQA.subject.x-recQA.start[0],recQA.subject.z-recQA.start[1]))};})()"));
     // Load a delivered legacy save through the normal startup path and play its sequel on foot.
     const save=await js(`(()=>{const u=new BaySecondUnit.Unit();u.met=true;u.remember({x:-151.05,z:-87.8,yaw:-Math.PI/2},null);u.save();
       const data=JSON.parse(localStorage.getItem('sundownBay.v1')||'{}');data.edition='${route}';data.wallet=347;

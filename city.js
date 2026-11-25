@@ -2,7 +2,7 @@
 window.buildBayCity = function buildBayCity(g,water) {
   "use strict";
   water??=g;
-  const solids = [], cameraObstacles = [];
+  const solids = [], cameraObstacles = [], opaqueBuildings=[];
   const roads = [-144, -72, 0, 72, 144];
   const garage={kind:"garage",name:"Portside Tire",x:-109,z:-17,halfWidth:4.7,halfDepth:7};
   let state = 76219;
@@ -144,6 +144,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }else{
       block(x,z,sx+.35,sz+.35,h+(style==="house"?2.43:.70));
       f.box(0,h/2+.15,0,w,h,d,body);
+      opaqueBuildings.push({x,y:h/2+.15,z,hw:sx/2-.05,hh:h/2-.05,hd:sz/2-.05});
       f.box(0,.43,0,w+.26,.6,d+.25,trim);
     }
     if(style === "house") {
@@ -1067,5 +1068,5 @@ window.buildBayCity = function buildBayCity(g,water) {
     const x=between(-202,129),z=(i%2?1:-1)*between(233,267),h=between(8,27);
     g.box(z>228&&x>52?x-190:x,h/2,z,between(12,23),h,between(11,21),pick(["#aba8a0","#a8a29f","#92a0a1"]));
   }
-  return {solids,cameraObstacles,garage};
+  return {solids,cameraObstacles,opaqueBuildings,garage};
 };
