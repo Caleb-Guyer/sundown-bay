@@ -275,9 +275,21 @@
       this.indices=new model.indices.constructor(model.count);
       this.buffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.DYNAMIC_DRAW);
+      // A major roof or a lane can cover half the screen. A few hundred such
+      // triangles can establish depth before any of the street lighting runs.
+      this.largeFaces=new Uint8Array(triangles);let largeCount=0;
+      for(let t=0,p=0;t<triangles;t++,p+=18){
+        const ax=data[p+6]-data[p],ay=data[p+7]-data[p+1],az=data[p+8]-data[p+2];
+        const bx=data[p+12]-data[p],by=data[p+13]-data[p+1],bz=data[p+14]-data[p+2];
+        const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
+        if(nx*nx+ny*ny+nz*nz>32*32){this.largeFaces[t]=1;largeCount+=3;}
+      }
+      this.depthIndices=new model.indices.constructor(largeCount);this.depthCount=0;
+      this.depthBuffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.depthBuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.depthIndices.byteLength,gl.DYNAMIC_DRAW);
       this.count=0;
     }
-    draw(view,model){
+    update(view,model){
       const gl=view.gl,{camera:eye,horizontal,vertical}=view.basis;
       const near=.13*Math.hypot(1,horizontal,vertical)+.01;
       let changed=false;
@@ -298,21 +310,25 @@
           if(state!==this.states[i]){this.states[i]=state;changed=true;}
         }
       }
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
       if(changed){
-        let n=0;
+        let n=0,depthCount=0;
         for(let i=0;i<this.parts.length;i++){
           const state=this.states[i];if(state<0)continue;
           const part=this.parts[i],far=(state&64)!==0,faces=far?this.farFaces:this.faces;
           for(let j=part.first,t=j/3;j<part.end;j+=3,t++){
             if((faces[t]&state)||(far&&!model.farKeep[t]))continue;
+            if(this.largeFaces[t]){
+              this.depthIndices[depthCount++]=model.indices[j];this.depthIndices[depthCount++]=model.indices[j+1];this.depthIndices[depthCount++]=model.indices[j+2];
+            }
             this.indices[n++]=model.indices[j];this.indices[n++]=model.indices[j+1];this.indices[n++]=model.indices[j+2];
           }
         }
-        this.count=n;
+        this.count=n;this.depthCount=depthCount;
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.depthBuffer);
+        if(depthCount)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,0,this.depthIndices.subarray(0,depthCount));
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
         if(n)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,0,this.indices.subarray(0,n));
       }
-      if(this.count)gl.drawElements(gl.TRIANGLES,this.count,model.elementType,0);
     }
   }
   // Pack the visible street props in submission order. Their vertices share a
@@ -477,9 +493,15 @@
       out[k+6]=1.07*lit*gain;out[k+9]=nightFloor[k]*dark*gain+(p.timed?sky*.036*p.rain:0);
     }
   }
-  const VERTEX = LIGHT+`
+  const CAMERA_CLIP=`
+    uniform vec3 eye,rightV,upV,forwardV;uniform vec2 focal,depth;
+    vec4 cameraClip(vec3 world){
+      vec3 rel=world-eye;float z=dot(rel,forwardV);
+      return vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);
+    }`;
+  const VERTEX = LIGHT+CAMERA_CLIP+`
     attribute vec3 pos; attribute vec3 col;
-    uniform vec3 origin,eye,rightV,upV,forwardV; uniform vec2 turn,focal; uniform vec2 depth;
+    uniform vec3 origin;uniform vec2 turn;
     uniform vec4 tilt,waterParams; uniform float castOnly; uniform vec2 castSlope;
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     #ifdef FRAME_PAINT
@@ -497,8 +519,7 @@
       if(castOnly>.5){world.xz+=castSlope*(world.y-.15);world.y=.153;}
       #endif
       #endif
-      vec3 rel=world-eye; float z=dot(rel,forwardV);
-      gl_Position=vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);
+      gl_Position=cameraClip(world);float z=gl_Position.w;
       lightCoord=lightClip(world)*.5+.5;
       #ifndef STREET_SURFACE
       surface=waterParams.w>.5?world.xz:vec2(world.x+world.z*.68,world.y+world.z*.44-world.x*.17);
@@ -723,6 +744,15 @@
         catch{return this.createStreetSurface(modelSpace,false);}
       };
       this.streetSurface=surface(false);this.modelSurface=surface(true);
+      // Share the solid world's exact clip-space expressions. The prepass
+      // uses the same indices and depth format as the full-colour submission.
+      const depthVertex=CAMERA_CLIP+"attribute vec3 pos;void main(){gl_Position=cameraClip(pos);}";
+      try{
+        const depthProgram=program(depthVertex,"precision mediump float;void main(){gl_FragColor=vec4(0.);}",{pos:this.pos});
+        const u={};for(const name of ["eye","rightV","upV","forwardV","focal","depth"])u[name]=gl.getUniformLocation(depthProgram,name);
+        gl.useProgram(depthProgram);gl.uniform2f(u.depth,(f+n)/(f-n),-2*f*n/(f-n));
+        this.streetDepth={program:depthProgram,u};
+      }catch{this.streetDepth=null;}
       gl.useProgram(p);this.streetFrame=null;this.shadowAxes=null;
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0);gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -980,6 +1010,10 @@
       gl.uniform1f(u.dusk,p.night);gl.uniform4f(u.airState,p.rain,p.wet,p.noon,p.timed?1:0);gl.uniform3f(u.skyTone,p.skyR,p.skyG,p.skyB);
       gl.uniform3f(u.lightArea,f?f.left:0,f?f.north:0,f?1/f.span:0);
       gl.uniform4f(u.driverLamp,l?l.x:0,l?l.z:0,l?Math.sin(l.yaw):0,l?Math.cos(l.yaw):0);
+      this.setCameraUniforms(u,p);
+    }
+    setCameraUniforms(u,p){
+      const gl=this.gl;
       gl.uniform3f(u.eye,p.x,p.y,p.z);gl.uniform3f(u.rightV,p.cs,0,-p.sn);
       gl.uniform3f(u.upV,p.ux,p.cp,p.uz);gl.uniform3f(u.forwardV,p.fx,p.fy,p.fz);gl.uniform2f(u.focal,p.fxScreen,p.focal);
     }
@@ -1068,6 +1102,18 @@
         this.streetWalls=walls;
       }
     }
+    primeStreetDepth(list,model){
+      if(!this.streetDepth||!list.depthCount)return;
+      const gl=this.gl,depth=this.streetDepth;
+      gl.useProgram(depth.program);this.setCameraUniforms(depth.u,this.streetFrame);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,list.depthBuffer);
+      gl.colorMask(false,false,false,false);
+      // Bias behind the real face by one depth unit to tolerate transform
+      // rounding across GPU programs. Coplanar signs retain submission order.
+      gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(0,1);
+      gl.drawElements(gl.TRIANGLES,list.depthCount,model.elementType,0);
+      gl.disable(gl.POLYGON_OFFSET_FILL);gl.colorMask(true,true,true,true);gl.useProgram(this.program);
+    }
     drawCityAndWater(t){
       this.collectStreetWalls();
       this.draw("city");
@@ -1135,6 +1181,12 @@
       if(reduced&&!model.distanceReady)this.prepareDistanceMesh(model,this.cpu.get(name));
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}
       const city=reduced&&model.city&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ;
+      let list;
+      if(city){
+        list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));
+        list.update(this,model);
+        if(!this.streetFrame.underwater&&!this.effectPass)this.primeStreetDepth(list,model);
+      }
       const solid=!this.effectPass&&!vapor&&this.beginStreetSurface(glow,!city);
       if(!solid&&this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
       if(!solid||!city){
@@ -1147,7 +1199,8 @@
       }
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
       if(city){
-        const list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,list.buffer);
+        if(list.count)gl.drawElements(gl.TRIANGLES,list.count,model.elementType,0);
       }else if(model.starts&&this.multiDraw){
         this.drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0);
       }else if(model.sections){
