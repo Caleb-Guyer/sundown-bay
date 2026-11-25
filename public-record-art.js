@@ -131,5 +131,45 @@
     line(g,25,231,395,231,"#a3987e");label(g,25,276,"ONE CONTACT PRINT",14,ink,"monospace");
     line(g,412,2,412,322,"#9c9075",2);g.restore();
   }
-  window.BayRecordArt={show,world,sleeve,tone};
+  function roadMap(canvas,table,streets){
+    if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
+    const g=canvas.getContext("2d"),px=x=>301+x*1.28,py=z=>245-z*1.06;
+    g.setTransform(1,0,0,1,0,0);g.fillStyle="#384448";g.fillRect(0,0,W,H);
+    g.save();g.translate(23,16);g.rotate(-.009);stock(g,0,0,949,467);
+    g.fillStyle="#e7d9b3";g.fillRect(14,14,596,433);
+    g.fillStyle="#96b9ad";g.beginPath();g.moveTo(535,14);g.lineTo(543,138);g.lineTo(533,237);g.lineTo(547,369);g.lineTo(535,447);g.lineTo(610,447);g.lineTo(610,14);g.fill();
+    const west=px(-173),east=px(149),north=py(163),south=py(-160);
+    for(const n of streets){
+      line(g,px(n),north,px(n),south,"#978e71",8);line(g,west,py(n),east,py(n),"#978e71",8);
+    }
+    for(const n of streets){
+      line(g,px(n),north,px(n),south,"#f7e8c6",5.5);line(g,west,py(n),east,py(n),"#f7e8c6",5.5);
+    }
+    label(g,34,47,"SUNDOWN BAY",24,"#40625d","Georgia","bold");
+    label(g,34,65,"MOTOR COURT STREET GUIDE",11,ink,"monospace");
+    g.save();g.translate(574,311);g.rotate(-1.49);label(g,0,0,"Sundown Bay",19,"#537f76","Georgia","italic");g.restore();
+    for(const x of [315,624]){line(g,x,5,x,461,"#b9a987",2);line(g,x+2,5,x+2,461,"#eddfbe",1.5);}
+    g.strokeStyle="#a74736";g.lineWidth=3.4;g.lineJoin=g.lineCap="round";
+    g.save();g.beginPath();g.rect(14,14,596,433);g.clip();g.beginPath();
+    table.paths[table.pick].forEach((p,i)=>{const x=px(p.x),y=py(p.z);if(i)g.lineTo(x,y);else g.moveTo(x,y);});g.stroke();
+    const driver=table.start;g.fillStyle="#304e55";g.beginPath();g.arc(px(driver.x),py(driver.z),4.5,0,Math.PI*2);g.fill();g.restore();
+    for(const [id,name,at,dx,dy] of [
+      ["wheel","Coast Wheel",BayExposure.photoRuns.wheel.frame,-94,-12],
+      ["luna","Cine Luna",BayExposure.photoRuns.luna.frame,-82,-13],
+      ["port","Lot 14",BayExposure.dock,13,19]]){
+      const x=px(at.x),y=py(at.z);g.strokeStyle=table.pick===id?red:ink;g.lineWidth=table.pick===id?3:1.5;
+      g.beginPath();g.ellipse(x,y,table.pick===id?11:5,table.pick===id?8:5,-.35,0,Math.PI*2);g.stroke();
+      label(g,x+dx,y+dy,name,17,ink,"Georgia","italic");
+    }
+    const left=652;label(g,left,69,"Marlin Motor Court",27,ink,"Georgia","italic");
+    line(g,left,87,920,87,ink,1.5);label(g,left,111,"OCEAN DRIVE  /  ROOM 14",14,red,"monospace");
+    label(g,left,170,"Mara’s last roll",33,ink,"Georgia","bold");
+    const details=table.pick==="wheel"?["The Coast Wheel","North on Ocean Drive.","Keep the wheel on my right."]:
+      table.pick==="luna"?["The Luna marquee","North on Luna Boulevard.","My window faces the gold trim."]:
+      ["Straight to the port","The red notice on the fence.","Leave the last frame for Luis."];
+    label(g,left,220,details[0],24,red,"Georgia","italic");label(g,left,260,details[1],19);label(g,left,290,details[2],18);
+    line(g,left,331,920,331,"#a89777");label(g,left,366,"14   /   LOT 14",16,ink,"monospace","bold");
+    label(g,left,400,"Return map to glove box.",18,ink,"Georgia","italic");g.restore();
+  }
+  window.BayRecordArt={show,world,sleeve,tone,roadMap};
 })();

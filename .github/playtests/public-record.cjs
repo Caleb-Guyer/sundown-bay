@@ -215,8 +215,18 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     }
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
     await waitFor("recQA.director.scene?.id==='boarded'",90000);await snap("passenger");
-    await waitFor("document.querySelector('#chapterLine').textContent.includes("+JSON.stringify(aboard?"blue tin":"crackers")+")");await tap("Enter");
-    await waitFor("document.querySelector('#chapterFilm').hidden");
+    await waitFor("document.querySelector('#chapterLine').textContent.includes("+JSON.stringify(aboard?"blue tin":"crackers")+")");
+    const pick=aboard?"wheel":"luna",mapOpen="!document.querySelector('#roadChoices').hidden";
+    await waitFor(mapOpen);await tap(aboard?"ArrowRight":"ArrowLeft");
+    await waitFor("document.querySelector('#roadChoices [aria-pressed=true]').dataset.road==="+JSON.stringify(pick));
+    await snap("road-map");
+    if(aboard)await tap("Space");else await js("document.querySelector('#roadChoices [data-road=luna]').click()");
+    await waitFor("document.querySelector('#chapterFilm').hidden&&"+book+".photoRoad==="+JSON.stringify(pick));
+    await send("Input.dispatchKeyEvent",{type:"keyDown",code:"KeyN",key:"N",modifiers:8,windowsVirtualKeyCode:78});
+    await send("Input.dispatchKeyEvent",{type:"keyUp",code:"KeyN",key:"N",modifiers:8,windowsVirtualKeyCode:78});
+    await waitFor(mapOpen);await tap("ArrowRight");await tap("Escape");await waitFor("document.querySelector('#chapterFilm').hidden");
+    assert.equal(await js(book+".photoRoad"),pick);
+    console.log("PASS read Mara's map, marked",pick,"and folded a preview away without redirecting the car");
     await js("recQA.frames=[];recQA.samples=true;recQA.start=[recQA.subject.x,recQA.subject.z]");
     await key("keyDown","KeyW");
     try{
@@ -243,8 +253,10 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await key("keyDown","KeyW");
     try{
       await waitFor("document.querySelector('#context').innerText.includes('Give Mara the shot')",25000);
+      assert((await js("document.querySelector('#objectiveText').textContent")).includes(aboard?"Coast Wheel":"Cine Luna"));
       await tap("KeyN");await waitFor(film+".latent?.place==="+JSON.stringify(place));
     }finally{await key("keyUp","KeyW");}
+    assert.equal(await js(book+".photoRoad"),"");
     assert.equal(await js("recQA.sensorCalls"),0,"the shutter does no scene rasterization on the moving frame");
     await js("BayRideFilm.Scenery.prototype.paint=sensor");
     console.log("PASS Frame 13 exposed through the passenger window at",place,"without rasterizing during the drive.");

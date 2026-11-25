@@ -18,6 +18,8 @@ Open **Pause → One-minute frame check** while walking outside or driving. Resu
 
 **Public Record** begins after Play. Mara Vega wants one photograph of a sale notice before it disappears from Port Sol. Watch the opening or press **Enter** to skip a scene. Find Mara outside the Marlin Motel, press **F** to talk, then take a car and pick her up. At Lot 14, photograph the notice and decide whether to risk the Sol FM deadline or send the print to Cine Luna.
 
+Once Mara gets in, she unfolds the old Marlin street map. Trace a route with the arrow keys and press **Space**, or pick **1** for the Coast Wheel, **2** for Cine Luna, or **3** to go straight to Port Sol. The marked photo approaches run north so Mara has the view out her passenger window. Ease past and press **N** when she has the shot. **Shift + N** opens the map again while stopped. You can also drive straight to Lot 14 at any time.
+
 After the delivery, return on foot to the timetable at Lot 14. Press **F**, hold **Space**, and sweep **A / D** across the paper to reveal the old dispatch line. **1** credits dispatcher Dalia Cruz. **2** credits the night shift. Your published route and credit are saved. The pause menu can locate the next story scene or replay the opening.
 
 Look for the burnt-orange hatch with two surfboards on its roof, on the sand just north of the striped lifeguard tower. Ro Vega has buried the front wheels. Come to the tailgate and press **F**. Ease off as the wagon rolls back. After the two amber flashes, hold **W** as Ro pulls forward, then release for the next rock. **E** steps away. Once free, she parks beside the promenade and leaves her red traction boards out for you.

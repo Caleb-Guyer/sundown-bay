@@ -16,6 +16,13 @@
     {kind:"notice",x:-154.3,z:-91,yaw:Math.PI/2,w:.25,d:2.24,top:2.19}
   ];
   const liveTime=105;
+  // Approach from the south to put both east-facing subjects at Mara's window.
+  const photoRuns={
+    wheel:{name:"Coast Wheel",lead:{x:146,z:74,name:"Ocean Drive · northbound approach"},frame:{x:146,z:113,name:"Coast Wheel · passenger window"},
+      direction:"Keep the water on my side. Ease up by the wheel. I want one of the red gondolas."},
+    luna:{name:"Cine Luna",lead:{x:2,z:10,name:"Luna Boulevard · northbound approach"},frame:{x:2,z:44,name:"Cine Luna · passenger window"},
+      direction:"Take Luna north. Go easy past the box office and I can get the whole marquee."}
+  };
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   const stopped=v=>Math.hypot(v.vx,v.vz)<.85&&Math.abs(v.speed)<.85;
   class Run {
@@ -24,10 +31,13 @@
       this.phase="pickup";this.ride=null;this.path=[];this.progress=0;this.route="";this.remaining=0;
       this.aim={x:.43,y:.58};this.remarked=false;this.warnedHeat=false;this.warnedFlat=false;this.warnedClock=false;
       this.offeredSleeve=false;
+      this.photoRoad="";this.onApproach=false;
     }
+    markRoad(id){this.photoRoad=Object.hasOwn(photoRuns,id)?id:"";this.onApproach=false;}
     target(car){
       if(this.ride&&this.ride!==car)return {x:this.ride.x,z:this.ride.z,name:"Mara’s car"};
       if(this.phase==="pickup"||this.phase==="approach"||this.phase==="board")return pickup;
+      if(this.phase==="port"&&this.photoRoad){const road=photoRuns[this.photoRoad];return this.onApproach?road.frame:road.lead;}
       return routes[this.route]||dock;
     }
     objective(car){
@@ -35,7 +45,7 @@
       switch(this.phase){
         case "pickup":return car?"Pull up beside Mara":"Take a car and pick up Mara";
         case "approach":case "board":return "Wait for Mara to get in";
-        case "port":return "Park by the Lot 14 notice at Port Sol";
+        case "port":return this.photoRoad?(this.onApproach?"Frame "+photoRuns[this.photoRoad].name+" from Mara’s window":"Take Mara past "+photoRuns[this.photoRoad].name):"Park by the Lot 14 notice at Port Sol";
         case "choice":return "Decide where to take the photograph";
         case "delivery":return "Take Mara to "+routes[this.route].name;
         default:return "Wait for Mara to make the handoff";
@@ -71,6 +81,15 @@
         if(this.walk(dt,ground)){this.phase="done";return "complete";}
       }else if(this.phase!=="done"){
         this.pose(dt,ground);
+        if(this.phase==="port"&&this.photoRoad&&this.ride===car){
+          const road=photoRuns[this.photoRoad];
+          if(distance(car,dock)<20)this.markRoad("");
+          else if(!this.onApproach&&Math.abs(car.x-road.lead.x)<7&&car.z>=road.lead.z-8&&car.z<=road.frame.z+4&&Math.cos(car.yaw)>.6){
+            this.onApproach=true;return "approaching-frame";
+          }else if(this.onApproach&&(car.z>road.frame.z+22||distance(car,road.frame)>66)){
+            this.onApproach=false;return "missed-frame";
+          }
+        }
         if(this.phase==="port"&&!this.remarked&&distance(this.ride,dock)<53){
           this.remarked=true;return "docks";
         }
@@ -86,5 +105,5 @@
       }
     }
   }
-  window.BayExposure={job,dock,pickup,routes,props,liveTime,Run};
+  window.BayExposure={job,dock,pickup,routes,props,liveTime,photoRuns,Run};
 })();

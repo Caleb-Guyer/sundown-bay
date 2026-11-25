@@ -758,6 +758,16 @@
     const b=campaign.beat(),table=campaign.table;
     chapterSoundLabel();
     $("dispatchClock").hidden=b?.watch!=="work";
+    $("roadChoices").hidden=table?.kind!=="roadMap";
+    if(table?.kind==="roadMap"){
+      $("chapterSlug").textContent=$("chapterTitle").textContent="";
+      $("chapterWho").textContent="Mara Vega";
+      $("chapterLine").textContent="Where to? Use the arrows to trace a route and Space to take it.";
+      $("chapterInsert").hidden=false;$("chapterSkip").hidden=true;
+      BayRecordArt.roadMap($("chapterInsert"),table,chase.roads);
+      for(const button of $("roadChoices").children)button.setAttribute("aria-pressed",String(button.dataset.road===table.pick));
+      return;
+    }
     if(table?.kind==="landingOrder"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";
       $("chapterWho").textContent="Nora Abreu · port clerk";
@@ -798,7 +808,15 @@
     sound.reel(null);
     campaign.negativeNumber=(id==="negative"?(maraFilm.pending||maraFilm.published):maraFilm.published)?.frame;
     campaign.windowPrint=maraFilm.inEdition?maraFilm.windowPrint:null;
-    filmReplay=replay;if(id==="film-sleeve"){
+    filmReplay=replay;if(id==="road-map"){
+      const start={x:car.x,z:car.z,yaw:car.yaw},paths={};
+      for(const id of ["wheel","luna","port"]){
+        const road=BayExposure.photoRuns[id],target=road?.lead||BayExposure.dock;
+        paths[id]=[start,...chase.route(start,target),target];
+        if(road)paths[id].push(road.frame,...chase.route({...road.frame,yaw:0},BayExposure.dock),BayExposure.dock);
+      }
+      campaign.table={kind:"roadMap",pick:active.story.photoRoad||"port",paths,start};
+    }else if(id==="film-sleeve"){
       const photo=document.createElement("canvas");photo.width=384;photo.height=216;
       const roll=new BayLotNegative.Roll();roll.matchPrint();
       rideScenery.paint(photo,roll.eye(footLevel(-150.90,-91.18)),{id:"vega-contact"},0,{curb:true,sensorWidth:384,
@@ -810,9 +828,9 @@
     if(id==="firstCopy")campaign.negativeNumber=inscribedCopy.pierPhoto.frame;
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
-  function endFilm(id){
+  function endFilm(id,playedThrough=false){
     if(campaign.table?.kind==="splice")sound.reel(null);
-    campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("game").classList.toggle("in-chapter",false);
+    campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("roadChoices").hidden=true;$("game").classList.toggle("in-chapter",false);
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
     if(filmReplay){filmReplay=false;return;}
     if(id==="landingClinic"||id==="landingShift"){
@@ -828,7 +846,10 @@
       campaign.book.intro=true;campaign.advance("meet");campaign.write();
       if(!active&&!waypoint&&campaign.book.stage!=="filed")waypoint=chapterTarget();
       if(!active&&campaign.book.stage!=="filed")note("Public Record",campaign.book.stage==="return"?"The last page is at the Lot 14 gate.":"Find Mara on the curb outside the Marlin Motel.",4.8);
-    }else if(id==="boarded"&&!maraFilm.latent&&!maraFilm.windowPending&&active?.story?.phase==="port")note("Mara’s last roll","Pass Cine Luna or the Coast Wheel on her side. N cues the shutter while you drive.",8);
+    }else if(id==="boarded"&&canReadRoadMap()){
+      if(playedThrough){enterFilm("road-map");return;}
+      note("Mara’s last roll","Shift + N opens her street map while stopped. N cues the shutter as you pass.",7);
+    }
     else if(id==="negative"&&active?.story?.phase==="choice")openPanel("contact");
     else if((id==="live"||id==="print")&&!active){waypoint=chapterTarget();note("Chapter two · The Six O’Clock Boat","Meet Mara at the timetable on the Port Sol fence.",5);}
     else if(id==="crew"||id==="signed"){if(waypoint?.kind==="chapter")waypoint=null;note("Public Record · Filed","Dalia has the first sailing ticket. Find her next to the dispatch board.",5);}
@@ -837,6 +858,7 @@
   function filmControls(ev){
     if(!campaign.scene&&!campaign.table)return false;
     if(ev.ctrlKey||ev.altKey||ev.metaKey)return false;
+    if(campaign.table?.kind==="roadMap"&&(ev.code==="Tab"||ev.target?.closest?.("#roadChoices button, #chapterSound")&&["Enter","Space"].includes(ev.code)))return true;
     ev.preventDefault();if(ev.repeat)return true;
     if(ev.code==="KeyR"){chapterVolume();return true;}
     if(campaign.scene){
@@ -848,6 +870,15 @@
           if(!campaign.book.morning){campaign.book.morning={...campaign.watch.departure};campaign.write();}
         }
       }
+      return true;
+    }
+    if(campaign.table?.kind==="roadMap"){
+      const table=campaign.table,ids=["wheel","luna","port"],pick=ids.indexOf(table.pick);
+      if(ev.code==="Escape"||ev.code==="Enter"){endFilm("");return true;}
+      if(["ArrowLeft","KeyA","ArrowRight","KeyD"].includes(ev.code)){
+        table.pick=ids[(pick+(ev.code==="ArrowLeft"||ev.code==="KeyA"?2:1))%3];setFilmPage();
+      }else if(ev.code==="Space")takePhotoRoad(table.pick);
+      else if(/^(Digit|Numpad)[1-3]$/.test(ev.code))takePhotoRoad(ids[Number(ev.code.at(-1))-1]);
       return true;
     }
     if(campaign.table?.kind==="landingOrder"){
@@ -884,6 +915,17 @@
     keys.add(ev.code);return true;
   }
   $("chapterSkip").addEventListener("click",()=>{if(campaign.scene)endFilm(campaign.scene.id);});
+  $("roadChoices").addEventListener("click",e=>{const id=e.target.closest?.("button")?.dataset.road;if(id)takePhotoRoad(id);});
+  function canReadRoadMap(){
+    const s=active?.story;
+    return s?.phase==="port"&&car&&s.ride===car&&!heat&&!transfer&&!maraFilm.latent&&!maraFilm.windowPending&&Math.abs(car.speed)<.8&&!s.atDock(car);
+  }
+  function takePhotoRoad(id){
+    if(campaign.table?.kind!=="roadMap"||!canReadRoadMap())return;
+    active.story.markRoad(id);campaign.book.photoRoad=active.story.photoRoad;campaign.write();
+    endFilm("");speak("Mara Vega",BayExposure.photoRuns[id]?.direction||"Port Sol, then. I’ll save the film. Look for the red notice by the crane.");
+    lastHud=lastMap=-10;
+  }
   function chapterSoundLabel(){$("chapterSoundLabel").textContent=radio?"Sound on":"Sound off";$("chapterSound").setAttribute("aria-pressed",String(!!radio));}
   function chapterVolume(){radioToggle();chapterSoundLabel();}
   $("chapterSound").addEventListener("click",chapterVolume);
@@ -6105,6 +6147,7 @@
     dashResult=null;
     if(id==="exposure"){
       active={job:j,story:new BayExposure.Run()};waypoint=null;closePanel();
+      if(campaign.book.stage==="ride"&&!maraFilm.latent&&!maraFilm.windowPending)active.story.markRoad(campaign.book.photoRoad);
       campaign.advance("ride");
       note("Last Exposure","Marlin Motel  ·  Ocean Drive",3.6);
       speak(j.by,"See the camera bag? That’s me. Bring the car around. I need a shot down at the port.");return;
@@ -6469,6 +6512,7 @@
   }
   function photographWindow(brief){
     if(!maraFilm.wind(brief,car,hours,boardwalk.wheel,streetTime,cars,footLevel))return;
+    active.story.markRoad("");campaign.book.photoRoad="";campaign.write();
     sound.cue("record-shutter");speak("Mara Vega",BayLotNegative.locations[brief.id].reply);
     note("Frame 13","Mara winds on to the pier photograph.",3);lastHud=-10;
   }
@@ -6480,7 +6524,12 @@
     maraFilm.exposeWindow(shot.place,BayMeetPhoto.capture(out,null,.5,.5,16/9,true));
   }
   function advanceExposure(dt){
-    const story=active.story,event=story.step(dt,car,transfer,doorPlan,footLevel);
+    const story=active.story,wasMarked=story.photoRoad,event=story.step(dt,car,transfer,doorPlan,footLevel);
+    if(wasMarked&&!story.photoRoad){campaign.book.photoRoad="";campaign.write();lastHud=lastMap=-10;}
+    if(event==="approaching-frame"||event==="missed-frame"){
+      if(!heat)speak("Mara Vega",event==="missed-frame"?"We went past. Another lap, or take me down to the pier.":story.photoRoad==="wheel"?"See the red gondola? Keep rolling. Give me the nod when it clears the palms.":"There’s the box office. Hold this side of the street. Give me the nod under the gold letters.");
+      lastHud=lastMap=-10;return;
+    }
     if(!event){
       if(car!==story.ride||!car||!["port","delivery"].includes(story.phase)||elapsed<speechTill)return;
       if(heat&&!story.warnedHeat){story.warnedHeat=true;speak("Mara Vega","Those lights for us? I’m putting the film in my sock.");}
@@ -9831,9 +9880,10 @@
     else if(chapter)contextHint("F",({order:"Read the public landing order",firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":BayLandingOrder.charter(luz.book)==="clinic"?"Check the clinic timetable":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
     else if(passengerShot)contextHint("N","Give Mara the shot · "+BayLotNegative.locations[passengerShot.id].name);
     else if(active?.story?.offeredSleeve&&!campaign.book.sleeve&&!heat&&!transfer&&car===active.story.ride&&active.story.phase==="port"&&!active.story.remarked&&(active.story.sleeveStop(car)||elapsed-active.story.sleeveCall<9)){
-      if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print");
+      if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print"+(canReadRoadMap()?" · Shift + N for her street map":""));
       else contextHint("","Stop to look at Mara’s contact print");
     }
+    else if(canReadRoadMap())contextHint("Shift + N","Unfold Mara’s street map");
     else if(beachHint)contextHint(...beachHint);
     else if(phoneHint)contextHint(...phoneHint);
     else if(nearNeedle())contextHint("F","Play Needle Drop · Tideway Arcade");
@@ -11166,6 +11216,7 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyN"&&ev.shiftKey&&canReadRoadMap()){enterFilm("road-map");return;}
     if(ev.code==="KeyN"){const brief=maraWindowSubject();if(brief){photographWindow(brief);return;}}
     if(ev.code==="KeyN"&&!campaign.book.sleeve&&!heat&&!transfer&&active?.story?.sleeveStop(car)){enterFilm("film-sleeve");return;}
     if(luz.rider){
@@ -11370,7 +11421,7 @@
       const delta=Math.min(campaign.scene ? .85 : .18,Math.max(0,(now-last)/1000));last=now;
       if(campaign.scene){
         const id=campaign.scene.id,morning=campaign.beat().watch;
-        if(campaign.step(delta,held("Space"))){if(!campaign.scene){endFilm(id);return;}setFilmPage();}
+        if(campaign.step(delta,held("Space"))){if(!campaign.scene){endFilm(id,true);return;}setFilmPage();}
         if(morning&&radio){
           const w=campaign.watch;if(w.gateSound)sound.cue(w.gateSound);
           if(w.tinSound)sound.cue("watch-tins",{aboard:w.crossing});if(w.horn)sound.cue("luz-cast");
@@ -11386,7 +11437,7 @@
           else if(now-lastFilmPaint>=1000/24){BayRecordArt.sleeve($("chapterInsert"),sleeve.pull,sleeve.photo);lastFilmPaint=now;}
         }
         return;
-      }else if(campaign.table.kind==="watchBook"||campaign.table.kind==="landingOrder"){return;
+      }else if(campaign.table.kind==="watchBook"||campaign.table.kind==="landingOrder"||campaign.table.kind==="roadMap"){return;
       }else if(campaign.table.kind==="splice"){
         const edit=campaign.table,dir=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
         const old=edit.head;edit.move(delta,dir);sound.reel(edit.playing?BayRoomTone.position(BayRoomTone.tape,edit.head):null,edit.head);
