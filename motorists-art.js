@@ -250,6 +250,14 @@
         solve(rig.sides[0],shift(hand,-.075-.044*Math.sin(since*10),.26,.036),up);
         look(rig,-.075*up,-.14*up,0);return true;
       }
+      const v=a.car,age=t-v.windowAsked;
+      if(t-v.windowAt<.25){
+        const glance=age>=0&&age<2?smooth(0,.28,age)*(1-smooth(1.05,2,age)):0;
+        const pulse=v.windowBeat*(Math.abs(v.speed)<8?1:.30);
+        const hand=palm(rig,1);
+        solve(rig.sides[1],shift(hand,0,.039*pulse,.017*pulse),1);
+        look(rig,.070*pulse,glance*v.windowSide*.58,.025*pulse);return true;
+      }
     }
     if(toeIn.has(phase)||a.motion.ride)return false;
     const right=rig.sides[1],left=rig.sides[0],beat=t*.92+(id==="viv"?2.72:id==="tess"?1.72:id==="ruth"?.58:0);
@@ -456,12 +464,14 @@
     c.beginPath();c.moveTo(-b+.14,front);c.lineTo(b-.14,front);c.lineTo(b-.24,front+.51);c.lineTo(-b+.24,front+.51);c.closePath();c.clip();
     const ellipse=(x,y,w,h,col)=>{c.beginPath();c.ellipse(x,y,w,h,0,0,tau);c.fillStyle=col;c.fill();};
     ellipse(x,glass+.04,.208,.110,d.shirt);ellipse(x,glass+.075,.109,.123,d.hair);
-    ellipse(x,glass+.024,.089,.089,d.skin);ellipse(x,glass+.065,.101,.105,a.id==="tess"?"#c7c7ad":d.hair);
+      const pulse=t-v.windowAt<.25?v.windowBeat:0,asked=t-v.windowAsked;
+      const glance=asked>=0&&asked<2?v.windowSide*smooth(0,.28,asked)*(1-smooth(1.05,2,asked)):0;
+      ellipse(x+.036*glance,glass+.024-.025*pulse,.089,.089,d.skin);ellipse(x,glass+.065-.013*pulse,.101,.105,a.id==="tess"?"#c7c7ad":d.hair);
     c.strokeStyle="#425657";c.lineWidth=.029;c.beginPath();c.ellipse(x,glass-.10,.150,.058,steer*.23,0,tau);c.stroke();
     const up=thanks(v,t);
     for(const k of [-1,1]){
       const lift=k<0?up:0;
-      ellipse(x+k*.119-lift*(.08+.032*Math.sin(t*10)),glass-.099+k*.038*Math.sin(steer)-.05*lift,.031+.018*lift,.029+.032*lift,d.skin);
+        ellipse(x+k*.119-lift*(.08+.032*Math.sin(t*10)),glass-.099+k*.038*Math.sin(steer)-.05*lift-(k>0?.028*pulse:0),.031+.018*lift,.029+.032*lift,d.skin);
     }
     c.fillStyle="rgba(99,144,148,.23)";c.fillRect(-b,front,2*b,.51);
     c.restore();

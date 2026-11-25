@@ -15008,6 +15008,17 @@ window.buildBayCity = function buildBayCity(g,water) {
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),wrap=(n,m)=>((n%m)+m)%m;
   const distanceToBeat=(n,period)=>Math.abs(wrap(n+period*.5,period)-period*.5);
   const duration=id=>records[id].bars*240/records[id].bpm;
+  const requests=new Map(),requestPrefix="sundownBay.fmRequest.";
+  function readRequest(station){
+    let q=null;
+    try{q=JSON.parse(localStorage.getItem(requestPrefix+station));}catch{}
+    return q&&records[q.id]?.station===station&&Number.isFinite(q.at)?q:null;
+  }
+  function requestSong(id,time){
+    if(!Object.hasOwn(records,id)||!Number.isFinite(time))return;
+    const station=records[id].station,q={id,at:time};requests.set(station,q);
+    try{localStorage.setItem(requestPrefix+station,JSON.stringify(q));}catch{}
+  }
   function readTake(raw,id){
     if(!raw||!Object.hasOwn(slotById,id)||!Number.isInteger(raw.score)||raw.score<64||raw.score>100||
       !Number.isInteger(raw.start)||raw.start<0||raw.start>=records[slotById[id].from].bars*400||
@@ -15107,9 +15118,16 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function program(station,time,book){
     const channel=stations[station];if(!channel||station==="off")return {key:"off",station:"off",track:"",title:"Radio off",credit:"Engine and street sounds",age:0,decks:[]};
-    if(station==="sol"&&book.encore){
+    if(!requests.has(station))requests.set(station,readRequest(station));
+    const q=requests.get(station),requested=q&&time>=q.at&&time-q.at<duration(q.id);
+    if(station==="sol"&&book.encore&&(!requested||book.encore.at>q.at)){
       const take=book.sets[book.encore.id],age=time-book.encore.at;
       if(take&&age>=0&&age<tapeLength(take))return tapeProgram(take,age,"encore/"+book.encore.at);
+    }
+    if(requested){
+      const r=records[q.id],age=time-q.at,key="listener/"+station+"/"+q.id+"/"+q.at;
+      return {key,station,track:r.id,title:r.title,credit:r.artist+" · Listener request",age,
+        decks:[deck(r.id,age*r.bpm/60,r.bpm,1,key)]};
     }
     const featured=station==="sol"?book.sets[book.featured]:null,tracks=channel.songs;
     const songTime=duration(tracks[0])+duration(tracks[1]),span=songTime+(featured?tapeLength(featured):0);
@@ -15125,12 +15143,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     book.featured=book.request=clean.id;book.met=true;
     return {aired:true,best,pay:prior?0:slotById[clean.id].fee};
   }
-  const radioKeys=new Map();
+  const radioKeys=new Map(),preferred=new Map();
+  function preset(id,station){preferred.set(id,station);radioKeys.delete(id);}
   function stationFor(id){
     if(!id)return "sol";
     if(!radioKeys.has(id)){
       let saved;try{saved=localStorage.getItem("sundownBay.receiver."+id);}catch{}
-      radioKeys.set(id,presets.includes(saved)?saved:"sol");
+      radioKeys.set(id,presets.includes(saved)?saved:preferred.get(id)||"sol");
     }return radioKeys.get(id);
   }
   function tune(id,dir){
@@ -15140,8 +15159,101 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!id||!presets.includes(value))return null;radioKeys.set(id,value);
     try{localStorage.setItem("sundownBay.receiver."+id,value);}catch{}return value;
   }
-  function refreshPreset(key){const prefix="sundownBay.receiver.";if(key?.startsWith(prefix))radioKeys.delete(key.slice(prefix.length));}
-  window.BayAirwaves={stations,slots,slotById,records,read,Mix,program,stamp,stationFor,tune,tuneTo,refreshPreset,tapeLength,distanceToBeat};
+  function refreshPreset(key){
+    const prefix="sundownBay.receiver.";
+    if(key===null){radioKeys.clear();requests.clear();}
+    else if(key?.startsWith(prefix))radioKeys.delete(key.slice(prefix.length));
+    else if(key?.startsWith(requestPrefix))requests.delete(key.slice(requestPrefix.length));
+  }
+  window.BayAirwaves={stations,slots,slotById,records,read,Mix,program,stamp,stationFor,preset,requestSong,tune,tuneTo,refreshPreset,tapeLength,distanceToBeat};
+})();
+
+;
+/* open-windows.js */
+/* Passing car stereos share the receiver's live clock and its saved preset. */
+(() => {
+  "use strict";
+  const fm=BayAirwaves,stations=["marea","breaker","sol"];
+  const drivers=["Alma Ruiz","Frank Bell","Nadia Pike","Eli Torres"];
+  const intro=["My sister called this one in once.","Wait for the drummer on this one.","I keep this station on all the way home.","I used to have the seven-inch."];
+  const prefix="sundownBay.windowSong.";
+  function cards(){
+    const list=[];
+    for(const song of Object.values(fm.records)){
+      let row;try{row=JSON.parse(localStorage.getItem(prefix+song.id));}catch{}
+      if(row&&drivers.includes(row.by)&&stations.includes(row.station)&&typeof row.street==="string"&&row.street.length<48)
+        list.push({...row,song});
+    }
+    return list;
+  }
+  class Street{
+    constructor(people,visible=()=>true){
+      this.visible=visible;
+      this.cars=[];this.next=0;this.source=null;this.offer=null;this.air=null;
+      for(const p of people){
+        const v=p.car;if(!v.cityLanes||!["coupe","cab","van","hatch"].includes(v.kind))continue;
+        v.fmSticker=stations[v.id%3];fm.preset(v.garageKey,v.fmSticker);this.cars.push(v);
+      }
+    }
+    scan(at,own,t){
+      this.source=this.offer=null;let best=19,near=Infinity;
+      for(const v of this.cars){
+        if(v===own||!v.path||v.owner.phase!=="drive"||Math.abs(v.x-at.x)>19||Math.abs(v.z-at.z)>19)continue;
+        const station=fm.stationFor(v.garageKey);if(station==="off")continue;
+        const d=Math.hypot(v.x-at.x,v.z-at.z);
+        if(d>=19||!this.visible(at,v))continue;
+        if(d<best){best=d;this.source=v;}
+        const p=BayDriving.local(v,at.x,at.z);
+        if(Math.abs(p.x)<1.55||Math.abs(p.x)>(own?6.1:8.1)||Math.abs(p.z)>4.6||Math.abs(v.speed)>5.8||(own&&Math.abs(own.speed)>4.5))continue;
+        if(d<near){near=d;this.offer=v;}
+      }
+      this.next=t+.16;
+    }
+    step(at,own,t,clock,book,heading){
+      if(!at){this.air=this.source=this.offer=null;this.next=0;return;}
+      if(t>=this.next)this.scan(at,own,t);
+      const v=this.source;
+      if(!v||v===own||!v.path){this.air=null;return;}
+      const dx=v.x-at.x,dz=v.z-at.z,d=Math.hypot(dx,dz),station=fm.stationFor(v.garageKey);
+      const signal=fm.program(station,clock,book),deck=signal.decks[0];
+      if(deck){v.windowBeat=(1+Math.cos(deck.beat*Math.PI*2))*.5;v.windowAt=t;}
+      const audible=d<19&&station!=="off"&&(!own||fm.stationFor(own.garageKey)!==station);
+      this.air=audible?{program:signal,gain:(1-d/19)**1.6*(own?.27:.70),
+        pan:Math.max(-.9,Math.min(.9,(dx*Math.cos(heading)-dz*Math.sin(heading))/Math.max(4,d))),
+        cutoff:760+(1-d/19)*(own?1300:2900)}:null;
+    }
+    ask(at,own,t,clock,book){
+      this.scan(at,own,t);
+      const v=this.offer;if(!v)return null;
+      const station=fm.stationFor(v.garageKey),s=fm.program(station,clock,book),song=fm.records[s.track];
+      if(!song)return null;
+      const row={by:v.owner.name,street:BayStreetNames.through(v,v.yaw)||"the coast road",station};
+      let fresh=true;try{fresh=!localStorage.getItem(prefix+song.id);if(fresh)localStorage.setItem(prefix+song.id,JSON.stringify(row));}catch{}
+      const familiar=v.windowSong===song.id;v.windowSong=song.id;v.windowAsked=t;
+      v.windowSide=Math.sign(BayDriving.local(v,at.x,at.z).x);
+      if(Math.abs(v.speed)<3&&(!own||Math.abs(own.speed)<1))v.wait=Math.max(v.wait||0,1.65);
+      return {v,station,song,fresh,line:(familiar?"Still on the same side.":intro[v.id%4])+" "+song.title+", "+song.artist+". "+fm.stations[station].frequency+" FM."};
+    }
+  }
+  const palettes={sol:["#c8773b","#fff0b5"],marea:["#216f81","#b7f0db"],breaker:["#723b54","#ffda82"]};
+  function sticker(station,paint){
+    const [ink,paper]=palettes[station];
+    paint([[-.56,.16],[.08,.16],[.08,.52],[-.56,.52]],paper);
+    paint([[-.54,.19],[.06,.19],[.06,.49],[-.54,.49]],ink);
+    if(station==="breaker"){
+      paint([[-.28,.47],[-.11,.47],[-.22,.365],[-.125,.365],[-.36,.21],[-.29,.327],[-.39,.327]],paper);
+    }else if(station==="marea"){
+      const wave=[[-.49,0],[-.39,.085],[-.22,.015],[-.10,.08],[.015,.05]];
+      for(const y of [.255,.37])for(let i=1;i<wave.length;i++){
+        const [a,b]=wave[i-1],[c,d]=wave[i];
+        paint([[a,y+b],[c,y+d],[c,y+d-.035],[a,y+b-.035]],paper);
+      }
+    }else{
+      paint([[-.39,.31],[-.375,.372],[-.333,.423],[-.255,.445],[-.18,.419],[-.131,.366],[-.123,.31]],paper);
+      paint([[-.47,.26],[-.025,.26],[-.025,.286],[-.47,.286]],paper);
+    }
+  }
+  window.BayOpenWindows={Street,cards,sticker};
 })();
 
 ;
@@ -16149,6 +16261,7 @@ window.buildBayCity = function buildBayCity(g,water) {
 
   let context, master, music, effects, ambience, hats, noise, waves;
   let channels=[],scheduledGroup=null;
+  let passingChannel,passingGain,passingFilter,passingPan;
   let openAir, submergedBus, waterFilter;
   let enabled = false, paused = false;
   let floatEngine=0,floatThrottle=0,rescueLevel=0,nextRescue=0;
@@ -16174,8 +16287,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     return node;
   }
 
-  function channel(){
-    const bus=gainNode(music,0),keys=gainNode(bus,1),high=context.createBiquadFilter();
+  function channel(destination=music){
+    const bus=gainNode(destination,0),keys=gainNode(bus,1),high=context.createBiquadFilter();
     high.type="highpass";high.frequency.value=4100;high.Q.value=.45;high.connect(bus);
     const echo=context.createDelay(.5);echo.delayTime.value=beat*.375;
     keys.connect(echo);echo.connect(gainNode(bus,.135));
@@ -16203,6 +16316,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       scene.connect(waterFilter);
       music = gainNode(scene, 0.66);
       channels = [channel(),channel()];
+      passingPan=context.createStereoPanner?.();if(passingPan)passingPan.connect(scene);
+      passingGain=gainNode(passingPan||scene,0);passingFilter=context.createBiquadFilter();
+      passingFilter.type="lowpass";passingFilter.frequency.value=1450;passingFilter.Q.value=.60;passingFilter.connect(passingGain);
+      passingChannel=channel(passingFilter);
       effects = gainNode(scene, 0.88);
       ambience = gainNode(scene, 0.74);
       hats = context.createBiquadFilter();
@@ -16765,7 +16882,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if (queuedTape) startBroadcast(now);
     const band = shell ? shell.update(state.shell, now) : 0;
     if(state.radioProgram){
-      for(let i=0;i<channels.length;i++)playChannel(channels[i],band<.999?state.radioProgram.decks[i]:null,now);
+      for(let i=0;i<channels.length;i++)playChannel(channels[i],band<.999&&!state.streetListening?state.radioProgram.decks[i]:null,now);
     }else{
       // Older callers supply only the driving mix.
       channels[0].bus.gain.value=1;
@@ -16774,6 +16891,13 @@ window.buildBayCity = function buildBayCity(g,water) {
         if (band < .999) radioStep(step, nextStep,channels[0]);
         step++;nextStep += stepLength;
       }
+    }
+    const leak=state.passingRadio,decks=leak?.program.decks,first=decks?.[0],second=decks?.[1];
+    // One nearby car supplies the street mix. At a crossfade, carry the louder platter.
+    playChannel(passingChannel,leak&&band<.999?(second&&second.level>first.level?second:first):null,now);
+    if(now>=nextMix){
+      passingGain.gain.setTargetAtTime(leak?leak.gain*(1-band):0,now,.068);
+      if(leak){passingFilter.frequency.setTargetAtTime(leak.cutoff,now,.10);passingPan?.pan.setTargetAtTime(leak.pan,now,.075);}
     }
     mixWipers(now, state);
     mix(now, state, band);
@@ -16927,7 +17051,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     master.gain.cancelScheduledValues(context.currentTime);
     master.gain.setValueAtTime(0, context.currentTime);
     for (const voice of voices) { voice.source.stop(); release(voice); }
-    for(const output of channels){output.key="";output.level=-1;}
+    for(const output of [...channels,passingChannel]){output.key="";output.level=-1;}
     skidSince = null;
     context.suspend().catch(() => {});
   }
@@ -33233,6 +33357,14 @@ window.buildBayCity = function buildBayCity(g,water) {
         solve(rig.sides[0],shift(hand,-.075-.044*Math.sin(since*10),.26,.036),up);
         look(rig,-.075*up,-.14*up,0);return true;
       }
+      const v=a.car,age=t-v.windowAsked;
+      if(t-v.windowAt<.25){
+        const glance=age>=0&&age<2?smooth(0,.28,age)*(1-smooth(1.05,2,age)):0;
+        const pulse=v.windowBeat*(Math.abs(v.speed)<8?1:.30);
+        const hand=palm(rig,1);
+        solve(rig.sides[1],shift(hand,0,.039*pulse,.017*pulse),1);
+        look(rig,.070*pulse,glance*v.windowSide*.58,.025*pulse);return true;
+      }
     }
     if(toeIn.has(phase)||a.motion.ride)return false;
     const right=rig.sides[1],left=rig.sides[0],beat=t*.92+(id==="viv"?2.72:id==="tess"?1.72:id==="ruth"?.58:0);
@@ -33439,12 +33571,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.beginPath();c.moveTo(-b+.14,front);c.lineTo(b-.14,front);c.lineTo(b-.24,front+.51);c.lineTo(-b+.24,front+.51);c.closePath();c.clip();
     const ellipse=(x,y,w,h,col)=>{c.beginPath();c.ellipse(x,y,w,h,0,0,tau);c.fillStyle=col;c.fill();};
     ellipse(x,glass+.04,.208,.110,d.shirt);ellipse(x,glass+.075,.109,.123,d.hair);
-    ellipse(x,glass+.024,.089,.089,d.skin);ellipse(x,glass+.065,.101,.105,a.id==="tess"?"#c7c7ad":d.hair);
+      const pulse=t-v.windowAt<.25?v.windowBeat:0,asked=t-v.windowAsked;
+      const glance=asked>=0&&asked<2?v.windowSide*smooth(0,.28,asked)*(1-smooth(1.05,2,asked)):0;
+      ellipse(x+.036*glance,glass+.024-.025*pulse,.089,.089,d.skin);ellipse(x,glass+.065-.013*pulse,.101,.105,a.id==="tess"?"#c7c7ad":d.hair);
     c.strokeStyle="#425657";c.lineWidth=.029;c.beginPath();c.ellipse(x,glass-.10,.150,.058,steer*.23,0,tau);c.stroke();
     const up=thanks(v,t);
     for(const k of [-1,1]){
       const lift=k<0?up:0;
-      ellipse(x+k*.119-lift*(.08+.032*Math.sin(t*10)),glass-.099+k*.038*Math.sin(steer)-.05*lift,.031+.018*lift,.029+.032*lift,d.skin);
+        ellipse(x+k*.119-lift*(.08+.032*Math.sin(t*10)),glass-.099+k*.038*Math.sin(steer)-.05*lift-(k>0?.028*pulse:0),.031+.018*lift,.029+.032*lift,d.skin);
     }
     c.fillStyle="rgba(99,144,148,.23)";c.fillRect(-b,front,2*b,.51);
     c.restore();
@@ -33781,6 +33915,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(distance>76)return;
     const pitch=v.pitch||0,lean=v.lean||0;
     const add=(key,glow=0)=>list.push([key,v.x,ground,v.z,v.yaw,pitch,lean,glow,v]);
+    if(v.fmSticker&&distance<45){
+      const [rear,roofRear,,,sill,roof]=bayCarLayout(v.kind).glass;
+      add(register(model,"registry/window/"+v.kind+"/"+v.fmSticker,g=>{
+        const pane=projected(g,(x,h,depth)=>[x,mix(sill,roof,h),mix(rear,roofRear,h)-depth]);
+        BayOpenWindows.sticker(v.fmSticker,pane);
+      }));
+    }
     if(BayBoulevardLanes.flash(v,t)){
       const front=bayCarLayout(v.kind).sections.at(-1);
       add(register(model,"registry/flash/"+v.kind,g=>{
@@ -33856,6 +33997,15 @@ window.buildBayCity = function buildBayCity(g,water) {
     const van=p.kind==="van",l=van?2.32:p.kind==="hatch"?1.82:2.16,b=van?.97:.91;
     const damage=v.damage?BayBodyworkArt.plan(v,l,b):null,on=lampsOn(v,t);
     c.save();c.translate(x,y);c.rotate(v.yaw||0);c.scale(scale,scale);
+    if(v.fmSticker&&scale>=3){
+      const key=v.kind+"/"+v.fmSticker;
+      if(!mapCargo.has(key)){
+        const [rear,roofRear]=p.s.glass,art=[];
+        BayOpenWindows.sticker(v.fmSticker,(pts,col)=>art.push([pts.map(([u,h])=>[u,-mix(rear,roofRear,h)]),col]));
+        mapCargo.set(key,art);
+      }
+      for(const [pts,col] of mapCargo.get(key))paintShape(c,pts,col);
+    }
     let tail=0;
     for(const side of [-1,1]){
       const lit=on&&side===v.indicator;
@@ -65488,6 +65638,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     v.corner=k;v.speed=v.pace;
   }
   const owners=new BayRoadOwners(cars),valet=new BayMotorCourt.Service(addCar,save.valet);
+  const carRadios=new BayOpenWindows.Street(owners.people,(a,v)=>scoutSight(
+    {x:a.x,y:footLevel(a.x,a.z)+1.45,z:a.z},{x:v.x,y:footLevel(v.x,v.z)+1.12,z:v.z}));
   const wash=new BayPalma.Wash(addCar,save.palma),washJob={id:"palma",name:"Palma Hand Wash",by:"Elia Mena"};
   const washPin={...wash.site.till,id:"palma",kind:"car-wash",name:"Palma Hand Wash"};
   locations.push(washPin);
@@ -71988,8 +72140,32 @@ window.buildBayCity = function buildBayCity(g,water) {
       writeRadioBook(b=>{if(!b.request)return false;b.encore={id:b.request,at:hours.total};b.request="";});
     }
     broadcastDesk.update(id,hours.total,elapsed);
+    carRadios.step(windowListener(),car,streetTime,hours.total,save.airwaves,isTop()?cameraRig.yaw:cam.yaw);
     const story=neighbors.unheard;
     if(broadcastDesk.headlines(save,hours,bridge,elapsed,gutters,story?.news))neighbors.aired(story);
+  }
+  function windowListener(){
+    if(!play||room||unit.eye||afternoon.photo||unit.transition||transfer||heat||active||broadcastDesk.mix||band.tape||onAir)return null;
+    return car&&unitRoadCar(car)?car:onStreetFeet()&&!cabs.booking&&!transit.engaged?hero:null;
+  }
+  function askAboutSong(){
+    const at=windowListener();if(!at)return false;
+    const answer=carRadios.ask(at,car,streetTime,hours.total,save.airwaves);if(!answer)return false;
+    if(car)tuneRadio(1,answer.station);
+    speak(answer.v.owner.name,answer.line);
+    note(answer.song.title,(car?"On your dial":"From the "+answer.v.kind)+" · "+(answer.fresh?"Saved to J → Open Windows":"J → Open Windows"),3.6);
+    lastHud=-10;return true;
+  }
+  function openWindowsPanel(body){
+    for(const c of BayOpenWindows.cards()){
+      const s=BayAirwaves.stations[c.song.station];
+      body.append(makeButton(c.song.title+" · "+c.song.artist,c.by+" on "+c.street+" · Request on "+s.frequency+" "+s.name,"Call it in",()=>{
+        BayAirwaves.requestSong(c.song.id,hours.total);
+        if(receiverId())tuneRadio(1,c.song.station);
+        closePanel();speak(s.host,"This one’s for the listener on "+c.street+". "+c.song.artist+" on "+s.name+".");
+        note("Listener request",c.song.title+" · On air at "+s.frequency+" FM",3.8);
+      },"row-action window-record "+c.song.station));
+    }
   }
   function curbVehicle(){return play&&car&&!transfer&&!active?.take&&!motos.finder&&!unit.eye&&!room&&!car.serviceCar?car:null;}
   const coffeeEnv={
@@ -73972,6 +74148,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const capHint=summerHint(summerAction());
     if(canUseSeat()&&!heat&&BayJunctionTurns.waitingDriver(car,cars))contextHint("L","Flash the waiting driver through");
     else if(car&&!active&&!heat&&BayBoulevardLanes.candidate(car,cars,streetTime))contextHint("H","Ask the driver behind to let you in");
+    else if(carRadios.offer&&windowListener())contextHint("/","Ask "+carRadios.offer.owner.name+" what’s playing");
     else if(capHint)contextHint(...capHint);
     else if(freightHint)contextHint(...freightHint);
     else if(showing)contextHint(...showing);
@@ -74718,6 +74895,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       title=next==="unit-sheet"?"Second Unit":"Location prints";kicker="Cine Luna  /  Frankie Prado";scoutPanel(b,next==="unit-sheet");
     }else if(next==="umbrella"){
       title="Umbrella loan stand";kicker="Marlin Motel  /  Route 6";umbrellaPanel(b);
+    }else if(next==="window-songs"){
+      title="Open Windows";kicker="Songs from the street";openWindowsPanel(b);
     }else if(next==="radio-desk"||next==="radio-sleeves"||next==="jobs"&&broadcastDesk.mix){
       title=next==="radio-sleeves"?"The request book":"Boardwalk broadcast";kicker="Sol FM  /  Ivo Vidal";radioDeskPanel(b,next==="radio-sleeves");
     }else if(next==="buttonwood"||next==="pot-book"||next==="jobs"&&active?.buttonwood){
@@ -75038,6 +75217,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(works.saved.seen)b.append(makeButton("Alda’s tide book","Landing tickets, catch totals and the location of the rig.","Read",()=>openPanel("pot-book")));
       if(save.brisas.seen)b.append(makeButton("Las Brisas switch book","Your cards, boulevard rolls and the plum Solena.","Read",()=>openPanel("brisas-book")));
       if(save.airwaves.met)b.append(makeButton("Sol FM request book","Your Boardwalk mixes and the studio van.","Read",()=>openPanel("radio-sleeves")));
+      const songs=BayOpenWindows.cards();
+      if(songs.length)b.append(makeButton("Open Windows",songs.length+" of 6 records heard from passing cars.","Song requests",()=>openPanel("window-songs")));
       if(save.palm.seen)b.append(makeButton("Palm Diner house card","Your results, unfinished rack and the regulars’ numbers.","Read",()=>openPanel("palm-card")));
       if(save.gull.met||save.gull.titles.length)b.append(makeButton("Gull Street Motors","Your titles, signed road sheets and parked cars.","Key ring",()=>openPanel("motor-titles")));
       const personalPin=carPin();
@@ -75176,7 +75357,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   $("world").addEventListener("webglcontextlost",resetPointer);
   const handled=new Set(["BracketLeft","BracketRight","KeyK","KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowLeft","ArrowDown","ArrowRight","Space","KeyE","KeyF","KeyG","KeyH","KeyT","KeyV","KeyX","KeyQ","KeyC","KeyM","KeyJ","KeyR","KeyB","Equal","Minus","NumpadAdd","NumpadSubtract","Escape","Enter","ShiftLeft","ShiftRight"]);
-  for(const code of ["KeyO","KeyZ","KeyI","KeyU","KeyY","KeyP","KeyL","KeyN","Comma","Period"])handled.add(code);
+  for(const code of ["KeyO","KeyZ","KeyI","KeyU","KeyY","KeyP","KeyL","KeyN","Comma","Period","Slash"])handled.add(code);
   document.addEventListener("mousedown",e=>{if(e.button===0&&!panel&&e.target===lookSurface()&&palmPointer(e,true))return;if(e.button===0&&!panel&&e.target===lookSurface()&&wash.hasWand()&&onStreetFeet())hoseButton=true;});
   addEventListener("mouseup",()=>{hoseButton=false;if(!panel&&palm.match?.draw!=null)palm.release(palmEnv);});
   addEventListener("keydown",ev=>{
@@ -75193,6 +75374,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="Slash"&&askAboutSong())return;
     if(summerKey(ev.code)||spurKey(ev.code))return;
     if(corkKeys(ev.code))return;
     if(ev.code==="KeyF"&&cupNear()){cupBook();return;}
@@ -75387,6 +75569,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       const heading=isTop()?cameraRig.yaw:cam.yaw;
       sound.update({rain:room||swim?.underwater?0:hours.rain,canopy:rainWalk.amount,radioProgram:broadcastDesk.signal,speed,dealerEngine:car?.stockId?car:null,motorcycle:motos.bike,driving:!!motos.bike||!!windowRide?.held||transit.aboard||!!active?.take||!!car||!!skiff,boating:!!skiff,swimming:!!swim,depth:swim?.depth||0,stroke:swim?.pace||0,field:fieldSignal(),shell:broadcastDesk.mix?null:band.audio(dt,p,bandEnv),heat,siren:heat?clamp(1-chase.closestUnit/103,0,1):0,time:elapsed,coast:clamp((p.x-100)/93,0,1),
+        passingRadio:carRadios.air,streetListening:!car&&windowListener()===hero,
         washSpray:sprayGain*clamp(1-sprayRange/26,0,1)**1.4,washPan:spray?clamp(((spray.x-p.x)*Math.cos(heading)-(spray.z-p.z)*Math.sin(heading))/Math.max(4,sprayRange),-.9,.9):0,
         burn:car?.burn||0,wiper:car?.wiper||0,inCabin:insideSeat()||busCameras(),bridge:room?null:{phase:bridge.phase,lift:bridge.lift,gates:bridge.gates,distance:dist(p,BayDrawbridge.center)},
         rescueLevel:room?0:Math.max(unit4.responseLights?clamp(1-dist(p,unit4)/98,0,1):0,engine7.responseLights&&company.traveling?clamp(1-dist(p,engine7)/104,0,1):0),

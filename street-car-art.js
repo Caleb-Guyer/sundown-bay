@@ -171,6 +171,13 @@
     if(distance>76)return;
     const pitch=v.pitch||0,lean=v.lean||0;
     const add=(key,glow=0)=>list.push([key,v.x,ground,v.z,v.yaw,pitch,lean,glow,v]);
+    if(v.fmSticker&&distance<45){
+      const [rear,roofRear,,,sill,roof]=bayCarLayout(v.kind).glass;
+      add(register(model,"registry/window/"+v.kind+"/"+v.fmSticker,g=>{
+        const pane=projected(g,(x,h,depth)=>[x,mix(sill,roof,h),mix(rear,roofRear,h)-depth]);
+        BayOpenWindows.sticker(v.fmSticker,pane);
+      }));
+    }
     if(BayBoulevardLanes.flash(v,t)){
       const front=bayCarLayout(v.kind).sections.at(-1);
       add(register(model,"registry/flash/"+v.kind,g=>{
@@ -246,6 +253,15 @@
     const van=p.kind==="van",l=van?2.32:p.kind==="hatch"?1.82:2.16,b=van?.97:.91;
     const damage=v.damage?BayBodyworkArt.plan(v,l,b):null,on=lampsOn(v,t);
     c.save();c.translate(x,y);c.rotate(v.yaw||0);c.scale(scale,scale);
+    if(v.fmSticker&&scale>=3){
+      const key=v.kind+"/"+v.fmSticker;
+      if(!mapCargo.has(key)){
+        const [rear,roofRear]=p.s.glass,art=[];
+        BayOpenWindows.sticker(v.fmSticker,(pts,col)=>art.push([pts.map(([u,h])=>[u,-mix(rear,roofRear,h)]),col]));
+        mapCargo.set(key,art);
+      }
+      for(const [pts,col] of mapCargo.get(key))paintShape(c,pts,col);
+    }
     let tail=0;
     for(const side of [-1,1]){
       const lit=on&&side===v.indicator;

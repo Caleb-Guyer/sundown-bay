@@ -43,6 +43,7 @@
 
   let context, master, music, effects, ambience, hats, noise, waves;
   let channels=[],scheduledGroup=null;
+  let passingChannel,passingGain,passingFilter,passingPan;
   let openAir, submergedBus, waterFilter;
   let enabled = false, paused = false;
   let floatEngine=0,floatThrottle=0,rescueLevel=0,nextRescue=0;
@@ -68,8 +69,8 @@
     return node;
   }
 
-  function channel(){
-    const bus=gainNode(music,0),keys=gainNode(bus,1),high=context.createBiquadFilter();
+  function channel(destination=music){
+    const bus=gainNode(destination,0),keys=gainNode(bus,1),high=context.createBiquadFilter();
     high.type="highpass";high.frequency.value=4100;high.Q.value=.45;high.connect(bus);
     const echo=context.createDelay(.5);echo.delayTime.value=beat*.375;
     keys.connect(echo);echo.connect(gainNode(bus,.135));
@@ -97,6 +98,10 @@
       scene.connect(waterFilter);
       music = gainNode(scene, 0.66);
       channels = [channel(),channel()];
+      passingPan=context.createStereoPanner?.();if(passingPan)passingPan.connect(scene);
+      passingGain=gainNode(passingPan||scene,0);passingFilter=context.createBiquadFilter();
+      passingFilter.type="lowpass";passingFilter.frequency.value=1450;passingFilter.Q.value=.60;passingFilter.connect(passingGain);
+      passingChannel=channel(passingFilter);
       effects = gainNode(scene, 0.88);
       ambience = gainNode(scene, 0.74);
       hats = context.createBiquadFilter();
@@ -659,7 +664,7 @@
     if (queuedTape) startBroadcast(now);
     const band = shell ? shell.update(state.shell, now) : 0;
     if(state.radioProgram){
-      for(let i=0;i<channels.length;i++)playChannel(channels[i],band<.999?state.radioProgram.decks[i]:null,now);
+      for(let i=0;i<channels.length;i++)playChannel(channels[i],band<.999&&!state.streetListening?state.radioProgram.decks[i]:null,now);
     }else{
       // Older callers supply only the driving mix.
       channels[0].bus.gain.value=1;
@@ -668,6 +673,13 @@
         if (band < .999) radioStep(step, nextStep,channels[0]);
         step++;nextStep += stepLength;
       }
+    }
+    const leak=state.passingRadio,decks=leak?.program.decks,first=decks?.[0],second=decks?.[1];
+    // One nearby car supplies the street mix. At a crossfade, carry the louder platter.
+    playChannel(passingChannel,leak&&band<.999?(second&&second.level>first.level?second:first):null,now);
+    if(now>=nextMix){
+      passingGain.gain.setTargetAtTime(leak?leak.gain*(1-band):0,now,.068);
+      if(leak){passingFilter.frequency.setTargetAtTime(leak.cutoff,now,.10);passingPan?.pan.setTargetAtTime(leak.pan,now,.075);}
     }
     mixWipers(now, state);
     mix(now, state, band);
@@ -821,7 +833,7 @@
     master.gain.cancelScheduledValues(context.currentTime);
     master.gain.setValueAtTime(0, context.currentTime);
     for (const voice of voices) { voice.source.stop(); release(voice); }
-    for(const output of channels){output.key="";output.level=-1;}
+    for(const output of [...channels,passingChannel]){output.key="";output.level=-1;}
     skidSince = null;
     context.suspend().catch(() => {});
   }

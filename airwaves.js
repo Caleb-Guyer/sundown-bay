@@ -18,6 +18,17 @@
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),wrap=(n,m)=>((n%m)+m)%m;
   const distanceToBeat=(n,period)=>Math.abs(wrap(n+period*.5,period)-period*.5);
   const duration=id=>records[id].bars*240/records[id].bpm;
+  const requests=new Map(),requestPrefix="sundownBay.fmRequest.";
+  function readRequest(station){
+    let q=null;
+    try{q=JSON.parse(localStorage.getItem(requestPrefix+station));}catch{}
+    return q&&records[q.id]?.station===station&&Number.isFinite(q.at)?q:null;
+  }
+  function requestSong(id,time){
+    if(!Object.hasOwn(records,id)||!Number.isFinite(time))return;
+    const station=records[id].station,q={id,at:time};requests.set(station,q);
+    try{localStorage.setItem(requestPrefix+station,JSON.stringify(q));}catch{}
+  }
   function readTake(raw,id){
     if(!raw||!Object.hasOwn(slotById,id)||!Number.isInteger(raw.score)||raw.score<64||raw.score>100||
       !Number.isInteger(raw.start)||raw.start<0||raw.start>=records[slotById[id].from].bars*400||
@@ -117,9 +128,16 @@
   }
   function program(station,time,book){
     const channel=stations[station];if(!channel||station==="off")return {key:"off",station:"off",track:"",title:"Radio off",credit:"Engine and street sounds",age:0,decks:[]};
-    if(station==="sol"&&book.encore){
+    if(!requests.has(station))requests.set(station,readRequest(station));
+    const q=requests.get(station),requested=q&&time>=q.at&&time-q.at<duration(q.id);
+    if(station==="sol"&&book.encore&&(!requested||book.encore.at>q.at)){
       const take=book.sets[book.encore.id],age=time-book.encore.at;
       if(take&&age>=0&&age<tapeLength(take))return tapeProgram(take,age,"encore/"+book.encore.at);
+    }
+    if(requested){
+      const r=records[q.id],age=time-q.at,key="listener/"+station+"/"+q.id+"/"+q.at;
+      return {key,station,track:r.id,title:r.title,credit:r.artist+" · Listener request",age,
+        decks:[deck(r.id,age*r.bpm/60,r.bpm,1,key)]};
     }
     const featured=station==="sol"?book.sets[book.featured]:null,tracks=channel.songs;
     const songTime=duration(tracks[0])+duration(tracks[1]),span=songTime+(featured?tapeLength(featured):0);
@@ -135,12 +153,13 @@
     book.featured=book.request=clean.id;book.met=true;
     return {aired:true,best,pay:prior?0:slotById[clean.id].fee};
   }
-  const radioKeys=new Map();
+  const radioKeys=new Map(),preferred=new Map();
+  function preset(id,station){preferred.set(id,station);radioKeys.delete(id);}
   function stationFor(id){
     if(!id)return "sol";
     if(!radioKeys.has(id)){
       let saved;try{saved=localStorage.getItem("sundownBay.receiver."+id);}catch{}
-      radioKeys.set(id,presets.includes(saved)?saved:"sol");
+      radioKeys.set(id,presets.includes(saved)?saved:preferred.get(id)||"sol");
     }return radioKeys.get(id);
   }
   function tune(id,dir){
@@ -150,6 +169,11 @@
     if(!id||!presets.includes(value))return null;radioKeys.set(id,value);
     try{localStorage.setItem("sundownBay.receiver."+id,value);}catch{}return value;
   }
-  function refreshPreset(key){const prefix="sundownBay.receiver.";if(key?.startsWith(prefix))radioKeys.delete(key.slice(prefix.length));}
-  window.BayAirwaves={stations,slots,slotById,records,read,Mix,program,stamp,stationFor,tune,tuneTo,refreshPreset,tapeLength,distanceToBeat};
+  function refreshPreset(key){
+    const prefix="sundownBay.receiver.";
+    if(key===null){radioKeys.clear();requests.clear();}
+    else if(key?.startsWith(prefix))radioKeys.delete(key.slice(prefix.length));
+    else if(key?.startsWith(requestPrefix))requests.delete(key.slice(requestPrefix.length));
+  }
+  window.BayAirwaves={stations,slots,slotById,records,read,Mix,program,stamp,stationFor,preset,requestSong,tune,tuneTo,refreshPreset,tapeLength,distanceToBeat};
 })();

@@ -27,6 +27,11 @@ button:focus-visible,select:focus-visible,canvas:focus-visible {outline:3px soli
 #receiverCard,#boothReadout {position:absolute;color:#fff1d3;background:#1d302eef;border:1px solid #ccb88c8c;border-radius:3px;box-shadow:0 2px 7px #112b2b55}
 #receiverCard {left:clamp(12px,2vw,24px);top:clamp(84px,15.3vh,126px);padding:7px 9px 8px;width:min(230px,36vw)}
 #radioScale,#boothMeter {display:block;width:100%;height:auto}
+.window-record {--label:#ca8341}
+.window-record.marea {--label:#3896a4}
+.window-record.breaker {--label:#a55c79}
+.window-record::before {content:"";display:block;flex:0 0 2.85rem;height:2.85rem;border-radius:50%;box-shadow:0 1px 2px #15251f66;background:radial-gradient(circle,#e5ddc4 0 4%,var(--label) 5% 30%,transparent 31%),repeating-radial-gradient(circle,transparent 0 2px,#9fada73d 2.5px 3px),conic-gradient(#192724,#4d5b50 18%,#1e2824 33%,#182724 66%,#525d50 81%,#192724)}
+.window-record>span {flex:1}
 #radioScale {margin-bottom:5px}
 #receiverCard small,#receiverCard strong,#receiverCard span,#boothStatus,#boothTip {display:block}
 #receiverStation,.sleeve-names i,#boothTip {font:700 .73rem/1.3 Consolas,monospace;letter-spacing:.025em;color:#e9d6a3}

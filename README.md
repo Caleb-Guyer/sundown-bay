@@ -4,6 +4,10 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+Look for the sun, wave or lightning sticker on the rear window of a neighborhood car. From the sidewalk or a slow car alongside, press **/** to ask the driver what’s playing. They name the current song and station. At the wheel, your radio tunes to the same point in the record. On foot you can hear their stereo pass from one side to the other. The song credits and conversation also work muted.
+
+Under **J → Open Windows**, each of the six original records keeps the first driver and street where you heard it. Call one in to play it on its home station. Your receiver and other cars tuned to that frequency pick up the same broadcast.
+
 On the wide stretches of **Ocean Drive** and **Luna Boulevard**, watch the lane beside you. Drivers signal before they pass a stopped or slower car. If someone is already in that lane, they wait for a gap. At the wheel, use **comma** to signal left or **period** to signal right, then tap **H** to ask a driver behind you to let you in. Two headlight flashes mean they’re slowing to make room. You steer into the gap yourself.
 
 Drivers turning left wait for oncoming traffic. Stop across from a waiting driver and press **L** to flash your headlights. When both lanes are clear, they flash back, lift a hand from the wheel and take the turn.
