@@ -17,14 +17,11 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       recQA.view.drawOpaque=function(items){delete this.drawOpaque;
         recQA.surfaceResult=(${require("./street-surface.cjs").toString()})(this,items,comparePixels);
         recQA.wallResult=(${require("./street-walls.cjs").toString()})(this,items,comparePixels,recQA);
-        recQA.coverResult=(${require("./city-cover.cjs").toString()})(this,items,comparePixels);
         recQA.paintResult=(${require("./frame-paint.cjs").toString()})(this,items,comparePixels);
         return this.drawOpaque(items);};`);
     await waitFor("!!recQA.surfaceResult",40000);
     const result=await js("recQA.surfaceResult");console.log("PERF solid street "+label,JSON.stringify(result));
     const walls=await js("recQA.wallResult");console.log("PERF street walls "+label,JSON.stringify(walls));
-    const cover=await js("recQA.coverResult");console.log("PERF city cover "+label,JSON.stringify(cover));
-    assert(cover.indices>0&&cover.pixels.silhouette===0&&cover.pixels.recolored===0&&cover.pixels.changed===0);
     const paint=await js("recQA.paintResult");console.log("PERF frame paint "+label,JSON.stringify(paint));
     for(const p of paint)assert(p.pixels.painted>10000&&p.pixels.silhouette===0&&p.pixels.maxError<=2);
     assert(walls.pixels.painted>10000&&walls.pixels.silhouette===0&&walls.pixels.recolored<=Math.ceil(walls.pixels.painted*.0001));
@@ -210,11 +207,22 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       assert(animated.submitted[1]>0&&animated.submitted[1]<animated.submitted[0]*.85);
       assert(animated.pixels.painted>0&&animated.pixels.silhouette===0&&animated.pixels.recolored===0);
       await js(`const streams=recQA.view.streetBatch.buffers,single=[streams[0]];
-        const uploadTrial=recQA.uploadTrial={frame:0,times:[[],[]],cpu:[[],[]]};
+        const uploadTrial=recQA.uploadTrial={frame:0,times:[[],[]],cpu:[[],[]],bytes:[0,0],whole:[0,0]};
+        const batch=recQA.view.streetBatch,update=batch.uploadStream;
+        batch.uploadStream=function(target,source,length,history){
+          const bytes=update.call(this,target,source,length,history),k=source.BYTES_PER_ELEMENT===2?1:0;
+          uploadTrial.bytes[k]+=bytes;uploadTrial.whole[k]+=length*source.BYTES_PER_ELEMENT;return bytes;
+        };
         BayView.prototype.drawOpaque=function(items){
           const q=uploadTrial,n=q.frame++,block=Math.floor(n/8),ring=[0,3].includes(block%4)?1:0,b=this.streetBatch;
           if(n===64){
-            b.buffers=streams;b.nextBuffer=0;BayView.prototype.drawOpaque=batchDraw;
+            b.buffers=streams;b.nextBuffer=0;BayView.prototype.drawOpaque=batchDraw;batch.uploadStream=update;
+            q.reference=comparePixels(this,items,batchDraw,function(list){
+              batch.uploadStream=function(target,source,length,history){
+                this.view.gl.bufferSubData(target,0,source.subarray(0,length));history.known=0;
+              };
+              try{batchDraw.call(this,list);}finally{batch.uploadStream=update;}
+            },true);
             q.image=comparePixels(this,items,batchDraw,function(list){
               b.buffers=single;b.nextBuffer=0;try{batchDraw.call(this,list);}finally{b.buffers=streams;b.nextBuffer=0;}
             });return batchDraw.call(this,items);
@@ -226,9 +234,11 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         };`);
       await waitFor("!!recQA.uploadTrial.image",55000);
       const uploads=await js(`(()=>{const q=recQA.uploadTrial,median=a=>a.sort((x,y)=>x-y)[a.length>>1];
-        return {frameMs:q.times.map(median),submitMs:q.cpu.map(median),pixels:q.image,slots:recQA.view.streetBatch.buffers.length};
+        return {frameMs:q.times.map(median),submitMs:q.cpu.map(median),pixels:q.image,fullUpload:q.reference,bytes:q.bytes,whole:q.whole,slots:recQA.view.streetBatch.buffers.length};
       })()`);
       assert.equal(uploads.slots,3);assert(uploads.pixels.painted>350&&uploads.pixels.silhouette===0&&uploads.pixels.recolored===0);
+      assert(uploads.fullUpload.painted>350&&uploads.fullUpload.changed===0&&uploads.fullUpload.silhouette===0);
+      assert(uploads.bytes[0]<=uploads.whole[0]&&uploads.bytes[1]<=uploads.whole[1]);
       console.log("PERF scenery uploads single and triple",JSON.stringify(uploads));
       await checkCity("motel");
       assert.equal(await js("recQA.view.gl.getError()"),0);

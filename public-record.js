@@ -12,6 +12,7 @@
     motel:["motel",[4.6,2.1,-6.3],[3.3,1.7,-5.8],[1.3,1.25,3.2],1.48,20],
     mara:["mara",[2.9,1.68,-2.8],[2.2,1.59,-2.6],[0,1.37,0],1.50,12],
     cab:["ride",[3.8,1.50,4.2],[2.9,1.43,3.6],[0,.94,0],1.58,18],
+    payrollDesk:["ride",[-2.65,1.62,2.8],[-1.85,1.45,2.3],[0,1.03,.4],1.54,13],
     pullOut:["ride",[2.1,1.7,-3.7],[.7,3.1,-6.4],[0,.94,2.1],1.48,23],
     van:["live",[-6,2.1,2],[-4.9,1.7,1.3],[1.3,1.58,.45],1.6,22],
     cinema:["print",[-8,3.7,-7],[-6.5,2.8,-6.2],[1,2,.1],1.58,29],
@@ -31,12 +32,12 @@
       {dur:3.9,art:"payEnvelope",who:"Jules",line:"Port Sol will buy the tin, no questions. Or take it to the Luna. The night shift's watching a double feature. Your turn to decide."}
     ],
     collectionLuna:[
-      {dur:3.7,shot:"cinema",slug:"CINE LUNA   /   SIDE DOOR",title:"The Late Show",who:"Romy Vale",line:"That's my mum's writing. She used to put a little sun over the i in Marisol."},
+      {dur:3.7,shot:"payrollDesk",slug:"CINE LUNA   /   SIDE DOOR",title:"The Late Show",who:"Marisol Vale",line:"See the little sun over the i? That's how I signed every timesheet. Give me the stack. I know who's still owed."},
       {dur:3.6,art:"payReceipt",who:"Jules",line:"Everybody chipped in for petrol. Even the guy who only got three dollars back."}
     ],
     collectionPort:[
-      {dur:3.7,shot:"portWide",slug:"PORT SOL   /   LOADING BAY",title:"Cash in Hand",who:"Jules",line:"He weighed it with the lid on. Guess the names inside didn't weigh much."},
-      {dur:3.6,art:"portReceipt",who:"Romy Vale",line:"Tell my mum yourself. I'm walking home."}
+      {dur:3.7,shot:"payrollDesk",slug:"PORT SOL   /   LOADING BAY",title:"Cash in Hand",who:"Jules",line:"He weighed it with the lid on. Guess the names inside didn't weigh much."},
+      {dur:3.6,art:"portReceipt",who:"Romy Vale · phone",line:"Tell my mum yourself. I'm walking home."}
     ],
     landingClinic:[
       {dur:4.8,shot:"posted",slug:"PORT SOL   /   LOT 14",title:"The Public Slip",who:"Alma Reyes · clinic bus",line:"I can give the woman in the front seat a time now. She’s been asking every Thursday."},

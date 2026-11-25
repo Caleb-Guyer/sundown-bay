@@ -1103,10 +1103,7 @@
         disc(ctx,x,y,1.18*ui,"#b7bda3");
       }
     }
-    if(street&&opt.collectionCar){
-      const v=opt.collectionCar,p=BayDriving.world(v,bayCarLayout(v.kind).seatX,.40);
-      if(visible(px(p.x),py(p.z)))disc(ctx,px(p.x),py(p.z),Math.max(1.5,s*.18),"#b48165");
-    }
+    if(street&&opt.payroll)BayPayroll.map(ctx,opt.payroll,px,py,s,visible);
     if(street&&opt.oceanBeat&&opt.oceanBeat.seat<.55){const a=opt.oceanBeat.actor;if(visible(px(a.x),py(a.z),12))BayOceanBeatArt.mapPerson(ctx,a,px,py,s,streetTime);}
     if(opt.coastCup)BayCoastCupArt.map(ctx,opt,px,py,s,visible);
     if(opt.redCork)BayRedCorkArt.map(ctx,opt,px,py,s,visible);
