@@ -777,7 +777,7 @@
   function enterFilm(id,replay=false){
     if(panel)closePanel();
     sound.reel(null);
-    campaign.frame=(id==="negative"?(maraFilm.pending||maraFilm.published):maraFilm.published)?.frame;
+    campaign.negativeNumber=(id==="negative"?(maraFilm.pending||maraFilm.published):maraFilm.published)?.frame;
     filmReplay=replay;if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }

@@ -19679,7 +19679,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const s=this.scene,b=s&&scenes[s.id][s.index];if(!b)return null;
       if(b.watch==="away")return {...b,line:this.watch.departure.luis==="aboard"?"One’s mine. The other’s my brother’s. He’d have had crackers for supper.":"Tell my brother I’ve got his lunch. I’ll catch the next one."};
       const recorded=this.book.morning;
-      if(this.frame==="14B"&&s.index===0){
+      if(this.negativeNumber==="14B"&&s.index===0){
         if(s.id==="negative")return {...b,line:"There’s the dent. Dad dropped that tin on the gangway when I was eight."};
         if(s.id==="print")return {...b,line:"Somebody in the back row says, “Luis, you still got that thing?” His laugh carries all the way up to the booth."};
         if(s.id==="live")return {...b,line:"That’s Luis Vega on the Bay Wire cover. He packed two lunches for that crossing for twenty-three years. He’s on line one."};
@@ -68319,7 +68319,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function enterFilm(id,replay=false){
     if(panel)closePanel();
     sound.reel(null);
-    campaign.frame=(id==="negative"?(maraFilm.pending||maraFilm.published):maraFilm.published)?.frame;
+    campaign.negativeNumber=(id==="negative"?(maraFilm.pending||maraFilm.published):maraFilm.published)?.frame;
     filmReplay=replay;if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
