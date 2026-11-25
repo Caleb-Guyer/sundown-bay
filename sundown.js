@@ -69,7 +69,8 @@
       const x=vertices[i],y=vertices[i+1],z=vertices[i+2];
       x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);z0=Math.min(z0,z);z1=Math.max(z1,z);
     }
-    return {x:(x0+x1)*.5,y:(y0+y1)*.5,z:(z0+z1)*.5,r:Math.hypot(x1-x0,y1-y0,z1-z0)*.5+.035};
+    return {x:(x0+x1)*.5,y:(y0+y1)*.5,z:(z0+z1)*.5,
+      hw:(x1-x0)*.5+.035,hh:(y1-y0)*.5+.035,hd:(z1-z0)*.5+.035,r:Math.hypot(x1-x0,y1-y0,z1-z0)*.5+.035};
   }
   // Keep long edges (kerbs, cables and road paint). Their narrow triangles
   // still carry a visible silhouette after individual sign letters disappear.
@@ -285,7 +286,7 @@
   const SUNFRAG=PRECISION+`void main(){vec2 rg=fract(gl_FragCoord.z*vec2(1.,255.));rg.x-=rg.y/255.;gl_FragColor=vec4(rg,0.,1.);}`;
   class View {
     constructor(canvas) {
-      this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();
+      this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();this.actors=new Set();
       this.scale=1; this.maxWidth=1180; this.maxHeight=760; this.lost=false;
       try {
         this.gl=canvas.getContext("webgl",{alpha:true,depth:true,stencil:true,antialias:false,powerPreference:"low-power",preserveDrawingBuffer:false});
@@ -348,6 +349,7 @@
       else if(name==="cut-guides")tagMaterials(data,new Map([[0xe7e0bf,7],[0xc8965a,7]]));
       else if(name.startsWith("traffic-shell/")||/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
       if(animated)this.animated.add(name);
+      if(animated&&window.BayPlayerMesh&&mesh instanceof BayPlayerMesh)this.actors.add(name);
       this.cpu.set(name,data);if(!this.lost)this.upload(name,data);
     }
     upload(name,data){
@@ -360,16 +362,17 @@
         model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,model.indices,gl.STATIC_DRAW);
       }
-      if(count&&!this.animated.has(name))model.bounds=meshBounds(data,0,count);
-      if(name==="city"){
-        // City geometry is generated building by building. Keep the original triangle
-        // order so flush signs, windows and painted road markings keep their layering.
+      model.actor=!!this.actors?.has(name);
+      if(count&&(!dynamic||model.actor))model.bounds=meshBounds(data,0,count);
+      if(name==="city"||!dynamic&&count>2400&&model.bounds.r>17){
+        // Keep the original order of windows, paint and coplanar signs. Nearby
+        // shop details can share a draw even when the next shop is behind us.
         model.sections=[];
-        for(let first=0;first<count;first+=768){
-          const end=Math.min(count,first+768);
+        for(let first=0;first<count;first+=288){
+          const end=Math.min(count,first+288);
           model.sections.push({first,end,bounds:meshBounds(data,first,end)});
         }
-        this.sunKey=null;
+        if(name==="city")this.sunKey=null;
       }
       this.models.set(name,model);
     }
@@ -398,6 +401,7 @@
     }
     updateAnimated(name){
       const model=this.models.get(name);if(!model||this.lost)return;
+      if(model.actor){model.poseChanged=true;model.needsUpload=true;return;}
       const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);
       gl.bufferSubData(gl.ARRAY_BUFFER,0,this.cpu.get(name));this.bound=null;
     }
@@ -464,6 +468,10 @@
       const focal=camera.focal||1.5;this.basis={sn,cs,sp,cp,camera,f:focal,aspect:w/h};this.bound=null;this.tiltX=NaN;this.tiltZ=NaN;
       const horizontal=w/(h*focal),vertical=1/focal;
       Object.assign(this.basis,{horizontal,vertical,xMargin:Math.hypot(1,horizontal),yMargin:Math.hypot(1,vertical)});
+      const fx=sn*cp,fy=sp,fz=cs*cp,ux=-sn*sp,uz=-cs*sp;
+      this.basis.planes=[[fx*horizontal+cs,fy*horizontal,fz*horizontal-sn],
+        [fx*horizontal-cs,fy*horizontal,fz*horizontal+sn],[fx*vertical+ux,fy*vertical+cp,fz*vertical+uz],
+        [fx*vertical-ux,fy*vertical-cp,fz*vertical-uz]];
       const timed=weather&&Number.isFinite(weather.minute),night=Math.max(0,Math.min(1,Math.max(dusk||0,timed?weather.night||0:0)));
       const rain=timed?weather.rain||0:0,wet=timed?weather.wet||0:0;
       const noon=timed?Math.max(0,1-Math.abs(weather.minute-730)/325):0;
@@ -502,6 +510,13 @@
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
       if(depth+r<.13||depth-r>1100||Math.abs(x*v.cs-z*v.sn)>depth*v.horizontal+r*v.xMargin||
         Math.abs(y*v.cp-along*v.sp)>depth*v.vertical+r*v.yMargin)return false;
+      if(b.hw!==undefined&&v.planes&&!this.casting&&!tiltX&&!tiltZ&&b.r>2){
+        let hw=b.hw+pad,hd=b.hd+pad;
+        if(yaw){const c=Math.abs(Math.cos(yaw)),s=Math.abs(Math.sin(yaw)),w=hw;hw=c*w+s*hd;hd=s*w+c*hd;}
+        for(const [nx,ny,nz] of v.planes){
+          if(nx*x+ny*y+nz*z+Math.abs(nx)*hw+Math.abs(ny)*(b.hh+pad)+Math.abs(nz)*hd<0)return false;
+        }
+      }
       // At the same fraction along every sight line to the sphere its radius
       // is r*t. Cull only when that whole cross-section fits inside a solid.
       if(this.streetWalls&&depth>12)for(const b of this.streetWalls){
@@ -581,10 +596,15 @@
     draw(name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0,vehicle=null,doorSide=0,vapor=0){
       if(vapor&&this.casting)return;
       const base=this.models.get(name);
-      if(!base?.count||!this.inFrame(base.bounds,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0))return;
+      if(!base?.count)return;
+      if(base.poseChanged){base.bounds=meshBounds(this.cpu.get(name),0,base.count);base.poseChanged=false;}
+      if(!this.inFrame(base.bounds,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0))return;
       const model=vehicle?.damage?BayBodyworkArt.buffer(this,name,vehicle,doorSide):base,gl=this.gl;
       if(!model)return;
-      const reduced=this.scale<=.65&&base===model&&base.bounds&&base.count>330&&
+      if(base.needsUpload){
+        gl.bindBuffer(gl.ARRAY_BUFFER,base.buf);gl.bufferSubData(gl.ARRAY_BUFFER,0,this.cpu.get(name));this.bound=null;base.needsUpload=false;
+      }
+      const reduced=this.scale<=.65&&base===model&&!base.actor&&base.bounds&&base.count>330&&
         (model.sections||!tiltX&&!tiltZ&&this.farFromCamera(base.bounds,x,y,z,yaw));
       if(reduced&&!model.distanceReady)this.prepareDistanceMesh(model,this.cpu.get(name));
       if(this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
@@ -593,17 +613,21 @@
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
       gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
       if(model.sections){
-        let first=-1;
+        let first=0,end=0,far=false;
+        const flush=()=>{
+          if(first===end)return;
+          if(far){gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,end-first,model.indexType,first*model.indexSize);}
+          else drawRange(gl,model,first,end-first);
+        };
         for(const section of model.sections){
-          if(this.inFrame(section.bounds,x,y,z,yaw,tiltX,tiltZ)){
-            if(reduced&&model.distant&&this.farFromCamera(section.bounds)){
-              if(first>=0){drawRange(gl,model,first,section.first-first);first=-1;}
-              if(section.indexCount){gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,section.indexCount,model.indexType,section.indexStart*model.indexSize);}
-            }else if(first<0)first=section.first;
-          }
-          else if(first>=0){drawRange(gl,model,first,section.first-first);first=-1;}
+          if(!this.inFrame(section.bounds,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0))continue;
+          const distant=!!(reduced&&model.distant&&!tiltX&&!tiltZ&&this.farFromCamera(section.bounds,x,y,z,yaw));
+          const start=distant?section.indexStart:section.first,next=distant?start+section.indexCount:section.end;
+          if(next===start)continue;
+          if(far!==distant||end!==start){flush();first=start;far=distant;}
+          end=next;
         }
-        if(first>=0)drawRange(gl,model,first,model.count-first);
+        flush();
       }else if(reduced&&model.distant){
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,model.indexCount,model.indexType,0);
       }else drawRange(gl,model,0,model.count);
@@ -11892,6 +11916,22 @@ window.buildBayCity = function buildBayCity(g,water) {
     return {a:a.m,b:b.m,t};
   }
 
+  // Triangle corners often share a joint and position but have different face
+  // colours. Transform that point once, then copy only XYZ to the other corners.
+  function skinPlan(rest,bindings){
+    const bones=new Map(),seen=new Map(),unique=[],copies=[];
+    const boneId=m=>{if(!bones.has(m))bones.set(m,bones.size);return bones.get(m);};
+    const words=new Uint32Array(rest.buffer,rest.byteOffset,rest.length);
+    for(let i=0;i<bindings.length;i++){
+      const {a,b,t}=bindings[i],p=i*6;
+      const key=boneId(a)+"/"+(t?boneId(b):0)+"/"+t+"/"+words[p]+"/"+words[p+1]+"/"+words[p+2];
+      const other=seen.get(key);
+      if(other===undefined){seen.set(key,p);unique.push(i);}
+      else copies.push(p,other);
+    }
+    return {rest,bindings,count:bindings.length,unique:new Uint32Array(unique),copies:new Uint32Array(copies)};
+  }
+
   class PlayerMesh {
     constructor(colors,role="driver"){
       this.pelvis=new Bone(point(0,hipY,0));this.chest=new Bone(point(0,1.0,0));this.head=new Bone(point(0,1.515,0));
@@ -11991,12 +12031,20 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     skin(){
       const dst=this.vertices,src=this.rest;
-      for(let i=0,j=0;i<this.bindings.length;i++,j+=6){
+      if(!this.bindings.length)return;
+      let plan=this.skinMap;
+      if(plan?.rest!==src||plan.bindings!==this.bindings||plan.count!==this.bindings.length)plan=this.skinMap=skinPlan(src,this.bindings);
+      for(let k=0;k<plan.unique.length;k++){
+        const i=plan.unique[k],j=i*6;
         const {a,b,t}=this.bindings[i],x=src[j],y=src[j+1],z=src[j+2];
         const ax=a[0]*x+a[1]*y+a[2]*z+a[3],ay=a[4]*x+a[5]*y+a[6]*z+a[7],az=a[8]*x+a[9]*y+a[10]*z+a[11];
         dst[j]=t?blend(ax,b[0]*x+b[1]*y+b[2]*z+b[3],t):ax;
         dst[j+1]=t?blend(ay,b[4]*x+b[5]*y+b[6]*z+b[7],t):ay;
         dst[j+2]=t?blend(az,b[8]*x+b[9]*y+b[10]*z+b[11],t):az;
+      }
+      const pairs=plan.copies;
+      for(let k=0;k<pairs.length;k+=2){
+        const to=pairs[k],from=pairs[k+1];dst[to]=dst[from];dst[to+1]=dst[from+1];dst[to+2]=dst[from+2];
       }
     }
   }
@@ -66621,6 +66669,42 @@ window.buildBayCity = function buildBayCity(g,water) {
 })();
 
 ;
+/* frame-check.js */
+/* Time the frames actually presented during an uninterrupted stretch of gameplay. */
+(() => {
+  const key="sundownBay.frameCheck.v1";
+  class FrameCheck {
+    constructor(){
+      this.run=null;this.records={};
+      try{const rows=JSON.parse(localStorage.getItem(key)||"{}");
+        for(const id of ["Street drive","Street walk","Overhead drive","Overhead walk"]){
+          const r=rows?.[id];if(r&&[r.median,r.p95,r.fps,r.metres,r.width,r.height,r.frames].every(Number.isFinite)&&r.frames>0)this.records[id]=r;
+        }
+      }catch{}
+    }
+    start(id){this.run={id,samples:[],ms:0,metres:0,last:null,x:0,z:0};}
+    suspend(){if(this.run)this.run.last=null;}
+    frame(now,p,width,height){
+      const r=this.run;if(!r)return;
+      if(r.last!==null&&now>r.last){
+        const dt=now-r.last;r.samples.push(dt);r.ms+=dt;r.metres+=Math.hypot(p.x-r.x,p.z-r.z);
+      }
+      r.last=now;r.x=p.x;r.z=p.z;
+      if(r.ms<60000)return;
+      const values=r.samples.sort((a,b)=>a-b),at=q=>values[Math.ceil(values.length*q)-1];
+      const result={fps:Math.round(values.length*10000/r.ms)/10,median:at(.5),p95:at(.95),
+        frames:values.length,seconds:r.ms/1000,metres:Math.round(r.metres),width,height};
+      this.records[r.id]=result;this.run=null;
+      try{localStorage.setItem(key,JSON.stringify(this.records));}catch{}
+      return result;
+    }
+    describe(r){return r.fps+" FPS average · "+r.median.toFixed(1)+" ms median · "+r.p95.toFixed(1)+" ms at the 95th percentile · "+
+      r.metres+" m · "+r.width+" × "+r.height;}
+  }
+  window.BayFrameCheck=FrameCheck;
+})();
+
+;
 /* game.js */
 (() => {
   "use strict";
@@ -66639,6 +66723,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const deltaText=d=>Math.abs(d)<.005?"Level with best":Math.abs(d).toFixed(2)+" s "+(d<0?"ahead":"behind");
   const course=BayBeachDash.gates;
   const view=new BayView($("world"));
+  const frameCheck=new BayFrameCheck();
   // The overhead map needs street geometry for collisions, but its land and
   // buildings are painted by the atlas. Build triangles only for a 3D view.
   const geometryOnly={box(){},cyl(){},pole(){},tri(){},quad(){},face(){}};
@@ -76435,6 +76520,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!$("speech").hidden&&elapsed>speechTill)$("speech").hidden=true;
   }
   function closePanel(){
+    frameCheck.suspend();
     timingFilm=null;
     wireView=null;
     skateProof=null;
@@ -77369,6 +77455,17 @@ window.buildBayCity = function buildBayCity(g,water) {
       const assist=makeButton("Driving camera",cameraRig.assist?"Eases toward the road after you look around.":"Holds your mouse direction. Press X to face the road.",cameraRig.assist?"Follow":"Free look",()=>{cameraRig.assist=!cameraRig.assist;saveCamera();openPanel("pause",true);});
       const sensitivity=makeButton("Mouse sensitivity","Adjust horizontal and vertical look speed.",cameraRig.sensitivity<1?"Low":cameraRig.sensitivity>1?"High":"Normal",()=>{cameraRig.sensitivity=cameraRig.sensitivity===1?1.38:(cameraRig.sensitivity>1 ? .72 : 1);saveCamera();openPanel("pause",true);});
       b.append(gfx,assist,sensitivity,radioButton());
+      const id=frameCheckId(),running=frameCheck.run;
+      const detail=running?running.id+" · "+Math.ceil((60000-running.ms)/1000)+" seconds left. Resume to continue.":
+        frameCheck.records[id]?frameCheck.describe(frameCheck.records[id]):
+        "Measures a minute on this device. Walk on the street or drive a car to record a result.";
+      const measure=makeButton("One-minute frame check",detail,running?"Cancel":id||"Unavailable",()=>{
+        if(frameCheck.run){frameCheck.run=null;openPanel("pause",true);return;}
+        if(!id)return;frameCheck.start(id);closePanel();note(id+" · Frame check","One minute. Your result will be in Pause.",3);
+      });measure.disabled=!running&&!id;b.append(measure);
+      for(const [name,r] of Object.entries(frameCheck.records))if(name!==id){
+        const row=document.createElement("p");row.className="statline";row.textContent=name+" · "+frameCheck.describe(r);b.append(row);
+      }
     }
     $("panelTitle").textContent=title;$("panelKicker").textContent=kicker;
   }
@@ -77633,8 +77730,21 @@ window.buildBayCity = function buildBayCity(g,water) {
       lateSeconds=spareSeconds=0;
     }
   }
+  function frameCheckId(){
+    const travel=canUseSeat()?"drive":onStreetFeet()||freeFeet()&&motion.jumpTime>=0?"walk":"";
+    return travel?(isTop()?"Overhead ":"Street ")+travel:"";
+  }
   function tick(now){
     requestAnimationFrame(tick);
+    if(frameCheck.run){
+      if(document.hidden||!play||panel||campaign.scene||campaign.table)frameCheck.suspend();
+      else if(frameCheckId()!==frameCheck.run.id){
+        frameCheck.run=null;note("Frame check stopped","The camera view or travel mode changed.",3);
+      }else{
+        const surface=lookSurface(),result=frameCheck.frame(now,pos(),surface.width,surface.height);
+        if(result)note("Frame check · "+result.fps+" FPS","Saved in Pause · "+result.metres+" metres",4);
+      }
+    }
     if(document.hidden){last=now;return;}
     // Sample each display frame in play. Throttle only the title and pause screens.
     if(!play){if(now-lastIntroPaint<1000/30-.9)return;lastIntroPaint=now;}

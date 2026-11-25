@@ -183,6 +183,22 @@
     return {a:a.m,b:b.m,t};
   }
 
+  // Triangle corners often share a joint and position but have different face
+  // colours. Transform that point once, then copy only XYZ to the other corners.
+  function skinPlan(rest,bindings){
+    const bones=new Map(),seen=new Map(),unique=[],copies=[];
+    const boneId=m=>{if(!bones.has(m))bones.set(m,bones.size);return bones.get(m);};
+    const words=new Uint32Array(rest.buffer,rest.byteOffset,rest.length);
+    for(let i=0;i<bindings.length;i++){
+      const {a,b,t}=bindings[i],p=i*6;
+      const key=boneId(a)+"/"+(t?boneId(b):0)+"/"+t+"/"+words[p]+"/"+words[p+1]+"/"+words[p+2];
+      const other=seen.get(key);
+      if(other===undefined){seen.set(key,p);unique.push(i);}
+      else copies.push(p,other);
+    }
+    return {rest,bindings,count:bindings.length,unique:new Uint32Array(unique),copies:new Uint32Array(copies)};
+  }
+
   class PlayerMesh {
     constructor(colors,role="driver"){
       this.pelvis=new Bone(point(0,hipY,0));this.chest=new Bone(point(0,1.0,0));this.head=new Bone(point(0,1.515,0));
@@ -282,12 +298,20 @@
     }
     skin(){
       const dst=this.vertices,src=this.rest;
-      for(let i=0,j=0;i<this.bindings.length;i++,j+=6){
+      if(!this.bindings.length)return;
+      let plan=this.skinMap;
+      if(plan?.rest!==src||plan.bindings!==this.bindings||plan.count!==this.bindings.length)plan=this.skinMap=skinPlan(src,this.bindings);
+      for(let k=0;k<plan.unique.length;k++){
+        const i=plan.unique[k],j=i*6;
         const {a,b,t}=this.bindings[i],x=src[j],y=src[j+1],z=src[j+2];
         const ax=a[0]*x+a[1]*y+a[2]*z+a[3],ay=a[4]*x+a[5]*y+a[6]*z+a[7],az=a[8]*x+a[9]*y+a[10]*z+a[11];
         dst[j]=t?blend(ax,b[0]*x+b[1]*y+b[2]*z+b[3],t):ax;
         dst[j+1]=t?blend(ay,b[4]*x+b[5]*y+b[6]*z+b[7],t):ay;
         dst[j+2]=t?blend(az,b[8]*x+b[9]*y+b[10]*z+b[11],t):az;
+      }
+      const pairs=plan.copies;
+      for(let k=0;k<pairs.length;k+=2){
+        const to=pairs[k],from=pairs[k+1];dst[to]=dst[from];dst[to+1]=dst[from+1];dst[to+2]=dst[from+2];
       }
     }
   }

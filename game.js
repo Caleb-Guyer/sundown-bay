@@ -15,6 +15,7 @@
   const deltaText=d=>Math.abs(d)<.005?"Level with best":Math.abs(d).toFixed(2)+" s "+(d<0?"ahead":"behind");
   const course=BayBeachDash.gates;
   const view=new BayView($("world"));
+  const frameCheck=new BayFrameCheck();
   // The overhead map needs street geometry for collisions, but its land and
   // buildings are painted by the atlas. Build triangles only for a 3D view.
   const geometryOnly={box(){},cyl(){},pole(){},tri(){},quad(){},face(){}};
@@ -9811,6 +9812,7 @@
     if(!$("speech").hidden&&elapsed>speechTill)$("speech").hidden=true;
   }
   function closePanel(){
+    frameCheck.suspend();
     timingFilm=null;
     wireView=null;
     skateProof=null;
@@ -10745,6 +10747,17 @@
       const assist=makeButton("Driving camera",cameraRig.assist?"Eases toward the road after you look around.":"Holds your mouse direction. Press X to face the road.",cameraRig.assist?"Follow":"Free look",()=>{cameraRig.assist=!cameraRig.assist;saveCamera();openPanel("pause",true);});
       const sensitivity=makeButton("Mouse sensitivity","Adjust horizontal and vertical look speed.",cameraRig.sensitivity<1?"Low":cameraRig.sensitivity>1?"High":"Normal",()=>{cameraRig.sensitivity=cameraRig.sensitivity===1?1.38:(cameraRig.sensitivity>1 ? .72 : 1);saveCamera();openPanel("pause",true);});
       b.append(gfx,assist,sensitivity,radioButton());
+      const id=frameCheckId(),running=frameCheck.run;
+      const detail=running?running.id+" · "+Math.ceil((60000-running.ms)/1000)+" seconds left. Resume to continue.":
+        frameCheck.records[id]?frameCheck.describe(frameCheck.records[id]):
+        "Measures a minute on this device. Walk on the street or drive a car to record a result.";
+      const measure=makeButton("One-minute frame check",detail,running?"Cancel":id||"Unavailable",()=>{
+        if(frameCheck.run){frameCheck.run=null;openPanel("pause",true);return;}
+        if(!id)return;frameCheck.start(id);closePanel();note(id+" · Frame check","One minute. Your result will be in Pause.",3);
+      });measure.disabled=!running&&!id;b.append(measure);
+      for(const [name,r] of Object.entries(frameCheck.records))if(name!==id){
+        const row=document.createElement("p");row.className="statline";row.textContent=name+" · "+frameCheck.describe(r);b.append(row);
+      }
     }
     $("panelTitle").textContent=title;$("panelKicker").textContent=kicker;
   }
@@ -11009,8 +11022,21 @@
       lateSeconds=spareSeconds=0;
     }
   }
+  function frameCheckId(){
+    const travel=canUseSeat()?"drive":onStreetFeet()||freeFeet()&&motion.jumpTime>=0?"walk":"";
+    return travel?(isTop()?"Overhead ":"Street ")+travel:"";
+  }
   function tick(now){
     requestAnimationFrame(tick);
+    if(frameCheck.run){
+      if(document.hidden||!play||panel||campaign.scene||campaign.table)frameCheck.suspend();
+      else if(frameCheckId()!==frameCheck.run.id){
+        frameCheck.run=null;note("Frame check stopped","The camera view or travel mode changed.",3);
+      }else{
+        const surface=lookSurface(),result=frameCheck.frame(now,pos(),surface.width,surface.height);
+        if(result)note("Frame check · "+result.fps+" FPS","Saved in Pause · "+result.metres+" metres",4);
+      }
+    }
     if(document.hidden){last=now;return;}
     // Sample each display frame in play. Throttle only the title and pause screens.
     if(!play){if(now-lastIntroPaint<1000/30-.9)return;lastIntroPaint=now;}

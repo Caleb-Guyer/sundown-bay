@@ -71,6 +71,24 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     }finally{await key("keyUp","KeyW");}
     await js("recQA.samples=false");
     console.log("PERF drive",mode,await js("(()=>{const a=recQA.frames.sort((a,b)=>a-b);return {median:a[Math.floor(a.length*.5)],p95:a[Math.floor(a.length*.95)],samples:a.length,metres:Math.round(Math.hypot(recQA.subject.x-recQA.start[0],recQA.subject.z-recQA.start[1]))};})()"));
+    await js(`const drawMap=window.drawBayMap;window.drawBayMap=function(context,state){if(state.streetCar)recQA.map=state;return drawMap(context,state);};`);
+    await tap("Escape");await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('One-minute frame check')).click()");
+    await waitFor("document.querySelector('#panel').hidden&&recQA.map?.streetCar");
+    const checkId=mode==="street"?"Street drive":"Overhead drive";
+    await js(`const driveKeys=(${require("./coast-driver.cjs").toString()});
+      const mem={},held=new Set();recQA.driving=true;recQA.blocks=new Set();
+      function driveLoop(t){
+        const map=recQA.map,v=map.streetCar;recQA.blocks.add(Math.floor(v.x/36)+','+Math.floor(v.z/36));
+        const wanted=new Set(recQA.driving?driveKeys({...map,coastCup:{phase:'race',clock:t/1000}},mem):[]);
+        for(const code of held)if(!wanted.has(code)){dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));held.delete(code);}
+        for(const code of wanted)if(!held.has(code)){dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true}));held.add(code);}
+        if(recQA.driving)requestAnimationFrame(driveLoop);
+      }requestAnimationFrame(driveLoop);`);
+    const result="JSON.parse(localStorage.getItem('sundownBay.frameCheck.v1')||'{}')["+JSON.stringify(checkId)+"]";
+    try{await waitFor(result,100000);}finally{await js("recQA.driving=false");}
+    const minute=await js(result),blocks=await js("recQA.blocks.size");
+    console.log("PERF minute drive",mode,JSON.stringify({...minute,blocks}));assert(minute.seconds>=60&&minute.metres>120&&blocks>=4);
+    await snap("drive");await tap("Escape");await waitFor("document.querySelector('#panelBody').innerText.includes('95th percentile')");await tap("Escape");
     // Load a delivered legacy save through the normal startup path and play its sequel on foot.
     const save=await js(`(()=>{const u=new BaySecondUnit.Unit();u.met=true;u.remember({x:-151.05,z:-87.8,yaw:-Math.PI/2},null);u.save();
       const data=JSON.parse(localStorage.getItem('sundownBay.v1')||'{}');data.edition='${route}';data.wallet=347;
