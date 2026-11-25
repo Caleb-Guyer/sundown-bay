@@ -47,6 +47,16 @@ def build(root):
         html, changed = re.subn(block, lambda _: "  " + listing + "\n  " + tag + "\n", html)
         if changed != 1:
             raise ValueError("Game scripts must form a single ordered group")
+    # All visible layers rely on this layout from the first painted frame.
+    # Keep the editable stylesheet, and ship its exact contents with the page.
+    css = (root / "style.css").read_text(encoding="utf-8")
+    if "</style" in css.lower():
+        raise ValueError("Unexpected end tag inside style.css")
+    style = '<style id="game-style">\n' + css + '</style>'
+    pattern = r'<link rel="stylesheet" href="style\.css">|<style id="game-style">.*?</style>'
+    html, changed = re.subn(pattern, lambda _: style, html, flags=re.S)
+    if changed != 1:
+        raise ValueError("Expected one game stylesheet")
     (root / "sundown.js").write_bytes(data)
     index.write_text(html, encoding="utf-8", newline="\n")
     return version

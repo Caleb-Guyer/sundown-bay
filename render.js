@@ -271,13 +271,15 @@
         const parent=model.sections[s].bounds,visible=view.inFrame(parent,0,0,0,0,0,0);
         const far=visible&&model.farKeep&&view.farFromCamera(parent);
         for(;i<this.ends[s];i++){
-          const b=this.parts[i].bounds;
+          const part=this.parts[i],b=part.bounds;
           let state=-1;
           if(visible&&(b===parent||view.inFrame(b,0,0,0,0,0,0))){
-            const dx=eye.x-b.x,dy=eye.y-b.y,dz=eye.z-b.z;
-            state=(dx>b.hw+near?1:dx< -b.hw-near?2:0)|
-              (dy>b.hh+near?4:dy< -b.hh-near?8:0)|(dz>b.hd+near?16:dz< -b.hd-near?32:0);
-            if(far)state|=64;
+            state=far?64:0;
+            if((far?this.farFaces:this.faces)[part.first/3]){
+              const dx=eye.x-b.x,dy=eye.y-b.y,dz=eye.z-b.z;
+              state|=(dx>b.hw+near?1:dx< -b.hw-near?2:0)|
+                (dy>b.hh+near?4:dy< -b.hh-near?8:0)|(dz>b.hd+near?16:dz< -b.hd-near?32:0);
+            }
           }
           if(state!==this.states[i]){this.states[i]=state;changed=true;}
         }

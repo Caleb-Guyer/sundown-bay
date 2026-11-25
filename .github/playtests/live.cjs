@@ -18,14 +18,14 @@ const mode = process.argv[2];
 const publicSite = "https://caleb-guyer.github.io/sundown-bay/";
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function liveRelease(asset,timeout) {
+async function liveRelease(html,timeout) {
   const end = Date.now() + timeout;
   while (Date.now() < end) {
     try {
       const response = await fetch(publicSite + "?playtest=" + Date.now(), {
         cache: "no-store", signal: AbortSignal.timeout(10000)
       });
-      if (response.ok && (await response.text()).includes(asset)) return true;
+      if (response.ok && (await response.text())===html) return true;
     } catch { /* A failed deployment must not prevent collecting gameplay evidence. */ }
     await delay(4000);
   }
@@ -54,7 +54,7 @@ async function run() {
   assert(["overhead", "street"].includes(mode));
   const html = fs.readFileSync(path.join(__dirname, "../../index.html"), "utf8");
   const asset = html.match(/<script src="(sundown\.js\?v=[a-f0-9]+)"/)[1];
-  const server = await liveRelease(asset,45000) ? null : await serveCheckout(html);
+  const server = await liveRelease(html,45000) ? null : await serveCheckout(html);
   const site = server ? "http://127.0.0.1:" + server.address().port + "/" : publicSite;
   console.log("Playtesting " + (server ? "runner checkout" : "GitHub Pages") + " · " + asset);
   const profile = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP, "bay-wire-"));
@@ -135,12 +135,17 @@ async function run() {
     ` });
     await send("Page.navigate", { url: site + "?playtest=" + Date.now() });
     await waitFor("document.readyState==='complete' && typeof BayCurbWire==='object'");
+    assert(await js(`(()=>{const rect=document.querySelector('#intro').getBoundingClientRect();
+      return rect.x===0&&rect.y===0&&rect.width===innerWidth&&rect.height===innerHeight&&
+        getComputedStyle(document.querySelector('#sky')).position==='absolute';})()`),"Title and sky fill the viewport");
     assert.deepEqual(await js("performance.getEntriesByType('resource').map(e=>e.name).filter(n=>new URL(n).pathname.endsWith('.js'))"), [site + asset]);
     if (mode === "overhead") await send("Emulation.setCPUThrottlingRate", { rate: 4 });
     assert.equal(await js("document.querySelectorAll('#intro button').length"), 1);
     await js("document.querySelector('#play').click()");
     await waitFor("!document.querySelector('#hud').hidden");
     assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
+    assert(await js(`(()=>{const surface=document.querySelector('${mode==="street"?"#world":"#overhead"}');
+      const rect=surface.getBoundingClientRect();return rect.x===0&&rect.y===0&&rect.width===innerWidth&&rect.height===innerHeight;})()`),"Play surface fills the viewport");
     const jumps = process.argv.includes("--picture-jumps");
     const cup = process.argv.includes("--coast-cup");
     const houseLights = process.argv.includes("--house-lights");
@@ -164,7 +169,7 @@ async function run() {
     assert.equal(await js("audioStarts+cursorRequests"), 0);
     if(server){
       console.log("Verified runner checkout " + asset);
-      assert(await liveRelease(asset,30000),"Pages has not published the tested release");
+      assert(await liveRelease(html,30000),"Pages has not published the tested release");
       const response=await fetch(publicSite+asset,{signal:AbortSignal.timeout(20000)});
       assert(response.ok);
       assert(fs.readFileSync(path.join(__dirname,"../../sundown.js")).equals(Buffer.from(await response.arrayBuffer())));
