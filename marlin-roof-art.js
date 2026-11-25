@@ -372,10 +372,7 @@
         view.draw(side<0?"marlin-dove-left":"marlin-dove-right",b.x,b.y+.132,b.z,b.yaw,b.pitch,side*b.flap);
     }
   }
-  function map(c,opt,px,py,scale,visible){
-    if(!visible(px(wing.x),py(wing.z),33*scale))return;
-    const street=opt.mode==="street",fine=street&&scale>3;
-    c.save();c.translate(px(wing.x),py(wing.z));c.scale(scale,-scale);c.translate(-wing.x,-wing.z);
+  function paintRoof(c,street,fine){
     c.lineJoin="round";c.lineCap="round";
     const rect=(x,z,w,d,ink)=>{c.fillStyle=ink;c.fillRect(x,z,w,d);};
     const line=(points,w,ink)=>{c.beginPath();c.moveTo(...points[0]);for(const p of points.slice(1))c.lineTo(...p);c.lineWidth=w;c.strokeStyle=ink;c.stroke();};
@@ -428,14 +425,36 @@
         for(let i=0;i<7;i++)line([[96.42+i*.61,-41.86],[96.42+i*.61,-30.12]],.029,"#999e87");
         for(let k=0;k<9;k++)line([[100.48+k*.24,-37.73],[100.48+k*.24,-36.27]],.04,foam);
         for(const z of [-28.47,-27.80])rect(111.70,z-.11,.65,.20,"#c6b19a");
-        for(let i=0;i<rails.length;i++){
-          const bird=dovePose(i,opt.time??opt.elapsed??0);
-          c.save();c.translate(bird.x,bird.z);c.rotate(-bird.yaw);
-          polygon([[-.051,-.071],[-.019,-.205],[.039,-.15],[.061,.055],[.018,.11],[-.025,.093]],"#968e7c");
-          if(bird.flight)polygon([[-.29,-.09],[-.14,.038],[.13,.035],[.29,-.09],[0,-.04]],"#b2a894");
-          c.restore();
-        }
       }
+    }
+  }
+  const roofBounds={x:95,z:-60,w:38,d:49},roofDensity=16;
+  let roofSheet;
+  function sheet(){
+    if(roofSheet!==undefined)return roofSheet;
+    const {x,z,w,d}=roofBounds,canvas=document.createElement("canvas");
+    canvas.width=w*roofDensity;canvas.height=d*roofDensity;
+    const g=canvas.getContext?.("2d");if(!g){roofSheet=null;return null;}
+    g.setTransform(roofDensity,0,0,roofDensity,-x*roofDensity,-z*roofDensity);
+    paintRoof(g,true,true);roofSheet=canvas;return canvas;
+  }
+  function map(c,opt,px,py,scale,visible){
+    if(!visible(px(wing.x),py(wing.z),33*scale))return;
+    const street=opt.mode==="street",fine=street&&scale>3;
+    c.save();c.translate(px(wing.x),py(wing.z));c.scale(scale,-scale);c.translate(-wing.x,-wing.z);
+    const image=fine&&opt.lowDetail&&scale<=roofDensity&&sheet();
+    if(image){const {x,z,w,d}=roofBounds;c.drawImage(image,x,z,w,d);}
+    else paintRoof(c,street,fine);
+    if(fine)for(let i=0;i<rails.length;i++){
+      const bird=dovePose(i,opt.time??opt.elapsed??0);
+      c.save();c.translate(bird.x,bird.z);c.rotate(-bird.yaw);
+      c.beginPath();c.moveTo(-.051,-.071);c.lineTo(-.019,-.205);c.lineTo(.039,-.15);c.lineTo(.061,.055);
+      c.lineTo(.018,.11);c.lineTo(-.025,.093);c.closePath();c.fillStyle="#968e7c";c.fill();
+      if(bird.flight){
+        c.beginPath();c.moveTo(-.29,-.09);c.lineTo(-.14,.038);c.lineTo(.13,.035);c.lineTo(.29,-.09);
+        c.lineTo(0,-.04);c.closePath();c.fillStyle="#b2a894";c.fill();
+      }
+      c.restore();
     }
     c.restore();
   }

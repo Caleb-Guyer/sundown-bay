@@ -113,6 +113,14 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         vertices:Math.round((recQA.vertices||0)/a.length),width:document.querySelector('#'+(recQA.view?'world':'overhead')).width};})()`);
     assert.equal(perf.base.sum,perf.indexed.sum);assert(perf.indexed.candidates<perf.base.candidates*.18);
     console.log("PERF",mode,JSON.stringify(perf));
+    if(mode==="overhead"){
+      const roof=await js("("+require("./motel-roof.cjs").toString()+")()");
+      console.log("PERF motel roof",JSON.stringify(roof));
+      for(const p of roof){
+        assert(p.original.stroke>40&&p.cached.stroke===0&&p.cached.drawImage===1);
+        assert(p.overlap>.99&&p.meanChannelError<3);
+      }
+    }
     if(mode==="street"){
       // Keep the camera parked outside the motel and alternate both submission
       // paths on the same runner. Discard the first frame of each block.
@@ -351,24 +359,40 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       }
       return Array.from(panel.querySelectorAll('output'),o=>o.textContent);
     })()`);
-    assert.deepEqual(cropControls,["1.80×","74%","28%"]);await snap("outside-copy");
+    assert.deepEqual(cropControls,["1.80×","74%","28%"]);
+    await js("window.originalNegative=new Image();originalNegative.src="+film+".published.image");
+    await waitFor("originalNegative.naturalWidth>0");
+    assert.equal(await js(`(()=>{
+      const original=originalNegative,proof=document.createElement('canvas');proof.width=608;proof.height=342;
+      const g=proof.getContext('2d'),width=Math.min(original.width,original.height*16/9)/1.8,height=width*9/16;
+      g.drawImage(original,(original.width-width)*.74,(original.height-height)*.28,width,height,0,0,608,342);
+      const sample=g.getImageData(0,0,608,342).data;
+      const mounted=document.querySelector('#panelBody canvas').getContext('2d').getImageData(16,52,608,342).data;
+      for(let i=0;i<sample.length;i+=97)if(Math.abs(mounted[i]-sample[i])>2)return false;
+      return true;
+    })()`),true);
+    await snap("outside-copy");
     const expected=await js("document.querySelector('#panelBody canvas').toDataURL()");
     await js("document.querySelector('.hang-copy').click()");await waitFor("document.querySelector('#panel').hidden");
     const postedCopy="JSON.parse(localStorage.getItem(BayOutsideCopy.key))["+JSON.stringify(route)+"]";
     assert.deepEqual(await js(postedCopy),{...selected,zoom:1.8,cx:.74,cy:.28});
     await loadFootAt(corner);await waitFor("document.querySelector('#context').innerText.includes('outside copy')");
     if(mode==="street"){
-      await js("const drawCase=BayView.prototype.drawPrint;BayView.prototype.drawPrint=function(name,canvas,...args){if(name==='outside-case/face')window.casePixels=canvas.toDataURL();return drawCase.call(this,name,canvas,...args);};");
+      await js("const drawCase=BayView.prototype.drawPrint;BayView.prototype.drawPrint=function(name,canvas,...args){if(name==='outside-case/face'&&!window.casePixels)window.casePixels=canvas.toDataURL();return drawCase.call(this,name,canvas,...args);};");
       await waitFor("!!window.casePixels");assert.equal(await js("casePixels=== "+JSON.stringify(expected)),true);
     }else{
       await js("const drawCase=BayOutsideCopy.map;BayOutsideCopy.map=function(c,x,y,s,site,copy){if(copy)window.casePlotted=copy.frame;return drawCase.apply(this,arguments);};");
       await waitFor("window.casePlotted==="+JSON.stringify(selected.frame));
     }
-    await waitFor("document.querySelector('#speech').innerText.includes("+JSON.stringify(display.reader)+")",65000);
+    await waitFor("!document.querySelector('#speech').hidden&&document.querySelector('#speech').innerText.includes("+JSON.stringify(display.reader)+")",65000);
+    await js("window.readerPainted=false;requestAnimationFrame(()=>requestAnimationFrame(()=>{window.readerPainted=true;}))");await waitFor("window.readerPainted");
     await snap("outside-case");
     await tap("KeyF");await waitFor("document.querySelector('.hang-copy:enabled')");
     assert.equal(await js("document.querySelector('#panelBody canvas').toDataURL()==="+JSON.stringify(expected)),true);
-    await tap("ArrowLeft");await tap("Escape");assert.equal(await js(postedCopy+".zoom"),1.8);
+    await js("document.querySelector('#panelBody input[name=zoom]').focus()");
+    for(const type of ["keyDown","keyUp"])await send("Input.dispatchKeyEvent",{type,key:"ArrowLeft",code:"ArrowLeft",windowsVirtualKeyCode:37});
+    assert.equal(await js("document.querySelector('#panelBody output').textContent"),"1.75×");
+    await tap("Escape");assert.equal(await js(postedCopy+".zoom"),1.8);
     console.log("PASS outside copy, exact published crop, street reader, reload and unsaved edit at "+display.name);
     await loadFootAt({x:-151.9,z:-88.85});await waitFor("document.querySelector('#context').innerText.includes('dispatch copy')");
     await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Dalia’s departure book'");

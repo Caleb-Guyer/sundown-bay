@@ -512,7 +512,9 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .outside-tools label{display:grid;grid-template-columns:6.8em minmax(50px,1fr) 3.5em;align-items:center;gap:8px}
 .outside-tools input{width:100%;margin:0;accent-color:#bb8b57}
 .outside-tools output{font-variant-numeric:tabular-nums;text-align:right}
-.outside-tools .hang-copy{justify-self:start;margin-top:4px}
+.outside-tools .hang-copy{justify-self:start;margin-top:4px;padding:7px 15px;border:1px solid #223e3e;border-radius:2px;background:#294b49;color:#fff0d0;font:600 .88rem system-ui;cursor:pointer}
+.outside-tools .hang-copy:focus-visible{outline:2px solid #a46136;outline-offset:2px}
+.outside-tools .hang-copy:disabled{opacity:.6}
 .outside-tools [role=status]:empty{display:none}
 </style>
 </head>
@@ -942,6 +944,6 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "frame-check.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=0af6125bffec6292"></script>
+  <script src="sundown.js?v=41cb15fbb0aab924"></script>
 </body>
 </html>

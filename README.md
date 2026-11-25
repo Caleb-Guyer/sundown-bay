@@ -1,6 +1,6 @@
 # Sundown Bay
 
-Take the wheel in a coastal city with local jobs and police pursuits, or head offshore to race the outboard club.
+At six sharp, Dalia Cruz has a ferry to dispatch and a passenger running late. You work the gate. Later, Mara Vega needs a driver and one more photograph before the public landing is sold. What you do that morning follows you into the streets, onto the airwaves and back across the bay.
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
