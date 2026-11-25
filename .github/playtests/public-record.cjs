@@ -13,12 +13,15 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     console.log("PERF city indices "+label,JSON.stringify(proof));
     assert(proof.counts[1]<proof.counts[0]&&proof.ranges[1]===1&&proof.ranges[0]>1);
     assert(proof.pixels.painted>300&&proof.pixels.silhouette<proof.pixels.painted*.001&&proof.pixels.recolored<proof.pixels.painted*.005);
-    await js(`recQA.surfaceResult=null;
+    await js(`recQA.surfaceResult=null;recQA.wallResult=null;
       recQA.view.drawOpaque=function(items){delete this.drawOpaque;
         recQA.surfaceResult=(${require("./street-surface.cjs").toString()})(this,items,comparePixels);
+        recQA.wallResult=(${require("./street-walls.cjs").toString()})(this,items,comparePixels,recQA);
         return this.drawOpaque(items);};`);
     await waitFor("!!recQA.surfaceResult",40000);
     const result=await js("recQA.surfaceResult");console.log("PERF solid street "+label,JSON.stringify(result));
+    const walls=await js("recQA.wallResult");console.log("PERF street walls "+label,JSON.stringify(walls));
+    assert(walls.pixels.painted>10000&&walls.pixels.silhouette===0&&walls.pixels.recolored<=Math.ceil(walls.pixels.painted*.0001));
     assert(result.litCalls>0&&result.modelCalls>0);
     for(const frame of result.comparisons){
       assert(frame.painted>10000&&frame.silhouette===0&&frame.recolored<=Math.ceil(frame.painted*.0001));

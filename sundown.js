@@ -174,6 +174,20 @@
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
     gl.drawElements(gl.TRIANGLES,count,model.elementType,first*model.indices.BYTES_PER_ELEMENT);
   }
+  // Each visible wall bounds a cone of sight lines from the camera. To hide a
+  // model, its entire padded box must be beyond the wall and inside all four
+  // sides of that cone. Test the least favourable corner for each inequality.
+  function wallFace(faces,axis,d,halfD,u,halfU,v,halfV,near){
+    const sign=d<0?-1:1,front=Math.abs(d)-halfD;
+    if(front<=near)return;
+    const left=(u-halfU)/front,right=(u+halfU)/front,bottom=(v-halfV)/front,top=(v+halfV)/front;
+    faces.push({axis,sign,front,left,right,bottom,top});
+  }
+  function behindWall(f,d,hd,u,hu,v,hv){
+    d*=f.sign;
+    return d-hd>f.front&&u-hu>f.left*d+Math.abs(f.left)*hd&&u+hu<f.right*d-Math.abs(f.right)*hd&&
+      v-hv>f.bottom*d+Math.abs(f.bottom)*hd&&v+hv<f.top*d-Math.abs(f.top)*hd;
+  }
   // Recognize the six complete faces emitted by Mesh.box in the final vertex
   // stream. Cut-out doors, cloth, lettering and open meshes remain double-sided.
   const boxCorners=[2,3,7,2,7,6,0,1,3,0,3,2,4,6,7,4,7,5,0,2,6,0,6,4,1,5,7,1,7,3,0,4,5,0,5,1];
@@ -955,22 +969,23 @@
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
       if(depth+r<.13||depth-r>1100||Math.abs(x*v.cs-z*v.sn)>depth*v.horizontal+r*v.xMargin||
         Math.abs(y*v.cp-along*v.sp)>depth*v.vertical+r*v.yMargin)return false;
-      if(b.hw!==undefined&&v.planes&&!this.casting&&!tiltX&&!tiltZ&&b.r>2){
-        let hw=b.hw+pad,hd=b.hd+pad;
+      let hw=r,hh=r,hd=r;
+      if(b.hw!==undefined&&!this.casting&&!tiltX&&!tiltZ){
+        hw=b.hw+pad;hh=b.hh+pad;hd=b.hd+pad;
         if(yaw){const c=Math.abs(Math.cos(yaw)),s=Math.abs(Math.sin(yaw)),w=hw;hw=c*w+s*hd;hd=s*w+c*hd;}
+      }
+      if(b.hw!==undefined&&v.planes&&!this.casting&&!tiltX&&!tiltZ&&b.r>2){
         for(const [nx,ny,nz] of v.planes){
-          if(nx*x+ny*y+nz*z+Math.abs(nx)*hw+Math.abs(ny)*(b.hh+pad)+Math.abs(nz)*hd<0)return false;
+          if(nx*x+ny*y+nz*z+Math.abs(nx)*hw+Math.abs(ny)*hh+Math.abs(nz)*hd<0)return false;
         }
       }
-      // At the same fraction along every sight line to the sphere its radius
-      // is r*t. Cull only when that whole cross-section fits inside a solid.
-      if(this.streetWalls&&depth>12)for(const b of this.streetWalls){
-        const t=b.across?b.x/x:b.z/z;
-        if(!(t>0&&t<1))continue;
-        const span=r*t;
-        if(Math.abs(y*t-b.y)+span<b.hh&&Math.abs(x*t-b.x)+span<b.hw&&Math.abs(z*t-b.z)+span<b.hd)return false;
+      return !(this.streetWalls&&depth>2&&this.streetHidden(x,y,z,hw,hh,hd,r,depth));
+    }
+    streetHidden(x,y,z,hw,hh,hd){
+      for(const f of this.streetWalls){
+        if(f.axis===0?behindWall(f,x,hw,z,hd,y,hh):f.axis===2?behindWall(f,z,hd,x,hw,y,hh):behindWall(f,y,hh,x,hw,z,hd))return true;
       }
-      return true;
+      return false;
     }
     project(x,y,z){
       if(!this.basis)return null;
@@ -997,17 +1012,23 @@
       for(const item of list)batch.append(item);
       batch.flush();
     }
-    drawCityAndWater(t){
+    collectStreetWalls(){
+      this.streetWalls=null;
       if(this.scale<=.75&&this.buildings){
-        const v=this.basis,c=v.camera,walls=[];
+        const v=this.basis,c=v.camera,walls=[],near=.13*Math.hypot(1,v.horizontal,v.vertical)+.01;
         for(const b of this.buildings){
           const x=b.x-c.x,y=b.y-c.y,z=b.z-c.z;
-          if(Math.abs(x)>100||Math.abs(z)>100||Math.abs(x)<b.hw&&Math.abs(z)<b.hd||
-            (x*v.sn+z*v.cs)*v.cp+y*v.sp+Math.hypot(b.hw,b.hh,b.hd)<0)continue;
-          walls.push({x,y,z,hw:b.hw,hh:b.hh,hd:b.hd,across:Math.abs(x)*b.hd>Math.abs(z)*b.hw});
+          if(Math.abs(x)>145||Math.abs(z)>145||!this.inFrame(b,0,0,0,0,0,0))continue;
+          wallFace(walls,0,x,b.hw,z,b.hd,y,b.hh,near);
+          wallFace(walls,2,z,b.hd,x,b.hw,y,b.hh,near);
+          wallFace(walls,1,y,b.hh,x,b.hw,z,b.hd,near);
         }
+        walls.sort((a,b)=>a.front-b.front);
         this.streetWalls=walls;
       }
+    }
+    drawCityAndWater(t){
+      this.collectStreetWalls();
       this.draw("city");
       // Opaque land masks the water shader. Keep city surfaces on equal-depth shore pixels.
       const gl=this.gl;gl.depthFunc(gl.LESS);this.drawWater(t);gl.depthFunc(gl.LEQUAL);
@@ -5684,7 +5705,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }else{
       block(x,z,sx+.35,sz+.35,h+(style==="house"?2.43:.70));
       f.box(0,h/2+.15,0,w,h,d,body);
-      opaqueBuildings.push({x,y:h/2+.15,z,hw:sx/2-.05,hh:h/2-.05,hd:sz/2-.05});
+      opaqueBuildings.push({x,y:h/2+.15,z,hw:sx/2-.05,hh:h/2-.05,hd:sz/2-.05,r:Math.hypot(sx,h,sz)/2});
       f.box(0,.43,0,w+.26,.6,d+.25,trim);
     }
     if(style === "house") {
