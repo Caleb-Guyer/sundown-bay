@@ -4,7 +4,7 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
-Open **Pause → One-minute frame check** while walking outside or driving. Resume and play for a minute. Pause shows the average FPS, median and 95th-percentile frame times, distance and rendering resolution for each view and travel mode you measured on this device.
+Open **Pause → One-minute frame check** while walking outside or driving. Resume and play for a minute. Pause shows average FPS, median and 95th-percentile frame times, frames in the slowest second, distance and resolution. Each new result includes the platform and rendering mode so you can compare the two views on your Chromebook.
 
 **Six Sharp** opens a new game at Marlin Pier. You are Dalia on the dispatch bell. Press **H** to send the ferry out with seventeen aboard, or hold **Space** to raise the gate for Luis and his two lunch tins. Let the gate close and ring the bell when he is aboard. The departure time and count stay in Dalia’s book at Lot 14, and Mara remembers the crossing on your first drive together. Returning players can play the opening through Pause. The first filed entry stays on the record.
 

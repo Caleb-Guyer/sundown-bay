@@ -11014,7 +11014,7 @@
         "Measures a minute on this device. Walk on the street or drive a car to record a result.";
       const measure=makeButton("One-minute frame check",detail,running?"Cancel":id||"Unavailable",()=>{
         if(frameCheck.run){frameCheck.run=null;openPanel("pause",true);return;}
-        if(!id)return;frameCheck.start(id);closePanel();note(id+" · Frame check","One minute. Your result will be in Pause.",3);
+        if(!id)return;frameCheck.start(id,BayFrameCheck.device(isTop()?null:view.gl,navigator.userAgent));closePanel();note(id+" · Frame check","One minute. Your result will be in Pause.",3);
       });measure.disabled=!running&&!id;b.append(measure);
       for(const [name,r] of Object.entries(frameCheck.records))if(name!==id){
         const row=document.createElement("p");row.className="statline";row.textContent=name+" · "+frameCheck.describe(r);b.append(row);

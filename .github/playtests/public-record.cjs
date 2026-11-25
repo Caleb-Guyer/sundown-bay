@@ -8,6 +8,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
   }
   async function ready(){await waitFor("document.readyState==='complete'&&typeof BayPublicRecord==='object'");}
   const book="JSON.parse(localStorage.getItem(BayPublicRecord.key)||'{}')";
+  async function checkCity(label){
+    const proof=await js("("+require("./city-index.cjs").toString()+")(recQA.view,recQA,comparePixels)");
+    console.log("PERF city indices "+label,JSON.stringify(proof));
+    assert(proof.counts[1]<proof.counts[0]&&proof.ranges[1]===1&&proof.ranges[0]>1);
+    assert(proof.pixels.painted>300&&proof.pixels.silhouette<proof.pixels.painted*.001&&proof.pixels.recolored<proof.pixels.painted*.005);
+  }
   async function loadFootAt(point){
     const before=await send("Page.addScriptToEvaluateOnNewDocument",{source:`const data=JSON.parse(localStorage.getItem('sundownBay.secondUnit.v1'));
       data[data.lead]=Object.assign({},${JSON.stringify(point)},{yaw:1.57,ride:''});localStorage.setItem('sundownBay.secondUnit.v1',JSON.stringify(data));`});
@@ -192,6 +198,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       })()`);
       assert.equal(uploads.slots,3);assert(uploads.pixels.painted>350&&uploads.pixels.silhouette===0&&uploads.pixels.recolored===0);
       console.log("PERF scenery uploads single and triple",JSON.stringify(uploads));
+      await checkCity("motel");
       assert.equal(await js("recQA.view.gl.getError()"),0);
     }
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
@@ -232,6 +239,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     try{await waitFor(result,100000);}finally{await js("recQA.driving=false");}
     const minute=await js(result),blocks=await js("recQA.blocks.size");
     console.log("PERF minute drive",mode,JSON.stringify({...minute,blocks}));assert(minute.seconds>=60&&minute.metres>120&&blocks>=4);
+    assert(minute.device.startsWith("Linux · "+(mode==="street"?"WebGL":"Canvas 2D"))&&Number.isInteger(minute.slowestSecond));
+    if(mode==="street")await checkCity("after drive");
     await snap("drive");await tap("Escape");await waitFor("document.querySelector('#panelBody').innerText.includes('95th percentile')");await tap("Escape");
     async function parkAt(point){
       await js(`(()=>{const v=recQA.map.streetCar;Object.assign(v,{x:${point.x},z:${point.z},yaw:0,path:null});BayDriving.settle(v);})()`);

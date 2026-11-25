@@ -178,7 +178,7 @@
   // stream. Cut-out doors, cloth, lettering and open meshes remain double-sided.
   const boxCorners=[2,3,7,2,7,6,0,1,3,0,3,2,4,6,7,4,7,5,0,2,6,0,6,4,1,5,7,1,7,3,0,4,5,0,5,1];
   const boxFaces=[8,16,32,1,2,4];
-  function closedBoxFaces(data){
+  function closedBoxFaces(data,accept){
     let sides=null;
     for(let p=0;p+216<=data.length;p+=18){
       const x=data[p],y=data[p+37],z=data[p+2],X=data[p+6],Y=data[p+1],Z=data[p+14];
@@ -189,8 +189,10 @@
         if(data[v]!==((c&1)?X:x)||data[v+1]!==((c&2)?Y:y)||data[v+2]!==((c&4)?Z:z))break;
       }
       if(i!==36)continue;
-      sides??=new Uint8Array(data.length/18);
-      for(let f=0;f<6;f++)sides[p/18+f*2]=sides[p/18+f*2+1]=boxFaces[f];
+      if(!accept||accept(p/18)){
+        sides??=new Uint8Array(data.length/18);
+        for(let f=0;f<6;f++)sides[p/18+f*2]=sides[p/18+f*2+1]=boxFaces[f];
+      }
       p+=216-18;
     }
     return sides;
@@ -223,6 +225,80 @@
       }
     }
     return model.exterior={mask,indices:new Uint16Array(indices),sources:new Uint32Array(sources)};
+  }
+  // Keep the city in its static vertex buffer. A street camera draws one
+  // ordered index list, including near and distant streets. The same list is
+  // valid until a section changes visibility, detail level or camera side.
+  class CityIndexList {
+    constructor(view,model,data){
+      const gl=view.gl,triangles=model.count/3,perSection=model.sections[0].end/3;
+      this.farFaces=new Uint8Array(triangles);
+      this.faces=closedBoxFaces(data,first=>{
+        // A box split between sections may lose its front when the adjoining
+        // section uses distant detail. Only intact boxes can hide their backs.
+        if(Math.floor(first/perSection)!==Math.floor((first+11)/perSection))return false;
+        if(model.farKeep){
+          let complete=true;
+          for(let t=first;t<first+12;t++)if(!model.farKeep[t]){complete=false;break;}
+          if(complete)for(let f=0;f<6;f++)this.farFaces[first+2*f]=this.farFaces[first+2*f+1]=boxFaces[f];
+        }
+        return true;
+      })||new Uint8Array(triangles);
+      // The original sections can span several addresses. Give each intact
+      // box its own bounds while retaining the parent section's detail level.
+      this.parts=[];this.ends=[];
+      for(const section of model.sections){
+        let first=section.first;
+        while(first<section.end){
+          let end=first;
+          if(this.faces[first/3]===8)end+=36;
+          else do{end+=3;}while(end<section.end&&this.faces[end/3]!==8);
+          const bounds=first===section.first&&end===section.end?section.bounds:meshBounds(data,first,end);
+          this.parts.push({first,end,bounds});first=end;
+        }
+        this.ends.push(this.parts.length);
+      }
+      this.states=new Int8Array(this.parts.length).fill(-2);
+      this.indices=new model.indices.constructor(model.count);
+      this.buffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.DYNAMIC_DRAW);
+      this.count=0;
+    }
+    draw(view,model){
+      const gl=view.gl,{camera:eye,horizontal,vertical}=view.basis;
+      const near=.13*Math.hypot(1,horizontal,vertical)+.01;
+      let changed=false;
+      for(let s=0,i=0;s<model.sections.length;s++){
+        const parent=model.sections[s].bounds,visible=view.inFrame(parent,0,0,0,0,0,0);
+        const far=visible&&model.farKeep&&view.farFromCamera(parent);
+        for(;i<this.ends[s];i++){
+          const b=this.parts[i].bounds;
+          let state=-1;
+          if(visible&&(b===parent||view.inFrame(b,0,0,0,0,0,0))){
+            const dx=eye.x-b.x,dy=eye.y-b.y,dz=eye.z-b.z;
+            state=(dx>b.hw+near?1:dx< -b.hw-near?2:0)|
+              (dy>b.hh+near?4:dy< -b.hh-near?8:0)|(dz>b.hd+near?16:dz< -b.hd-near?32:0);
+            if(far)state|=64;
+          }
+          if(state!==this.states[i]){this.states[i]=state;changed=true;}
+        }
+      }
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
+      if(changed){
+        let n=0;
+        for(let i=0;i<this.parts.length;i++){
+          const state=this.states[i];if(state<0)continue;
+          const part=this.parts[i],far=(state&64)!==0,faces=far?this.farFaces:this.faces;
+          for(let j=part.first,t=j/3;j<part.end;j+=3,t++){
+            if((faces[t]&state)||(far&&!model.farKeep[t]))continue;
+            this.indices[n++]=model.indices[j];this.indices[n++]=model.indices[j+1];this.indices[n++]=model.indices[j+2];
+          }
+        }
+        this.count=n;
+        if(n)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,0,this.indices.subarray(0,n));
+      }
+      if(this.count)gl.drawElements(gl.TRIANGLES,this.count,model.elementType,0);
+    }
   }
   // Pack the visible street props in submission order. Their vertices share a
   // world coordinate system, so changing from a shop to a car needs no GL call.
@@ -628,7 +704,7 @@
           model.starts=new Int32Array(model.sections.length);
           model.counts=new Int32Array(model.sections.length);
         }
-        if(name==="city")this.sunKey=null;
+        if(name==="city"){model.city=true;this.sunKey=null;}
       }
       this.models.set(name,model);
     }
@@ -643,6 +719,10 @@
       }
       // A distant car or person must still have an outline.
       if(indices.length<18||indices.length>model.count*.8)return;
+      if(model.city&&model.indices){
+        model.farKeep=new Uint8Array(model.count/3);
+        for(let i=0;i<indices.length;i+=3)model.farKeep[indices[i]/3]=1;
+      }
       if(!model.sections&&model.count<=65532){
         const sources=[],local=new Uint16Array(indices.length),byVertex=new Map();
         for(let i=0;i<indices.length;i++){
@@ -933,7 +1013,9 @@
       if(tiltX!==this.tiltX||tiltZ!==this.tiltZ){gl.uniform4f(this.u.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));this.tiltX=tiltX;this.tiltZ=tiltZ;}
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
       gl.uniform3f(this.u.origin,x,y,z);gl.uniform2f(this.u.turn,Math.cos(yaw),Math.sin(yaw));
-      if(model.starts&&this.multiDraw){
+      if(reduced&&model.city&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ){
+        const list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model);
+      }else if(model.starts&&this.multiDraw){
         this.drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0);
       }else if(model.sections){
         let first=0,end=0,far=false;
@@ -67997,7 +68079,21 @@ window.buildBayCity = function buildBayCity(g,water) {
         }
       }catch{}
     }
-    start(id){this.run={id,samples:[],ms:0,metres:0,last:null,x:0,z:0};}
+    static device(gl,agent){
+      const platform=/CrOS/.test(agent)?"ChromeOS":/Android/.test(agent)?"Android":/iPhone|iPad/.test(agent)?"iOS":
+        /Windows/.test(agent)?"Windows":/Mac OS/.test(agent)?"macOS":/Linux/.test(agent)?"Linux":"Browser";
+      let renderer=gl?"WebGL":"Canvas 2D";
+      if(gl)try{
+        const info=gl.getExtension("WEBGL_debug_renderer_info");
+        const driver=info&&gl.getParameter(info.UNMASKED_RENDERER_WEBGL);
+        if(driver){
+          const name=driver.match(/SwiftShader|llvmpipe|softpipe/i)?.[0]||driver.match(/^ANGLE \([^,]+, ([^,]+)/)?.[1]||driver;
+          renderer+=" · "+name.slice(0,100);
+        }
+      }catch{}
+      return platform+" · "+renderer;
+    }
+    start(id,device=""){this.run={id,device,samples:[],ms:0,metres:0,last:null,x:0,z:0};}
     suspend(){if(this.run)this.run.last=null;}
     frame(now,p,width,height){
       const r=this.run;if(!r)return;
@@ -68006,15 +68102,20 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       r.last=now;r.x=p.x;r.z=p.z;
       if(r.ms<60000)return;
+      const seconds=new Uint32Array(60);let elapsed=0;
+      for(const dt of r.samples){
+        elapsed+=dt;const second=Math.ceil(elapsed/1000)-1;
+        if(second<60)seconds[second]++;
+      }
       const values=r.samples.sort((a,b)=>a-b),at=q=>values[Math.ceil(values.length*q)-1];
       const result={fps:Math.round(values.length*10000/r.ms)/10,median:at(.5),p95:at(.95),
-        frames:values.length,seconds:r.ms/1000,metres:Math.round(r.metres),width,height};
+        slowestSecond:Math.min(...seconds),device:r.device,frames:values.length,seconds:r.ms/1000,metres:Math.round(r.metres),width,height};
       this.records[r.id]=result;this.run=null;
       try{localStorage.setItem(key,JSON.stringify(this.records));}catch{}
       return result;
     }
     describe(r){return r.fps+" FPS average · "+r.median.toFixed(1)+" ms median · "+r.p95.toFixed(1)+" ms at the 95th percentile · "+
-      r.metres+" m · "+r.width+" × "+r.height;}
+      (Number.isFinite(r.slowestSecond)?r.slowestSecond+" frames in the slowest second · ":"")+r.metres+" m · "+r.width+" × "+r.height+(r.device?" · "+r.device:"");}
   }
   window.BayFrameCheck=FrameCheck;
 })();
@@ -79037,7 +79138,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         "Measures a minute on this device. Walk on the street or drive a car to record a result.";
       const measure=makeButton("One-minute frame check",detail,running?"Cancel":id||"Unavailable",()=>{
         if(frameCheck.run){frameCheck.run=null;openPanel("pause",true);return;}
-        if(!id)return;frameCheck.start(id);closePanel();note(id+" · Frame check","One minute. Your result will be in Pause.",3);
+        if(!id)return;frameCheck.start(id,BayFrameCheck.device(isTop()?null:view.gl,navigator.userAgent));closePanel();note(id+" · Frame check","One minute. Your result will be in Pause.",3);
       });measure.disabled=!running&&!id;b.append(measure);
       for(const [name,r] of Object.entries(frameCheck.records))if(name!==id){
         const row=document.createElement("p");row.className="statline";row.textContent=name+" · "+frameCheck.describe(r);b.append(row);
