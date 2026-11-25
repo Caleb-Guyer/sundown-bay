@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   play:
-    name: Drive and check bumper impacts in ${{ matrix.view }} view
+    name: Cast and land a pier fish in ${{ matrix.view }} view
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
@@ -25,8 +25,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --red-cork --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --bumpers --frames
-      - run: node .github/playtests/live.cjs ${{ matrix.view }} --coast-cup --frames
         if: ${{ !cancelled() }}
       - uses: actions/upload-artifact@v4
         if: always()

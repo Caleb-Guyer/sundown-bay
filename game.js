@@ -78,6 +78,7 @@
   let swim=null,surfArtReady=false,reefReady=false;
   let ferryScene=null,ferryReceipt=null,ferryMesh=null,ferryMeshMotion=null;
   const shorePins=bay.docks.map(d=>({...d,x:d.footX+1.4}));
+  shorePins[0].name="Marlin Pier · Red Cork Club";
   shorePins[1].name="North Float · Manta 90";
   const cutGate={kind:"county-road",x:144,z:170,name:"Ocean Drive north · To Pelican Cut"};
   locations.push(...shorePins.filter(d=>d.id!==boatYard.dock.id),{...BayMarlinRoom.outside,kind:"room"},{...BayMercadoArt.counter,kind:"counter"},BaySurfPatrol.tower,BayCab.cinema);
@@ -139,12 +140,12 @@
     result.campana=BayCampana.read(null);result.windowBest={};result.windowJobs=0;result.transit=BayTransit.read(null);result.airwaves=BayAirwaves.read(null);
     result.buttonwood=BayButtonwood.read(null);result.brisas=BayBrisasClub.read(null);result.palm=BayPalmLeague.read(null);result.gull=BayGullSales.read(null);result.moto=BaySecondSeat.read(null);result.rescue=BayRescue.read(null);result.skate=BaySkate.read(null);result.airmail=BayPelicanAir.read(null);
     result.luggage=luggage.read(null);result.green=BayOnGreen.read(null);result.threads=threads.read(null,result.courts);
-    result.clubCup=BayCoastCup.read(null);
+    result.clubCup=BayCoastCup.read(null);result.catchBook=BayRedCork.read(null);
     result.oceanBeat=BayOceanBeat.read(null);
     result.pictureJumps=jumps.read(null);result.copies=carbon.read(null);
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
       result.houseFee=raw.houseFee===true;
-      result.clubCup=BayCoastCup.read(raw.clubCup);
+      result.clubCup=BayCoastCup.read(raw.clubCup);result.catchBook=BayRedCork.read(raw.catchBook);
       result.oceanBeat=BayOceanBeat.read(raw.oceanBeat);
       result.pictureJumps=jumps.read(raw.pictureJumps);result.copies=carbon.read(raw.copies);
       result.engineSeven=BayEngineSeven.read(raw.engineSeven);result.starlite=BayStarlite.read(raw.starlite);result.luggage=luggage.read(raw.luggage);result.green=BayOnGreen.read(raw.green);
@@ -318,6 +319,10 @@
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    if(latest?.catchBook?.known){
+      const other=BayRedCork.read(latest.catchBook),ours=save.catchBook;ours.known=true;ours.total=Math.max(ours.total,other.total);
+      for(const [id,n] of Object.entries(other.best))ours.best[id]=Math.max(ours.best[id]||0,n);
+    }
     if(latest?.houseFee&&!save.houseFee){
       save.houseFee=true;if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
       if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
@@ -3291,10 +3296,59 @@
       if(person){
         const s=BaySurfPatrol.slips[person.index];
         const line=person===watchCrew.tali?(watchCrew.alert?"Keep an eye on the raised hand beyond the flags.":"Folks pin things they’ve lost to the board at my tower. Take a look.") :
-          save.shore.helps[s.style]?s.thanks:s.line;
+          s.style==="lark"&&save.catchBook.total?"Dad wrote your fish in his book. He measures them twice, you know.":
+          s.style==="lark"&&save.shore.returned.includes("lure")?"Dad’s out on Marlin Pier. Tell him who found my red lure. He’s got another one in the tackle box.":
+          s.style==="lark"&&!save.shore.helps[s.style]?"Dad’s fishing off Marlin Pier. Look for the green bench out at the end.":save.shore.helps[s.style]?s.thanks:s.line;
         speak(person.name,line);return true;
       }
     }return false;
+  }
+  let corkPage=null,calMesh=null,calMotion=null;
+  function corkNear(){
+    if(active||heat||!onStreetFeet()||unit.eye||afternoon.active||neighbors.chat)return null;
+    return BayRedCork.sites.find(s=>dist(s,hero)<2.75||s.id==="marlin"&&dist(hero,BayRedCorkArt.cal)<1.9);
+  }
+  function visitCork(site){
+    corkPage=site;save.catchBook.known=true;persist();openPanel("red-cork");
+  }
+  function corkPanel(b){
+    const site=corkPage,near=site&&corkNear()===site,book=save.catchBook;
+    signedNote(b,site?.id==="cut"?"“The short cast works the grass. Put it out past twelve metres and you’re over the channel.”":
+      save.shore.returned.includes("lure")?"“Lark says you found my cedar plug. I cut you one too. Go on, try it.”":
+      "“See those little silver backs? Drop the cork near them. When it goes under, lift. Give the fish line when it runs.”","Cal Bennett");
+    if(near)b.append(makeButton("Borrow the cork rod","A/D aim. Hold Space to wind up, then release to cast.","Take rod",()=>{
+      if(corkNear()!==site)return;
+      const r=new BayRedCork.Cast(site,save.shore.returned.includes("lure"));r.walkIn=true;
+      active={angling:r,job:{id:"red-cork",name:"Red Cork Club",by:"Cal Bennett"},stops:[],index:0};
+      waypoint=null;closePanel();keys.clear();motion.reset();lastHud=lastMap=-10;
+    }));
+    for(const s of BayRedCork.sites)if(!near||s!==site)b.append(makeButton(s.name,s.id==="cut"?"Cal’s spare tackle sits on the landing by the oyster beds.":"Find Cal’s green measuring bench at the seaward end.","Mark pier",()=>clockPin({...s,name:s.name+" · Red Cork Club"})));
+    const record=document.createElement("p");record.className="panel-copy";
+    record.textContent=book.total+" tagged and released";b.append(record);
+    for(const id of Object.keys(BayRedCork.fish))if(book.best[id])b.append(BayRedCorkArt.card(book,id));
+  }
+  function corkKeys(code){
+    const r=active?.angling;
+    if(!r){const s=code==="KeyF"&&corkNear();if(s){visitCork(s);return true;}return false;}
+    if(code==="KeyE"){dropJob();return true;}
+    if(code==="Space"&&!r.walkIn){r.press();lastHud=-10;return true;}
+    return !["Escape","KeyJ","KeyM","KeyR"].includes(code);
+  }
+  function stepCork(dt){
+    const r=active.angling,s=r.site;
+    if(heat){dropJob();return;}
+    if(r.walkIn){
+      const dx=s.x-hero.x,dz=s.z-hero.z,d=Math.hypot(dx,dz),stride=Math.min(d,2*dt);
+      if(d>.05){hero.x+=dx/d*stride;hero.z+=dz/d*stride;hero.yaw=Math.atan2(dx,dz);motion.step(dt,2,0);return;}
+      r.walkIn=false;hero.x=s.x;hero.z=s.z;hero.y=footLevel(s.x,s.z);motion.reset();
+    }
+    const caught=r.step(dt,streetTime,Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),held("Space"));
+    hero.yaw=s.yaw+r.aim;motion.console=BayRedCorkArt.grip(r,streetTime,r.phase==="fight"&&held("Space"));motion.step(dt,0,0);
+    if(caught){
+      const book=save.catchBook,record=(book.best[caught.id]||0)<caught.length;
+      const pay=BayRedCork.record(book,caught);save.wallet+=pay;save.paid++;persist();
+      r.clock=0;sound.cue("paid");note(record?"New entry on Cal’s board":"Red Cork Club",BayRedCork.fish[caught.id].name+" · "+caught.length+" cm · Tag fee +"+cash(pay),3);
+    }
   }
   function stepBeach(dt){
     const event=watchCrew.step(dt,streetTime,pos(),swim);
@@ -5643,6 +5697,7 @@
     return lastGuide={x:car.x,z:car.z,tx:target.x,tz:target.z,closed,points,meters,turn};
   }
   function dropJob(){
+    if(active?.angling){motion.console=null;resetFeet();cameraSnap();lastHud=lastMap=-10;}
     if(active?.engineSeven){company.leave(sevenEnv);motion.handTarget=null;lastHud=lastMap=-10;}
     if(active?.campana){campana.abandon();commitPaletas();lastHud=lastMap=-10;}
     if(windowRide){endWindowRide();return;}
@@ -5952,6 +6007,7 @@
     else if(event==="missed")finishFerry(run,"missed");
   }
   function advanceJob(dt){
+    if(active?.angling)return;
     if(windowRide)return;
     if(active?.engineSeven||active?.campana||active?.buttonwood||active?.brisas||active?.palm||active?.gull||active?.moto||active?.rescue||active?.skate||active?.airmail)return;
     if(transit.engaged||active?.neon||active?.bridge||active?.wash||active?.band||active?.valet||active?.relay||active?.field||active?.cabFare||active?.recovery||cabs.booking)return;
@@ -7048,6 +7104,12 @@
   const trunkFrame={mix:0,v:null,yaw:0,tilt:0,side:1,near:[]};
   const coffeeObstacles=solids.filter(o=>o!==BayPalmCoffee.block&&Math.abs(o.x-BayPalmCoffee.site.x)<o.w*.5+7&&Math.abs(o.z-BayPalmCoffee.site.z)<o.d*.5+7);
   function moveCamera(dt,t){
+    const angler=active?.angling;
+    if(angler&&!angler.walkIn){
+      const s=angler.site,aim=angler.cork||BayRedCork.shoal(s,streetTime),eye=BayDriving.world(s,-1.52,-2.05);
+      const x=hero.x+(aim.x-hero.x)*.59,z=hero.z+(aim.z-hero.z)*.59,y=s.y+2.46;
+      Object.assign(cam,{x:eye.x,z:eye.z,y,yaw:Math.atan2(x-eye.x,z-eye.z),pitch:Math.atan2(.43-y,Math.hypot(x-eye.x,z-eye.z)),focal:1.32});return;
+    }
     if(company.holding&&held("Space")){
       const site=company.call,aim=BayDriving.world(site,company.aimX*.48,-.5),face={...hero,yaw:Math.atan2(site.x-hero.x,site.z-hero.z)};
       const anchor={x:hero.x,z:hero.z,y:hero.y+1.54},cover=sevenEnv.coverSite===site?sevenEnv.cover:cameraRig.obstacles;
@@ -7286,7 +7348,7 @@
     return {mode:modeName,cx,cz,scale,solids,threads:play?{site:threads.site,strip:modeName==="street"&&dist(pos(),threads.site)<80?featuredStrip():null}:null,coffee:play?coffee:null,curbWire:play?curbWire:null,wireTV:play&&modeName==="street"?updateWireTV(streetTime):null,campana:play?campana:null,paletaHeld:play&&paletaOnFoot()?campanaHeld():null,gutters:play?gutters:null,crew:play?{lead:unit.lead,otherLook:worn(unit.other),other:otherBody,afternoon,ride:otherCar,finder:!!unit.eye,met:unit.met,desk:scoutDesk,outing:windowRide,print:scoutHouseCard()}:null,rainWalk:play?rainWalk:null,buttonwood:play?works:null,brisas:play?club:null,palmHouse:play?palm:null,palmDiner:play?BayPalmRoom.frameState(palm,pos()):null,
       palmPeople:play&&modeName==="street"?BayPalmRoom.nearPeople(palm,hero).map(a=>({a,opts:BayPalmRoom.poseOptions(palm,a,worn(),personColors)})):null,motorSales:play?gull.render:null,dealerCrew:play?gull:null,gullPeople:play&&modeName==="street"?gullActors.concat(gull.exchange?.ready?[hero]:[]).map(a=>({a,opts:gullPose(a)})):null,motos:play?motos:null,rescue:play?rescue:null,airLine:play?airLine:null,airCrew,airCarried:save.airmail.bag&&onStreetFeet()?hero:null,courts,pickup,valet,skate:play?skate:null,deckHand:skateCarried()?hero:null,deckSeat:stowedDeck(),keyMapActor:exchangingKey()?keyMapActor:null,streetCar:car,motorists:modeName==="street"&&play?motoristsNear(q=>Math.abs(q.x-cx)<88&&Math.abs(q.z-cz)<88,.05):[],player:{x:p.x,y:p.y,z:p.z,yaw:p.yaw,kit:worn(),lead:unit.lead,neighborPose:helloPose,skin:unit.lead==="guest"?personColors[0][0]:BayExposureArt.palette[0],shirt:BayThreadsArt.colors[worn()]||BayCourtPlayers.kitColors[worn()]||(unit.lead==="guest"?personColors[0][1]:BayExposureArt.palette[1]),driving,kind:car?.kind,color:displayCar?.color||"#99ebc6",motion,damage:car?.damage,towRig:car?.towRig,
       steer:car?.steer,brakes:car?.brakes,handbrake:car?.handbrake,reversing:car?.reversing,flatSide:car?.flatSide,passengerDoor:car?.passengerDoor,inCabin:!!windowRide?.held&&windowRide.seat>.54||!!airLine.player&&!airLine.transfer||transit.aboard||(!!transfer||cabs.playerHeld)&&(motion.ride?.seat||0)>.54},skids,story:active?.story,
-      coastCup:play?cup:null,oceanBeat:play?beat:null,engineCompany:play?company:null,sevenScene,starlite:play?starliteSite:null,starliteVisit:theatre.visit,atProjector:!!theatre.run,starliteFrame:theatreFilm,starliteLit:cityDusk()>.28,pavement:play?pavement:null,cabService:play?cabs:null,cineSecond:!!save.cab.reel,recovery:play?recovery:null,
+      redCork:play,angling:active?.angling,coastCup:play?cup:null,oceanBeat:play?beat:null,engineCompany:play?company:null,sevenScene,starlite:play?starliteSite:null,starliteVisit:theatre.visit,atProjector:!!theatre.run,starliteFrame:theatreFilm,starliteLit:cityDusk()>.28,pavement:play?pavement:null,cabService:play?cabs:null,cineSecond:!!save.cab.reel,recovery:play?recovery:null,
       airwaves:play?broadcastDesk.state:null,wheel:boardwalk.wheel,boardwalk,cycles,bridge,roofs,neon,transit:play?transit:null,band:play?band:null,wash:play?wash:null,
       marina:{boats,mantaRide,lead:unit.lead,rival:clubBoat,patrol:harbor.units,player:skiff,race:active?.regatta,bayChart:chartMode==="bay"},aboard:!!skiff&&!deckStep,
       swim:swim?.actor(hero),submerged:!!swim?.underwater,patrol:play?watchCrew:null,returned:save.shore.returned,found:save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned,
@@ -7813,6 +7875,7 @@
       if(works.rearView&&car===works.trailer.hitched){state.cx=works.trailer.x;state.cz=works.trailer.z;state.rotation=state.cameraYaw=car.yaw+Math.PI;state.scale=h/(22*cameraRig.zoom);}
       if(broadcastDesk.mix&&!broadcastDesk.approach){state.cx=radioSite.x+.32;state.cz=radioSite.z;state.rotation=state.cameraYaw=-Math.PI/2+broadcastDesk.mix.pan;state.scale=h/((broadcastDesk.close?9:18)*cameraRig.zoom);}
       if(works.line?.close){state.rotation=state.cameraYaw=works.line.look+Math.PI;state.cx=(pip.x+works.line.pot.x)*.5;state.cz=(pip.z+works.line.pot.z)*.5;state.scale=h/(13.5*cameraRig.zoom);}
+      if(active?.angling){const r=active.angling,q=r.cork||BayRedCork.shoal(r.site,streetTime);state.cx=(r.site.x+q.x)*.5;state.cz=(r.site.z+q.z)*.5;state.rotation=state.cameraYaw=r.site.yaw;state.scale=h/25;}
       if(skate.rider){
         const r=skate.rider,lens=!!skate.run?.lens,face=lens?cam.yaw:yaw,lead=lens?0:1.0+r.speed*.10;
         state.rotation=state.cameraYaw=face;state.cx=r.x+Math.sin(face)*lead;state.cz=r.z+Math.cos(face)*lead;
@@ -8011,6 +8074,15 @@
       }else visible.push(["mara",mara.x,(mara.y??footLevel(mara.x,mara.z))+partnerMotion.lift,mara.z,mara.yaw??-1.9]);
     }
     if(play)BayCoastCupArt.world(visible,model,cup,see,footLevel);
+    if(play){
+      BayRedCorkArt.world(visible,model,view,see,active?.angling,hero,streetTime);
+      const a=BayRedCorkArt.cal;
+      if(see(a,65)){
+        if(!calMesh){calMesh=new BayPlayerMesh(personColors[3],"local");calMotion=new BayPlayerMotion();view.add("cork/cal",calMesh,true);}
+        calMotion.console=BayRedCorkArt.grip(null,streetTime,streetTime%19>14.5);calMotion.step(dt,0,0);
+        if(calMesh.update(calMotion))view.updateAnimated("cork/cal");visible.push(["cork/cal",a.x,a.y,a.z,a.yaw-.23]);
+      }
+    }
     if(play&&see(BayCoastCupArt.marshal,74)){
       const a=BayCoastCupArt.marshal,y=footLevel(a.x,a.z),key="cup/luz";
       if(!marshalMesh){marshalMesh=new BayPlayerMesh(personColors[1],"local");view.add(key,marshalMesh,true);}
@@ -8104,7 +8176,7 @@
     drawCabStreet(visible,see,t,dt);
     drawRoadCrew(visible,see,t);drawBoardwalk(visible,see,t);drawCourts(visible,see,t);drawBand(visible,see,t);
     if(play)drawWash(visible,see,t);
-    if(active&&!windowRide&&!active.neon&&!active.bridge&&!story&&!active.cabFare&&!active.recovery&&!active.regatta&&active.job.id!=="race"&&active.job.id!=="dash"&&(active.index===0||active.job.id==="tape")){
+    if(active&&!active.angling&&!windowRide&&!active.neon&&!active.bridge&&!story&&!active.cabFare&&!active.recovery&&!active.regatta&&active.job.id!=="race"&&active.job.id!=="dash"&&(active.index===0||active.job.id==="tape")){
       const m=currentTarget();if(see(m,98)){const style=active.job.id==="tape"?(active.index?3:4):2;visible.push([personSkin(style,active.job.id==="tape"?"courier":"local",0,1),m.x+1.1,.15,m.z,-1.6]);}
     }
     for(const v of patrol)if(see(v,150)){
@@ -8721,7 +8793,17 @@
     const clock=nearbyClock();
     const localRun=greenHud();
     const curbObject=curbsideAction(),curbPrompt=curbObject&&curbsideHint(curbObject);
-    const showing=cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
+    const angler=active?.angling,rail=corkNear();
+    if(angler){
+      $("objective").hidden=false;$("objectiveTag").textContent="Red Cork Club · "+angler.site.name;
+      $("objectiveText").textContent=angler.walkIn?"Taking the rod":angler.text();
+      $("roadTurn").textContent=angler.phase==="fight"?"Line tension "+Math.round(angler.tension*100)+"% · A/D follow the fish":angler.cedar?"Lark’s cedar plug":"Cal’s cork rig";
+      if(angler.phase==="fight"||angler.phase==="wind"){
+        const winding=angler.phase==="wind",n=Math.round(100*(winding?angler.power:angler.tension));
+        meter.hidden=false;meter.style.setProperty("--hold",n+"%");meter.setAttribute("aria-valuenow",String(n));meter.setAttribute("aria-label",winding?"Casting power":"Line tension");
+      }
+    }
+    const showing=angler?["E",(angler.phase==="miss"||angler.phase==="landed"?"Space cast again · ":"")+"Put the rod back"]:rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
     if(showing)contextHint(...showing);
     else if(atThreads())contextHint("F","Cora Vidal · Low Tide Exchange");
     else if(curbPrompt)contextHint(...curbPrompt);
@@ -9366,6 +9448,7 @@
       BayDriving.settle(car);
     }
     if(listening()){active.field.slice=null;active.field.armed=true;}
+    if(active?.angling?.phase==="wind"){active.angling.phase="ready";active.angling.power=0;}
     if(pickup?.human.shot?.stage==="wind"){const p=pickup.human;p.shot=null;p.wind=0;p.action="dribble";courtMeter();}
     onAir=null;paintPreview=null;$("shade").className=shop?"paint-shade":"";
     panel=next;keys.clear();resetPointer();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
@@ -9433,6 +9516,8 @@
     }else if(next==="wire-edition"){
       title="Neighborhood edition";kicker="Bay Wire  /  Picture desk";
       for(const story of neighbors.editions)editionPrint(b,story);
+    }else if(next==="red-cork"){
+      title="Red Cork Club";kicker=corkPage?.name||"Cal Bennett’s tag book";corkPanel(b);
     }else if(next==="coast-club"){
       title="Coastline Circuit";kicker="Sol Motor Club / Ocean Drive";cupPanel(b);
     }else if(next==="ocean-copy"){
@@ -9758,6 +9843,7 @@
       if(save.engineSeven.log.length)b.prepend(makeButton("Engine 7 daybook",save.engineSeven.log.at(-1).title,"Read slip",()=>{sevenPage=save.engineSeven.log.length-1;openPanel("engine-book");}));
       if(save.pictureJumps.known)b.prepend(makeButton("Romy’s location notebook",Object.keys(save.pictureJumps.best).length+" of 3 locations signed","Read notebook",()=>openJumpBook(jumpPage)));
       if(save.clubCup.known)b.prepend(makeButton("Sol Motor Club",save.clubCup.last?cupPlace(save.clubCup.last.place)+" · "+save.clubCup.last.car:"Coastline Circuit","Race sheet",cupBook));
+      if(save.catchBook.known)b.prepend(makeButton("Red Cork Club",save.catchBook.total+" tagged and released","Tag book",()=>{corkPage=corkNear()||null;openPanel("red-cork",true);}));
       if(save.oceanBeat.known)b.prepend(makeButton("Ocean Unit 12",save.oceanBeat.slip?.plate||"Officer Lina Solís","Driver copy",()=>openPanel("ocean-copy")));
       if(save.copies.known)b.prepend(makeButton("Carbon Copies","Romy’s shop file · "+carbon.sides.filter(s=>save.copies[s]).length+" of 2 directions","Read copies",()=>readCopies(copySide)));
       if(save.starlite.tickets.length)b.prepend(makeButton("Starlite ticket stubs",save.starlite.tickets.at(-1).title,"Look",()=>{ticketIndex=save.starlite.tickets.length-1;openPanel("starlite-tickets");}));
@@ -9932,6 +10018,7 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(corkKeys(ev.code))return;
     if(ev.code==="KeyF"&&cupNear()){cupBook();return;}
     if(ev.code==="KeyF"&&beatAction())return;
     if(ev.code==="KeyF"){const chalk=jumpChalk();if(chalk){openJumpBook(chalk);return;}}
@@ -10051,6 +10138,7 @@
     else if(["Equal","NumpadAdd","Minus","NumpadSubtract"].includes(ev.code)){cameraRig.changeZoom(["Equal","NumpadAdd"].includes(ev.code)?-.12:.12);saveCamera();}
   });
   addEventListener("keyup",ev=>{
+    if(ev.code==="Space"&&active?.angling&&!panel)active.angling.release(streetTime,hours.rain);
     keys.delete(ev.code);if(/^(Digit|Numpad)[1-4]$/.test(ev.code))club.release(Number(ev.code.at(-1))-1);
     if(ev.code==="Space"&&palm.match&&!panel)palm.release(palmEnv);
     if(ev.code==="Space"&&skate.rider&&!panel)skate.pop(skateEvent);
@@ -10097,7 +10185,7 @@
         const onBoardwalk=!!(boardwalk.player||cycles.riding);stepCourts(d);boardwalkStep(d);
         if(car!==wrecker&&tow.busy)tow.step(d,towClear,recoveryEvent);
         if(room){walkRoom(d);traffic(d);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);left-=d;continue;}
-        if(active?.take)stepTake(d);else if(deckStep)stepLanding(d);else if(transfer)stepTransfer(d);
+        if(active?.angling)stepCork(d);else if(active?.take)stepTake(d);else if(deckStep)stepLanding(d);else if(transfer)stepTransfer(d);
         else if(swim)swimStep(d);
         else if(car){if(car!==meet.jules&&!(active?.meet&&meet.phase==="countdown"))drive(d,!!unit.transition);}
         else if(!unit.transition&&!unit.eye&&!afternoon.photo&&!windowRide?.held&&!broadcastDesk.mix&&!palm.match&&!palm.playerSeat&&!gull.exchange&&!motos.player&&!motos.job?.swapping&&!rescue.holding&&!airLine.aboard&&!skate.rider&&!transit.engaged&&!band.take&&!pickup&&!onBoardwalk&&!cabs.playerHeld&&!skiff&&!listening()&&!exchangingKey())walk(d);

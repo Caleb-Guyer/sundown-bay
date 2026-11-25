@@ -27,7 +27,7 @@
   }
   function wetSand(x,z){return beach(z)&&x>=(z>180?BayCut.coast(z)-7:206)&&x<=coast(z)+3.15;}
   const wave=(x,z,t)=>.055+.045*Math.sin(t*1.81+z*.14+x*.08)+.023*Math.sin(t*2.61+x*.17-z*.09);
-  const ladders=BayMarina.docks.map(d=>({id:d.id,dock:d,x:d.x+d.headW*.5,z:d.z,y:d.level}));
+  const ladders=BayMarina.docks.map(d=>({id:d.id,dock:d,x:d.x+d.headW*.5,z:d.z+(d.id==="north"?3.35:0),y:d.level}));
   const surfaceY=(p,t)=>wave(p.x,p.z,t);
   function insideHull(v,x,z,depth,halfWidth=1.13,halfLength=2.87){
     if(depth>1.35||Math.abs(v.x-x)>halfLength+1||Math.abs(v.z-z)>halfLength+1)return false;

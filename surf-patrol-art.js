@@ -236,7 +236,7 @@
     return steps;
   }
   function ladders(list,see){
-    for(const d of BayMarina.docks)if(see(d,86))list.push(["surf-east-ladder",d.x+d.headW/2,d.level,d.z]);
+    for(const l of BaySwimming.ladders)if(see(l,86))list.push(["surf-east-ladder",l.x,l.y,l.z]);
   }
   function onRack(patrol){
     const p=patrol?.tali;
@@ -273,8 +273,8 @@
     const street=opt.mode==="street";if(!street&&!opt.swim)return;
     const ui=Math.min(c.canvas.width,c.canvas.height)/(opt.mode==="radar"?165:370);
     const zoom=opt.swim?Math.max(s,street?5.6:7.3*ui):s;
-    for(const d of BayMarina.docks){
-      const x=px(d.x+d.headW/2),y=py(d.z);
+    for(const l of BaySwimming.ladders){
+      const x=px(l.x),y=py(l.z);
       if(!visible(x,y,Math.max(5*s,zoom)))continue;
       c.save();c.translate(x,y);
       c.scale(zoom,zoom);

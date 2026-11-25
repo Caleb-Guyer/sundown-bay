@@ -424,6 +424,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 @media(max-height:620px){.threads-glass{height:min(33vh,210px);object-fit:contain}.threads-rail{gap:3px}.threads-choice{padding:6px}}
 .wire-archive {margin:0 0 1rem;padding:.65rem .65rem .8rem;background:#f6ead0;border:1px solid #aa9b7a;box-shadow:0 2px 3px #3b3a3529;color:#293936}
 .wire-archive canvas {width:100%;height:auto;display:block;background:#443d37}
+.cork-tag {display:block;width:100%;max-width:560px;height:auto;margin:.5rem 0}
 .wire-archive figcaption {padding:.65rem .2rem 0;border-bottom:1px solid #b3a085}
 .wire-archive figcaption strong {font:italic bold 1.32rem Georgia,serif}
 .wire-archive figcaption p {margin:.4rem 0 .7rem;font:1rem/1.42 Georgia,serif}
