@@ -14,10 +14,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const camera=BayCamera.prototype.update;BayCamera.prototype.update=function(...args){const out=camera.apply(this,args);recQA.rig=this;recQA.yaw=this.yaw;return out;};
       const scene=BayPublicRecord.Story.prototype.step;BayPublicRecord.Story.prototype.step=function(dt){const changed=scene.call(this,dt);recQA.director=this;return changed;};
       const begin=BayView.prototype.begin;BayView.prototype.begin=function(...args){recQA.view=this;return begin.apply(this,args);};
+      recQA.geometry={};const objectDraw=BayView.prototype.draw;BayView.prototype.draw=function(name,...args){recQA.object=name;return objectDraw.call(this,name,...args);};
       if(window.WebGLRenderingContext){
         const gl=WebGLRenderingContext.prototype;
         for(const [name,countAt] of [["drawArrays",2],["drawElements",1]]){const draw=gl[name];gl[name]=function(...args){
-          if(recQA.samples){recQA.calls=(recQA.calls||0)+1;recQA.vertices=(recQA.vertices||0)+args[countAt];}return draw.apply(this,args);};}
+          if(recQA.samples){recQA.calls=(recQA.calls||0)+1;recQA.vertices=(recQA.vertices||0)+args[countAt];
+            const n=recQA.object;recQA.geometry[n]=(recQA.geometry[n]||0)+args[countAt];}return draw.apply(this,args);};}
       }
       const attend=BaySoftSand.Beach.prototype.attend;
       BaySoftSand.Beach.prototype.attend=function(dt,t,hero,...rest){const out=attend.call(this,dt,t,hero,...rest),q=recQA;
@@ -52,6 +54,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         drawCalls:Math.round((recQA.calls||0)/a.length),vertices:Math.round((recQA.vertices||0)/a.length),width:document.querySelector('#'+(recQA.view?'world':'overhead')).width};})()`);
     assert.equal(perf.base.sum,perf.indexed.sum);assert(perf.indexed.candidates<perf.base.candidates*.18);
     console.log("PERF",mode,JSON.stringify(perf));
+    if(mode==="street")console.log("PERF draws",await js("Object.entries(recQA.geometry).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([n,v])=>n+' '+Math.round(v/recQA.frames.length)).join(', ')"));
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
     await waitFor("recQA.director.scene?.id==='boarded'",90000);await snap("passenger");await tap("Enter");
     await waitFor("document.querySelector('#chapterFilm').hidden");
