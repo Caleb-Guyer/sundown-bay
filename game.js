@@ -560,6 +560,7 @@
   // The original fish-camp car keeps its garage record in its new gravel parking space.
   const campHatch=addCar("hatch","#bc875f",186,321,-1.93);
   Object.assign(campHatch,{x:185.2,z:330.1});
+  const streetFleet=new Set(cars);
   const taxiStart=BayCab.stops.marlin,taxi=addCar("cab","#d5a955",taxiStart.x,taxiStart.z,taxiStart.yaw);
   taxi.serviceCar=true;
   const cabs=new BayCab.Service(taxi,save.cab);
@@ -3468,7 +3469,7 @@
     if(active?.rescue)return rescue.access()&&dist(hero,unit4)<5.7?unit4:null;
     if(swim||cabs.playerHeld||cycles.riding||boardwalk.player)return null;
     let best=null,d=5.1;
-    for(const v of cars){const n=dist(hero,v);if(v!==otherCar&&gull.keyFor(v)&&v!==gull.reclaim?.v&&!v.meetCar&&!v.serviceCar&&!v.washGuest&&!v.onLift&&!v.recoveryOwner&&!roadDrivers.get(v)?.seated&&recovery.onBench?.car!==v&&valet.accessible(v)&&(!active?.valet||valet.focus?.car===v)&&!["return","approach","in","out"].includes(v.owner?.phase)&&n<d&&(!v.path||v.speed<4)){best=v;d=n;}}
+    for(const v of cars){const n=dist(hero,v);if(!v.impactSlide&&v!==otherCar&&gull.keyFor(v)&&v!==gull.reclaim?.v&&!v.meetCar&&!v.serviceCar&&!v.washGuest&&!v.onLift&&!v.recoveryOwner&&!roadDrivers.get(v)?.seated&&recovery.onBench?.car!==v&&valet.accessible(v)&&(!active?.valet||valet.focus?.car===v)&&!["return","approach","in","out"].includes(v.owner?.phase)&&n<d&&(!v.path||v.speed<4)){best=v;d=n;}}
     return best;
   }
   function returnJuneDemo(){
@@ -6138,15 +6139,18 @@
       if(tireCloud.length>44)tireCloud.splice(0,tireCloud.length-44);
     }
     if(!skidLast){skidLast=tires;return;}
+    layTireMarks(skidLast,tires);
+  }
+  function layTireMarks(previous,tires){
     for(const i of [0,2]){
-      const dx=tires[i]-skidLast[i],dz=tires[i+1]-skidLast[i+1],d=Math.hypot(dx,dz);
+      const dx=tires[i]-previous[i],dz=tires[i+1]-previous[i+1],d=Math.hypot(dx,dz);
       if(d<.42)continue;
       const count=Math.min(5,Math.ceil(d/.7)),yaw=Math.atan2(dx,dz);
       for(let k=0;k<count;k++){
-        const f=(k+.5)/count,x=skidLast[i]+dx*f,z=skidLast[i+1]+dz*f;
+        const f=(k+.5)/count,x=previous[i]+dx*f,z=previous[i+1]+dz*f;
         skids.push({x,z,y:footLevel(x,z)+.021,length:d/count,yaw,time:elapsed});
       }
-      skidLast[i]=tires[i];skidLast[i+1]=tires[i+1];
+      previous[i]=tires[i];previous[i+1]=tires[i+1];
     }
     if(skids.length>144)skids.splice(0,skids.length-144);
   }
@@ -6295,7 +6299,8 @@
       hitVehicle=true;
       if(fitsCar(v,v.x+nx*out,v.z+nz*out,v.yaw)){v.x+=nx*out;v.z+=nz*out;}
       const inward=Math.max(0,-v.vx*nx-v.vz*nz),pace=other.path||other.serviceCar||other.meetCar||other.kind==="cruiser"?other.speed:0;
-      const closing=inward+pace*(nx*Math.sin(other.yaw)+nz*Math.cos(other.yaw));
+      const slide=other.impactSlide;
+      const closing=inward+(slide?nx*slide.vx+nz*slide.vz:pace*(nx*Math.sin(other.yaw)+nz*Math.cos(other.yaw)));
       if(closing>6&&inward>2&&!parking&&!crashContacts.has(other)&&bumpLock<=0){
         dent(v,-nx,-nz,closing);if(!motos.all.includes(other))dent(other,nx,nz,closing);
         if(v===unit4&&rescue.phase==="return")rescue.grade=Math.max(0,rescue.grade-closing*.85);
@@ -6303,7 +6308,13 @@
         persist();lastHud=-10;
       }
       if(!parking)reportCrash(other,inward,closing);
-      v.vx+=nx*inward*1.10;v.vz+=nz*inward*1.10;v.yawRate*=Math.exp(-3*dt);other.wait=1.4;
+      if(!parking&&streetFleet.has(other)&&other!==otherCar&&!other.onLift&&!other.roadside&&
+        !other.guestId&&!other.owner&&!other.washGuest&&other!==windowRide?.vehicle&&other!==tow.target&&
+        other!==active?.story?.ride&&other!==active?.ferry?.ride&&other!==band.june.ride&&other!==transfer?.v&&other!==afternoon.vehicle&&other!==works.trailer.hitched){
+        BayDriving.exchangeImpact(v,other,hit);
+      }else{
+        v.vx+=nx*inward*1.10;v.vz+=nz*inward*1.10;v.yawRate*=Math.exp(-3*dt);other.wait=1.4;
+      }
       if(closing>4.8&&bumpLock<=0){active?.plate?.jolt(closing);sound.cue("hit");bumpLock=.7;}
     }
     if(!v.jumpFlight&&backup.driveThrough(v,dt,oldX,oldZ,oldYaw)){
@@ -6399,7 +6410,12 @@
     const timingBay=v.greenId&&BayDriving.local(BayOnGreen.route(v.greenId),x,z);
     const apron=timingBay&&timingBay.x<8.45&&timingBay.x>0&&timingBay.z>=-71&&timingBay.z<=-14||
       v.brisasLead&&x>103&&x<143&&z>46.6&&z<77||v.recoveryOwner&&x>-92&&x<-69&&z>-39&&z<2||v.washGuest&&x>146&&x<168&&z>-161&&z<-66;
-    if(!apron&&(county?county.d>county.route.halfWidth-.55:Math.min(Math.abs(x-nearestAxis(x)),Math.abs(z-nearestAxis(z)))>5.95)||!fitsCar(v,x,z,yaw))return false;
+    const roadDistance=county?county.d:Math.min(Math.abs(x-nearestAxis(x)),Math.abs(z-nearestAxis(z)));
+    if(!apron&&roadDistance>(county?county.route.halfWidth-.55:5.95)){
+      const returning=v.findLane&&(county?BayCut.nearest(v.x,v.z).d:Math.min(Math.abs(v.x-nearestAxis(v.x)),Math.abs(v.z-nearestAxis(v.z))))>roadDistance;
+      if(!returning)return false;
+    }
+    if(!fitsCar(v,x,z,yaw))return false;
     const probe={kind:v.kind,x,z,yaw};
     if(boatTrailerBlocks(probe,v))return false;
     if(dist(probe,transit.bus)<8&&BayDriving.contact(probe,transit.bus)||motos.all.some(b=>dist(probe,b)<5&&BayDriving.contact(probe,b)))return false;
@@ -6467,6 +6483,19 @@
     }
   }
   let nextJunctionScan=-1;
+  function slideClear(v,x,z,yaw){
+    if(!fitsCar(v,x,z,yaw))return false;
+    const next={kind:v.kind,x,z,yaw};
+    const blocks=o=>{
+      if(o===v||Math.abs(o.x-x)>10||Math.abs(o.z-z)>10)return false;
+      const hit=BayDriving.contact(next,o);
+      return hit&&hit.depth>(BayDriving.contact(v,o)?.depth||0)+.000001;
+    };
+    if(cars.some(blocks)||patrol.some(blocks)||motos.all.some(blocks)||blocks(transit.bus)||boatTrailerBlocks(next,v))return false;
+    const near=p=>Math.abs(p.x-x)<5&&Math.abs(p.z-z)<5&&BayDriving.clearance(next,p)<.36&&
+      BayDriving.clearance(next,p)<BayDriving.clearance(v,p);
+    return !(onStreetFeet()&&near(hero))&&!walkers.some(w=>!w.palmPassenger&&near(w));
+  }
   function traffic(dt){
     const p=pos(),driver=play&&!transfer&&!cycles.transfer?(car||motos.bike||cycles.riding||skate.rider||(transit.driving?transit.bus:null)):null;
     if(coffee.stage)coffee.step(dt,hero,coffeeEnv);
@@ -6477,10 +6506,19 @@
       for(const s of BayStreetArt.signals)BayCrosswalk.update(s,streetTime,vehicles,walkers,play&&onStreetFeet()?hero:null);
     }
     for(const v of cars){
+      if(v.impactSlide&&v!==car&&v!==transfer?.v){
+        const s=v.impactSlide,scrub=Math.abs(s.vx*Math.cos(v.yaw)-s.vz*Math.sin(v.yaw))+Math.abs(s.spin);
+        if(scrub>1.7&&!s.tires)s.tires=carbon.contacts(v);
+        BayDriving.slideStep(v,dt,hours.wet,slideClear);
+        if(s.tires)layTireMarks(s.tires,carbon.contacts(v));
+        if(!v.impactSlide&&v===personalCar)BayMotelParking.write(v);
+        continue;
+      }
       if(!v.path||v===car||v===transfer?.v){if(v!==car||v===transfer?.v)v.indicator=0;continue;}
       const t=v.path[v.corner],from=v.path[(v.corner+v.path.length-1)%v.path.length];
       const dx=t.x-from.x,dz=t.z-from.z,n=Math.hypot(dx,dz)||1,ux=dx/n,uz=dz/n;
       const remaining=(t.x-v.x)*ux+(t.z-v.z)*uz,offset=(v.x-from.x)*uz-(v.z-from.z)*ux;
+      if(v.findLane&&Math.abs(offset)<.2&&Math.abs(angle(v.yaw,Math.atan2(ux,uz)))<.15)v.findLane=false;
       if(remaining<.045){
         if(v.finiteRoute&&v.corner===v.path.length-1){v.path=null;v.indicator=0;v.yaw+=angle(v.yaw,v.finiteYaw);BayDriving.settle(v);}
         else v.corner=(v.corner+1)%v.path.length;

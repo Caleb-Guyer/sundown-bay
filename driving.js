@@ -31,6 +31,7 @@
     Object.assign(v,{speed:0,vx:0,vz:0,steer:0,yawRate:0,throttle:0,brakes:0,handbrake:0,
       reverseWait:0,reversing:false,gear:1,shift:0,wheelSpin:v.wheelSpin||0,burn:0,rearSpin:0,lean:0,rollRate:0,pitch:0,pitchRate:0,slip:0});
     v.chalkTurn=null;
+    v.impactSlide=null;v.findLane=false;
   }
   function signedSpeed(v){
     const forward=v.vx*Math.sin(v.yaw)+v.vz*Math.cos(v.yaw);
@@ -185,5 +186,62 @@
     }
     return {nx,nz,depth};
   }
-  window.BayDriving={cars,rearDrive,tireState,cool,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact};
+  const tonnes={hatch:.96,caleta:1.02,coupe:1.38,cab:1.66,cruiser:1.84,van:2.27,stepside:1.9,
+    estate:1.53,solena:1.8,cayo:1.57,marea:1.46,wrecker:4.65,ambulance:4.2,pumper:11.3};
+  function bumper(v,nx,nz,direction){
+    const s=v.footprint||bayCarLayout(v.kind),side=s.track-.08,end=s.halfLength-.11;
+    const c=Math.cos(v.yaw),f=Math.sin(v.yaw),across=nx*c-nz*f,along=nx*f+nz*c;
+    // Project only the contacting face (or corner) onto the tangent. Two flat
+    // bumpers meet halfway along their shared span, even on a partial overlap.
+    const tx=nz,tz=-nx,center=v.x*tx+v.z*tz;
+    let mid=center,span=0;
+    for(const [normal,tangent,r] of [[across,c*tx-f*tz,side],[along,f*tx+c*tz,end]]){
+      if(Math.abs(normal)<.035)span+=Math.abs(tangent)*r;
+      else mid+=direction*Math.sign(normal)*tangent*r;
+    }
+    return {center,mid,span,inertia:(side*side+end*end)/3};
+  }
+  function rock(v,dx,dz){
+    const sn=Math.sin(v.yaw),cs=Math.cos(v.yaw);
+    v.pitchRate=clamp((v.pitchRate||0)-.23*(dx*sn+dz*cs),-2.6,2.6);
+    v.rollRate=clamp((v.rollRate||0)+.21*(dx*cs-dz*sn),-2.3,2.3);
+  }
+  function exchangeImpact(a,b,hit){
+    const {nx,nz}=hit,aa=bumper(a,nx,nz,-1),bb=bumper(b,nx,nz,1);
+    const lo=Math.max(aa.mid-aa.span,bb.mid-bb.span),hi=Math.min(aa.mid+aa.span,bb.mid+bb.span);
+    const at=(lo+hi)*.5,armA=aa.center-at,armB=bb.center-at;
+    const invA=1/(tonnes[a.kind]||1.6),invB=1/(tonnes[b.kind]||1.6);
+    const pace=b.path?b.speed:0,prev=b.impactSlide;
+    const bx=prev?.vx??Math.sin(b.yaw)*pace,bz=prev?.vz??Math.cos(b.yaw)*pace,spin=prev?.spin||0;
+    const closing=(bx-a.vx)*nx+(bz-a.vz)*nz+spin*armB-a.yawRate*armA;
+    if(closing<=.08)return;
+    const impulse=1.08*closing/(invA*(1+armA*armA/aa.inertia)+invB*(1+armB*armB/bb.inertia));
+    a.vx+=impulse*invA*nx;a.vz+=impulse*invA*nz;
+    rock(a,impulse*invA*nx,impulse*invA*nz);
+    a.yawRate=clamp(a.yawRate+impulse*invA*armA/aa.inertia,-2.65,2.65);
+    const delta=impulse*invB;
+    const s=prev||(b.impactSlide={tires:null});
+    s.vx=bx-delta*nx;s.vz=bz-delta*nz;s.spin=clamp(spin-delta*armB/bb.inertia,-2.65,2.65);
+    rock(b,-delta*nx,-delta*nz);b.brakes=b.path?1:0;b.speed=Math.hypot(s.vx,s.vz);
+  }
+  function slideStep(v,dt,wet,clear){
+    const s=v.impactSlide,sn=Math.sin(v.yaw),cs=Math.cos(v.yaw);
+    const vx=s.vx,vz=s.vz,lateral=vx*cs-vz*sn,along=vx*sn+vz*cs;
+    const grip=(1-.31*wet)*dt,slow=(n,k)=>Math.sign(n)*Math.max(0,Math.abs(n)-k*grip);
+    const roll=slow(along,v.path?6.4:8.1),scrub=slow(lateral,8.9);
+    s.vx=sn*roll+cs*scrub;s.vz=cs*roll-sn*scrub;
+    const spin=slow(s.spin,2.3),yaw=v.yaw+(s.spin+spin)*.5*dt;
+    const x=v.x+(vx+s.vx)*.5*dt,z=v.z+(vz+s.vz)*.5*dt;
+    if(clear(v,x,z,yaw)){
+      v.x=x;v.z=z;v.yaw=yaw;s.spin=spin;
+      v.wheelSpin=(v.wheelSpin+roll*dt/bayCarLayout(v.kind).wheel)%(Math.PI*2);
+    }else{s.vx=s.vz=s.spin=0;}
+    v.speed=Math.hypot(s.vx,s.vz);v.brakes=v.path?1:0;
+    spring(v,"lean","rollRate",0,8.4,dt);spring(v,"pitch","pitchRate",0,10,dt);
+    if(v.speed<.12&&Math.abs(s.spin)<.04&&Math.abs(v.lean)+Math.abs(v.pitch)<.009){
+      v.impactSlide=null;v.speed=v.lean=v.pitch=v.rollRate=v.pitchRate=0;
+      v.wait=v.path ? .85 : 0;v.findLane=!!v.path;
+    }
+  }
+  window.BayDriving={cars,rearDrive,tireState,cool,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact,exchangeImpact,slideStep};
 })();
