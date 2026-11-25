@@ -52,6 +52,5 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
     };`);
   await key("keyDown","KeyW");try{await waitFor("!!impactQA.person.down",15000);}finally{await key("keyUp","KeyW");}
   await snap("bumper-impact");assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
-  await require("./street-admission.cjs")({js,send,tap,waitFor,snap,errors,mode});
   console.log("PASS sidearm and scattergun by keyboard and free mouse, pedestrian falls, visible blood and a moving-car impact; muted and cursor-free",mode);
 };

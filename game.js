@@ -11766,7 +11766,7 @@
     constructor(target,floor,adaptiveWidth=false){this.target=target;this.floor=floor;this.adaptiveWidth=adaptiveWidth;this.reset();}
     reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;}
     sample(seconds){
-      if(!(seconds>0)||seconds>.5){this.reset();return;}
+      if(!(seconds>0)||seconds>2){this.reset();return;}
       // Judge a stretch of play. An occasional upload or texture decode should
       // not soften every following frame on an otherwise fast machine.
       this.time+=Math.min(seconds,.15);this.frames++;
