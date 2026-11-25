@@ -28,9 +28,14 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await waitFor("!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterLine').textContent.includes('sale notice')",70000);await snap("notice");
     await waitFor("document.querySelector('#chapterLine').textContent.includes('coral coupe')",60000);await snap("key");
     await waitFor("document.querySelector('#chapterFilm').hidden&&recQA.hero&&recQA.rig",60000);
-    assert((await js(book)).intro);await js("recQA.samples=true;recQA.goal=[151.65,-22.85]");
+    assert((await js(book)).intro);
+    await send("Profiler.enable");await send("Profiler.start");
+    await js("recQA.samples=true;recQA.goal=[151.65,-22.85]");
     await waitFor("!recQA.goal&&document.querySelector('#context').innerText.includes('Mara Vega')",45000);
     await waitFor("recQA.frames.length>=48",60000);await js("recQA.samples=false");
+    const {profile}=await send("Profiler.stop");await send("Profiler.disable");
+    console.log("PERF CPU",mode,profile.nodes.filter(n=>n.hitCount).sort((a,b)=>b.hitCount-a.hitCount).slice(0,18)
+      .map(n=>(n.callFrame.functionName||"line "+n.callFrame.lineNumber)+" "+n.hitCount).join(", "));
     const perf=await js(`(()=>{const rig=recQA.rig,all=rig.obstacles,poses=[];
       for(let i=0;i<640;i++){const x=(i*17%372)-181,z=(i*41%359)-180;poses.push([{x,y:1.45,z},{x:x+7*Math.sin(i),y:4.3,z:z-7*Math.cos(i)}]);}
       const run=indexed=>{let sum=0,n=0;const t=performance.now();for(let k=0;k<3;k++)for(const [a,b] of poses){
