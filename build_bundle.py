@@ -19,7 +19,21 @@ def build(root):
     for name in sources:
         if not re.fullmatch(r'[\w-]+\.js', name) or name == "sundown.js":
             raise ValueError(f"Invalid source file {name!r}")
-        pieces.append(f"/* {name} */\n" + (root / name).read_text(encoding="utf-8"))
+        source=(root / name).read_text(encoding="utf-8")
+        if name=="room-audio.js":
+            tag=hashlib.sha256(source.encode()).hexdigest()[:16]
+            source="""(() => {
+  let loading=false,retryAt=0;
+  window.loadRoomVoices=()=>{
+    if(window.BayRoomSamples||loading||performance.now()<retryAt)return;
+    loading=true;const tag=document.createElement("script");
+    tag.src="room-audio.js?v=VERSION";
+    tag.onload=()=>{loading=false;tag.remove();};
+    tag.onerror=()=>{loading=false;retryAt=performance.now()+10000;tag.remove();};
+    document.head.append(tag);
+  };
+})();""".replace("VERSION",tag)
+        pieces.append(f"/* {name} */\n" + source)
     data = "\n;\n".join(pieces).encode("utf-8")
     version = hashlib.sha256(data).hexdigest()[:16]
     tag = f'<script src="sundown.js?v={version}"></script>'

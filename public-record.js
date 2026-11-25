@@ -2,7 +2,7 @@
 (() => {
   const key="sundownBay.publicRecord.v1";
   const spots={port:{x:-149.5,z:-91},motel:{x:151,z:-25},mara:{x:153,z:-21.5},
-    gate:{x:-152.55,z:-88.1},live:{x:153,z:118},print:{x:8,z:54.8}};
+    gate:{x:-152.55,z:-88.1},live:{x:153,z:118},print:{x:8,z:54.8},reel:BayRoomTone.mara};
   const stages=["arrival","meet","ride","negative","return","filed"];
   const camera={
     portWide:["port",[-12,14,-22],[2,10,-19],[-5,3,4],1.4,76],
@@ -13,9 +13,14 @@
     cab:["ride",[3.8,1.50,4.2],[2.9,1.43,3.6],[0,.94,0],1.58,18],
     van:["live",[-6,2.1,2],[-4.9,1.7,1.3],[1.3,1.58,.45],1.6,22],
     cinema:["print",[-8,3.7,-7],[-6.5,2.8,-6.2],[1,2,.1],1.58,29],
+    recorder:["reel",[4.2,1.87,2.9],[2.8,1.61,2.4],[-.1,1.10,-.6],1.55,14],
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    reelOpen:[
+      {dur:5.4,shot:"recorder",title:"Room Tone",slug:"NORTH BOARDWALK",who:"Mara Vega",line:"There was a man with two lunch tins on the first boat. I left the tape running."},
+      {dur:5.5,shot:"recorder",who:"Mara Vega",line:"Ivo has room for one voice. Wind to the start of a sentence. Mark it in, then mark it out after the last word."}
+    ],
     passDalia:[
       {dur:4,shot:"fence",title:"First Crossing",who:"Dalia Cruz",line:"Used to sign the ticket books right here. First leaf’s yours. They gave me the south run back."},
       {dur:4.5,art:"pass",who:"Dalia Cruz",line:"Look for the red awning at Marlin Pier. My sister’s working the deck. I’m putting you on the line."}
@@ -63,7 +68,8 @@
   const read=(raw={})=>({stage:stages.includes(raw?.stage)?raw.stage:"arrival",route:["print","live"].includes(raw?.route)?raw.route:"",
     credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true,
     pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
-    berth:raw?.berth===1?1:0});
+    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),
+    airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
     constructor(){try{this.book=read(JSON.parse(localStorage.getItem(key)));}catch{this.book=read();}this.scene=null;this.table=null;}
     write(){try{localStorage.setItem(key,JSON.stringify(this.book));}catch{}}

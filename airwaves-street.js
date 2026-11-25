@@ -53,18 +53,20 @@
       art.activeDeck=!!(art.mixing&&mix.running);art.ready=!art.mixing||mix.stage==="cue";
       art.station=art.mixing?fm.records[mix.slot.from].station:"sol";art.incomingStation=art.mixing?fm.records[mix.slot.to].station:"marea";
     }
-    readout($,now,quiet){
+    readout($,now,quiet,relay=null){
       const strip=$("receiverCard"),desk=$("boothReadout"),mix=this.mix;
       $("hud").classList.toggle("fm-mixing",!!mix&&!this.approach);
       $("dialKey").hidden=!this.device||!!mix;
-      strip.hidden=!this.device||!!mix||quiet||!this.signal||now>=Math.max(this.showUntil,this.newsUntil);
+      const bulletin=relay?.show&&this.station==="sol";
+      strip.hidden=!this.device||!!mix||quiet||!this.signal||!bulletin&&now>=Math.max(this.showUntil,this.newsUntil);
       if(!strip.hidden){
         const s=fm.stations[this.station],signal=this.signal;
         $("receiverStation").textContent=s.frequency?s.frequency+" FM  /  "+s.name:s.name;
-        $("receiverTitle").textContent=signal.title;
-        $("receiverCredit").textContent=signal.credit;
-        const wire=$("receiverWire");wire.hidden=now>=this.newsUntil||this.station==="off";
-        if(!wire.hidden)wire.textContent=s.host+"  /  "+this.wire;
+        $("receiverTitle").textContent=bulletin?"Room Tone":signal.title;
+        const bite=bulletin&&BayRoomTone.lines[relay.clip?.id];
+        $("receiverCredit").textContent=bulletin?(bite?bite[0]:"Mara Vega · Port Sol"):signal.credit;
+        const wire=$("receiverWire");wire.hidden=bulletin?!bite:now>=this.newsUntil||this.station==="off";
+        if(!wire.hidden)wire.textContent=bulletin?bite[1]:s.host+"  /  "+this.wire;
         if(this.dialPainted!==this.station){BayAirwavesDial.receiver($("radioScale"),this.station);this.dialPainted=this.station;}
       }
       desk.hidden=!mix||!!this.approach;

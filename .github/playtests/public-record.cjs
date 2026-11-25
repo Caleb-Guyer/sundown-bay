@@ -125,7 +125,30 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await waitFor("rideTest.rider.phase==='line'",90000);await snap("quay");
     await key("keyDown","Space");await waitFor("window.letGo&&"+book+".trips===1",35000);await key("keyUp","Space");
     assert.equal((await js(book)).clean,1);await send("Page.reload");await ready();assert.equal((await js(book)).trips,1);
+    const voice=credit==="crew"?"luis":"dalia";
+    await loadFootAt(await js("BayRoomTone.site"));await waitFor("document.querySelector('#context').innerText.includes('Room Tone')");
+    await js("const wind=BayRoomTone.Edit.prototype.move;BayRoomTone.Edit.prototype.move=function(...a){window.reelTest=this;return wind.apply(this,a);};");
+    await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').textContent==='Room Tone'");await snap("van");
+    await tap("Enter");await waitFor("window.reelTest?.kind==='splice'");
+    const bite=await js("BayRoomTone.speakers.find(s=>s.id==='"+voice+"')");
+    async function windTo(t){await key("keyDown","KeyD");try{await waitFor("reelTest.head>="+t);}finally{await key("keyUp","KeyD");}}
+    await windTo(bite.start-.82);await tap("Space");await windTo(bite.end+.17);await tap("Space");
+    assert.equal(await js("reelTest.cut?.who"),voice);await tap("KeyH");
+    await waitFor("document.querySelector('#chapterWho').textContent===BayRoomTone.lines['"+voice+"'][0]");await snap("reel");
+    await tap("Enter");await waitFor(book+".cut?.who==='"+voice+"'");
+    await loadFootAt({x:140.60,z:123});await js("const update=BayAirwavesStreet.Radio.prototype.update;BayAirwavesStreet.Radio.prototype.update=function(...a){window.receiverTest=this;return update.apply(this,a);};");
+    await tap("KeyE");await waitFor("window.receiverTest?.device",35000);
+    for(let i=0;i<4&&await js("receiverTest.station!=='sol'");i++){await tap("BracketRight");}
+    await waitFor("receiverTest.station==='sol'&&document.querySelector('#receiverTitle').textContent==='Room Tone'");
+    await key("keyDown","KeyW");try{
+      await waitFor("document.querySelector('#receiverCredit').textContent===BayRoomTone.lines['"+voice+"'][0]",30000);await snap("broadcast");
+    }finally{await key("keyUp","KeyW");}
+    await waitFor(book+".airings>=1");await loadFootAt({x:-151.1,z:-86.6});await waitFor("document.querySelector('#context').innerText.includes('Dalia')");
+    await tap("KeyF");await waitFor("document.querySelector('#speech').innerText.includes('"+(voice==="dalia"?"toast":"lunch tins")+"')");
+    assert.equal(await js("typeof BayRoomSamples"),"undefined");await js("loadRoomVoices()");await waitFor("window.BayRoomSamples");
+    const signal=await js(`(()=>{const sink=new OfflineAudioContext(1,128,11025);
+      const pcm=BayRoomVoices.buffer(sink,'${voice}').getChannelData(0);return pcm.reduce((v,x)=>v+x*x,0)/pcm.length;})()`);assert(signal>.0001);
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
-    console.log("PASS",mode,"Public Record, Dalia’s ticket, moving ferry deck, channel reply, mooring cast, arrival on foot and persistent passage",route,credit);
+    console.log("PASS",mode,"Public Record, First Crossing, Room Tone edit, car radio broadcast and Dalia’s response",route,credit);
   }catch(e){console.log("Campaign state",await js("JSON.stringify({book:"+book+",who:document.querySelector('#chapterWho').textContent,line:document.querySelector('#chapterLine').textContent,hint:document.querySelector('#context').innerText,at:window.recQA?.hero&&[recQA.hero.x,recQA.hero.z],goal:window.recQA?.goal,panel:document.querySelector('#panelTitle').innerText})"));await snap("failure");throw e;}
 };

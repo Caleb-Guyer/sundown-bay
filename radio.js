@@ -43,6 +43,33 @@
 
   let context, master, music, effects, ambience, hats, noise, waves;
   let channels=[],scheduledGroup=null;
+  const reelClips=new Map();
+  let reelSource=null,reelId="",reelOrigin=0;
+  function reel(part,time=0){
+    const id=part?.id||"",offset=part?time-part.start+(part.offset||0):0;
+    if(!id&&!reelSource)return;
+    if(id&&enabled&&!paused&&context?.state==="running"&&id===reelId&&Math.abs(context.currentTime-reelOrigin-offset)<.40)return;
+    if(reelSource){reelSource.stop();reelSource.disconnect();reelSource=null;reelId="";}
+    if(!id||!enabled||paused||context?.state!=="running")return;
+    let buf=reelClips.get(id);
+    if(!buf){
+      if(id==="bell"||id==="punch"){
+        const bell=id==="bell";buf=context.createBuffer(1,Math.ceil(11025*(bell?1.10:.69)),11025);
+        const pcm=buf.getChannelData(0);let seed=79;
+        for(let i=0;i<pcm.length;i++){
+          const t=i/11025,u=t<.32?t:t-.32;
+          seed=(Math.imul(1664525,seed)+1013904223)>>>0;
+          pcm[i]=bell?.38*Math.exp(-6*u)*(Math.sin(4222*u)+.3*Math.sin(9711*u)):
+            Math.exp(-70*u)*(.46*Math.sin(1780*u)+.41*(seed/2147483648-1));
+        }
+      }else buf=BayRoomVoices.buffer(context,id);
+      if(!buf)return;
+      reelClips.set(id,buf);
+    }
+    if(offset<0||offset>=buf.duration)return;
+    const source=context.createBufferSource();source.buffer=buf;source.connect(effects);
+    source.start(0,offset,Math.min(part.end-time,buf.duration-offset));reelSource=source;reelId=id;reelOrigin=context.currentTime-offset;
+  }
   let passingChannel,passingGain,passingFilter,passingPan;
   let openAir, submergedBus, waterFilter;
   let enabled = false, paused = false;
@@ -605,7 +632,7 @@
     swimMix(now, swell, passing);
     const monitoring = mixField(state.field, now);
     const radioVolume = broadcast ? 0.10 : monitoring ? 0.13 : (state.radioProgram?.booth||driving) ? 0.71 : 0.47;
-    music.gain.setTargetAtTime(radioVolume * (1 - band), now, broadcast || monitoring || band ? 0.075 : 0.18);
+    music.gain.setTargetAtTime(radioVolume * (1 - band) * (state.roomBulletin?.12:1), now, broadcast || monitoring || band ? 0.075 : 0.18);
     if (broadcast) broadcast.envelope.gain.setTargetAtTime(.91 * (1 - band), now, .065);
     const shower=unit(state.rain),canopy=unit(state.canopy);
     mixBed('shower',ambience,now,shower*(state.inCabin?.019:.058)*(1-.35*canopy),state.inCabin?1200:3200);
@@ -851,6 +878,7 @@
   }
 
   function sleep() {
+    reel(null);
     queuedTape = null;
     bladePhase = NaN; bladeAt = -1; washBearing = 2;
     if (!context) return;
@@ -899,5 +927,6 @@
     else wake();
   }
 
-  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField, stopField });
+  function warmReel(){if(enabled)window.loadRoomVoices?.();}
+  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField, stopField, reel, warmReel });
 })();
