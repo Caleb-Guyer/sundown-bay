@@ -934,19 +934,24 @@
       gl.uniform1f(this.u.lowDetail,this.scale<=.65?1:0);
       if(weather)this.updateSun(weather,dusk);
       else gl.uniform1f(this.u.hasShadow,0);
-      const w=inset?inset.w:Math.max(2,Math.round(innerWidth*factor)),h=inset?inset.h:Math.max(2,Math.round(innerHeight*factor));
+      const fullWidth=inset?inset.w:Math.max(2,Math.round(innerWidth*factor)),h=inset?inset.h:Math.max(2,Math.round(innerHeight*factor));
+      const w=inset?fullWidth:Math.min(fullWidth,Math.max(320,Math.round(fullWidth*(this.widthScale??1))));
+      // The display and photo gate keep their shape as the number of samples
+      // across a scanline changes. Rear-view mirrors use their own viewport.
+      const aspect=fullWidth/h;
       if(inset){gl.enable(gl.SCISSOR_TEST);gl.scissor(0,0,w,h);}
       else{
         gl.disable(gl.SCISSOR_TEST);
         if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
+        c.bayFrameAspect=aspect;
       }
       if(seaTime===null)gl.clearColor(0,0,0,0);
       else{const light=1-.42*dusk;gl.clearColor(.095*light,.365*light,.386*light,1);}
       gl.uniform2f(this.u.immersion,seaTime===null?0:1,(seaTime||0)%2048);
       gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
       const sn=Math.sin(camera.yaw),cs=Math.cos(camera.yaw),sp=Math.sin(camera.pitch),cp=Math.cos(camera.pitch);
-      const focal=camera.focal||1.5;this.basis={sn,cs,sp,cp,camera,f:focal,aspect:w/h};this.bound=null;this.tiltX=NaN;this.tiltZ=NaN;
-      const horizontal=w/(h*focal),vertical=1/focal;
+      const focal=camera.focal||1.5;this.basis={sn,cs,sp,cp,camera,f:focal,aspect};this.bound=null;this.tiltX=NaN;this.tiltZ=NaN;
+      const horizontal=aspect/focal,vertical=1/focal;
       Object.assign(this.basis,{horizontal,vertical,xMargin:Math.hypot(1,horizontal),yMargin:Math.hypot(1,vertical)});
       const fx=sn*cp,fy=sp,fz=cs*cp,ux=-sn*sp,uz=-cs*sp;
       this.basis.planes=[[fx*horizontal+cs,fy*horizontal,fz*horizontal-sn],
@@ -971,7 +976,7 @@
         }
       }
       const frame={night,rain,wet,noon,timed,skyR,skyG,skyB,field:field?.enabled?field:null,lamp:timed&&!field?headlights:null,
-        x:camera.x,y:camera.y,z:camera.z,cs,sn,ux,uz,cp,fx,fy,fz,focal,fxScreen:focal/(w/h),underwater:seaTime!==null,
+        x:camera.x,y:camera.y,z:camera.z,cs,sn,ux,uz,cp,fx,fy,fz,focal,fxScreen:focal/aspect,underwater:seaTime!==null,
         shadow:weather&&this.sunTarget?.ok&&this.sunStrength>=.006?this.sunStrength:0};
       this.streetFrame=frame;this.setFrameUniforms(this.u,frame);
     }

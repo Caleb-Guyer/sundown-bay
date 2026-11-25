@@ -62,8 +62,8 @@
   }
   function title(site){return siteOk(site)?sites[site]:"";}
   function layer(c,source,x,y){
-    const w=source.width,h=source.height,sw=Math.min(w,h*tileW/tileH),sh=sw*tileH/tileW;
-    c.drawImage(source,(w-sw)*.5,(h-sh)*.5,sw,sh,x,y,tileW,tileH);
+    const w=source.width,h=source.height,gate=BayMeetPhoto.frameCrop(source,.5,.5,tileW/tileH,true);
+    c.drawImage(source,w*gate.x,h*gate.y,w*gate.w,h*gate.h,x,y,tileW,tileH);
   }
   function surface(height){
     const c=document.createElement("canvas");c.width=sheetW;c.height=height;return c;

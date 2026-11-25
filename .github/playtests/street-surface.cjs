@@ -43,17 +43,21 @@ module.exports=function compareSurface(view,items,pixels){
     // Change only the target resolution. Both sizes render the same geometry,
     // textures, camera and time of day with the production opaque shaders.
     view.beginStreetSurface=original;
-    const widths=[.64,.46].map(scale=>Math.round(view.canvas.width*scale/oldScale)),sizeTimes=[[],[]];
+    const sizes=[.64,.46,.46].map((scale,i)=>{
+      const height=Math.round(view.canvas.height*scale/oldScale);
+      const full=Math.round(view.canvas.height*view.basis.aspect*scale/oldScale);
+      return {width:i===2?Math.min(full,Math.max(320,Math.round(full*.72))):full,height};
+    }),sizeTimes=[[],[],[]];
     function timedSize(tier,record){return function(){
       gl.finish();const start=performance.now();
       view.draw("city");draw.call(view,items);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,pixel);
       if(record)sizeTimes[tier].push(performance.now()-start);
     };}
-    for(let i=0;i<6;i++)for(const tier of (i%2?[1,0]:[0,1])){
-      const render=timedSize(tier,i>0);pixels(view,[],render,render,widths[tier]);
+    for(let i=0;i<6;i++)for(const tier of (i%2?[2,1,0]:[0,1,2])){
+      const render=timedSize(tier,i>0);pixels(view,[],render,render,sizes[tier]);
     }
     return {timedMs:times.map(median),directMs:directTimes.map(median),directPixels,litCalls,modelCalls,
-      widths,sizeMs:sizeTimes.map(median),width:view.canvas.width,height:view.canvas.height,comparisons};
+      sizes,sizeMs:sizeTimes.map(median),width:view.canvas.width,height:view.canvas.height,comparisons};
   }finally{
     view.beginStreetSurface=original;batch.distanceDetail=detail;view.streetFrame=frame;
     view.scale=oldScale;gl.useProgram(view.program);gl.uniform1f(view.u.lowDetail,low);view.setFrameUniforms(view.u,frame);view.bound=null;

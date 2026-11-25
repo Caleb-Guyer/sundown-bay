@@ -26,6 +26,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     for(const p of paint)assert(p.pixels.painted>10000&&p.pixels.silhouette===0&&p.pixels.maxError<=2);
     assert(walls.pixels.painted>10000&&walls.pixels.silhouette===0&&walls.pixels.recolored<=Math.ceil(walls.pixels.painted*.0001));
     assert(result.litCalls>0&&result.modelCalls>0);
+    assert(result.sizes[1].height===result.sizes[2].height&&result.sizes[2].width<result.sizes[1].width);
+    const aspect=await js("({picture:recQA.view.basis.aspect,screen:innerWidth/innerHeight,film:recQA.view.canvas.bayFrameAspect})");
+    assert(Math.abs(aspect.picture-aspect.screen)<.01&&aspect.film===aspect.picture);
     for(const frame of result.comparisons){
       assert(frame.painted>10000&&frame.silhouette===0&&frame.recolored<=Math.ceil(frame.painted*.0001));
     }

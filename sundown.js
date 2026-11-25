@@ -935,19 +935,24 @@
       gl.uniform1f(this.u.lowDetail,this.scale<=.65?1:0);
       if(weather)this.updateSun(weather,dusk);
       else gl.uniform1f(this.u.hasShadow,0);
-      const w=inset?inset.w:Math.max(2,Math.round(innerWidth*factor)),h=inset?inset.h:Math.max(2,Math.round(innerHeight*factor));
+      const fullWidth=inset?inset.w:Math.max(2,Math.round(innerWidth*factor)),h=inset?inset.h:Math.max(2,Math.round(innerHeight*factor));
+      const w=inset?fullWidth:Math.min(fullWidth,Math.max(320,Math.round(fullWidth*(this.widthScale??1))));
+      // The display and photo gate keep their shape as the number of samples
+      // across a scanline changes. Rear-view mirrors use their own viewport.
+      const aspect=fullWidth/h;
       if(inset){gl.enable(gl.SCISSOR_TEST);gl.scissor(0,0,w,h);}
       else{
         gl.disable(gl.SCISSOR_TEST);
         if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
+        c.bayFrameAspect=aspect;
       }
       if(seaTime===null)gl.clearColor(0,0,0,0);
       else{const light=1-.42*dusk;gl.clearColor(.095*light,.365*light,.386*light,1);}
       gl.uniform2f(this.u.immersion,seaTime===null?0:1,(seaTime||0)%2048);
       gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
       const sn=Math.sin(camera.yaw),cs=Math.cos(camera.yaw),sp=Math.sin(camera.pitch),cp=Math.cos(camera.pitch);
-      const focal=camera.focal||1.5;this.basis={sn,cs,sp,cp,camera,f:focal,aspect:w/h};this.bound=null;this.tiltX=NaN;this.tiltZ=NaN;
-      const horizontal=w/(h*focal),vertical=1/focal;
+      const focal=camera.focal||1.5;this.basis={sn,cs,sp,cp,camera,f:focal,aspect};this.bound=null;this.tiltX=NaN;this.tiltZ=NaN;
+      const horizontal=aspect/focal,vertical=1/focal;
       Object.assign(this.basis,{horizontal,vertical,xMargin:Math.hypot(1,horizontal),yMargin:Math.hypot(1,vertical)});
       const fx=sn*cp,fy=sp,fz=cs*cp,ux=-sn*sp,uz=-cs*sp;
       this.basis.planes=[[fx*horizontal+cs,fy*horizontal,fz*horizontal-sn],
@@ -972,7 +977,7 @@
         }
       }
       const frame={night,rain,wet,noon,timed,skyR,skyG,skyB,field:field?.enabled?field:null,lamp:timed&&!field?headlights:null,
-        x:camera.x,y:camera.y,z:camera.z,cs,sn,ux,uz,cp,fx,fy,fz,focal,fxScreen:focal/(w/h),underwater:seaTime!==null,
+        x:camera.x,y:camera.y,z:camera.z,cs,sn,ux,uz,cp,fx,fy,fz,focal,fxScreen:focal/aspect,underwater:seaTime!==null,
         shadow:weather&&this.sunTarget?.ok&&this.sunStrength>=.006?this.sunStrength:0};
       this.streetFrame=frame;this.setFrameUniforms(this.u,frame);
     }
@@ -25756,10 +25761,11 @@ window.buildBayCity = function buildBayCity(g,water) {
   const paper="#f1e5ca",ink="#233d3d",rule="#74796b",red="#984837";
   const prints=new WeakMap();
   const clamp=(value,low,high)=>Math.min(high,Math.max(low,value));
+  const filmRatio=value=>Number.isFinite(value)&&value>=.5&&value<=2.5?value:filmAspect;
 
   function crop(width,height,aimX=.5,aimY=.5,aspect=filmAspect,fullFrame=false){
     const viewport=width>0&&height>0?width/height:filmAspect;
-    const ratio=Number.isFinite(aspect)&&aspect>=.5&&aspect<=2.5?aspect:filmAspect;
+    const ratio=filmRatio(aspect);
     const w=fullFrame?Math.min(1,ratio/viewport):Math.min(.55,.73*ratio/viewport),h=w*viewport/ratio;
     const x=clamp(Number.isFinite(aimX)?aimX:.5,w/2,1-w/2)-w/2;
     const y=clamp(Number.isFinite(aimY)?aimY:.5,h/2,1-h/2)-h/2;
@@ -25779,13 +25785,15 @@ window.buildBayCity = function buildBayCity(g,water) {
     return Math.round(10+43*proximity+28*subject+12*margin+7*separation);
   }
 
+  function frameCrop(source,...args){
+    return crop(source.bayFrameAspect||source.width/source.height,1,...args);
+  }
   function capture(source,sky,aimX=.5,aimY=.5,aspect=filmAspect,fullFrame=false){
     if(!source||source.width<2||source.height<2)return null;
-    const f=crop(source.width,source.height,aimX,aimY,aspect,fullFrame);
-    const sw=f.w*source.width,sh=f.h*source.height;
+    const f=frameCrop(source,aimX,aimY,aspect,fullFrame);
     try{
       const canvas=document.createElement("canvas");
-      canvas.width=shotWidth;canvas.height=Math.max(1,Math.round(shotWidth*sh/sw));
+      canvas.width=shotWidth;canvas.height=Math.round(shotWidth/filmRatio(aspect));
       const c=canvas.getContext("2d",{willReadFrequently:true});
       if(!c)return null;
       const drawLayer=layer=>c.drawImage(layer,f.x*layer.width,f.y*layer.height,
@@ -25879,7 +25887,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     image.src=record.image;
     return true;
   }
-  window.BayMeetPhoto={crop,score,capture,valid,cover};
+  window.BayMeetPhoto={crop,frameCrop,score,capture,valid,cover};
 })();
 
 ;
@@ -31791,8 +31799,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function title(site){return siteOk(site)?sites[site]:"";}
   function layer(c,source,x,y){
-    const w=source.width,h=source.height,sw=Math.min(w,h*tileW/tileH),sh=sw*tileH/tileW;
-    c.drawImage(source,(w-sw)*.5,(h-sh)*.5,sw,sh,x,y,tileW,tileH);
+    const w=source.width,h=source.height,gate=BayMeetPhoto.frameCrop(source,.5,.5,tileW/tileH,true);
+    c.drawImage(source,w*gate.x,h*gate.y,w*gate.w,h*gate.h,x,y,tileW,tileH);
   }
   function surface(height){
     const c=document.createElement("canvas");c.width=sheetW;c.height=height;return c;
@@ -52584,7 +52592,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   function frame(c,project,source,b,range,clock,wheel,cars=[],neon=null){
-    const box=BayMeetPhoto.crop(source.width,source.height,.5,.5,4/3,true);
+    const box=BayMeetPhoto.frameCrop(source,.5,.5,4/3,true);
     const coord=p=>{const q=project(p.x,p.y,p.z);return q&&{u:(q.x-box.x)/box.w,v:(q.y-box.y)/box.h};};
     const center=coord(c.subject),left=coord(c.left),right=coord(c.right),lo=coord({...c.subject,y:c.lower}),hi=coord({...c.subject,y:c.upper});
     if(![center,left,right,lo,hi].every(q=>q&&q.u>.02&&q.u<.98&&q.v>.012&&q.v<.988)||range>58)return 0;
@@ -70208,7 +70216,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return list;
   }
   function scoutDevelop(source,sky,project){
-    const l=unit.eye,gate=BayMeetPhoto.crop(source.width,source.height,.5,.5,1.5,true);
+    const l=unit.eye,gate=BayMeetPhoto.frameCrop(source,.5,.5,1.5,true);
     const onCall=!l.window&&houseLights.s.shooting&&dist(hero,scoutDesk)<55;
     if(l.fire||l.check==null||elapsed-l.check>.13){
       l.check=elapsed;
@@ -75290,7 +75298,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function finishMeetFrame(source,sky,project){
     const finder=$("meetFinder");finder.hidden=!shooting()||!!panel;
     if(finder.hidden)return;
-    const r=BayMeetPhoto.crop(source.width,source.height,meet.aimX,meet.aimY);
+    const r=BayMeetPhoto.frameCrop(source,meet.aimX,meet.aimY);
     for(const [key,val] of [["left",r.x],["top",r.y],["width",r.w],["height",r.h]])finder.style[key]=val*100+"%";
     const rival=meet.rival,sign=BayNightMeet.marquee;
     const score=BayMeetPhoto.score({crop:r,rival:project(rival.x,.83,rival.z),marquee:project(sign.x,sign.y,sign.z),distance:dist(rival,sign)});
@@ -80259,8 +80267,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   let last=performance.now(),lastIntroPaint=0,lastMenuPaint=0;
   const overheadQuality={scale:1};
   class SceneResolution {
-    constructor(target,floor){this.target=target;this.floor=floor;this.reset();}
-    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;}
+    constructor(target,floor,adaptiveWidth=false){this.target=target;this.floor=floor;this.adaptiveWidth=adaptiveWidth;this.reset();}
+    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;}
     sample(seconds){
       if(!(seconds>0)||seconds>.5){this.reset();return;}
       // Judge a stretch of play. An occasional upload or texture decode should
@@ -80273,14 +80281,21 @@ window.buildBayCity = function buildBayCity(g,water) {
         const step=mean>1/21?.14:.08;
         this.target.scale=Math.max(this.floor,Math.round((scale-step)*100)/100);
       }
+      const width=this.target.widthScale??1;
+      if(this.adaptiveWidth&&scale===this.floor&&mean>1/25&&late>=.55){
+        this.slowTime+=this.time;
+        if(this.slowTime>=2.5){this.target.widthScale=width>.84?.84:.72;this.slowTime=0;}
+      }else this.slowTime=0;
       this.headroom=mean<1/43&&late<.08?this.headroom+this.time:0;
-      if(this.headroom>=6&&scale<1){
-        this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);this.headroom=0;
+      if(this.headroom>=6&&(width<1||scale<1)){
+        if(width<1)this.target.widthScale=width<.84?.84:1;
+        else this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);
+        this.headroom=0;
       }
       this.time=this.frames=this.late=0;
     }
   }
-  const streetResolution=new SceneResolution(view,.46),overheadResolution=new SceneResolution(overheadQuality,.52);
+  const streetResolution=new SceneResolution(view,.46,true),overheadResolution=new SceneResolution(overheadQuality,.52);
   function frameCheckId(){
     const travel=canUseSeat()?"drive":onStreetFeet()||freeFeet()&&motion.jumpTime>=0?"walk":"";
     return travel?(isTop()?"Overhead ":"Street ")+travel:"";

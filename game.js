@@ -1425,7 +1425,7 @@
     return list;
   }
   function scoutDevelop(source,sky,project){
-    const l=unit.eye,gate=BayMeetPhoto.crop(source.width,source.height,.5,.5,1.5,true);
+    const l=unit.eye,gate=BayMeetPhoto.frameCrop(source,.5,.5,1.5,true);
     const onCall=!l.window&&houseLights.s.shooting&&dist(hero,scoutDesk)<55;
     if(l.fire||l.check==null||elapsed-l.check>.13){
       l.check=elapsed;
@@ -6507,7 +6507,7 @@
   function finishMeetFrame(source,sky,project){
     const finder=$("meetFinder");finder.hidden=!shooting()||!!panel;
     if(finder.hidden)return;
-    const r=BayMeetPhoto.crop(source.width,source.height,meet.aimX,meet.aimY);
+    const r=BayMeetPhoto.frameCrop(source,meet.aimX,meet.aimY);
     for(const [key,val] of [["left",r.x],["top",r.y],["width",r.w],["height",r.h]])finder.style[key]=val*100+"%";
     const rival=meet.rival,sign=BayNightMeet.marquee;
     const score=BayMeetPhoto.score({crop:r,rival:project(rival.x,.83,rival.z),marquee:project(sign.x,sign.y,sign.z),distance:dist(rival,sign)});
@@ -11476,8 +11476,8 @@
   let last=performance.now(),lastIntroPaint=0,lastMenuPaint=0;
   const overheadQuality={scale:1};
   class SceneResolution {
-    constructor(target,floor){this.target=target;this.floor=floor;this.reset();}
-    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;}
+    constructor(target,floor,adaptiveWidth=false){this.target=target;this.floor=floor;this.adaptiveWidth=adaptiveWidth;this.reset();}
+    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;}
     sample(seconds){
       if(!(seconds>0)||seconds>.5){this.reset();return;}
       // Judge a stretch of play. An occasional upload or texture decode should
@@ -11490,14 +11490,21 @@
         const step=mean>1/21?.14:.08;
         this.target.scale=Math.max(this.floor,Math.round((scale-step)*100)/100);
       }
+      const width=this.target.widthScale??1;
+      if(this.adaptiveWidth&&scale===this.floor&&mean>1/25&&late>=.55){
+        this.slowTime+=this.time;
+        if(this.slowTime>=2.5){this.target.widthScale=width>.84?.84:.72;this.slowTime=0;}
+      }else this.slowTime=0;
       this.headroom=mean<1/43&&late<.08?this.headroom+this.time:0;
-      if(this.headroom>=6&&scale<1){
-        this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);this.headroom=0;
+      if(this.headroom>=6&&(width<1||scale<1)){
+        if(width<1)this.target.widthScale=width<.84?.84:1;
+        else this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);
+        this.headroom=0;
       }
       this.time=this.frames=this.late=0;
     }
   }
-  const streetResolution=new SceneResolution(view,.46),overheadResolution=new SceneResolution(overheadQuality,.52);
+  const streetResolution=new SceneResolution(view,.46,true),overheadResolution=new SceneResolution(overheadQuality,.52);
   function frameCheckId(){
     const travel=canUseSeat()?"drive":onStreetFeet()||freeFeet()&&motion.jumpTime>=0?"walk":"";
     return travel?(isTop()?"Overhead ":"Street ")+travel:"";

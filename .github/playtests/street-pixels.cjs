@@ -1,7 +1,8 @@
 // Invoked on the hosted WebGL context, with the exact same camera, poses and
 // lighting for both draws. Leave the playtest's default framebuffer untouched.
 module.exports=function streetPixels(view,items,drawBatch,reference,native=false){
-  const gl=view.gl,w=typeof native==="number"?native:native?view.canvas.width:320,h=Math.round(w*view.canvas.height/view.canvas.width);
+  const gl=view.gl,w=native?.width||(typeof native==="number"?native:native?view.canvas.width:320);
+  const h=native?.height||(native===true?view.canvas.height:Math.round(w/view.basis.aspect));
   const target=gl.getParameter(gl.FRAMEBUFFER_BINDING),rb=gl.getParameter(gl.RENDERBUFFER_BINDING);
   const viewport=gl.getParameter(gl.VIEWPORT),clear=gl.getParameter(gl.COLOR_CLEAR_VALUE);
   const fbo=gl.createFramebuffer(),color=gl.createRenderbuffer(),depth=gl.createRenderbuffer();

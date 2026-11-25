@@ -5,10 +5,11 @@
   const paper="#f1e5ca",ink="#233d3d",rule="#74796b",red="#984837";
   const prints=new WeakMap();
   const clamp=(value,low,high)=>Math.min(high,Math.max(low,value));
+  const filmRatio=value=>Number.isFinite(value)&&value>=.5&&value<=2.5?value:filmAspect;
 
   function crop(width,height,aimX=.5,aimY=.5,aspect=filmAspect,fullFrame=false){
     const viewport=width>0&&height>0?width/height:filmAspect;
-    const ratio=Number.isFinite(aspect)&&aspect>=.5&&aspect<=2.5?aspect:filmAspect;
+    const ratio=filmRatio(aspect);
     const w=fullFrame?Math.min(1,ratio/viewport):Math.min(.55,.73*ratio/viewport),h=w*viewport/ratio;
     const x=clamp(Number.isFinite(aimX)?aimX:.5,w/2,1-w/2)-w/2;
     const y=clamp(Number.isFinite(aimY)?aimY:.5,h/2,1-h/2)-h/2;
@@ -28,13 +29,15 @@
     return Math.round(10+43*proximity+28*subject+12*margin+7*separation);
   }
 
+  function frameCrop(source,...args){
+    return crop(source.bayFrameAspect||source.width/source.height,1,...args);
+  }
   function capture(source,sky,aimX=.5,aimY=.5,aspect=filmAspect,fullFrame=false){
     if(!source||source.width<2||source.height<2)return null;
-    const f=crop(source.width,source.height,aimX,aimY,aspect,fullFrame);
-    const sw=f.w*source.width,sh=f.h*source.height;
+    const f=frameCrop(source,aimX,aimY,aspect,fullFrame);
     try{
       const canvas=document.createElement("canvas");
-      canvas.width=shotWidth;canvas.height=Math.max(1,Math.round(shotWidth*sh/sw));
+      canvas.width=shotWidth;canvas.height=Math.round(shotWidth/filmRatio(aspect));
       const c=canvas.getContext("2d",{willReadFrequently:true});
       if(!c)return null;
       const drawLayer=layer=>c.drawImage(layer,f.x*layer.width,f.y*layer.height,
@@ -128,5 +131,5 @@
     image.src=record.image;
     return true;
   }
-  window.BayMeetPhoto={crop,score,capture,valid,cover};
+  window.BayMeetPhoto={crop,frameCrop,score,capture,valid,cover};
 })();

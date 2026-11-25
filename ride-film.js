@@ -26,7 +26,7 @@
     }
   }
   function frame(c,project,source,b,range,clock,wheel,cars=[],neon=null){
-    const box=BayMeetPhoto.crop(source.width,source.height,.5,.5,4/3,true);
+    const box=BayMeetPhoto.frameCrop(source,.5,.5,4/3,true);
     const coord=p=>{const q=project(p.x,p.y,p.z);return q&&{u:(q.x-box.x)/box.w,v:(q.y-box.y)/box.h};};
     const center=coord(c.subject),left=coord(c.left),right=coord(c.right),lo=coord({...c.subject,y:c.lower}),hi=coord({...c.subject,y:c.upper});
     if(![center,left,right,lo,hi].every(q=>q&&q.u>.02&&q.u<.98&&q.v>.012&&q.v<.988)||range>58)return 0;
