@@ -31,9 +31,11 @@ async function liveRelease(asset,timeout) {
   }
   return false;
 }
-async function serveCheckout() {
+async function serveCheckout(html) {
   const files = new Map([["","index.html"],["index.html","index.html"],["sundown.js","sundown.js"],
     ["style.css","style.css"],["wordmark.svg","wordmark.svg"]]);
+  const sources=JSON.parse(html.match(/<script type="application\/json" id="game-sources">([\s\S]*?)<\/script>/)[1]);
+  for(const name of sources){assert(/^[\w-]+\.js$/.test(name));files.set(name,name);}
   const types = {".html":"text/html",".js":"application/javascript",".css":"text/css",".svg":"image/svg+xml"};
   const server = require("node:http").createServer((req,res) => {
     const name = files.get(req.url.split("?")[0].slice(1));
@@ -52,7 +54,7 @@ async function run() {
   assert(["overhead", "street"].includes(mode));
   const html = fs.readFileSync(path.join(__dirname, "../../index.html"), "utf8");
   const asset = html.match(/<script src="(sundown\.js\?v=[a-f0-9]+)"/)[1];
-  const server = await liveRelease(asset,45000) ? null : await serveCheckout();
+  const server = await liveRelease(asset,45000) ? null : await serveCheckout(html);
   const site = server ? "http://127.0.0.1:" + server.address().port + "/" : publicSite;
   console.log("Playtesting " + (server ? "runner checkout" : "GitHub Pages") + " · " + asset);
   const profile = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP, "bay-wire-"));

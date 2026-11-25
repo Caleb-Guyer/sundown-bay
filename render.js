@@ -117,6 +117,56 @@
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
     gl.drawElements(gl.TRIANGLES,count,model.elementType,first*model.indices.BYTES_PER_ELEMENT);
   }
+  // Recognize the six complete faces emitted by Mesh.box in the final vertex
+  // stream. Cut-out doors, cloth, lettering and open meshes remain double-sided.
+  const boxCorners=[2,3,7,2,7,6,0,1,3,0,3,2,4,6,7,4,7,5,0,2,6,0,6,4,1,5,7,1,7,3,0,4,5,0,5,1];
+  const boxFaces=[8,16,32,1,2,4];
+  function closedBoxFaces(data){
+    let sides=null;
+    for(let p=0;p+216<=data.length;p+=18){
+      const x=data[p],y=data[p+37],z=data[p+2],X=data[p+6],Y=data[p+1],Z=data[p+14];
+      if(X<=x||Y<=y||Z<=z||data[p+7]!==Y||data[p+8]!==z||data[p+12]!==X)continue;
+      let i=0;
+      for(;i<36;i++){
+        const c=boxCorners[i],v=p+i*6;
+        if(data[v]!==((c&1)?X:x)||data[v+1]!==((c&2)?Y:y)||data[v+2]!==((c&4)?Z:z))break;
+      }
+      if(i!==36)continue;
+      sides??=new Uint8Array(data.length/18);
+      for(let f=0;f<6;f++)sides[p/18+f*2]=sides[p/18+f*2+1]=boxFaces[f];
+      p+=216-18;
+    }
+    return sides;
+  }
+  function cameraSides(model,basis,x,y,z,yaw,tiltX,tiltZ){
+    const eye=basis.camera,b=model.bounds;
+    const dx=eye.x-x,dy=eye.y-y,dz=eye.z-z,c=Math.cos(yaw),s=Math.sin(yaw);
+    let u=dx*c-dz*s,v=dy,w=dx*s+dz*c;
+    if(tiltZ){const c=Math.cos(tiltZ),s=Math.sin(tiltZ),a=u;u=a*c+v*s;v=v*c-a*s;}
+    if(tiltX){const c=Math.cos(tiltX),s=Math.sin(tiltX),a=v;v=a*c+w*s;w=w*c-a*s;}
+    // Keeping the entire near clip rectangle outside the slab also covers
+    // close cockpit shots, where the camera can be inside a closed body.
+    const near=.13*Math.hypot(1,basis.horizontal,basis.vertical)+.01;
+    const side=(value,half,lo,hi)=>value>half+near?lo:value< -half-near?hi:0;
+    return side(u-b.x,b.hw,1,2)|side(v-b.y,b.hh,4,8)|side(w-b.z,b.hd,16,32);
+  }
+  function exteriorMesh(model,mask){
+    const old=model.exterior;
+    if(old?.mask===mask)return old;
+    // Multiple instances can use the same model in one frame. Rebuild only
+    // when a camera side repeats; a spinning wheel can keep its original mesh.
+    if(model.wantedSide!==mask){model.wantedSide=mask;return null;}
+    const sources=[],indices=[],lookup=new Uint16Array(model.vertexCount);
+    for(let i=0;i<model.count;i+=3){
+      if(model.closedSides[i/3]&mask)continue;
+      for(let j=i;j<i+3;j++){
+        const id=model.indices?model.indices[j]:j;
+        if(!lookup[id]){sources.push(j*6);lookup[id]=sources.length;}
+        indices.push(lookup[id]-1);
+      }
+    }
+    return model.exterior={mask,indices:new Uint16Array(indices),sources:new Uint32Array(sources)};
+  }
   // Pack the visible street props in submission order. Their vertices share a
   // world coordinate system, so changing from a shop to a car needs no GL call.
   // A batch is bounded and uses 16-bit indices even on WebGL 1 devices.
@@ -164,6 +214,14 @@
         if(!model.distanceReady)view.prepareDistanceMesh(model,data);
         if(model.batchDistant){
           indices=model.batchDistant.indices;sources=model.batchDistant.sources;count=indices.length;n=sources.length;
+        }
+      }
+      if(!model.dynamic&&model.bounds&&model.count>=192&&(!model.batchDistant||sources!==model.batchDistant.sources)){
+        if(model.closedSides===undefined)model.closedSides=closedBoxFaces(data);
+        if(model.closedSides){
+          const mask=cameraSides(model,view.basis,x,y,z,yaw,tiltX,tiltZ);
+          const exterior=mask&&exteriorMesh(model,mask);
+          if(exterior){indices=exterior.indices;sources=exterior.sources;count=indices.length;n=sources.length;}
         }
       }
       if(n>this.vertices.length/6){this.flush();view.draw(...item);return;}
@@ -427,7 +485,7 @@
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
       const dynamic=this.animated.has(name),packed=dynamic?null:indexGeometry(data,this.largeIndices);
       gl.bufferData(gl.ARRAY_BUFFER,packed?.vertices||data,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
-      const count=data.length/6,model={buf,count,vertexCount:packed?packed.vertices.length/6:count};
+      const count=data.length/6,model={buf,count,dynamic,vertexCount:packed?packed.vertices.length/6:count};
       if(packed){
         model.indices=packed.indices;model.elementType=model.indices.BYTES_PER_ELEMENT===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT;
         model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
