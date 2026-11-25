@@ -409,6 +409,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert.equal(await js("BayLandingOrder.charter("+book+")"),service);
     await tap("Digit1");assert.equal((await js(book)).hearing.draft,service);await tap("Enter");
     console.log("PASS The Public Slip",service,"moving-deck testimony, paper order, mooring, ending, posted deed after reload");
+    await require("./landing-run.cjs")({js,waitFor,tap,snap,loadFootAt,book,service});
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     console.log("PASS",mode,"Six Sharp departure, gangway or sailing bell, carbon and Mara callback; Public Record, First Crossing, Room Tone edit, car radio broadcast and Dalia’s response",route,credit);
   }catch(e){console.log("Campaign state",await js("JSON.stringify({book:"+book+",who:document.querySelector('#chapterWho').textContent,line:document.querySelector('#chapterLine').textContent,hint:document.querySelector('#context').innerText,at:window.recQA?.hero&&[recQA.hero.x,recQA.hero.z],goal:window.recQA?.goal,panel:document.querySelector('#panelTitle').innerText})"));await snap("failure");throw e;}

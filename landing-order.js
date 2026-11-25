@@ -18,7 +18,8 @@
     if(!raw||typeof raw!=="object")return null;
     const clinic=raw.clinic===true,shift=raw.shift===true;
     const draft=clinic&&shift&&Object.hasOwn(terms,raw.draft)?raw.draft:"";
-    return {clinic,shift,draft,voice:raw.voice==="luis"?"luis":"dalia",filed:!!draft&&raw.filed===true};
+    const filed=!!draft&&raw.filed===true;
+    return {clinic,shift,draft,voice:raw.voice==="luis"?"luis":"dalia",filed,run:filed?BayLandingRun.read(raw.run):null};
   }
   function nearby(r){
     if(!r)return null;
@@ -52,6 +53,7 @@
     return true;
   }
   function world(list,model,s){
+    if(s.regular)return;
     for(const id of aboard(s.book)){
       const p=people[id],key="luz/deputy/"+id;
       model(key,g=>buildBayPerson(g,p.skin,p.shirt,id==="clinic"?"#4c5146":"#414f54",0,"local",0));
@@ -76,6 +78,7 @@
     }
   }
   function map(c,s){
+    if(s.regular)return;
     for(const id of aboard(s.book)){
       const p=people[id];c.save();c.translate(p.x,p.z);c.rotate(-p.yaw);
       c.fillStyle=p.shirt;c.beginPath();c.ellipse(0,0,.31,.20,0,0,Math.PI*2);c.fill();
@@ -123,6 +126,9 @@
     }
     g.fillStyle=h?.filed?"#915344":"#596b61";g.font="bold 16px monospace";
     g.fillText(h?.filed?"FILED ABOARD M/V LUZ     ·     N. ABREU, PORT CLERK":"WITNESSES     A. REYES  /  L. VEGA",34,390);
+    if(h?.filed&&h.run?.received.some(Boolean)){
+      g.font="14px monospace";g.fillText((h.draft==="shift"?"LUNCH TINS":"CLINIC PACKETS")+" RECEIVED     MARLIN PIER  "+h.run.received[0]+"     NORTH FLOAT  "+h.run.received[1],34,414);
+    }
     g.restore();
   }
   window.BayLandingOrder={people,terms,read,nearby,testimony,select,charter,hint,aboard,deckClear,world,map,notice,face,sign,docket};
