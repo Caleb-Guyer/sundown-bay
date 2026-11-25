@@ -23,8 +23,8 @@ module.exports=async function footPursuit({js,send,waitFor,tap,mode,errors}){
     q.at=(a,x,z,yaw)=>Object.assign(a,{x,z,y:q.floor(x,z),yaw});`);
   await waitFor("q.hero&&q.rig&&q.crowd?.length");await js(`q.at(q.hero,146,0,0);q.rig.reset(q.hero);
     const p=q.crowd.find(w=>!w.name&&!w.onTour&&!w.palmManaged);q.at(p,146,6,0);p.wait=70;`);
-  await tap("Digit1");await tap("Space");await waitFor("q.v");await tap("Digit0");
-  await js("q.hero.yaw=Math.atan2(-4,-8);q.rig.reset(q.hero)");
+  await tap("Digit1");await tap("Space");await waitFor("!!q.v");await tap("Digit0");
+  await js("q.hero.yaw=Math.atan2(-4,-8);q.rig.reset(q.hero);true");
   await waitFor("q.opened&&q.walked",30000);await snap("foot-stop");
   await waitFor("document.querySelector('#chapterTitle').textContent==='The Carbon Drawer'",35000);
   await waitFor("!document.querySelector('#chapterInsert').hidden");await snap("foot-copy");
@@ -37,7 +37,7 @@ module.exports=async function footPursuit({js,send,waitFor,tap,mode,errors}){
     BayRescue.Service.prototype.step=function(dt,e){copyQA.h=e.hero;copyQA.floor=e.ground;return r.apply(this,arguments);};
     const b=BayOceanBeat.Round.prototype.step;BayOceanBeat.Round.prototype.step=function(){copyQA.beat=this;return b.apply(this,arguments);};`);
   await waitFor("copyQA.h&&copyQA.beat?.standing()");
-  await js("const a=copyQA.beat.actor;Object.assign(copyQA.h,{x:a.x+.7,z:a.z,y:copyQA.floor(a.x+.7,a.z)})");
+  await js("const a=copyQA.beat.actor;Object.assign(copyQA.h,{x:a.x+.7,z:a.z,y:copyQA.floor(a.x+.7,a.z)});true");
   await tap("KeyF");await waitFor("document.querySelector('#panel').dataset.screen==='patrol-copy'&&!document.querySelector('#panel').hidden");
   assert.equal(await js("document.querySelector('#panelBody canvas').getAttribute('aria-label').includes('Ocean Drive')"),true);
   console.log("PASS responding officer used the cruiser door, chased the player, issued a release copy and Solís retrieved it after reload",mode);
