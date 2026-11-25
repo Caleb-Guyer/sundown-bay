@@ -9315,7 +9315,7 @@
       $("swimAir").style.width=airLeft+"%";$("swimAir").parentElement?.setAttribute("aria-valuenow",String(airLeft));
       $("airLabel").textContent=swim.forced?"Coming up for air":"Air "+airLeft+"%";$("diveGauge").className=airLeft<28?"low":"";
     }
-    const hearCall=call&&!room&&!pickup&&!heat&&!active&&!airLine.aboard&&!watchCrew.towing&&!diving&&p.x>145&&dist(p,call.swimmer)<90;
+    const hearCall=call&&!room&&!pickup&&!heat&&!active&&!airLine.aboard&&!luz.rider&&!watchCrew.towing&&!diving&&p.x>145&&dist(p,call.swimmer)<90;
     $("watchCall").hidden=!hearCall;
     if(hearCall)$("watchMessage").textContent=call.phase==="guard"?"Tali is bringing "+swimmer+" ashore":swimmer+" is waving by the "+call.slip.flag.toLowerCase()+" · "+Math.round(dist(p,call.swimmer))+" m";
     const damaged=car&&BayRecovery.worst(car);

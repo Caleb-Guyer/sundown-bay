@@ -100,7 +100,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       if(this.rider?.charge>=this.goal()&&!window.letGo){window.letGo=true;dispatchEvent(new KeyboardEvent('keyup',{code:'Space',bubbles:true}));}
       return result;};`);
     await tap("KeyF");await waitFor("window.rideTest?.rider?.phase==='sail'",35000);
-    assert.equal(await js("document.querySelector('#objective').hidden&&document.querySelector('#jobKey').hidden"),true);
+    assert.equal(await js("['objective','jobKey','watchCall'].every(id=>document.getElementById(id).hidden)"),true);
     assert.equal(await js("document.querySelector('#mode').textContent"),"M/V Luz · Passenger");
     await key("keyDown","KeyD");try{await waitFor("Math.hypot(rideTest.rider.x+.8,rideTest.rider.z)>.27",16000);}finally{await key("keyUp","KeyD");}
     await waitFor("Math.abs(rideTest.u-.5)<.13",95000);await tap("KeyH");await waitFor("rideTest.rider.bell");await snap("deck");

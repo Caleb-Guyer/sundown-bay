@@ -14040,9 +14040,18 @@ window.buildBayCity = function buildBayCity(g,water) {
     paintLand(c,street);paintBuildings(c,solids,street);if(street)oceanFrontages(c);
   }
 
+  function mapSurface(w,h){
+    if(typeof OffscreenCanvas!=="undefined")return new OffscreenCanvas(w,h);
+    if(typeof document==="undefined")return null;
+    const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;return canvas;
+  }
+  function freezeSurface(surface){
+    return surface.transferToImageBitmap?surface.transferToImageBitmap():surface;
+  }
   function staticImage(solids,street,roofs=false) {
     let group=staticLayers.get(solids);
     if(!group || group.count!==solids.length) {
+      if(group)for(const layer of ["street","roofs","chart"])group[layer]?.close?.();
       group={count:solids.length};
       staticLayers.set(solids,group);
     }
@@ -14050,9 +14059,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(group[key]) return group[key];
     const density=roofs?2.25:street?3.5:1.8;
     const w=Math.ceil((extent.right-extent.left)*density), h=Math.ceil((extent.top-extent.bottom)*density);
-    let surface;
-    if(typeof OffscreenCanvas!=="undefined") surface=new OffscreenCanvas(w,h);
-    else if(typeof document!=="undefined") {surface=document.createElement("canvas");surface.width=w;surface.height=h;}
+    const surface=mapSurface(w,h);
     if(!surface) return null;
     const c=surface.getContext("2d");
     if(!c) return null;
@@ -14061,9 +14068,16 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(roofs){paintBuildings(c,solids,true);oceanFrontages(c);}
     else if(street)paintLand(c,true);
     else paintStatic(c,solids,false);
-    group[key]=surface;return surface;
+    group[key]=freezeSurface(surface);return group[key];
   }
 
+  function drawGroundWindow(c,image,bounds,left,bottom,right,top,px,py,scale){
+    const x=Math.max(bounds.left,left),z=Math.min(bounds.top,top);
+    const width=Math.min(bounds.right,right)-x,depth=z-Math.max(bounds.bottom,bottom);
+    if(width<=0||depth<=0)return;
+    const sx=image.width/(bounds.right-bounds.left),sz=image.height/(bounds.top-bounds.bottom);
+    c.drawImage(image,(x-bounds.left)*sx,(bounds.top-z)*sz,width*sx,depth*sz,px(x),py(z),width*scale,depth*scale);
+  }
   const shadowBuildings=new WeakMap();
   const streetGround=new WeakMap();
   function groundPatch(opt,base,roofs,rx,rz){
@@ -14071,18 +14085,22 @@ window.buildBayCity = function buildBayCity(g,water) {
     const light=opt.weather.sun,opacity=light.strength*(1-.88*opt.weather.rain)*(1-opt.dusk);
     const key=Math.round(light.dx*13)+"/"+Math.round(light.dz*13)+"/"+Math.round(opacity*30);
     let patch=streetGround.get(opt.solids);
-    if(patch?.key===key&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
+    if(patch?.key===key&&patch.base===base&&patch.roofs===roofs&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
       opt.cx+rx<=patch.right&&opt.cz-rz>=patch.bottom)return patch;
     const density=Math.min(12,Math.max(4,opt.scale)),pad=9;
     const left=Math.floor(opt.cx-rx-pad),right=Math.ceil(opt.cx+rx+pad);
     const top=Math.ceil(opt.cz+rz+pad),bottom=Math.floor(opt.cz-rz-pad);
     const w=Math.ceil((right-left)*density),h=Math.ceil((top-bottom)*density);
     if(w*h>1400000)return null;
-    const canvas=patch?.canvas||document.createElement("canvas");canvas.width=w;canvas.height=h;
+    patch?.image.close?.();
+    const canvas=patch?.canvas||mapSurface(w,h);
+    if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;
     const c=canvas.getContext("2d"),px=x=>(x-left)*density,py=z=>(top-z)*density;
-    const draw=image=>c.drawImage(image,px(extent.left),py(extent.top),(extent.right-extent.left)*density,(extent.top-extent.bottom)*density);
+    c.clearRect(0,0,w,h);
+    const draw=image=>drawGroundWindow(c,image,extent,left,bottom,right,top,px,py,density);
     draw(base);castBuildings(c,opt.solids,light,px,py,density,(x,y,p)=>x>=-p&&x<=w+p&&y>=-p&&y<=h+p,opacity);draw(roofs);
-    patch={canvas,key,left,right:left+w/density,top,bottom:top-h/density};streetGround.set(opt.solids,patch);return patch;
+    patch={canvas,image:freezeSurface(canvas),base,roofs,key,left,right:left+w/density,top,bottom:top-h/density};
+    streetGround.set(opt.solids,patch);return patch;
   }
   function castBuildings(c,solids,light,px,py,s,visible,opacity){
     if(!light||opacity<.012)return;
@@ -14512,18 +14530,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     // Only sample the source rectangle the rotated camera can actually see.
     const reachX=(Math.abs(cs)*w+Math.abs(sn)*h)*.5/s+1;
     const reachZ=(Math.abs(sn)*w+Math.abs(cs)*h)*.5/s+1;
-    function drawLayer(image){
-      const width=extent.right-extent.left,height=extent.top-extent.bottom;
-      const x=Math.max(extent.left,opt.cx-reachX),endX=Math.min(extent.right,opt.cx+reachX);
-      const z=Math.min(extent.top,opt.cz+reachZ),endZ=Math.max(extent.bottom,opt.cz-reachZ);
-      if(x>=endX||z<=endZ)return;
-      const sx=image.width/width,sz=image.height/height;
-      ctx.drawImage(image,(x-extent.left)*sx,(extent.top-z)*sz,(endX-x)*sx,(z-endZ)*sz,
-        px(x),py(z),(endX-x)*s,(z-endZ)*s);
+    function drawLayer(image,bounds=extent){
+      drawGroundWindow(ctx,image,bounds,opt.cx-reachX,opt.cz-reachZ,opt.cx+reachX,opt.cz+reachZ,px,py,s);
     }
     const roofs=street?staticImage(solids,true,true):null;
     const patch=street&&opt.lowDetail&&groundPatch(opt,base,roofs,reachX,reachZ);
-    if(patch)ctx.drawImage(patch.canvas,px(patch.left),py(patch.top),(patch.right-patch.left)*s,(patch.top-patch.bottom)*s);
+    if(patch)drawLayer(patch.image,patch);
     else if(base) drawLayer(base);
     else {
       ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);
@@ -75927,7 +75939,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       $("swimAir").style.width=airLeft+"%";$("swimAir").parentElement?.setAttribute("aria-valuenow",String(airLeft));
       $("airLabel").textContent=swim.forced?"Coming up for air":"Air "+airLeft+"%";$("diveGauge").className=airLeft<28?"low":"";
     }
-    const hearCall=call&&!room&&!pickup&&!heat&&!active&&!airLine.aboard&&!watchCrew.towing&&!diving&&p.x>145&&dist(p,call.swimmer)<90;
+    const hearCall=call&&!room&&!pickup&&!heat&&!active&&!airLine.aboard&&!luz.rider&&!watchCrew.towing&&!diving&&p.x>145&&dist(p,call.swimmer)<90;
     $("watchCall").hidden=!hearCall;
     if(hearCall)$("watchMessage").textContent=call.phase==="guard"?"Tali is bringing "+swimmer+" ashore":swimmer+" is waving by the "+call.slip.flag.toLowerCase()+" · "+Math.round(dist(p,call.swimmer))+" m";
     const damaged=car&&BayRecovery.worst(car);
