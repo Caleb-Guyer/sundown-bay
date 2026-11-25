@@ -168,6 +168,11 @@
         const w=p.worker;if(gap(focus,p)>95)continue;
         w.wait=Math.max(0,w.wait-dt);w.pace=0;let reaching=false;
         if(env.dodge?.(w,dt)){w.path=[];w.target=null;continue;}
+        if(env.tendCap?.(p,w,dt)){
+          w.motion.step(dt,w.pace,0);w.motion.crouch=w.atCap?.34:0;
+          w.motion.handTarget=w.atCap||w.carryCap?{x:.24,y:.92,z:.37,weight:1}:null;
+          continue;
+        }
         if(w.wait||p.phase==="moving"||this.lift===p){w.yaw+=turn(w.yaw,Math.atan2(p.x-w.x,p.z-w.z))*(1-Math.exp(-3*dt));}
         else if(p.phase==="lifting"){reaching=true;this.lifting(p,dt);}
         else if(p.phase==="down"){if(this.walk(w,p,1.04,dt,env))this.beginLift(p,false);}

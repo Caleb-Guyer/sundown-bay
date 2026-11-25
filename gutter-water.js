@@ -32,7 +32,7 @@
         // Once cleared, an inlet stays open until the following morning's street sweep.
         p.cleared=p.opened>=0&&since>=0&&Math.floor((clock.total-300)/1440)===Math.floor((p.opened-300)/1440);
         const standing=clamp((clock.wet-.08)/.86);
-        p.depth=standing*(p.cleared?.035+.965*Math.exp(-since*.29):1);
+        p.depth=Math.max(standing*(p.cleared?.035+.965*Math.exp(-since*.29):1),(p.runoff||0)*(p.cleared?.55:1));
         const size=Math.sqrt(p.depth);
         p.length=p.halfLength*(.48+.52*size);p.width=p.halfWidth*(.31+.69*size);
         if(p.depth>.055)this.wet=true;

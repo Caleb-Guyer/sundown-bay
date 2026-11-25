@@ -1022,6 +1022,7 @@
     if(opt.coastCup)BayCoastCupArt.map(ctx,opt,px,py,s,visible);
     if(opt.redCork)BayRedCorkArt.map(ctx,opt,px,py,s,visible);
     if(opt.portSpur)BayPortSpurArt.map(ctx,opt,px,py,s,visible);
+    if(opt.summerCaps)BaySummerCapsArt.map(ctx,opt,px,py,s,visible);
     if(opt.recovery&&!street)BayRecoveryArt.map(ctx,opt,px,py,s,visible);
     if(street&&opt.courts){
       BayCourtBench.map(ctx,opt,px,py,s,visible);
