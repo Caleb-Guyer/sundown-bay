@@ -431,6 +431,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert.equal(await js("document.querySelector('#panelBody output').textContent"),"1.75×");
     await tap("Escape");assert.equal(await js(postedCopy+".zoom"),1.8);
     console.log("PASS outside copy, exact published crop, street reader, reload and unsaved edit at "+display.name);
+    await require("./pavement-show.cjs")({js,tap,key,waitFor,snap,mode,route,selected,loadFootAt});
     await loadFootAt({x:-151.9,z:-88.85});await waitFor("document.querySelector('#context').innerText.includes('dispatch copy')");
     await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Dalia’s departure book'");
     assert.equal((await js(book)).morning.luis,aboard?"aboard":"ashore");await tap("Escape");

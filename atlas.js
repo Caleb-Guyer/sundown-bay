@@ -1002,6 +1002,9 @@
       const x=px(site.x),y=py(site.z);
       if(visible(x,y,3*s))BayOutsideCopy.map(ctx,x,y,s,site,opt.outsideCopies[site.route]);
     }
+    if(street&&opt.slideProjection)for(const v of BayPavementShow.venues){
+      if(visible(px(v.x),py(v.z),7*s))BayPavementShow.map(ctx,px(v.x),py(v.z),s,v,opt.slideProjection(v));
+    }
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){

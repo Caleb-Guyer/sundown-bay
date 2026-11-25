@@ -120,5 +120,5 @@
     return site.route==="print"?(copy.zoom>=1.55?"That's our slip number. My mother still has the key.":"I walked past that notice all week. Look how little space they gave it."):
       (copy.zoom>=1.55?"They read that date twice on the radio. Now I can copy it down.":"So that's where they pinned it. From the broadcast I pictured the other gate.");
   }
-  window.BayOutsideCopy={key,sites,Cases,crop,plate,edit,cabinet,face,map,reader,line};
+  window.BayOutsideCopy={key,sites,Cases,readCopy,crop,plate,edit,cabinet,face,map,reader,line};
 })();
