@@ -6,6 +6,49 @@
   const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
   const point=(x,z)=>({x,z});
 
+  class FootUnit {
+    constructor(v,side){
+      this.v=v;this.side=side;this.seat=1;this.phase="exit";this.route=[];this.planIn=0;this.goal=null;
+      this.actor={x:v.x,y:0,z:v.z,yaw:v.yaw,motion:new BayPlayerMotion(),patrolFoot:true};
+      BayDriving.settle(v);v.brakes=1;v.block=null;v.footUnit=this;
+    }
+    step(dt,target,follow,e){
+      const a=this.actor,v=this.v;
+      if(this.phase==="exit"||this.phase==="enter"){
+        const boarding=this.phase==="enter";
+        this.seat=clamp(this.seat+(boarding?1:-1)*dt/1.32,0,1);
+        BayCarAccess.pose(v,this.side,this.seat,a,a.motion,e.ground,dt);
+        if(boarding&&this.seat===1){
+          delete v.footUnit;v.doorAngle=0;v.planIn=0;v.path=[];v.backing=0;v.brakes=0;return true;
+        }
+        if(this.seat===0){a.motion.ride=null;this.phase="follow";}
+        return false;
+      }
+      const next=follow?"follow":"return";
+      if(next!==this.phase){this.phase=next;this.goal=null;this.route=[];this.planIn=0;}
+      if(!follow){
+        const door=BayCarAccess.outside(bayCarLayout(v.kind),this.side);
+        target=BayDriving.world(v,door.x,door.z);
+      }
+      const gap=distance(a,target);
+      if(gap<(follow?1.12:.13)){
+        this.route=[];this.goal=null;this.planIn=0;
+        if(follow){a.yaw+=wrap(Math.atan2(target.x-a.x,target.z-a.z)-a.yaw)*-Math.expm1(-11*dt);a.motion.step(dt,0,0);}
+        else this.phase="enter";
+        return false;
+      }
+      this.planIn-=dt;
+      if(this.planIn<=0&&(!this.goal||distance(target,this.goal)>.8||!this.route.length)){
+        this.planIn=.62;this.goal=point(target.x,target.z);this.route=e.path(a,target,v)||[];
+      }
+      if(!this.route.length){a.motion.step(dt,0,0);return false;}
+      // Moving traffic may have crossed a route since it was planned.
+      const q=this.route[0],len=distance(a,q)||1,speed=follow?4.65:3.4,f=Math.min(1,speed*dt/len);
+      if(!e.clear(a.x+(q.x-a.x)*f,a.z+(q.z-a.z)*f)){this.route=[];a.motion.step(dt,0,0);return false;}
+      BayCarAccess.walkPath(a,a.motion,this.route,dt,e.ground,speed);return false;
+    }
+  }
+
   class BayPursuit {
     constructor(roads,solids){
       this.roads=roads;
@@ -14,6 +57,7 @@
     }
     reset(){
       this.lastSeen=null;this.unseen=0;this.searching=false;this.sighted=false;
+      this.foot=null;this.footDelay=0;
       this.scanIn=0;this.reinforceIn=0;this.closestUnit=Infinity;
     }
     report(p,vx,vz,afloat=false){
@@ -42,9 +86,10 @@
         this.scanIn+=.12;
         this.sighted=radioSight;
         for(const v of units){
-          const visible=!submerged&&this.canSee(v,p,heat);
+          const eye=v.footUnit?.actor||v;
+          const visible=!submerged&&this.canSee(eye,p,heat);
           v.spotTime=visible?(v.spotTime||0)+.12:0;
-          v.sees=visible&&(!this.searching||v.spotTime>=.36||distance(v,p)<12);
+          v.sees=visible&&(!this.searching||v.spotTime>=.36||distance(eye,p)<12);
           if(v.sees)this.sighted=true;
         }
         if(this.sighted)this.report(p,vx,vz,afloat);
@@ -52,6 +97,24 @@
       if(!this.sighted)this.unseen+=dt;
       this.searching=this.unseen>=1.05;
       this.reinforceIn=Math.max(0,this.reinforceIn-dt);
+    }
+    stepFoot(v,dt,p,onFoot,e){
+      if(v===this.foot?.v){
+        const follow=onFoot&&distance(this.foot.actor,v)<40&&distance(v,this.lastSeen)<36;
+        if(this.foot.step(dt,v.sees?p:this.lastSeen,follow,e)){this.foot=null;this.footDelay=1.8;}
+        return true;
+      }
+      if(this.foot||this.footDelay>0||!onFoot||!v.sees||v.beatCar||v.role==="roadblock"||distance(v,p)>14)return false;
+      if(v.speed>1){
+        v.speed=Math.max(0,v.speed-15*dt);v.brakes=1;
+        const x=v.x+Math.sin(v.yaw)*v.speed*dt,z=v.z+Math.cos(v.yaw)*v.speed*dt;
+        if(e.coast(v,x,z,v.yaw)){v.x=x;v.z=z;}else v.speed=0;
+        return true;
+      }
+      const plan=e.door(v);
+      if(!plan){this.footDelay=.65;return false;}
+      this.foot=new FootUnit(v,plan.side);
+      e.call();return true;
     }
     nearest(value){
       return this.roads.reduce((best,n)=>Math.abs(n-value)<Math.abs(best-value)?n:best);

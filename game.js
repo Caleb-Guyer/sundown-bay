@@ -168,7 +168,7 @@
     result.clubCup=BayCoastCup.read(null);result.catchBook=BayRedCork.read(null);
     result.collection={last:"",luna:0,port:0,best:0};
     result.freight=BayPortSpur.saved(null);
-    result.oceanBeat=BayOceanBeat.read(null);
+    result.oceanBeat=BayOceanBeat.read(null);result.releaseCopy=null;
     result.pictureJumps=jumps.read(null);result.copies=carbon.read(null);
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
       if(raw.collection){
@@ -179,7 +179,7 @@
       result.sand=BaySoftSand.read(raw.sand);
       result.clubCup=BayCoastCup.read(raw.clubCup);result.catchBook=BayRedCork.read(raw.catchBook);
       result.freight=BayPortSpur.saved(raw.freight);
-      result.oceanBeat=BayOceanBeat.read(raw.oceanBeat);
+      result.oceanBeat=BayOceanBeat.read(raw.oceanBeat);result.releaseCopy=BayOceanBeat.readRelease(raw.releaseCopy);
       result.pictureJumps=jumps.read(raw.pictureJumps);result.copies=carbon.read(raw.copies);
       result.engineSeven=BayEngineSeven.read(raw.engineSeven);result.starlite=BayStarlite.read(raw.starlite);result.luggage=luggage.read(raw.luggage);result.green=BayOnGreen.read(raw.green);
       for(const k of ["wallet","paid","best","rides"])if(Number.isFinite(raw[k])&&raw[k]>=0)result[k]=raw[k];
@@ -391,6 +391,10 @@
       }
       if(other.best&&(!book.best||other.best<book.best)){book.best=other.best;book.splits=other.splits;}
       if(other.lap&&(!book.lap||other.lap<book.lap))book.lap=other.lap;
+    }
+    if(latest?.releaseCopy?.number>(save.releaseCopy?.number||0)){
+      const copy=BayOceanBeat.readRelease(latest.releaseCopy);
+      if(copy){save.releaseCopy=copy;if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;}
     }
     if(latest?.oceanBeat?.known){
       const incoming=BayOceanBeat.read(latest.oceanBeat);
@@ -696,7 +700,7 @@
     v.serviceCar=true;v.cupNumber=d.number;v.plate="CLUB "+d.number;return v;
   }));
   const cupScans=new Map(),marshalMotion=new BayPlayerMotion();let marshalMesh=null;
-  let beatMesh=null;
+  let beatMesh=null,footPatrolMesh=null;
   let timingFilm=null;
   for(const s of green.sites){const slip=save.green.cards[s.route.id]?.slip;s.v.serviceCar=true;s.clock=slip?.film?slip.film.shots.at(-1)[0]/1000:slip?.time||0;}
   if(!personalCar)restoreParking();
@@ -814,6 +818,11 @@
     if(campaign.scene?.id==="collectionOpen"&&campaign.scene.index===0&&save.collection.last){
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
     }
+    if(b?.art==="releaseCopy"&&save.releaseCopy){
+      const copy=save.releaseCopy;
+      BayOceanBeatArt.paint($("chapterInsert"),copy);
+      $("chapterLine").textContent=copy.fine?"There goes "+cash(copy.fine)+". And they spelled "+copy.street+" right. First time for everything.":"A warning. Fold it small. The motel drawer sticks if you stuff it.";
+    }
     if(b?.watch==="work")$("chapterLine").textContent=campaign.watch.caption();
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
     if(["payEnvelope","payReceipt","portReceipt"].includes(b?.art))BayStreetAction.paper($("chapterInsert"),b.art);
@@ -854,6 +863,7 @@
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
     if(filmReplay){filmReplay=false;return;}
     if(id==="collectionLuna"||id==="collectionPort"){payrollReceipt=null;return;}
+    if(id==="carbonMorning"){note("Back at the Marlin","Your release copy is on file with Officer Solís.",4);return;}
     if(id==="collectionOpen"){note("Romy Vale","Bring a car around to the Marlin curb.",4);return;}
     if(id==="collectionRide"){note("Jules","Lose the patrol. 1 marks the Luna, 2 marks Port Sol.",5);return;}
     if(id==="landingClinic"||id==="landingShift"){
@@ -4535,8 +4545,8 @@
     if(action){lastHud=lastMap=-10;}
     return true;
   }
-  function recoveryWalkway(a,b,v,via=[],nearby=null){
-    const obstacles=[v,wrecker,...(nearby||[])].filter((o,i,list)=>o&&list.indexOf(o)===i);
+  function recoveryWalkway(a,b,v,via=[],nearby=null,includeWrecker=true){
+    const obstacles=[v,includeWrecker&&wrecker,...(nearby||[])].filter((o,i,list)=>o&&list.indexOf(o)===i);
     const footRadius=nearby ? .29 : .23,carGap=nearby ? .28 : .21;
     // A long walk checks thousands of points. Each 12 m square only needs the
     // buildings and parked vehicles whose footprints can reach that square.
@@ -6190,7 +6200,7 @@
       if(beat.phase==="observe"&&!beatEnv.atCurb(car))return ["","Unit 12 · Pull up to a nearby curb"];
       return ["","Officer Solís · Keep the car stopped"];
     }
-    if(onStreetFeet()&&beat.standing()&&dist(hero,beat.actor)<2.8)return ["F","Talk to Officer Solís"];
+    if(onStreetFeet()&&beat.standing()&&dist(hero,beat.actor)<2.8)return ["F",save.releaseCopy?"Officer Solís · Read your release copy":"Talk to Officer Solís"];
     if(beat.canCheck(car,beatEnv))return ["H","Ask Unit 12 to check your brake lamps"];
     return null;
   }
@@ -6199,6 +6209,7 @@
     if(beat.take(beatEnv))return true;
     if(!onStreetFeet()||!beat.standing()||dist(hero,beat.actor)>=2.8)return false;
     beat.time=Math.max(beat.time,27);save.oceanBeat.known=true;persist();
+    if(save.releaseCopy){openPanel("patrol-copy");return true;}
     beatEnv.say("Lina Solís. I work Ocean and the picture house. Pull up and honk if you want me to check your brake lamps.");return true;
   }
   function beatPage(body){
@@ -7779,6 +7790,28 @@
     if(v){v.visual=carSkin("cruiser","#293e52");patrol.push(v);}
     chase.reinforceIn=v?2.35:.8;
   }
+  const footPatrolEnv={
+    ground:footLevel,coast:clearCruiser,door:v=>doorPlan(v,true,v),call:()=>speak("Bay Patrol","I'm out on foot. Stay with the car, Mina."),
+    clear:(x,z)=>{
+      if(!valid(x,z,.28)||spur.clearance(x,z)<.27||works&&Math.abs(x-works.trailer.x)<5&&Math.abs(z-works.trailer.z)<5&&works.trailer.clearance(x,z)<.28)return false;
+      for(const group of [cars,patrol])for(const v of group)
+        if(Math.abs(v.x-x)<4&&Math.abs(v.z-z)<4&&BayDriving.clearance(v,{x,z})<.22)return false;
+      return true;
+    },
+    path:(a,b,v)=>{
+      const nearby=[],corners=[];
+      const minX=Math.min(a.x,b.x)-2,maxX=Math.max(a.x,b.x)+2,minZ=Math.min(a.z,b.z)-2,maxZ=Math.max(a.z,b.z)+2;
+      for(const group of [cars,patrol])for(const o of group)
+        if(o!==v&&o.x>minX-2&&o.x<maxX+2&&o.z>minZ-2&&o.z<maxZ+2)nearby.push(o);
+      for(const o of chase.cover){
+        const dx=o.w/2+.52,dz=o.d/2+.52;
+        if(o.x+dx<minX||o.x-dx>maxX||o.z+dz<minZ||o.z-dz>maxZ)continue;
+        for(const x of [o.x-dx,o.x+dx])for(const z of [o.z-dz,o.z+dz])
+          if(x>minX-4&&x<maxX+4&&z>minZ-4&&z<maxZ+4)corners.push({x,z});
+      }
+      return recoveryWalkway(a,b,v,corners,nearby,false);
+    }
+  };
   function pursuit(dt){
     if(!heat)return;
     const p=pos(),coach=transit.aboard?transit.bus:null,vx=motos.bike?.vx??skiff?.vx??car?.vx??coach?.vx??cycles.riding?.vx??skate.rider?.vx??swim?.vx??motion.vx,vz=motos.bike?.vz??skiff?.vz??car?.vz??coach?.vz??cycles.riding?.vz??skate.rider?.vz??swim?.vz??motion.vz;
@@ -7794,21 +7827,33 @@
     backup.updateBlock(heat,dt,p,blockSiteClear,patrol,!waterside);
     // Road units cover the last landing while the launches take the water call.
     const k=chase.lastSeen,roadTarget=k.afloat&&harbor.dock?{x:harbor.dock===BayCut.dock?190:144,z:harbor.dock.z,yaw:0,vx:0,vz:0}:k;
+    const footTarget=freeFeet()&&!waterside&&!luz.rider&&!roofs.raised,footStop=footTarget&&motion.jumpTime<0;
+    chase.footDelay=Math.max(0,chase.footDelay-dt);
     let closest=harbor.closest,visibleGap=afloat&&!deckStep?harbor.inContact:Infinity;
     for(const v of patrol){
       if(v.role==="roadblock")backup.park(v,dt,clearCruiser);
-      else chase.move(v,heat,dt,clearCruiser,roadTarget);
-      const gap=dist(v,p);closest=Math.min(closest,gap);if(v.sees)visibleGap=Math.min(visibleGap,gap);
+      else if(!chase.stepFoot(v,dt,p,footTarget,footPatrolEnv))chase.move(v,heat,dt,clearCruiser,roadTarget);
+      const gap=dist(v,p);closest=Math.min(closest,gap);if(v.sees&&!v.footUnit)visibleGap=Math.min(visibleGap,gap);
     }
     chase.closestUnit=closest;
-    boxed=(!roofs.raised||hero.y<2.65)&&visibleGap<8.4&&Math.hypot(vx,vz)<3.4?boxed+dt:Math.max(0,boxed-dt*1.7);
-    if(boxed>5.3){const fine=Math.min(save.wallet,65);save.wallet-=fine;persist();if(transfer){transfer.v.doorAngle=0;transfer=null;}if(car)BayDriving.settle(car);
+    const officer=chase.foot,withinReach=footStop&&officer?.phase==="follow"&&officer.v.sees&&dist(officer.actor,p)<1.7&&Math.abs(officer.actor.y-hero.y)<.8;
+    const vehicleStop=!footTarget&&(!roofs.raised||hero.y<2.65)&&visibleGap<8.4&&Math.hypot(vx,vz)<3.4;
+    if(chase.boxedOnFoot!==footTarget){boxed=0;chase.boxedOnFoot=footTarget;}
+    boxed=withinReach||vehicleStop?boxed+dt:footTarget?0:Math.max(0,boxed-dt*1.7);
+    if(officer)officer.actor.writing=withinReach?Math.min(1,boxed/.7):0;
+    if(boxed>(footTarget?2.8:5.3)){
+      try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
+      const fine=Math.min(save.wallet,65),firstFoot=footTarget&&!save.releaseCopy;
+      if(footTarget)save.releaseCopy={kind:"release",number:(save.releaseCopy?.number||0)+1,stars:heat,fine,street:district(p),day:hours.day+1,minute:Math.floor(hours.minute)};
+      save.wallet-=fine;persist();if(transfer){transfer.v.doorAngle=0;transfer=null;}if(car)BayDriving.settle(car);
       if(motos.bike){const b=motos.bike;BaySecondSeat.settle(b);motos.park(b,motoEnv);motos.player=null;motos.finder=motos.cockpit=false;}
       transit.releaseForBust();skateTape.stop();skate.rider=skate.run=null;
       if(skiff)returnBoat(skiff,bay.docks[0]);
       if(cycles.riding){const b=cycles.riding;cycles.detach();parkCycle(b);}
       const missed=active?.ferry;streetAction.equip(0);car=skiff=deckStep=null;skidLast=null;hero.x=151;hero.z=-27;hero.yaw=0;resetFeet();dashResult=null;heat=0;clearPatrol();cameraSnap();note("Back at the Marlin",fine?"Patrol fine  •  "+cash(fine):"Patrol let you off with a warning.",4.5);
-      if(missed)finishFerry(missed,"busted");else dropJob();return;}
+      if(missed)finishFerry(missed,"busted");else dropJob();
+      if(firstFoot)enterFilm("carbonMorning");else if(footTarget)note("Back at the Marlin","Release copy "+save.releaseCopy.number+" · "+save.releaseCopy.street+" · "+cash(fine),4.5);
+      return;}
     if(chase.searching&&chase.unseen-1.05>=chase.searchTime(heat)){
       heat=0;clearPatrol();lastHud=-10;note("Pursuit lost","Bay Patrol called off the search.",3.5);
     }
@@ -9423,6 +9468,14 @@
       marshalMotion.step(dt,0,0);if(BayCoastCupArt.handFlag(visible,model,cup,marshalMesh,marshalMotion,y))view.updateAnimated(key);
       visible.push([key,a.x,y,a.z,a.yaw]);
     }
+    if(play&&chase.foot&&see(chase.foot.actor,65)){
+      const a=chase.foot.actor,k="bay-foot-officer";
+      if(!footPatrolMesh){footPatrolMesh=new BayPlayerMesh(["#8d614c","#52696b","#39474f"],"local");BayOceanBeatArt.dress(footPatrolMesh);view.add(k,footPatrolMesh,true);}
+      const moved=footPatrolMesh.update(a.motion),posed=BayOceanBeatArt.pose(footPatrolMesh,a,t);
+      if(moved||posed)view.updateAnimated(k);
+      visible.push([k,a.x,a.y,a.z,a.yaw]);
+      if(a.writing>.02)BayOceanBeatArt.world(visible,model,a,a.y,t);
+    }
     if(play&&see(beat.actor,68)){
       const a=beat.actor,k="ocean-solis";
       if(!beatMesh){beatMesh=new BayPlayerMesh(BayOceanBeatArt.colors,"local");BayOceanBeatArt.dress(beatMesh);view.add(k,beatMesh,true);}
@@ -9528,7 +9581,8 @@
     for(const v of patrol)if(see(v,150)){
       const ground=footLevel(v.x,v.z)+.01;
       v.visual??=carSkin("cruiser","#293e52");
-      visible.push([v.visual,v.x,ground,v.z,v.yaw,0,v.lean,0,v]);
+      if(v.footUnit&&v.doorAngle>.002){v.model=v.visual;v.color="#293e52";addRig(visible,v,ground);}
+      else visible.push([v.visual,v.x,ground,v.z,v.yaw,0,v.lean,0,v]);
       if(v.damage&&see(v,76))BayBodyworkArt.world(visible,model,v,ground,t);
       if(v.brakes>.42){
         model("patrol-brakes",g=>buildBayBrakeLights(g,"cruiser"));
@@ -9927,7 +9981,7 @@
     $("stars").className=status.className=heat&&chase.searching?"searching":"";
     if(heat){
       const duration=chase.searchTime(heat),remaining=clamp(duration-chase.unseen+1.05,0,duration);
-      const label=chase.searching?"Searching · "+Math.ceil(remaining)+" s":chase.sighted?"In pursuit":"Units responding";
+      const label=chase.searching?"Searching · "+Math.ceil(remaining)+" s":chase.foot?.phase==="follow"&&chase.foot.v.sees?(boxed>0?"Being stopped · "+Math.max(1,Math.ceil(2.8-boxed))+" s":"Officer on foot"):chase.sighted?"In pursuit":"Units responding";
       if($("pursuitLabel").textContent!==label)$("pursuitLabel").textContent=label;
       status.style.setProperty("--remaining",String(remaining/duration));
     }
@@ -10469,7 +10523,7 @@
     else if(active?.story?.interaction(car))contextHint("F",active.story.phase==="choice"?"Choose where to deliver the photo":"Take Mara’s camera out on location");
     else if(car&&active?.story?.holds(car))contextHint("","Mara Vega  ·  "+(active.story.progress===0&&active.story.phase==="handoff"?"Delivering the photo":"Passenger door"));
     else if(car&&active?.story&&dist(car,tar)<12)contextHint("",active.story.phase==="port"?"Stop beside the red sign":"Stop with room by the passenger door");
-    else if(boxed>1)contextHint("","Patrol closing in  ·  "+Math.ceil(5.3-boxed)+" s");
+    else if(boxed>1)contextHint("","Patrol closing in  ·  "+Math.max(1,Math.ceil((chase.boxedOnFoot?2.8:5.3)-boxed))+" s");
     else if(serviceVehicle)contextHint("","Changing "+tirePosition(car).toLowerCase()+" tire");
     else if(atShop&&car.flatSide){
       let prompt="Release the pedals for tire service";
@@ -11056,6 +11110,13 @@
       title="Port Sol Belt";kicker=spurDesk?.name||"Freight waybills";spurPanel(b);
     }else if(next==="coast-club"){
       title="Coastline Circuit";kicker="Sol Motor Club / Ocean Drive";cupPanel(b);
+    }else if(next==="patrol-copy"&&save.releaseCopy){
+      const copy=save.releaseCopy;title="Release copy";kicker=copy.street+" / Bay Patrol";
+      const c=document.createElement("canvas");c.width=600;c.height=306;c.className="take-print ocean-copy";
+      c.setAttribute("role","img");c.setAttribute("aria-label","On-foot stop at "+copy.street+", "+copy.stars+" stars, "+cash(copy.fine));
+      BayOceanBeatArt.paint(c,copy);b.append(c);
+      signedNote(b,"The yellow one goes in our drawer. The white one's yours. Take it before the ink sticks.","Lina Solís · Ocean Unit 12");
+      b.append(makeButton("The Carbon Drawer","Marlin Motel","Replay scene",()=>enterFilm("carbonMorning",true)));
     }else if(next==="ocean-copy"){
       title="Driver copy";kicker="Ocean Unit 12 / Lina Solís";beatPage(b);
     }else if(next==="carbon-copies"){
@@ -11400,6 +11461,7 @@
       if(save.clubCup.known)b.prepend(makeButton("Sol Motor Club",save.clubCup.last?cupPlace(save.clubCup.last.place)+" · "+save.clubCup.last.car:"Coastline Circuit","Race sheet",cupBook));
       if(save.catchBook.known)b.prepend(makeButton("Red Cork Club",save.catchBook.total+" tagged and released","Tag book",()=>{corkPage=corkNear()||null;openPanel("red-cork",true);}));
       if(save.freight.known)b.prepend(makeButton("Port Sol Belt",save.freight.runs+(save.freight.runs===1?" signed delivery":" signed deliveries"),"Waybills",()=>{spurDesk=stationNear()||null;openPanel("port-belt",true);}));
+      if(save.releaseCopy)b.prepend(makeButton("Bay Patrol",save.releaseCopy.street,"Release copy",()=>openPanel("patrol-copy")));
       if(save.oceanBeat.known)b.prepend(makeButton("Ocean Unit 12",save.oceanBeat.slip?.plate||"Officer Lina Solís","Driver copy",()=>openPanel("ocean-copy")));
       if(save.copies.known)b.prepend(makeButton("Carbon Copies","Romy’s shop file · "+carbon.sides.filter(s=>save.copies[s]).length+" of 2 directions","Read copies",()=>readCopies(copySide)));
       if(save.starlite.tickets.length)b.prepend(makeButton("Starlite ticket stubs",save.starlite.tickets.at(-1).title,"Look",()=>{ticketIndex=save.starlite.tickets.length-1;openPanel("starlite-tickets");}));
@@ -11893,7 +11955,7 @@
         if(beat==="work")BaySixSharpArt.clock($("dispatchClock"),w.second());
       }else if(art==="watchCopy"){
         if(!campaign.watch.printed){BaySixSharpArt.docket($("chapterInsert"),campaign.watch.departure);campaign.watch.printed=true;}
-      }else if(["inscription","landingOrder","payEnvelope","payReceipt","portReceipt"].includes(art))return;
+      }else if(["inscription","landingOrder","payEnvelope","payReceipt","portReceipt","releaseCopy"].includes(art))return;
       else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}

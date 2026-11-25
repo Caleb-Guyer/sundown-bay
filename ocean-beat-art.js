@@ -219,7 +219,7 @@
       path([shoulder,elbow],colors[1],.108);path([elbow,hand],colors[0],.070);
     }
     const off=(p,x,y,z)=>[p[0]+x,p[1]+y,p[2]+z];
-    path([off(left,-.025,.012,-.04),off(left,.100,.012,-.04),off(left,.101,-.041,.115),off(left,-.024,-.041,.115)],paper);
+    if(!actor.patrolFoot||w>.02)path([off(left,-.025,.012,-.04),off(left,.100,.012,-.04),off(left,.101,-.041,.115),off(left,-.024,-.041,.115)],paper);
     if(give>.12)path([off(right,-.046,0,0),off(right,.045,0,0),off(right,.052,-.026,.137),off(right,-.059,-.026,.138)],paper);
     else if(w>.06)path([off(right,-.035,-.010,.027),off(right,.028,.075,-.009)],graphite,.012);
     dot([0,1.64,-.110],.072,.074,"#493d38",yaw);dot([0,1.61,.020],.100,.100,colors[0]);
@@ -260,11 +260,12 @@
     function rule(x,y,w,col=carbon){ctx.fillStyle=col;ctx.fillRect(x,y,w,1);}
     ctx.textBaseline="alphabetic";ctx.textAlign="left";
     for(let x=8;x<fw-8;x+=8)rule(x,6,4,"#afaf92");
-    text("SUNDOWN BAY  /  OCEAN UNIT",l,28,12,print,mono,"bold");
+    const release=slip.kind==="release";
+    text(release?"SUNDOWN BAY  /  BAY PATROL":"SUNDOWN BAY  /  OCEAN UNIT",l,28,12,print,mono,"bold");
     const ticket=slip.kind==="citation",check=slip.kind==="check";
-    text(check?"Brake lamp check":ticket?"Traffic citation":"Written warning",l,portrait?65:60,portrait?32:33,midnight,"Georgia, serif","bold");
+    text(release?"Release from custody":check?"Brake lamp check":ticket?"Traffic citation":"Written warning",l,portrait?65:60,portrait?32:33,midnight,"Georgia, serif","bold");
     const serial=String(slip.number??"1").padStart(4,"0");
-    text("DRIVER COPY  ·  NO. "+serial,l,portrait?85:78,12,red,mono,"bold");
+    text((release?"RELEASE COPY":"DRIVER COPY")+"  ·  NO. "+serial,l,portrait?85:78,12,red,mono,"bold");
     rule(l,portrait?95:87,r-l,print);
     function field(label,value,x,y,w){
       text(label,x,y,10,print,mono,"bold",w);
@@ -272,19 +273,19 @@
     }
     const minute=((Math.floor(Number(slip.minute)||0)%1440)+1440)%1440;
     const clock=String(Math.floor(minute/60)).padStart(2,"0")+":"+String(minute%60).padStart(2,"0");
-    const when="Day "+(slip.day??1)+" / "+clock,amount=check?"Voluntary check":ticket?"$"+(slip.fine??0):"No fine";
+    const when="Day "+(slip.day??1)+" / "+clock,amount=release?(slip.fine?"Paid $"+slip.fine:"Warning"):check?"Voluntary check":ticket?"$"+(slip.fine??0):"No fine";
     if(portrait){
-      field("REGISTRATION",slip.plate,l,116,132);field("ISSUED",when,162,116,r-162);
-      field("VEHICLE",slip.car,l,166,r-l);field("LOCATION",slip.street,l,215,r-l);
+      field(release?"DISPATCH":"REGISTRATION",release?slip.stars+" stars":slip.plate,l,116,132);field("ISSUED",when,162,116,r-162);
+      field(release?"CLOSED BY":"VEHICLE",release?"Foot patrol":slip.car,l,166,r-l);field("LOCATION",slip.street,l,215,r-l);
       field("DISPOSITION",amount,l,264,r-l);
     }else{
-      field("REGISTRATION",slip.plate,l,107,114);field("VEHICLE",slip.car,148,107,189);field("ISSUED",when,353,107,r-353);
+      field(release?"DISPATCH":"REGISTRATION",release?slip.stars+" stars":slip.plate,l,107,114);field(release?"CLOSED BY":"VEHICLE",release?"Foot patrol":slip.car,148,107,189);field("ISSUED",when,353,107,r-353);
       field("LOCATION",slip.street,l,151,319);field("DISPOSITION",amount,353,151,r-353);
     }
     const foot=fh-45;
     text("ISSUING OFFICER",l,foot,10,print,mono,"bold");
-    text("L. Solís",l+1,foot+22,23,hand,"Georgia, serif","italic");
-    ctx.textAlign="right";text("OCEAN 12",r,foot+17,16,print,mono,"bold");ctx.restore();
+    text(release?"I. Acosta":"L. Solís",l+1,foot+22,23,hand,"Georgia, serif","italic");
+    ctx.textAlign="right";text(release?"UNIT 04":"OCEAN 12",r,foot+17,16,print,mono,"bold");ctx.restore();
     return true;
   }
   window.BayOceanBeatArt={colors,dress,pose,world,car,carMap,mapPerson,paint};

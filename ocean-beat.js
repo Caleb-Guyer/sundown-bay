@@ -15,6 +15,12 @@
       Number.isInteger(s.minute)&&s.minute>=0&&s.minute<1440&&Number.isSafeInteger(s.day)&&s.day>0&&Number.isSafeInteger(s.fine)&&s.fine>=0&&s.fine<=25;
     return {known:!!raw?.known||!!valid,warnings:Number.isSafeInteger(raw?.warnings)&&raw.warnings>0?raw.warnings:0,slip:valid?{...s}:null};
   }
+  function readRelease(s){
+    if(s?.kind!=="release"||!Number.isSafeInteger(s.number)||s.number<1||!Number.isInteger(s.stars)||s.stars<1||s.stars>5||
+      !Number.isFinite(s.fine)||s.fine<0||s.fine>65||typeof s.street!=="string"||!s.street.length||s.street.length>80||
+      !Number.isInteger(s.minute)||s.minute<0||s.minute>=1440||!Number.isSafeInteger(s.day)||s.day<1)return null;
+    const {kind,number,stars,fine,street,minute,day}=s;return {kind,number,stars,fine,street,minute,day};
+  }
   class Round{
     constructor(v){
       this.v=v;this.post=0;this.phase="post";this.time=65;this.seat=0;this.walk=[];this.wait=0;this.stop=null;
@@ -147,5 +153,5 @@
       }
     }
   }
-  window.BayOceanBeat={posts,read,Round};
+  window.BayOceanBeat={posts,read,readRelease,Round};
 })();

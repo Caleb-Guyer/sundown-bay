@@ -1063,6 +1063,14 @@
     for(const car of cars) {
       if(street&&opt.motorSales&&BayGullMotors.occludesCar(car,player))continue;
       const x=px(car.x),y=py(car.z);
+      const unit=car.footUnit;
+      if(unit&&unit.seat<.61){
+        const a=unit.actor,ax=px(a.x),ay=py(a.z);
+        if(visible(ax,ay,12)){
+          if(street)BayOceanBeatArt.mapPerson(ctx,a,px,py,s,streetTime);
+          else{disc(ctx,ax,ay,3.3*ui,ink);disc(ctx,ax,ay,2.1*ui,car.sees?"#ff9287":"#a4eaff");}
+        }
+      }
       if(!visible(x,y,4*s+10)) continue;
       if(player && player.driving && Math.hypot(car.x-player.x,car.z-player.z)<.55) playerCar=car;
       if(street){
@@ -1096,7 +1104,7 @@
       else if(car.kind==="cruiser"&&(!car.beatCar||car.beatLights)) {
         ctx.save();ctx.translate(x,y);ctx.rotate(car.yaw);
         ctx.fillStyle=car.sees?"rgba(246,113,108,.26)":"rgba(100,187,229,.24)";
-        ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,14*s,-2.29,-.85);ctx.closePath();ctx.fill();
+        if(!unit){ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,14*s,-2.29,-.85);ctx.closePath();ctx.fill();}
         ctx.restore();
         disc(ctx,x,y,3.4*ui,ink);disc(ctx,x,y,2.35*ui,t%1<.5?"#ff8c87":"#a4eaff");
       } else if(radar) {

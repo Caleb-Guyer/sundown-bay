@@ -38,7 +38,7 @@ jobs:
   encounters:
     name: Play Last Collection and street action in ${{ matrix.view }} view
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
@@ -52,6 +52,7 @@ jobs:
           node .github/playtests/city-update.cjs
           node .github/playtests/stream-update.cjs
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --street-action --frames
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --foot-pursuit --frames
       - uses: actions/upload-artifact@v4
         if: always()
         with:
