@@ -62480,7 +62480,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     {x:5.35,z:48,dir:0,yaw:0,name:"Cine Luna",stand:{x:7.52,z:46.4}}
   ];
   const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
-  const approach=(a,b,dt)=>a+(b-a)*-Math.expm1(-7*dt);
+  const approach=(a,b,dt)=>Math.abs(a-b)<.001?b:a+(b-a)*-Math.expm1(-7*dt);
   function read(raw){
     const s=raw?.slip;
     const valid=s&&["warning","citation","check"].includes(s.kind)&&Number.isSafeInteger(s.number)&&s.number>0&&
@@ -62512,8 +62512,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(this.stop||!target||target.serviceCar||!e.free()||!["round","post","toPost"].includes(this.phase))return false;
       const eye=this.seat===1?this.v:this.actor;
       if(kind==="check"?!this.canCheck(target,e):gap(eye,target)>44||!e.sees(eye,target))return false;
-      this.stop={kind,target,origin:{x:target.x,z:target.z},age:0,brake:0};
-      this.v.beatLights=kind!=="check";this.v.path=null;BayDriving.settle(this.v);this.phase="observe";this.wait=0;
+      this.stop={kind,target,origin:{x:target.x,z:target.z},brake:0};
+      const v=this.v;
+      v.beatLights=kind!=="check";this.wait=0;
+      if(v.path&&v.speed>.3){v.pace=0;this.phase="stopping";}
+      else{v.path=null;BayDriving.settle(v);this.phase="observe";}
       e.say(kind==="check"?"Both brake lamps, please. I’ll walk around back.":"I saw the bump. Find a curb and stop there a moment.");
       return true;
     }
@@ -62547,7 +62550,6 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(this.phase==="chase"){BayCarAccess.pose(v,-1,1,a,a.motion,e.ground,dt);return;}
       this.wait=Math.max(0,this.wait-dt);
       if(s){
-        s.age+=dt;
         const abandoned=e.driver()!==s.target||!e.free()||gap(s.target,s.origin)>34;
         if(e.wanted()||abandoned){
           if(s.kind!=="check"&&e.driver()===s.target&&(e.wanted()||gap(s.target,s.origin)>34)){
@@ -62582,12 +62584,25 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(e.wanted()&&v.beatLights){this.join(e);return;}
         if(!this.wait)this.route(e);return;
       }
-      if(this.phase==="round"){if(!v.path)this.phase="exit";return;}
+      if(this.phase==="round"){
+        const post=posts[this.post];
+        // A queue can fill the last car length of a curb post. Leave the
+        // cruiser where it actually stopped if Solís can reach the sidewalk.
+        if(v.path&&!this.wait&&v.corner===v.path.length-1&&v.blocked>2.4&&gap(v,post)<4.4&&e.atCurb(v)){
+          this.wait=.8;
+          if(e.walk(this.window(v),post.stand)){v.path=null;v.indicator=0;BayDriving.settle(v);}
+        }
+        if(!v.path)this.phase="exit";return;
+      }
       if(this.phase==="return"){if(!this.wait)this.board(e);return;}
       if(this.phase==="arrived"){if(!this.wait&&!this.walkTo(posts[this.post].stand,"toPost",e))this.wait=1;return;}
       if(this.phase==="post"){this.time-=dt;if(this.time<=0&&!this.wait)this.board(e);return;}
       if(!s)return;
       const target=s.target;
+      if(this.phase==="stopping"){
+        if(!v.path||v.speed<.3){v.path=null;BayDriving.settle(v);this.phase="observe";}
+        return;
+      }
       if(this.phase==="observe"&&!this.wait&&e.atCurb(target)){
         if(this.seat===1){this.phase="exit";return;}
         s.park={x:target.x,z:target.z};
