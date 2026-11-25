@@ -9079,7 +9079,7 @@
       if(theatre.visit)BayStarliteArt.clipped(view,visible,starliteSite,theatre.visit);
       if(play&&see(ada,65))visible.push([personSkin(4,"local",0,theatre.run?1:0),ada.x,footLevel(ada.x,ada.z),ada.z,ada.yaw]);
     }
-    for(const a of visible)view.draw(...a);
+    view.drawOpaque(visible);
     if(play&&see(starliteSite,76)){
       const dx=starliteSite.x-eye.x,dz=starliteSite.z+9.89-eye.z;
       if(dz>-.25&&dx*Math.sin(eye.yaw)+dz*Math.cos(eye.yaw)>-.5){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}

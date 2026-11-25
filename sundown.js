@@ -118,6 +118,76 @@
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
     gl.drawElements(gl.TRIANGLES,count,model.elementType,first*model.indices.BYTES_PER_ELEMENT);
   }
+  // Pack the visible street props in submission order. Their vertices share a
+  // world coordinate system, so changing from a shop to a car needs no GL call.
+  // A batch is bounded and uses 16-bit indices even on WebGL 1 devices.
+  class StreetBatch {
+    constructor(view){
+      this.view=view;
+      const gl=view.gl;
+      this.vertexBuffer=gl.createBuffer();this.indexBuffer=gl.createBuffer();
+      this.vertices=new Float32Array(24576*6);
+      this.indices=new Uint16Array(65532);
+      gl.bindBuffer(gl.ARRAY_BUFFER,this.vertexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength,gl.STREAM_DRAW);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.STREAM_DRAW);
+      view.bound=null;this.count=0;this.used=0;this.glow=0;
+    }
+    flush(){
+      if(!this.count)return;
+      const view=this.view,gl=view.gl;
+      gl.bindBuffer(gl.ARRAY_BUFFER,this.vertexBuffer);
+      gl.bufferSubData(gl.ARRAY_BUFFER,0,this.vertices.subarray(0,this.used*6));
+      gl.vertexAttribPointer(view.pos,3,gl.FLOAT,false,24,0);
+      gl.vertexAttribPointer(view.col,3,gl.FLOAT,false,24,12);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
+      gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,0,this.indices.subarray(0,this.count));
+      gl.uniform3f(view.u.origin,0,0,0);gl.uniform2f(view.u.turn,1,0);
+      gl.uniform4f(view.u.tilt,1,0,1,0);view.tiltX=view.tiltZ=0;
+      if(view.glow!==this.glow){gl.uniform1f(view.u.glow,this.glow);view.glow=this.glow;}
+      gl.drawElements(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0);
+      view.bound=null;this.count=0;this.used=0;
+    }
+    append(item){
+      const view=this.view;
+      const [name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0,car,,vapor]=item;
+      const model=view.models.get(name);
+      if(!model?.count)return;
+      const data=view.cpu.get(name);
+      if(model.poseChanged){model.bounds=meshBounds(data,0,model.count);model.poseChanged=false;}
+      if(!view.inFrame(model.bounds,x,y,z,yaw,tiltX,tiltZ,car?.damage?1.4:0))return;
+      if(model.sections||car?.damage||vapor||model.count>this.indices.length){
+        this.flush();view.draw(...item);return;
+      }
+      let indices=model.indices,sources=model.batchSources,count=model.count,n=model.vertexCount;
+      if(view.scale<=.65&&!model.actor&&model.bounds&&model.count>330&&!tiltX&&!tiltZ&&view.farFromCamera(model.bounds,x,y,z,yaw)){
+        if(!model.distanceReady)view.prepareDistanceMesh(model,data);
+        if(model.batchDistant){
+          indices=model.batchDistant.indices;sources=model.batchDistant.sources;count=indices.length;n=sources.length;
+        }
+      }
+      if(n>this.vertices.length/6){this.flush();view.draw(...item);return;}
+      if(this.glow!==glow||this.count+count>this.indices.length||(this.used+n)*6>this.vertices.length)this.flush();
+      this.glow=glow;
+      if(indices&&!sources){
+        sources=model.batchSources=new Uint32Array(n);
+        for(let i=0;i<model.count;i++)sources[indices[i]]=i*6;
+      }
+      const co=Math.cos(yaw),si=Math.sin(yaw),cx=Math.cos(tiltX),sx=Math.sin(tiltX),cz=Math.cos(tiltZ),sz=Math.sin(tiltZ);
+      const dest=this.vertices;
+      for(let i=0,j=this.used*6;i<n;i++,j+=6){
+        const p=sources?sources[i]:i*6;
+        let u=data[p],v=data[p+1],w=data[p+2];
+        if(tiltX){const h=v;v=h*cx-w*sx;w=h*sx+w*cx;}
+        if(tiltZ){const side=u;u=side*cz-v*sz;v=side*sz+v*cz;}
+        dest[j]=x+u*co+w*si;dest[j+1]=y+v;dest[j+2]=z-u*si+w*co;
+        dest[j+3]=data[p+3];dest[j+4]=data[p+4];dest[j+5]=data[p+5];
+      }
+      for(let i=0;i<count;i++)this.indices[this.count+i]=this.used+(indices?indices[i]:i);
+      this.used+=n;this.count+=count;
+    }
+  }
   const LIGHT = `
     uniform vec3 sunDir,sunAcross,sunUp;
     vec3 lightClip(vec3 world){
@@ -297,6 +367,7 @@
     }
     setup(){
       const gl=this.gl;
+      this.streetBatch=null;
       const compile=(kind,src)=>{const sh=gl.createShader(kind);gl.shaderSource(sh,src);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(sh));return sh;};
       const program=(vs,fs)=>{const p=gl.createProgram(),v=compile(gl.VERTEX_SHADER,vs),f=compile(gl.FRAGMENT_SHADER,fs);
         gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
@@ -357,7 +428,7 @@
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
       const dynamic=this.animated.has(name),packed=dynamic?null:indexGeometry(data,this.largeIndices);
       gl.bufferData(gl.ARRAY_BUFFER,packed?.vertices||data,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
-      const count=data.length/6,model={buf,count};
+      const count=data.length/6,model={buf,count,vertexCount:packed?packed.vertices.length/6:count};
       if(packed){
         model.indices=packed.indices;model.elementType=model.indices.BYTES_PER_ELEMENT===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT;
         model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
@@ -393,6 +464,15 @@
       }
       // A distant car or person must still have an outline.
       if(indices.length<18||indices.length>model.count*.8)return;
+      if(!model.sections&&model.count<=65532){
+        const sources=[],local=new Uint16Array(indices.length),byVertex=new Map();
+        for(let i=0;i<indices.length;i++){
+          const corner=indices[i],id=model.indices?model.indices[corner]:corner;
+          if(!byVertex.has(id)){byVertex.set(id,sources.length);sources.push(corner*6);}
+          local[i]=byVertex.get(id);
+        }
+        model.batchDistant={indices:local,sources:new Uint32Array(sources)};
+      }
       if(model.indices)for(let i=0;i<indices.length;i++)indices[i]=model.indices[indices[i]];
       const gl=this.gl,large=model.indices?model.indices.BYTES_PER_ELEMENT===4:model.count>65535;
       model.distant=gl.createBuffer();model.indexSize=large?4:2;model.indexType=large?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT;
@@ -573,6 +653,12 @@
     endShadow(){this.casting=false;const gl=this.gl;gl.depthMask(true);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.uniform1f(this.u.castOnly,0);}
     drawGhost(name,x,y,z,yaw){
       this.gl.uniform1f(this.u.ghost,1);this.draw(name,x,y,z,yaw);this.gl.uniform1f(this.u.ghost,0);
+    }
+    drawOpaque(list){
+      if(this.scale>.75){for(const item of list)this.draw(...item);return;}
+      const batch=this.streetBatch??=new StreetBatch(this);
+      for(const item of list)batch.append(item);
+      batch.flush();
     }
     drawCityAndWater(t){
       if(this.scale<=.75&&this.buildings){
@@ -76381,7 +76467,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(theatre.visit)BayStarliteArt.clipped(view,visible,starliteSite,theatre.visit);
       if(play&&see(ada,65))visible.push([personSkin(4,"local",0,theatre.run?1:0),ada.x,footLevel(ada.x,ada.z),ada.z,ada.yaw]);
     }
-    for(const a of visible)view.draw(...a);
+    view.drawOpaque(visible);
     if(play&&see(starliteSite,76)){
       const dx=starliteSite.x-eye.x,dz=starliteSite.z+9.89-eye.z;
       if(dz>-.25&&dx*Math.sin(eye.yaw)+dz*Math.cos(eye.yaw)>-.5){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}
