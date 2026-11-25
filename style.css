@@ -27,6 +27,17 @@ button:focus-visible,select:focus-visible,canvas:focus-visible {outline:3px soli
 #receiverCard,#boothReadout {position:absolute;color:#fff1d3;background:#1d302eef;border:1px solid #ccb88c8c;border-radius:3px;box-shadow:0 2px 7px #112b2b55}
 #receiverCard {left:clamp(12px,2vw,24px);top:clamp(84px,15.3vh,126px);padding:7px 9px 8px;width:min(230px,36vw)}
 #radioScale,#boothMeter {display:block;width:100%;height:auto}
+#pinCab:not([hidden]) {position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;gap:clamp(8px,2vw,28px);padding:8px;background:radial-gradient(ellipse at center,#172a2666,#122522e3);box-sizing:border-box;color:#f6dfac}
+#game:has(#pinCab:not([hidden])) #hud {visibility:hidden}
+#game:has(#panel:not([hidden])) #pinCab {display:none}
+.pin-case {height:min(94vh,calc((100vw - 230px)*1.4));aspect-ratio:5/7;padding:4px;background:#482e2a;border:3px ridge #b4a68b;box-shadow:3px 8px 24px #0c191c99}
+#pinGlass {display:block;width:100%;height:100%}
+.pin-card {box-sizing:border-box;width:185px;background:#efe0bc;color:#283e39;border:1px solid #7d725b;border-top:6px solid #bd6a58;box-shadow:0 4px 15px #15272280;padding:16px 14px;font:14px/1.32 Georgia,serif}
+.pin-card p,.pin-card h2 {margin:0}.pin-card>p:first-child,.pin-card small {font:700 10px/1.3 Consolas,monospace;letter-spacing:.10em}
+.pin-card h2 {font:italic bold 26px Georgia,serif}.pin-score,.pin-side {margin:12px 0;padding:8px;background:#213a38;color:#f4dfb7}
+.pin-score strong,.pin-score span,.pin-side strong,.pin-side span {display:block}.pin-score strong {font:bold 24px Consolas,monospace;letter-spacing:.04em;color:#ffb36a}
+#pinCall {font-weight:bold;color:#884732}.pin-rule,.pin-keys,#pinBest {margin-top:9px}.pin-keys {font:12px/1.65 Arial,sans-serif;border-top:1px solid #b6aa8e;padding-top:5px}
+@media(max-width:560px) and (orientation:portrait){#pinCab:not([hidden]){flex-direction:column;gap:5px}.pin-case{height:min(67vh,132vw)}.pin-card{width:min(96vw,380px);padding:6px 9px;display:grid;grid-template-columns:1fr 1fr;gap:3px 8px}.pin-card h2,.pin-rule,.pin-card>p:first-child{display:none}.pin-score,.pin-side,.pin-keys,#pinBest{margin:0}.pin-score,.pin-side{padding:3px 6px}}
 .window-record {--label:#ca8341}
 .window-record.marea {--label:#3896a4}
 .window-record.breaker {--label:#a55c79}

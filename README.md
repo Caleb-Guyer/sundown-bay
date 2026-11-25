@@ -4,6 +4,8 @@ Take the wheel in a coastal city with local jobs and police pursuits, or head of
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+Follow the painted arrow on **Tideway** to **Tideway Arcade**, just west of Luna Boulevard. Walk under the striped awning and press **F** at Rae Cordero’s pinball table. In **Needle Drop**, hold and release **Space** to plunge, flip with **A / D** or the arrow keys, and use **Shift** to nudge. Three nudges within four seconds tilt the table for that ball. Light all three record bumpers for 750 extra points and pick a song with **A / D** and **F**. The speakers above the sidewalk play your selection. After three balls, **Enter** starts another game and **E** steps away. Beat Rae’s 2,400 and your score goes on the cabinet glass.
+
 Look for the sun, wave or lightning sticker on the rear window of a neighborhood car. From the sidewalk or a slow car alongside, press **/** to ask the driver what’s playing. They name the current song and station. At the wheel, your radio tunes to the same point in the record. On foot you can hear their stereo pass from one side to the other. The song credits and conversation also work muted.
 
 Under **J → Open Windows**, each of the six original records keeps the first driver and street where you heard it. Call one in to play it on its home station. Your receiver and other cars tuned to that frequency pick up the same broadcast.

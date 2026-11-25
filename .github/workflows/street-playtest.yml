@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   play:
-    name: Listen at the window in ${{ matrix.view }} view
+    name: Play Needle Drop in ${{ matrix.view }} view
     runs-on: ubuntu-latest
     timeout-minutes: 18
     strategy:
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: node .github/playtests/live.cjs ${{ matrix.view }} --open-windows --frames
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --needle-drop --frames
       - uses: actions/upload-artifact@v4
         if: always()
         with:

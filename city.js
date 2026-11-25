@@ -700,10 +700,64 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   building(42,16,24,14,21,S,"glass","#9faeaa","#dfc4a6");
   building(-37,42,35,28,29,N,"glass","#a0aaa7","#e2c2a0","ORBIT");
-  building(-28,15,29,15,7,S,"shop","#d6b299","#89b2a9","ARCADE");
+  // Recess the frontage so the cabinet and listening window sit under a real porch.
+  building(-28,16.7,29,11.6,7,S,"shop","#d6b299","#89b2a9","TIDEWAY ARCADE");
+  {
+    const f=facade(-28,10.9,0,-1),brick="#8c5149",cream="#f2d8a5",ink="#254345";
+    rect(-28,9.40,28.8,3.02,.088,"#beae93");
+    for(let i=-13;i<=13;i++)rect(-28+i,9.42,.018,2.92,.092,"#a79880");
+    stripeCanopy(f,0,3.27,0,28.6,2.44,["#aa5b50","#f0c591"],16);
+    for(const u of [-14.0,14.0]){
+      f.box(u,1.46,2.40,.12,2.78,.13,ink);block(-28+u,8.50,.13,.14,2.90);
+    }
+    f.face(0,1.65,.11,28.7,2.70,ink);
+    for(const side of [-1,1])for(let bank=0;bank<2;bank++){
+      const center=side*(4.2+bank*5.9);
+      f.face(center,1.93,.14,5.67,1.91,"#58746f");
+      f.face(center,2.58,.16,5.51,.20,"#75968a");
+      for(let i=0;i<5;i++){
+        const u=center-2.18+i*1.08;
+        f.face(u,1.73,.17,.85,.85,["#d79665","#638e92","#c58480","#c3ad79","#84a090"][(i+bank+(side>0?2:0))%5]);
+        painted(f,[[u-.31,1.44],[u+.28,1.54],[u-.14,1.98]],.18,ink);
+        f.face(u,2.02,.19,.55,.036,cream);
+      }
+      f.box(center,1.23,.20,5.67,.12,.35,brick);
+    }
+    f.face(0,1.58,.17,1.64,2.5,"#6e594a");f.face(0,1.87,.19,1.36,1.4,"#48666a");
+    const cab=facade(-28,9.95,0,-1);
+    for(const u of [-.36,.36])for(const v of [-.61,.61]){
+      g.pole(cab.at(u,.69,v),cab.at(u*1.12,.10,v*1.07),.035,"#9eafa5",5);
+      cab.box(u*1.12,.10,v*1.07,.12,.06,.12,"#303c3c");
+    }
+    cab.box(0,.82,0,.92,.45,1.52,brick);cab.box(0,1.055,0,.94,.047,1.54,"#b9c3b6");
+    cab.box(0,1.084,0,.82,.025,1.42,ink);cab.box(0,1.45,-.68,1.03,.77,.18,"#633e38");
+    cab.face(0,1.46,-.578,.91,.62,ink);sign(cab,"NEEDLE",0,1.56,-.55,.030,cream);
+    sign(cab,"DROP",0,1.32,-.55,.028,"#ea9d71");
+    cab.face(0,.84,.764,.40,.28,ink);cab.face(-.06,.87,.77,.11,.025,cream);
+    cab.box(.32,.97,.80,.06,.07,.10,cream);block(-28,9.95,.93,1.55,1.85);
+    for(const u of [-1.16,1.16]){cab.box(u,.48,-.28,.54,.82,.60,ink);
+      cab.face(u,.52,.026,.46,.64,"#857b62");for(let i=0;i<8;i++)cab.face(u,.27+i*.07,.030,.40,.025,ink);
+      block(-28+u,10.23,.55,.61,.91);}
+    sign(f,"45 RPM",-7.2,2.72,.22,.075,cream);sign(f,"USED RECORDS",7.7,2.72,.22,.078,cream);
+    // The record-shaped blade faces drivers approaching along Tideway in either direction.
+    g.box(-23.7,3.37,9.31,.09,.11,3.2,ink);
+    for(const nx of [-1,1]){
+      const blade=facade(-23.7,8.35,nx,0);
+      for(let n=0;n<28;n++){const a=n*2*Math.PI/28,b=(n+1)*2*Math.PI/28;
+        g.tri(blade.at(0,3.40,.065),blade.at(Math.cos(a)*.73,3.40+Math.sin(a)*.73,.065),blade.at(Math.cos(b)*.73,3.40+Math.sin(b)*.73,.065),ink);}
+      blade.face(0,3.40,.075,1.18,.45,brick);sign(blade,"45",0,3.40,.082,.067,cream);
+    }
+  }
   building(-33,-26,29,24,19,E,"deco","#b5c8bc","#e8b19c","RIALTO");
   building(-34,-56,32,11,6.2,S,"shop","#e0ae8c","#79a7a8","DINER");
   building(37,-27,36,26,25,E,"glass","#bcb7ae","#a1c1b6");
+  {
+    const f=facade(39,-9,0,1);
+    f.face(0,2.06,.10,9.76,2.26,"#966252");f.face(0,2.07,.12,9.54,2.06,"#dbb98b");
+    sign(f,"TIDEWAY ARCADE",-.43,2.31,.14,.143,"#495d59");
+    sign(f,"ONE BLOCK",-.75,1.49,.14,.092,"#8b5045");
+    painted(f,[[2.13,1.43],[3.48,1.43],[3.48,1.24],[4.06,1.53],[3.48,1.84],[3.48,1.64],[2.13,1.64]],.15,"#8b5045");
+  }
   building(35,-56,33,11,6.8,S,"shop","#a4b4b4","#dea494");
   building(25,106,25,29,34.3,W,"glass","#ceb7ac","#d6d1b6","BAY");
   building(52,114,24,14,9.2,E,"deco","#c6c7a7","#ac8d96");

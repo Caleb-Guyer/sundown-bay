@@ -21,6 +21,17 @@
     <canvas id="palmGuide" aria-hidden="true" hidden></canvas>
     <canvas id="scoutFinder" aria-label="Frankie’s location finder" hidden></canvas>
     <canvas id="driverGlass" aria-hidden="true" hidden></canvas>
+    <section id="pinCab" aria-label="Needle Drop pinball" hidden>
+      <div class="pin-case"><canvas id="pinGlass" width="600" height="840" aria-label="Pinball playfield with three record bumpers"></canvas></div>
+      <div class="pin-card">
+        <p>TIDEWAY ARCADE</p><h2>Needle Drop</h2>
+        <div class="pin-score"><small>SCORE</small><strong id="pinScore">000000</strong><span id="pinBall"></span></div>
+        <p id="pinCall" role="status"></p><div class="pin-rule">Light all three records to change the song in the shop window.</div>
+        <div class="pin-side"><small id="pinLabel">ON THE SPEAKERS</small><strong id="pinSong"></strong><span id="pinArtist"></span></div>
+        <div id="pinBest"></div>
+        <div class="pin-keys"><b>A / D</b> Left and right flippers<br><b>Space</b> Hold, then release to launch<br><b>Shift</b> Nudge · three quick bumps tilt<br><b>E</b> Step away</div>
+      </div>
+    </section>
     <div id="vignette" aria-hidden="true"></div>
     <section id="hud" aria-label="Game dashboard" hidden>
       <div class="location"><span class="area-kicker">SUNDOWN BAY <time id="cityTime"></time></span><strong id="district">Ocean Drive</strong><span id="streetName" hidden></span></div>
@@ -213,6 +224,8 @@
   "airwaves-score.js",
   "airwaves.js",
   "open-windows.js",
+  "needle-drop.js",
+  "needle-art.js",
   "airwaves-booth-art.js",
   "airwaves-dial-art.js",
   "airwaves-street.js",
@@ -371,6 +384,6 @@
   "junction-turns.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=cef1a3b3df16ab8f"></script>
+  <script src="sundown.js?v=c7b3b51754e2b072"></script>
 </body>
 </html>

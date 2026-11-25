@@ -2,6 +2,7 @@
 (() => {
   "use strict";
   const routes={
+    records:[[-31.45,9.75,17],[-31.0,8.48,0],[-26.38,8.36,1],[-24.8,9.58,12],[-26.38,8.36,0],[-31.0,8.48,0]],
     palmBreak:[[153.5,-8.85,65],[134.95,-8.85,.3],[134.95,8.85,.4],[135.85,15.1,0],[135.85,21.6,0],[134.42,23.9,22],[135.85,21.6,0],[135.85,15.1,0],[134.95,8.85,.5],[134.95,-8.85,.5]],
     library:[[81.2,62.95,7],[62.9,62.95,.45],[62.9,81.05,4],[62.9,62.95,.45]],
     portCorner:[[-81.15,-81,8],[-62.85,-81,.45],[-62.85,-62.9,4],[-62.85,-81,.45]],
@@ -60,6 +61,7 @@
     add("wire",4,"local",0,0,"Meli Funes",["I cut On the Curb for Bay Wire. Tap your horn before you make a pass and I’ll get the whole thing.","That set used to show the numbers at the dog track. It still has the clearest picture on Ocean Drive."]);
     add("palmBreak",3,"local",0,0,"Bea Serrano",["I do the desk at the Marlin. The Palm keeps a pot on through shift change.","I take mine with milk. My mother would call that soup."]);
     people.at(-1).coffeeRegular=true;
+    add("records",2,"local",0,0,"Rae Cordero",["All three records in one game and you pick the next side. That’s how we’ve always done it.","I set twenty-four hundred the week we put that table in. See if it holds up."]);
     add("library",2,"courier",0,0,null,null);add("portCorner",4,"dockhand",0,.22,null,null);
     for(const [route,name] of [["west","Vic Bell"],["north","Cora Ledesma"],["downtown","Emi Brea"],["esplanade","Dani Silva"]]){
       const w=people.find(p=>!p.name&&p.path===routes[route]);if(w)w.curbName=name;

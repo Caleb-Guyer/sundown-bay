@@ -129,10 +129,11 @@ async function run() {
     const caps = process.argv.includes("--summer-caps");
     const lanes = process.argv.includes("--boulevard");
     const windows = process.argv.includes("--open-windows");
+    const needle = process.argv.includes("--needle-drop");
     const beat = process.argv.includes("--ocean-beat");
     const carbon = process.argv.includes("--carbon-copies");
-    if (!windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
-    const activity = windows ? require("./open-windows.cjs") : lanes ? require("./boulevard.cjs") : caps ? require("./summer-caps.cjs") : freight ? require("./port-spur.cjs") : angling ? require("./red-cork.cjs") : bumpers ? require("./bumpers.cjs") : houseLights ? require("./house-lights.cjs") : cup ? require("./coast-cup.cjs") : beat ? require("./ocean-beat.cjs") : carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
+    if (!needle && !windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
+    const activity = needle ? require("./needle-drop.cjs") : windows ? require("./open-windows.cjs") : lanes ? require("./boulevard.cjs") : caps ? require("./summer-caps.cjs") : freight ? require("./port-spur.cjs") : angling ? require("./red-cork.cjs") : bumpers ? require("./bumpers.cjs") : houseLights ? require("./house-lights.cjs") : cup ? require("./coast-cup.cjs") : beat ? require("./ocean-beat.cjs") : carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
     await activity({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
     assert.equal(await js("audioStarts+cursorRequests"), 0);

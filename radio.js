@@ -689,6 +689,13 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="pin-flip"){waterNoise(effects,at,.032,.055,1950,370);return;}
+    if(name==="pin-pop"||name==="pin-bank"){
+      for(const [delay,pitch] of (name==="pin-bank"?[[0,661],[.085,833],[.17,990]]:[[0,622]])){
+        tone(effects,pitch,at+delay,.23,.08,"sine",pitch*.99,.002);
+        tone(effects,pitch*2.49,at+delay,.065,.027,"sine",pitch*2.46,.002);
+      }return;
+    }
     if(name==="belt-crossing"){
       const gain=.056*Math.max(0,1-(source.distance||0)/47);
       tone(effects,728,at,.36,gain,"sine",721,.003);tone(effects,1682,at,.18,gain*.34,"sine",1665,.002);return;
