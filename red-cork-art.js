@@ -17,13 +17,23 @@
   }
   function fishMesh(g,id,cm){
     const f=C.fish[id],l=cm/100,r=l*(id==="jack"?.17:.13);
-    const a=[0,0,l*.48],b=[0,0,-l*.30],top=[0,r,l*.04],belly=[0,-r*.87,l*.04];
+    const sections=[[-.34,.13],[-.24,.37],[-.09,.83],[.11,1],[.28,.81],[.39,.48],[.48,.12]];
+    const ring=(section,i)=>{const a=i*Math.PI/4,k=section[1];return [Math.cos(a)*r*.53*k,Math.sin(a)*r*k,l*section[0]];};
+    for(let j=1;j<sections.length;j++)for(let i=0;i<8;i++){
+      const col=i<4?(i===1||i===2?f.stripe:f.color):(i===5||i===6?ivory:f.color);
+      g.quad(ring(sections[j-1],i),ring(sections[j],i),ring(sections[j],i+1),ring(sections[j-1],i+1),col);
+    }
+    g.tri([0,.008,-l*.27],[0,r*.93,-l*.53],[0,0,-l*.45],f.stripe);
+    g.tri([0,-.008,-l*.27],[0,0,-l*.45],[0,-r*.93,-l*.53],f.stripe);
+    g.tri([0,r*.7,l*.16],[0,r*1.43,l*.02],[0,r*.70,-l*.18],f.stripe);
     for(const side of [-1,1]){
-      const rib=[r*.52*side,0,l*.03];
-      g.tri(a,rib,top,f.color);g.tri(top,rib,b,f.stripe);g.tri(b,rib,belly,f.color);g.tri(belly,rib,a,ivory);
-      g.tri([0,.01,-l*.24],[0,r*.91,-l*.53],[0,-r*.91,-l*.53],f.stripe);
-      g.tri([0,r*.7,l*.16],[0,r*1.48,l*.02],[0,r*.68,-l*.17],f.stripe);
-      g.box(side*r*.25,r*.24,l*.29,.014,.022,.028,"#263b39");
+      g.tri([side*r*.50,0,l*.16],[side*r*.71,-r*.56,-l*.05],[side*r*.49,-r*.15,l*.06],f.stripe);
+      g.box(side*r*.34,r*.22,l*.323,l*.027,l*.050,l*.057,"#38423b");
+      if(id==="snook")for(let j=1;j<sections.length;j++){
+        const a=sections[j-1],b=sections[j],p=(v,h)=>[side*r*.54*v[1],h*r*v[1],v[0]*l];
+        g.quad(p(a,-.08),p(b,-.08),p(b,.07),p(a,.07),f.stripe);
+      }
+      if(id==="drum")g.box(side*r*.22,.012,-l*.23,.008,l*.04,l*.06,"#4c493e");
     }
   }
   const station=s=>({x:s.x-.44,z:s.z+1.10});
@@ -136,7 +146,9 @@
       const b=station(site),x=px(b.x),y=py(b.z);if(!visible(x,y,30*s))continue;
       c.save();
       if(opt.mode==="street"){
-        c.fillStyle=green;c.fillRect(x-.49*s,y-.30*s,.98*s,.60*s);c.fillStyle=ivory;c.fillRect(x-.46*s,y-.18*s,.90*s,.22*s);
+        c.fillStyle=green;c.fillRect(x-.49*s,y-.30*s,.98*s,.60*s);c.fillStyle=ivory;c.fillRect(x-.46*s,y-.18*s,.90*s,.24*s);
+        if(s>12){c.fillStyle="#46564c";for(let i=0;i<18;i++)c.fillRect(x+(-.43+i*.05)*s,y-.17*s,.009*s,(i%2?.042:.08)*s);
+          c.fillStyle="#3f655d";c.fillRect(x+.02*s,y+.09*s,.41*s,.18*s);}
         for(let i=0;i<5;i++){const q=schoolPoint(site,t,i);c.fillStyle=i%2?ivory:"#8cbcb4";c.fillRect(px(q.x),py(q.z),Math.max(1,.24*s),Math.max(1,.068*s));}
         if(site===C.sites[0]){c.fillStyle=green;c.beginPath();c.arc(px(cal.x),py(cal.z),.28*s,0,Math.PI*2);c.fill();c.fillStyle=ivory;c.fillRect(px(cal.x),py(cal.z)-.06*s,1.58*s,.055*s);}
       }else{c.fillStyle=red;c.strokeStyle=ivory;c.lineWidth=1.3;c.beginPath();c.arc(x,y,3.7,0,Math.PI*2);c.fill();c.stroke();}
@@ -150,7 +162,14 @@
     if(r.phase==="wind"||r.phase==="ready"){const p=C.point(site,r.phase==="wind"?4.5+r.power*14.5:8,r.aim);c.setLineDash([3,4]);c.beginPath();c.arc(px(p.x),py(p.z),.52*s,0,Math.PI*2);c.stroke();}
     if(r.phase==="fight"&&r.run){c.fillStyle=C.fish[r.id].color;c.beginPath();c.ellipse(px(q.x+.25),py(q.z),s*.28,s*.095,-r.bearing,0,Math.PI*2);c.fill();}
     const m=measure(r);
-    if(m&&m.lift<1){c.fillStyle=C.fish[r.id].color;c.beginPath();c.ellipse(px(m.x),py(m.z),s*r.length/200,s*r.length/750,0,0,Math.PI*2);c.fill();}
+    if(m&&m.lift<1){
+      c.save();c.translate(px(m.x),py(m.z));c.rotate(m.lift*Math.PI);const size=s*r.length/100;c.scale(size,size);
+      const f=C.fish[r.id],fat=r.id==="jack"?.15:.12;
+      c.fillStyle=f.stripe;c.beginPath();c.moveTo(.25,-.02);c.lineTo(.52,-fat);c.lineTo(.46,0);c.lineTo(.52,fat);c.closePath();c.fill();
+      c.fillStyle=f.color;c.strokeStyle=f.stripe;c.lineWidth=.018;c.beginPath();c.moveTo(-.48,0);
+      c.bezierCurveTo(-.32,-fat*1.3,.05,-fat*1.4,.33,-.023);c.lineTo(.33,.03);c.bezierCurveTo(.03,fat*1.15,-.31,fat*1.32,-.48,0);c.fill();c.stroke();
+      c.fillStyle="#34463e";c.beginPath();c.arc(-.32,-.027,.024,0,Math.PI*2);c.fill();c.restore();
+    }
     c.restore();
   }
   function card(book,id){
