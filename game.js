@@ -7121,6 +7121,10 @@
     const answer=carRadios.ask(at,car,streetTime,hours.total,save.airwaves);if(!answer)return false;
     if(car)tuneRadio(1,answer.station);
     speak(answer.v.owner.name,answer.line);
+    localVoice=answer.v;voiceCheck=elapsed+.2;
+    const station=BayAirwaves.stations[answer.station];
+    $("neighborTag").textContent=station.frequency+" · "+station.name;
+    $("hud").classList.toggle("neighbor-speech",true);
     note(answer.song.title,(car?"On your dial":"From the "+answer.v.kind)+" · "+(answer.fresh?"Saved to J → Open Windows":"J → Open Windows"),3.6);
     lastHud=-10;return true;
   }
@@ -9116,7 +9120,11 @@
     const capHint=summerHint(summerAction());
     if(canUseSeat()&&!heat&&BayJunctionTurns.waitingDriver(car,cars))contextHint("L","Flash the waiting driver through");
     else if(car&&!active&&!heat&&BayBoulevardLanes.candidate(car,cars,streetTime))contextHint("H","Ask the driver behind to let you in");
-    else if(carRadios.offer&&windowListener())contextHint("/","Ask "+carRadios.offer.owner.name+" what’s playing");
+    else if(carRadios.offer&&windowListener()){
+      const v=carRadios.offer;
+      if(streetTime-(v.windowAsked??-10)<3.5)contextHint("","");
+      else contextHint("/","Ask "+v.owner.name+" what’s playing");
+    }
     else if(capHint)contextHint(...capHint);
     else if(freightHint)contextHint(...freightHint);
     else if(showing)contextHint(...showing);

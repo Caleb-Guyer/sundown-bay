@@ -15241,7 +15241,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     paint([[-.56,.16],[.08,.16],[.08,.52],[-.56,.52]],paper);
     paint([[-.54,.19],[.06,.19],[.06,.49],[-.54,.49]],ink);
     if(station==="breaker"){
-      paint([[-.28,.47],[-.11,.47],[-.22,.365],[-.125,.365],[-.36,.21],[-.29,.327],[-.39,.327]],paper);
+      paint([[-.28,.47],[-.11,.47],[-.25,.327],[-.39,.327]],paper);
+      paint([[-.30,.365],[-.125,.365],[-.36,.21]],paper);
     }else if(station==="marea"){
       const wave=[[-.49,0],[-.39,.085],[-.22,.015],[-.10,.08],[.015,.05]];
       for(const y of [.255,.37])for(let i=1;i<wave.length;i++){
@@ -72153,6 +72154,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     const answer=carRadios.ask(at,car,streetTime,hours.total,save.airwaves);if(!answer)return false;
     if(car)tuneRadio(1,answer.station);
     speak(answer.v.owner.name,answer.line);
+    localVoice=answer.v;voiceCheck=elapsed+.2;
+    const station=BayAirwaves.stations[answer.station];
+    $("neighborTag").textContent=station.frequency+" · "+station.name;
+    $("hud").classList.toggle("neighbor-speech",true);
     note(answer.song.title,(car?"On your dial":"From the "+answer.v.kind)+" · "+(answer.fresh?"Saved to J → Open Windows":"J → Open Windows"),3.6);
     lastHud=-10;return true;
   }
@@ -74148,7 +74153,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     const capHint=summerHint(summerAction());
     if(canUseSeat()&&!heat&&BayJunctionTurns.waitingDriver(car,cars))contextHint("L","Flash the waiting driver through");
     else if(car&&!active&&!heat&&BayBoulevardLanes.candidate(car,cars,streetTime))contextHint("H","Ask the driver behind to let you in");
-    else if(carRadios.offer&&windowListener())contextHint("/","Ask "+carRadios.offer.owner.name+" what’s playing");
+    else if(carRadios.offer&&windowListener()){
+      const v=carRadios.offer;
+      if(streetTime-(v.windowAsked??-10)<3.5)contextHint("","");
+      else contextHint("/","Ask "+v.owner.name+" what’s playing");
+    }
     else if(capHint)contextHint(...capHint);
     else if(freightHint)contextHint(...freightHint);
     else if(showing)contextHint(...showing);
