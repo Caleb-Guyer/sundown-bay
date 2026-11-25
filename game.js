@@ -20,6 +20,7 @@
   // buildings are painted by the atlas. Build triangles only for a 3D view.
   const geometryOnly={box(){},cyl(){},pole(){},tri(){},quad(){},face(){}};
   const cityMesh=view.gl?new BayMesh():geometryOnly,waterMesh=view.gl?new BayMesh():geometryOnly,city=buildBayCity(cityMesh,waterMesh);
+  BayPayroll.counters(cityMesh,city.solids);
   view.buildings=city.opaqueBuildings;
   const jumps=BayPictureJumps;
   const carbon=BayCarbonCopies,tireCloud=[];let puffAt=-10,puffId=0,copySide="left";
@@ -31,7 +32,7 @@
       const data=uploaded.slice();for(let i=3;i<data.length;i+=6)data[i]-=2*Math.floor((data[i]+.25)*.5);
       return data;
     }
-    const mesh=new BayMesh();buildBayCity(mesh,geometryOnly);BayPictureJumpArt.build(mesh,jumps.sites);return mesh.vertices;
+    const mesh=new BayMesh();buildBayCity(mesh,geometryOnly);BayPayroll.counters(mesh);BayPictureJumpArt.build(mesh,jumps.sites);return mesh.vertices;
   });
   const gullSite=BayGullMotors.site,palmSite=BayPalmDiner.site,brisasSite=BayBrisas.site;let gull=null,works=null,sandBeach=null;
   const boatYard=BayButtonwoodYard.site,potJob={id:"pot-run",name:"Pot Run",by:"Alda Santana"};
@@ -6871,7 +6872,7 @@
       if(near&&v===car&&!heat&&dist(v,near==="luna"?venues.cinema:venues.port)<7.7)dest=near;
     }
     const cue=ride.step(dt,car,dest,doorPlan,footLevel);
-    if(cue==="approaching")speak("Jules","Hang on. This lid only stays shut if I keep my thumb on it.");
+    if(cue==="approaching"){toastTill=elapsed;$("toast").hidden=true;speak("Jules","Hang on. This lid only stays shut if I keep my thumb on it.");}
     if(cue==="boarded"){
       run.vehicle=ride.car;run.index=1;run.running=true;collectionRoute("luna");
       addHeat(2);enterFilm("collectionRide");return;
@@ -9222,7 +9223,7 @@
         const v=projector.venue;state.cx=v.x;state.cz=(v.z+v.screen.z)*.5;state.rotation=state.cameraYaw=v.yaw;state.scale=h/15;
       }
       const directed=campaign.frame(payrollReceipt?.receiver||active?.story?.ride||car);
-      if(directed){state.cx=directed.to.x;state.cz=directed.to.z;state.rotation=state.cameraYaw=directed.yaw;state.scale=h/directed.span;}
+      if(directed){state.cx=directed.to.x;state.cz=directed.to.z;state.rotation=state.cameraYaw=directed.yaw;state.scale=h/directed.span;if(payrollReceipt)state.target=null;}
       drawBayMap(map.getContext("2d"),state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
       if(projector&&!projector.showing){
         const p=projection(projector.venue);if(p)BayPavementShow.monitor(map,p.canvas);

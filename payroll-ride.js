@@ -3,12 +3,40 @@
   "use strict";
   const pickup={x:153.7,z:-13.7,yaw:-1.46};
   const stops={
-    luna:{x:7.8,z:63.4,yaw:-1.7,name:"Marisol Vale",colors:["#b58366","#bf7960","#51484a"]},
-    port:{x:-135.6,z:-76.3,yaw:-1.2,name:"Vic at the scales",colors:["#85634f","#798f80","#454d55"]}
+    luna:{x:9.55,z:61.65,yaw:-Math.PI/2,name:"Marisol Vale",colors:["#b58366","#bf7960","#51484a"]},
+    port:{x:-133.55,z:-81.05,yaw:-Math.PI/2,name:"Vic at the scales",colors:["#85634f","#798f80","#454d55"]}
   };
   const heldStages=new Set(["approach","enter","exit","deliver","pass"]);
   const colors=["#ad7c60","#496c73","#4d5258"];
-  const actor=p=>({...p,y:0,motion:new BayPlayerMotion()});
+  const actor=p=>({...p,y:0,motion:new BayPlayerMotion(),shirt:(p.colors||colors)[1],skin:(p.colors||colors)[0]});
+  function counterTop(route){
+    const r=stops[route];return {x:r.x-.69,z:r.z,y:route==="port"?1.033:.925};
+  }
+  function counters(g,solids){
+    for(const [route,r] of Object.entries(stops)){
+      const p=counterTop(route),x=p.x,z=p.z,port=route==="port";
+      if(solids)solids.push({x,z,w:.54,d:1.30,bottom:0,top:port?1.46:.93,streetProp:true});
+      const leg=port?"#517077":"#775746";
+      for(const a of [-.18,.18])for(const b of [-.54,.54])g.box(x+a,.47,z+b,.06,.79,.06,leg);
+      g.box(x,.81,z,.54,.085,1.30,port?"#aab3a9":"#80756b");
+      if(port){
+        g.box(x,.9,z,.42,.096,.58,"#455e61");g.box(x,.951,z,.44,.032,.55,"#c6cfc2");
+        g.box(x+.04,.98,z+.43,.12,.29,.11,leg);
+        const face=x-.06,yc=1.19,zc=z+.43,radius=.22;
+        for(let i=0;i<16;i++){
+          const a=i*Math.PI/8,b=(i+1)*Math.PI/8;
+          g.tri([face,yc,zc],[face,yc+Math.sin(a)*radius,zc+Math.cos(a)*radius],[face,yc+Math.sin(b)*radius,zc+Math.cos(b)*radius],"#eadab4");
+        }
+        for(let i=0;i<9;i++){const a=.16+i*.35;
+          g.box(face-.004,yc+Math.sin(a)*.18,zc+Math.cos(a)*.18,.01,.018,.015,"#415352");}
+        g.pole([face-.018,yc,zc],[face-.018,yc+.14,zc-.063],.01,"#a13e32",4);
+      }else{
+        g.box(x,.88,z+.43,.32,.06,.39,"#334e54");
+        for(let i=0;i<4;i++){g.box(x-.016+i*.009,.918+i*.007,z+.40+i*.009,.25,.012,.15,"#e2c998");}
+        g.box(x,.87,z-.46,.25,.04,.16,"#ab5c50");
+      }
+    }
+  }
   class Ride {
     constructor(){this.jules=actor(pickup);this.stage="curb";this.seat=0;this.car=null;this.delay=0;this.pass=0;}
     get holding(){return heldStages.has(this.stage);}
@@ -29,7 +57,7 @@
         if((this.delay-=dt)>0)return;
         this.delay=.35;
         const stand=this.aboard?stops[dest]:a;
-        const at=this.aboard?BayDriving.world(stand,0,.74):stand;
+        const at=this.aboard?BayDriving.world(stand,0,1.42):stand;
         const approach=plan(car,false,at,1);
         if(!approach){this.blocked=true;return;}
         this.blocked=false;BayDriving.settle(car);
@@ -78,7 +106,8 @@
     const a=run.jules,r=run.receiver||run.waiting;
     if(!see(a,76)&&(!r||!see(r,76)))return;
     const j=body(view,list,a,"payroll-jules",colors);
-    const to=r?body(view,list,r,"payroll-"+r.route,stops[r.route].colors):j;
+    if(r)body(view,list,r,"payroll-"+r.route,stops[r.route].colors);
+    const to=run.receiver?counterTop(run.route):j;
     const seat=a.motion.ride?.seat||0;
     if(seat){const lap=BayDriving.world(a,0,.22);j.x+=(lap.x-j.x)*seat;j.z+=(lap.z-j.z)*seat;
       j.y+=(a.y+a.motion.ride.seatY+.23-j.y)*seat;}
@@ -92,20 +121,29 @@
   }
   function clerkWorld(view,model,list,see,run){
     const r=run.receiver;if(!see(r,58))return;
-    const hand=body(view,list,r,"payroll-"+run.route,stops[run.route].colors);
+    body(view,list,r,"payroll-"+run.route,stops[run.route].colors);const hand=counterTop(run.route);
     model("payroll-tin",tin);list.push(["payroll-tin",hand.x,hand.y,hand.z,r.yaw]);
   }
-  function map(ctx,run,px,py,s,visible){
+  function mapCounters(ctx,px,py,s,visible){
+    for(const [route,r] of Object.entries(stops)){
+      const p=counterTop(route);if(!visible(px(p.x),py(p.z),2*s))continue;
+      const x=px(p.x),z=py(p.z);
+      ctx.fillStyle=route==="port"?"#779291":"#8f7157";ctx.fillRect(x-.27*s,z-.65*s,.54*s,1.3*s);
+      ctx.fillStyle=route==="port"?"#c6cabe":"#e8cc9e";ctx.fillRect(x-.18*s,z-.30*s,.36*s,.56*s);
+      ctx.fillStyle=route==="port"?"#f0deaf":"#9b5a4e";ctx.fillRect(x-.16*s,z-.52*s,.32*s,.12*s);
+    }
+  }
+  function map(ctx,run,px,py,s,visible,personSprite){
     const j=run.jules,r=run.receiver||run.waiting;
     function person(a,palette){
       if(!visible(px(a.x),py(a.z),2*s))return;
-      ctx.save();ctx.translate(px(a.x),py(a.z));ctx.rotate(a.yaw);
-      ctx.fillStyle=palette[1];ctx.fillRect(-.24*s,-.12*s,.48*s,.29*s);
-      ctx.fillStyle=palette[0];ctx.beginPath();ctx.arc(0,0,Math.max(.9,.16*s),0,Math.PI*2);ctx.fill();ctx.restore();
+      if(a===j&&(a.motion.ride?.seat||0)>.65){
+        ctx.fillStyle=palette[0];ctx.beginPath();ctx.arc(px(a.x),py(a.z),Math.max(.9,.15*s),0,Math.PI*2);ctx.fill();
+      }else personSprite(ctx,a,px(a.x),py(a.z),s,false);
     }
     if(j)person(j,colors);if(r)person(r,stops[run.route||r.route].colors);
-    const at=run.pass>.55?r:j,p=BayDriving.world(at,.22,.18);
+    const p=run.pass>.55?counterTop(run.route):BayDriving.world(j,.22,.18);
     ctx.fillStyle="#c39e65";ctx.fillRect(px(p.x)-s*.13,py(p.z)-s*.08,Math.max(1,s*.26),Math.max(1,s*.16));
   }
-  window.BayPayroll={Ride,world,map,counter,clerkWorld,stops};
+  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops};
 })();

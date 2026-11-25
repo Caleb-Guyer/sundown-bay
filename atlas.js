@@ -1103,7 +1103,7 @@
         disc(ctx,x,y,1.18*ui,"#b7bda3");
       }
     }
-    if(street&&opt.payroll)BayPayroll.map(ctx,opt.payroll,px,py,s,visible);
+    if(street)BayPayroll.mapCounters(ctx,px,py,s,visible);
     if(street&&opt.oceanBeat&&opt.oceanBeat.seat<.55){const a=opt.oceanBeat.actor;if(visible(px(a.x),py(a.z),12))BayOceanBeatArt.mapPerson(ctx,a,px,py,s,streetTime);}
     if(opt.coastCup)BayCoastCupArt.map(ctx,opt,px,py,s,visible);
     if(opt.redCork)BayRedCorkArt.map(ctx,opt,px,py,s,visible);
@@ -1285,7 +1285,7 @@
           if(opt.airLine?.saved.bag){const q=BayDriving.world(v,.48,-.94);BayAirmailArt.bagMap(ctx,opt,px,py,s,q,v.yaw+.28,BayAirPost.tagFor(opt.airLine.saved.bag));}
           disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
         if(opt.wash)BayPalmaWash.mapActivity(ctx,opt,px,py,s,visible);
-        if(!opt.crew?.finder&&!opt.rainWalk?.trip&&!opt.airwaves?.mixing&&!opt.airLine?.aboard&&!opt.photograph&&!opt.keyMapActor&&!opt.band?.take&&!opt.skate?.rider){
+        if(opt.payroll?.stage!=="receipt"&&!opt.crew?.finder&&!opt.rainWalk?.trip&&!opt.airwaves?.mixing&&!opt.airLine?.aboard&&!opt.photograph&&!opt.keyMapActor&&!opt.band?.take&&!opt.skate?.rider){
           const r=Math.max(player.driving?2.7*s:opt.pickup ? .52*s : 1.1*s,5.2*ui);
           ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.lineWidth=1.5*ui;ctx.strokeStyle=mint;ctx.stroke();
           const vx=Math.sin(player.yaw||0),vy=-Math.cos(player.yaw||0);
@@ -1293,6 +1293,7 @@
         }
       } else playerIcon(ctx,x,y,(radar?7.15:6.6)*ui,player.yaw);
     }
+    if(street&&opt.payroll)BayPayroll.map(ctx,opt.payroll,px,py,s,visible,personSprite);
     if(opt.recovery&&street)BayRecoveryArt.map(ctx,opt,px,py,s,visible);
     if(street&&opt.lastDiner&&t<opt.lastDiner.until){
       const bag=BayDriving.world(opt.lastDiner.customer,.40,.12);
