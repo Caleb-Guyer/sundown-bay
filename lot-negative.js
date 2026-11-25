@@ -30,7 +30,13 @@
     turn(dx,dy){this.pan=clamp(this.pan+dx,-.36,.97);this.tilt=clamp(this.tilt+dy,-.34,.28);}
     aim(u,v){this.turn(Math.atan((u-.5)*32/(9*this.focal)),Math.atan((.5-v)*2/this.focal));}
     zoom(delta){this.focal=clamp(this.focal+delta,1.48,3.9);}
-    ask(){if(!this.frames["14A"]||this.asked)return false;this.asked=true;this.focal=3.2;this.tilt=-.064;return true;}
+    ask(useMark=false){
+      if(!this.frames["14A"]||this.asked)return false;
+      this.asked=true;this.focal=3.2;this.tilt=-.064;
+      if(useMark)this.matchPrint();
+      return true;
+    }
+    matchPrint(){const eye=this.eye(0);this.pan=Math.atan2(subject.x-eye.x,subject.z-eye.z)+Math.PI/2;this.focal=3.2;this.tilt=-.064;}
     ready(project,ground){
       const inside=(p,dx,dy)=>p&&Math.abs(p.x-.5)<dx&&Math.abs(p.y-.5)<dy;
       if(!this.frames["14A"]){

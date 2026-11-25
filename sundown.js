@@ -85,7 +85,7 @@
   }
   // Share vertices only when all six Float32 words match. Painted seams and
   // layered signs keep their colours and the original triangle ordering.
-  function indexGeometry(data,largeIndices){
+  function indexGeometry(data,largeIndices,groups=null){
     const count=data.length/6;
     if(count<192||count>65535&&!largeIndices)return null;
     const words=new Uint32Array(data.buffer,data.byteOffset,data.length);
@@ -93,12 +93,12 @@
     const slots=new Uint32Array(size),remap=count>65535?new Uint32Array(count):new Uint16Array(count);
     const packed=new Float32Array(data.length);let used=0;
     for(let i=0;i<count;i++){
-      const p=i*6;let hash=2166136261;
+      const p=i*6;let hash=groups?Math.imul(2166136261^groups[i],16777619):2166136261;
       for(let n=0;n<6;n++)hash=Math.imul(hash^words[p+n],16777619);
       let slot=(hash^(hash>>>16))&(size-1);
       while(slots[slot]){
         const q=(slots[slot]-1)*6;
-        if(words[q]===words[p]&&words[q+1]===words[p+1]&&words[q+2]===words[p+2]&&
+        if((!groups||groups[slots[slot]-1]===groups[i])&&words[q]===words[p]&&words[q+1]===words[p+1]&&words[q+2]===words[p+2]&&
           words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5])break;
         slot=(slot+1)&(size-1);
       }
@@ -112,6 +112,23 @@
     if(used>count*.85)return null;
     const indices=used<=65535&&remap.BYTES_PER_ELEMENT===4?new Uint16Array(remap):remap;
     return {vertices:packed.subarray(0,used*6),indices};
+  }
+  function indexActor(data,rig,largeIndices){
+    // Coincident points on a sleeve and on the hand can separate. Share only
+    // corners that the rigger bound to the very same rest point and joints.
+    const plan=rig.skinPlan(),groups=new Uint32Array(plan.count);
+    if(groups.length*6!==data.length)return null;
+    for(const i of plan.unique)groups[i]=i;
+    for(let p=0;p<plan.copies.length;p+=2)groups[plan.copies[p]/6]=plan.copies[p+1]/6;
+    const packed=indexGeometry(data,largeIndices,groups);if(!packed)return null;
+    const sources=new Uint32Array(packed.vertices.length/6),copies=[];
+    for(let i=0;i<packed.indices.length;i++){
+      const id=packed.indices[i];
+      if(sources[id])copies.push(i*6,sources[id]-1);
+      else sources[id]=i*6+1;
+    }
+    for(let i=0;i<sources.length;i++)sources[i]--;
+    return {...packed,sources,copies:new Uint32Array(copies)};
   }
   // Collapse details within small model-space cells. All paint at a shared
   // position moves together, including the two sides of a material seam.
@@ -285,6 +302,7 @@
       let data=view.cpu.get(name);
       if(model.poseChanged){model.bounds=meshBounds(data,0,model.count);model.poseChanged=false;}
       if(!view.inFrame(model.bounds,x,y,z,yaw,tiltX,tiltZ,car?.damage?1.4:0))return;
+      if(model.checkCopies)view.checkActorCopies(model,data);
       if(model.sections||car?.damage||vapor||model.count>this.indices.length){
         this.flush();view.draw(...item);return;
       }
@@ -506,7 +524,7 @@
   const SUNFRAG=PRECISION+`void main(){vec2 rg=fract(gl_FragCoord.z*vec2(1.,255.));rg.x-=rg.y/255.;gl_FragColor=vec4(rg,0.,1.);}`;
   class View {
     constructor(canvas) {
-      this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();this.actors=new Set();
+      this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();this.actors=new Map();
       this.scale=1; this.maxWidth=1180; this.maxHeight=760; this.lost=false;
       try {
         this.gl=canvas.getContext("webgl",{alpha:true,depth:true,stencil:true,antialias:false,powerPreference:"low-power",preserveDrawingBuffer:false});
@@ -571,12 +589,14 @@
       else if(name==="cut-guides")tagMaterials(data,new Map([[0xe7e0bf,7],[0xc8965a,7]]));
       else if(name.startsWith("traffic-shell/")||/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
       if(animated)this.animated.add(name);
-      if(animated&&window.BayPlayerMesh&&mesh instanceof BayPlayerMesh)this.actors.add(name);
+      if(animated&&window.BayPlayerMesh&&mesh instanceof BayPlayerMesh)this.actors.set(name,mesh);
+      else this.actors.delete(name);
       this.cpu.set(name,data);if(!this.lost)this.upload(name,data);
     }
     upload(name,data){
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
-      const dynamic=this.animated.has(name),packed=dynamic?null:indexGeometry(data,this.largeIndices);
+      const dynamic=this.animated.has(name),rig=this.actors.get(name);
+      const packed=rig?indexActor(data,rig,this.largeIndices):dynamic?null:indexGeometry(data,this.largeIndices);
       gl.bufferData(gl.ARRAY_BUFFER,packed?.vertices||data,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
       const count=data.length/6,model={buf,count,dynamic,vertexCount:packed?packed.vertices.length/6:count};
       if(packed){
@@ -584,7 +604,10 @@
         model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,model.indices,gl.STATIC_DRAW);
       }
-      model.actor=!!this.actors?.has(name);
+      model.actor=!!rig;
+      if(rig&&packed){
+        model.actorStream=packed.vertices.slice();model.copies=packed.copies;model.batchSources=packed.sources;
+      }
       if(count&&(!dynamic||model.actor))model.bounds=meshBounds(data,0,count);
       if(name==="city"||!dynamic&&count>2400&&model.bounds.r>17){
         // Keep the original order of windows, paint and coplanar signs. Nearby
@@ -664,9 +687,23 @@
     }
     updateAnimated(name){
       const model=this.models.get(name);if(!model||this.lost)return;
-      if(model.actor){model.poseChanged=true;model.needsUpload=true;return;}
+      if(model.actor){model.poseChanged=true;model.needsUpload=true;model.checkCopies=!!model.copies;return;}
       const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);
       gl.bufferSubData(gl.ARRAY_BUFFER,0,this.cpu.get(name));this.bound=null;
+    }
+    checkActorCopies(model,data){
+      // Props and custom costumes can edit an individual corner after skinning.
+      // Restore the original stream for that actor as soon as a painted seam opens.
+      model.checkCopies=false;
+      const pairs=model.copies;
+      for(let i=0;i<pairs.length;i+=2){
+        const p=pairs[i],q=pairs[i+1];
+        if(data[p]===data[q]&&data[p+1]===data[q+1]&&data[p+2]===data[q+2]&&
+          data[p+3]===data[q+3]&&data[p+4]===data[q+4]&&data[p+5]===data[q+5])continue;
+        this.gl.deleteBuffer(model.elements);
+        model.indices=model.elements=model.batchSources=model.actorStream=model.copies=null;
+        model.vertexCount=model.count;model.resizePose=true;break;
+      }
     }
     prepareSun(){
       const gl=this.gl,sz=Math.min(1024,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
@@ -869,10 +906,18 @@
       if(!base?.count)return;
       if(base.poseChanged){base.bounds=meshBounds(this.cpu.get(name),0,base.count);base.poseChanged=false;}
       if(!this.inFrame(base.bounds,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0))return;
+      if(base.checkCopies)this.checkActorCopies(base,this.cpu.get(name));
       const model=vehicle?.damage?BayBodyworkArt.buffer(this,name,vehicle,doorSide):base,gl=this.gl;
       if(!model)return;
       if(base.needsUpload){
-        gl.bindBuffer(gl.ARRAY_BUFFER,base.buf);gl.bufferSubData(gl.ARRAY_BUFFER,0,this.cpu.get(name));this.bound=null;base.needsUpload=false;
+        const data=this.cpu.get(name),stream=base.actorStream;
+        if(stream)for(let i=0,j=0;i<base.batchSources.length;i++){
+          const p=base.batchSources[i];for(let k=0;k<6;k++)stream[j++]=data[p+k];
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER,base.buf);
+        if(base.resizePose){gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);base.resizePose=false;}
+        else gl.bufferSubData(gl.ARRAY_BUFFER,0,stream||data);
+        this.bound=null;base.needsUpload=false;
       }
       const reduced=this.scale<=.65&&base===model&&!base.actor&&base.bounds&&base.count>330&&
         (model.sections||!tiltX&&!tiltZ&&this.farFromCamera(base.bounds,x,y,z,yaw));
@@ -12345,11 +12390,16 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       this.skin();
     }
+    skinPlan(){
+      const src=this.rest;
+      let plan=this.skinMap;
+      if(plan?.rest!==src||plan.bindings!==this.bindings||plan.count!==this.bindings.length)plan=this.skinMap=skinPlan(src,this.bindings);
+      return plan;
+    }
     skin(){
       const dst=this.vertices,src=this.rest;
       if(!this.bindings.length)return;
-      let plan=this.skinMap;
-      if(plan?.rest!==src||plan.bindings!==this.bindings||plan.count!==this.bindings.length)plan=this.skinMap=skinPlan(src,this.bindings);
+      const plan=this.skinPlan();
       for(let k=0;k<plan.unique.length;k++){
         const i=plan.unique[k],j=i*6;
         const {a,b,t}=this.bindings[i],x=src[j],y=src[j+1],z=src[j+2];
@@ -19115,6 +19165,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       this.mara={...pickup,yaw:-1.9,y:.076};this.motion=new BayPlayerMotion();
       this.phase="pickup";this.ride=null;this.path=[];this.progress=0;this.route="";this.remaining=0;
       this.aim={x:.43,y:.58};this.remarked=false;this.warnedHeat=false;this.warnedFlat=false;this.warnedClock=false;
+      this.offeredSleeve=false;
     }
     target(car){
       if(this.ride&&this.ride!==car)return {x:this.ride.x,z:this.ride.z,name:"Mara’s car"};
@@ -19134,6 +19185,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     holds(v){return this.ride===v&&["approach","board","exit","handoff"].includes(this.phase);}
     atDock(car){return !!car&&this.ride===car&&distance(car,dock)<9&&stopped(car);}
+    sleeveStop(car){return this.offeredSleeve&&this.phase==="port"&&!this.remarked&&car===this.ride&&!!car&&stopped(car);}
     interaction(car){return (this.regrouped&&this.phase==="choice"&&car===this.ride)||this.atDock(car)?({port:"viewfinder",choice:"contact"})[this.phase]||"":"";}
     focus(){const sign=BayExposureArt.photoNotice;return Math.abs(this.aim.x-sign.x)<=sign.width*.32&&Math.abs(this.aim.y-sign.y)<=sign.height*.36;}
     expose(){if(this.phase!=="port"||!this.focus())return false;this.phase="choice";return true;}
@@ -19213,7 +19265,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     turn(dx,dy){this.pan=clamp(this.pan+dx,-.36,.97);this.tilt=clamp(this.tilt+dy,-.34,.28);}
     aim(u,v){this.turn(Math.atan((u-.5)*32/(9*this.focal)),Math.atan((.5-v)*2/this.focal));}
     zoom(delta){this.focal=clamp(this.focal+delta,1.48,3.9);}
-    ask(){if(!this.frames["14A"]||this.asked)return false;this.asked=true;this.focal=3.2;this.tilt=-.064;return true;}
+    ask(useMark=false){
+      if(!this.frames["14A"]||this.asked)return false;
+      this.asked=true;this.focal=3.2;this.tilt=-.064;
+      if(useMark)this.matchPrint();
+      return true;
+    }
+    matchPrint(){const eye=this.eye(0);this.pan=Math.atan2(subject.x-eye.x,subject.z-eye.z)+Math.PI/2;this.focal=3.2;this.tilt=-.064;}
     ready(project,ground){
       const inside=(p,dx,dy)=>p&&Math.abs(p.x-.5)<dx&&Math.abs(p.y-.5)<dy;
       if(!this.frames["14A"]){
@@ -19768,7 +19826,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const read=(raw={})=>({stage:stages.includes(raw?.stage)?raw.stage:"arrival",route:["print","live"].includes(raw?.route)?raw.route:"",
     credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true,
     pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
-    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),
+    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,
     airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
     constructor(){try{this.book=read(JSON.parse(localStorage.getItem(key)));}catch{this.book=read();}this.scene=null;this.table=null;}
@@ -19920,7 +19978,38 @@ window.buildBayCity = function buildBayCity(g,water) {
     model(name,g=>{g.box(.097,1.44,.15,.018,.07,1.05,color);for(let i=0;i<4;i++)g.box(.099,1.31-i*.078,-.14,.018,.022,.91+i%2*.24,"#777a66");
       g.box(.102,1.01,.02,.019,.104,1.18,filed?"#8ca796":"#b5a47d");});view.draw(name,p.x,.06,p.z);
   }
-  window.BayRecordArt={show,world};
+  function tone(photo){
+    const c=photo.getContext("2d"),image=c.getImageData(0,0,photo.width,photo.height),p=image.data;
+    let grain=561;
+    for(let i=0;i<p.length;i+=4){
+      grain=(Math.imul(grain,1664525)+1013904223)>>>0;
+      const grey=13+(p[i]*.29+p[i+1]*.57+p[i+2]*.14)*.89+(grain>>>26)*.16-5;
+      p[i]=grey*1.05;p[i+1]=grey*.99;p[i+2]=grey*.86;
+    }
+    c.putImageData(image,0,0);
+  }
+  function sleeve(canvas,pull,photo){
+    if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
+    const g=canvas.getContext("2d"),travel=pull*pull*(3-2*pull);
+    g.fillStyle="#3b4849";g.fillRect(0,0,W,H);
+    for(let i=0;i<13;i++)line(g,0,5+i*43,W,28+i*43,i%3?"#404e4e":"#334344",2);
+    g.save();g.translate(77,96);g.rotate(-.034);
+    g.save();g.translate(34+travel*421,4-travel*14);g.rotate(travel*.061);
+    g.fillStyle="#263334";g.fillRect(4,5,416,326);g.fillStyle="#ede6d2";g.fillRect(0,0,416,326);
+    g.drawImage(photo,15,15,386,217);
+    label(g,19,260,"Luis, first boat.",25,"#474441","Georgia","italic");
+    label(g,19,295,"Third bolt. Keep the blue tin in.",22,"#474441","Georgia","italic");
+    g.restore();
+    g.fillStyle="#b3a47f";g.fillRect(5,6,429,325);g.fillStyle="#d9ccac";g.fillRect(0,0,426,324);
+    for(let i=0;i<85;i++)line(g,(i*139)%412,(i*49)%321,(i*139)%412+6,(i*49)%321,"#c9bb99",.8);
+    g.fillStyle="#326a70";g.fillRect(0,30,426,44);label(g,24,60,"COAST CAMERA",28,"#ecdfb9","Georgia","bold");
+    label(g,25,105,"PRINT ENVELOPE   /   Nº 0187",17,red,"monospace","bold");
+    line(g,24,126,395,126,"#96896d");label(g,27,171,"Vega",35,ink,"Georgia","italic");
+    label(g,27,211,"Port Sol · early shift",26,ink,"Georgia","italic");
+    line(g,25,231,395,231,"#a3987e");label(g,25,276,"ONE CONTACT PRINT",14,ink,"monospace");
+    line(g,412,2,412,322,"#9c9075",2);g.restore();
+  }
+  window.BayRecordArt={show,world,sleeve,tone};
 })();
 
 ;
@@ -68495,6 +68584,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     const b=campaign.beat(),table=campaign.table;
     chapterSoundLabel();
     $("dispatchClock").hidden=b?.watch!=="work";
+    if(table?.kind==="filmSleeve"){
+      $("chapterSlug").textContent=$("chapterTitle").textContent="";
+      $("chapterWho").textContent="Mara Vega";
+      $("chapterLine").textContent=table.pull<1?"Hold Space to slide the contact print out. Esc puts it away.":
+        "Dad shot it from the third bolt in the fence. I could still put him in that frame. Enter puts it away.";
+      $("chapterSkip").hidden=true;$("chapterInsert").hidden=false;BayRecordArt.sleeve($("chapterInsert"),table.pull,table.photo);return;
+    }
     if(table?.kind==="watchBook"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";$("chapterWho").textContent="Dalia’s departure book";
       $("chapterLine").textContent="Marlin Pier · Last sailing before the closure. Press Esc to put the book back.";
@@ -68519,7 +68615,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(panel)closePanel();
     sound.reel(null);
     campaign.negativeNumber=(id==="negative"?(maraFilm.pending||maraFilm.published):maraFilm.published)?.frame;
-    filmReplay=replay;if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
+    filmReplay=replay;if(id==="film-sleeve"){
+      const photo=document.createElement("canvas");photo.width=384;photo.height=216;
+      const roll=new BayLotNegative.Roll();roll.matchPrint();
+      rideScenery.paint(photo,roll.eye(footLevel(-150.90,-91.18)),{id:"vega-contact"},0,{curb:true,sensorWidth:384,
+        hours:{minute:385,night:0,rain:0},cars:[],scene:list=>BayLotNegative.actor(list,model,footLevel,1)},true);
+      BayRecordArt.tone(photo);campaign.table={kind:"filmSleeve",pull:0,photo};
+    }
+    else if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
     if(id==="firstCopy")campaign.negativeNumber=inscribedCopy.pierPhoto.frame;
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
@@ -68556,6 +68659,11 @@ window.buildBayCity = function buildBayCity(g,water) {
           if(!campaign.book.morning){campaign.book.morning={...campaign.watch.departure};campaign.write();}
         }
       }
+      return true;
+    }
+    if(campaign.table?.kind==="filmSleeve"){
+      if(ev.code==="Space")keys.add("Space");
+      else if(["Escape","Enter","KeyN"].includes(ev.code))endFilm("");
       return true;
     }
     if(campaign.table?.kind==="watchBook"){if(["Escape","Enter","KeyF"].includes(ev.code))endFilm("");return true;}
@@ -74116,6 +74224,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(heat&&!story.warnedHeat){story.warnedHeat=true;speak("Mara Vega","Those lights for us? I’m putting the film in my sock.");}
       else if(car.flatSide&&!story.warnedFlat){story.warnedFlat=true;speak("Mara Vega","Feel that pull? Portside Tire can put a fresh one on.");}
       else if(story.route==="live"&&story.remaining<16&&!story.warnedClock){story.warnedClock=true;speak("Mara Vega","That’s the station van with the dish. The bulletin’s almost on.");}
+      else if(story.phase==="port"&&!heat&&!campaign.book.sleeve&&!story.offeredSleeve&&!story.remarked&&dist(car,BayExposure.pickup)>22){
+        story.offeredSleeve=true;story.sleeveCall=elapsed;speak("Mara Vega","Look what fell out of Dad’s camera bag. Pull up a second if you want to see it.");
+      }
       return;
     }
     lastHud=lastMap=-10;
@@ -74133,7 +74244,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         campaign.book.route=story.route;campaign.advance("return");campaign.write();if(campaign.book.intro)enterFilm(story.route);
       }
     }else speak("Mara Vega",({boarded:"Port Sol. The sale goes to a vote tonight. I want a picture of what they nailed to that fence.",
-      docks:"There, by the crane. Red sign on the fence. Pull in and I’ll get the camera.",
+      docks:campaign.book.sleeve?"Third bolt, just like his print. That’s Luis with the tins. Pull in by the red sign.":"There, by the crane. Red sign on the fence. Pull in and I’ll get the camera.",
       late:"They’ve gone to the weather. Take me to Cine Luna. The projectionist owes me one."})[event]);
   }
   function ferryLanding(){
@@ -77435,6 +77546,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       }else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
     }else if(chapter)contextHint("F",({firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
+    else if(active?.story?.offeredSleeve&&!campaign.book.sleeve&&!heat&&!transfer&&car===active.story.ride&&active.story.phase==="port"&&!active.story.remarked&&(active.story.sleeveStop(car)||elapsed-active.story.sleeveCall<9)){
+      if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print");
+      else contextHint("","Stop to look at Mara’s contact print");
+    }
     else if(beachHint)contextHint(...beachHint);
     else if(phoneHint)contextHint(...phoneHint);
     else if(nearNeedle())contextHint("F","Play Needle Drop · Tideway Arcade");
@@ -77925,7 +78040,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         q(".finder-body").classList.add("contact-sheet");portrait.focus({preventScroll:true});
       }
       status.textContent=second?"Two negatives. Which one goes out tonight?":!first?(ready?"Lot number in focus.":"Keep the whole sale notice in the frame."):
-        !roll.asked?"Mara: “Uncle Luis? Can I get one with you in it?”":roll.raise<1?
+        !roll.asked?(campaign.book.sleeve?"Mara: “Luis, Dad took one of you right here. Can we match it?”":"Mara: “Uncle Luis? Can I get one with you in it?”"):roll.raise<1?
         (campaign.book.morning?.luis==="ashore"?"Luis: “Missed the boat. Kept his tin, though.”":"Luis: “This blue one was my brother’s. Get the latch in.”"):
         ready?"Luis and the tin in focus.":"Turn right to frame Luis and the blue tin.";
     }
@@ -77934,7 +78049,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const step=Math.min(6,Math.floor((now-start)/160));if(step>Math.round(roll.raise*6)){roll.raise=step/6;draw();}
       if(step<6)requestAnimationFrame(t=>lift(start,t));
     }
-    function invite(){if(!roll.ask())return;draw();canvas.focus({preventScroll:true});lift(performance.now(),performance.now());}
+    function invite(){if(!roll.ask(campaign.book.sleeve))return;draw();canvas.focus({preventScroll:true});lift(performance.now(),performance.now());}
     function shoot(){
       if(!filming())return;
       if(roll.expose(canvas,project,footLevel))draw();
@@ -78748,6 +78863,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyN"&&!campaign.book.sleeve&&!heat&&!transfer&&active?.story?.sleeveStop(car)){enterFilm("film-sleeve");return;}
     if(luz.rider){
       if(ev.code==="Space"&&luz.rider.phase==="line"&&!luz.rider.rope)luz.rider.charge=0;
       if(ev.code==="KeyF")luz.assist();
@@ -78959,6 +79075,14 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(campaign.beat().watch==="work"){
           const words=campaign.watch.caption();if($("chapterLine").textContent!==words)$("chapterLine").textContent=words;
         }
+      }else if(campaign.table.kind==="filmSleeve"){
+        const sleeve=campaign.table;
+        if(sleeve.pull<1&&held("Space")){
+          sleeve.pull=Math.min(1,sleeve.pull+delta*.75);
+          if(sleeve.pull===1){campaign.book.sleeve=true;campaign.write();setFilmPage();}
+          else if(now-lastFilmPaint>=1000/24){BayRecordArt.sleeve($("chapterInsert"),sleeve.pull,sleeve.photo);lastFilmPaint=now;}
+        }
+        return;
       }else if(campaign.table.kind==="watchBook"){return;
       }else if(campaign.table.kind==="splice"){
         const edit=campaign.table,dir=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));

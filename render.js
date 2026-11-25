@@ -84,7 +84,7 @@
   }
   // Share vertices only when all six Float32 words match. Painted seams and
   // layered signs keep their colours and the original triangle ordering.
-  function indexGeometry(data,largeIndices){
+  function indexGeometry(data,largeIndices,groups=null){
     const count=data.length/6;
     if(count<192||count>65535&&!largeIndices)return null;
     const words=new Uint32Array(data.buffer,data.byteOffset,data.length);
@@ -92,12 +92,12 @@
     const slots=new Uint32Array(size),remap=count>65535?new Uint32Array(count):new Uint16Array(count);
     const packed=new Float32Array(data.length);let used=0;
     for(let i=0;i<count;i++){
-      const p=i*6;let hash=2166136261;
+      const p=i*6;let hash=groups?Math.imul(2166136261^groups[i],16777619):2166136261;
       for(let n=0;n<6;n++)hash=Math.imul(hash^words[p+n],16777619);
       let slot=(hash^(hash>>>16))&(size-1);
       while(slots[slot]){
         const q=(slots[slot]-1)*6;
-        if(words[q]===words[p]&&words[q+1]===words[p+1]&&words[q+2]===words[p+2]&&
+        if((!groups||groups[slots[slot]-1]===groups[i])&&words[q]===words[p]&&words[q+1]===words[p+1]&&words[q+2]===words[p+2]&&
           words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5])break;
         slot=(slot+1)&(size-1);
       }
@@ -111,6 +111,23 @@
     if(used>count*.85)return null;
     const indices=used<=65535&&remap.BYTES_PER_ELEMENT===4?new Uint16Array(remap):remap;
     return {vertices:packed.subarray(0,used*6),indices};
+  }
+  function indexActor(data,rig,largeIndices){
+    // Coincident points on a sleeve and on the hand can separate. Share only
+    // corners that the rigger bound to the very same rest point and joints.
+    const plan=rig.skinPlan(),groups=new Uint32Array(plan.count);
+    if(groups.length*6!==data.length)return null;
+    for(const i of plan.unique)groups[i]=i;
+    for(let p=0;p<plan.copies.length;p+=2)groups[plan.copies[p]/6]=plan.copies[p+1]/6;
+    const packed=indexGeometry(data,largeIndices,groups);if(!packed)return null;
+    const sources=new Uint32Array(packed.vertices.length/6),copies=[];
+    for(let i=0;i<packed.indices.length;i++){
+      const id=packed.indices[i];
+      if(sources[id])copies.push(i*6,sources[id]-1);
+      else sources[id]=i*6+1;
+    }
+    for(let i=0;i<sources.length;i++)sources[i]--;
+    return {...packed,sources,copies:new Uint32Array(copies)};
   }
   // Collapse details within small model-space cells. All paint at a shared
   // position moves together, including the two sides of a material seam.
@@ -284,6 +301,7 @@
       let data=view.cpu.get(name);
       if(model.poseChanged){model.bounds=meshBounds(data,0,model.count);model.poseChanged=false;}
       if(!view.inFrame(model.bounds,x,y,z,yaw,tiltX,tiltZ,car?.damage?1.4:0))return;
+      if(model.checkCopies)view.checkActorCopies(model,data);
       if(model.sections||car?.damage||vapor||model.count>this.indices.length){
         this.flush();view.draw(...item);return;
       }
@@ -505,7 +523,7 @@
   const SUNFRAG=PRECISION+`void main(){vec2 rg=fract(gl_FragCoord.z*vec2(1.,255.));rg.x-=rg.y/255.;gl_FragColor=vec4(rg,0.,1.);}`;
   class View {
     constructor(canvas) {
-      this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();this.actors=new Set();
+      this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();this.actors=new Map();
       this.scale=1; this.maxWidth=1180; this.maxHeight=760; this.lost=false;
       try {
         this.gl=canvas.getContext("webgl",{alpha:true,depth:true,stencil:true,antialias:false,powerPreference:"low-power",preserveDrawingBuffer:false});
@@ -570,12 +588,14 @@
       else if(name==="cut-guides")tagMaterials(data,new Map([[0xe7e0bf,7],[0xc8965a,7]]));
       else if(name.startsWith("traffic-shell/")||/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
       if(animated)this.animated.add(name);
-      if(animated&&window.BayPlayerMesh&&mesh instanceof BayPlayerMesh)this.actors.add(name);
+      if(animated&&window.BayPlayerMesh&&mesh instanceof BayPlayerMesh)this.actors.set(name,mesh);
+      else this.actors.delete(name);
       this.cpu.set(name,data);if(!this.lost)this.upload(name,data);
     }
     upload(name,data){
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
-      const dynamic=this.animated.has(name),packed=dynamic?null:indexGeometry(data,this.largeIndices);
+      const dynamic=this.animated.has(name),rig=this.actors.get(name);
+      const packed=rig?indexActor(data,rig,this.largeIndices):dynamic?null:indexGeometry(data,this.largeIndices);
       gl.bufferData(gl.ARRAY_BUFFER,packed?.vertices||data,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
       const count=data.length/6,model={buf,count,dynamic,vertexCount:packed?packed.vertices.length/6:count};
       if(packed){
@@ -583,7 +603,10 @@
         model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,model.indices,gl.STATIC_DRAW);
       }
-      model.actor=!!this.actors?.has(name);
+      model.actor=!!rig;
+      if(rig&&packed){
+        model.actorStream=packed.vertices.slice();model.copies=packed.copies;model.batchSources=packed.sources;
+      }
       if(count&&(!dynamic||model.actor))model.bounds=meshBounds(data,0,count);
       if(name==="city"||!dynamic&&count>2400&&model.bounds.r>17){
         // Keep the original order of windows, paint and coplanar signs. Nearby
@@ -663,9 +686,23 @@
     }
     updateAnimated(name){
       const model=this.models.get(name);if(!model||this.lost)return;
-      if(model.actor){model.poseChanged=true;model.needsUpload=true;return;}
+      if(model.actor){model.poseChanged=true;model.needsUpload=true;model.checkCopies=!!model.copies;return;}
       const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);
       gl.bufferSubData(gl.ARRAY_BUFFER,0,this.cpu.get(name));this.bound=null;
+    }
+    checkActorCopies(model,data){
+      // Props and custom costumes can edit an individual corner after skinning.
+      // Restore the original stream for that actor as soon as a painted seam opens.
+      model.checkCopies=false;
+      const pairs=model.copies;
+      for(let i=0;i<pairs.length;i+=2){
+        const p=pairs[i],q=pairs[i+1];
+        if(data[p]===data[q]&&data[p+1]===data[q+1]&&data[p+2]===data[q+2]&&
+          data[p+3]===data[q+3]&&data[p+4]===data[q+4]&&data[p+5]===data[q+5])continue;
+        this.gl.deleteBuffer(model.elements);
+        model.indices=model.elements=model.batchSources=model.actorStream=model.copies=null;
+        model.vertexCount=model.count;model.resizePose=true;break;
+      }
     }
     prepareSun(){
       const gl=this.gl,sz=Math.min(1024,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
@@ -868,10 +905,18 @@
       if(!base?.count)return;
       if(base.poseChanged){base.bounds=meshBounds(this.cpu.get(name),0,base.count);base.poseChanged=false;}
       if(!this.inFrame(base.bounds,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0))return;
+      if(base.checkCopies)this.checkActorCopies(base,this.cpu.get(name));
       const model=vehicle?.damage?BayBodyworkArt.buffer(this,name,vehicle,doorSide):base,gl=this.gl;
       if(!model)return;
       if(base.needsUpload){
-        gl.bindBuffer(gl.ARRAY_BUFFER,base.buf);gl.bufferSubData(gl.ARRAY_BUFFER,0,this.cpu.get(name));this.bound=null;base.needsUpload=false;
+        const data=this.cpu.get(name),stream=base.actorStream;
+        if(stream)for(let i=0,j=0;i<base.batchSources.length;i++){
+          const p=base.batchSources[i];for(let k=0;k<6;k++)stream[j++]=data[p+k];
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER,base.buf);
+        if(base.resizePose){gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);base.resizePose=false;}
+        else gl.bufferSubData(gl.ARRAY_BUFFER,0,stream||data);
+        this.bound=null;base.needsUpload=false;
       }
       const reduced=this.scale<=.65&&base===model&&!base.actor&&base.bounds&&base.count>330&&
         (model.sections||!tiltX&&!tiltZ&&this.farFromCamera(base.bounds,x,y,z,yaw));

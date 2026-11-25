@@ -23,6 +23,7 @@
       this.mara={...pickup,yaw:-1.9,y:.076};this.motion=new BayPlayerMotion();
       this.phase="pickup";this.ride=null;this.path=[];this.progress=0;this.route="";this.remaining=0;
       this.aim={x:.43,y:.58};this.remarked=false;this.warnedHeat=false;this.warnedFlat=false;this.warnedClock=false;
+      this.offeredSleeve=false;
     }
     target(car){
       if(this.ride&&this.ride!==car)return {x:this.ride.x,z:this.ride.z,name:"Mara’s car"};
@@ -42,6 +43,7 @@
     }
     holds(v){return this.ride===v&&["approach","board","exit","handoff"].includes(this.phase);}
     atDock(car){return !!car&&this.ride===car&&distance(car,dock)<9&&stopped(car);}
+    sleeveStop(car){return this.offeredSleeve&&this.phase==="port"&&!this.remarked&&car===this.ride&&!!car&&stopped(car);}
     interaction(car){return (this.regrouped&&this.phase==="choice"&&car===this.ride)||this.atDock(car)?({port:"viewfinder",choice:"contact"})[this.phase]||"":"";}
     focus(){const sign=BayExposureArt.photoNotice;return Math.abs(this.aim.x-sign.x)<=sign.width*.32&&Math.abs(this.aim.y-sign.y)<=sign.height*.36;}
     expose(){if(this.phase!=="port"||!this.focus())return false;this.phase="choice";return true;}

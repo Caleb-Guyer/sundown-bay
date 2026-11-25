@@ -89,5 +89,36 @@
     model(name,g=>{g.box(.097,1.44,.15,.018,.07,1.05,color);for(let i=0;i<4;i++)g.box(.099,1.31-i*.078,-.14,.018,.022,.91+i%2*.24,"#777a66");
       g.box(.102,1.01,.02,.019,.104,1.18,filed?"#8ca796":"#b5a47d");});view.draw(name,p.x,.06,p.z);
   }
-  window.BayRecordArt={show,world};
+  function tone(photo){
+    const c=photo.getContext("2d"),image=c.getImageData(0,0,photo.width,photo.height),p=image.data;
+    let grain=561;
+    for(let i=0;i<p.length;i+=4){
+      grain=(Math.imul(grain,1664525)+1013904223)>>>0;
+      const grey=13+(p[i]*.29+p[i+1]*.57+p[i+2]*.14)*.89+(grain>>>26)*.16-5;
+      p[i]=grey*1.05;p[i+1]=grey*.99;p[i+2]=grey*.86;
+    }
+    c.putImageData(image,0,0);
+  }
+  function sleeve(canvas,pull,photo){
+    if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
+    const g=canvas.getContext("2d"),travel=pull*pull*(3-2*pull);
+    g.fillStyle="#3b4849";g.fillRect(0,0,W,H);
+    for(let i=0;i<13;i++)line(g,0,5+i*43,W,28+i*43,i%3?"#404e4e":"#334344",2);
+    g.save();g.translate(77,96);g.rotate(-.034);
+    g.save();g.translate(34+travel*421,4-travel*14);g.rotate(travel*.061);
+    g.fillStyle="#263334";g.fillRect(4,5,416,326);g.fillStyle="#ede6d2";g.fillRect(0,0,416,326);
+    g.drawImage(photo,15,15,386,217);
+    label(g,19,260,"Luis, first boat.",25,"#474441","Georgia","italic");
+    label(g,19,295,"Third bolt. Keep the blue tin in.",22,"#474441","Georgia","italic");
+    g.restore();
+    g.fillStyle="#b3a47f";g.fillRect(5,6,429,325);g.fillStyle="#d9ccac";g.fillRect(0,0,426,324);
+    for(let i=0;i<85;i++)line(g,(i*139)%412,(i*49)%321,(i*139)%412+6,(i*49)%321,"#c9bb99",.8);
+    g.fillStyle="#326a70";g.fillRect(0,30,426,44);label(g,24,60,"COAST CAMERA",28,"#ecdfb9","Georgia","bold");
+    label(g,25,105,"PRINT ENVELOPE   /   Nº 0187",17,red,"monospace","bold");
+    line(g,24,126,395,126,"#96896d");label(g,27,171,"Vega",35,ink,"Georgia","italic");
+    label(g,27,211,"Port Sol · early shift",26,ink,"Georgia","italic");
+    line(g,25,231,395,231,"#a3987e");label(g,25,276,"ONE CONTACT PRINT",14,ink,"monospace");
+    line(g,412,2,412,322,"#9c9075",2);g.restore();
+  }
+  window.BayRecordArt={show,world,sleeve,tone};
 })();

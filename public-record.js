@@ -76,7 +76,7 @@
   const read=(raw={})=>({stage:stages.includes(raw?.stage)?raw.stage:"arrival",route:["print","live"].includes(raw?.route)?raw.route:"",
     credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true,
     pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
-    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),
+    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,
     airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
     constructor(){try{this.book=read(JSON.parse(localStorage.getItem(key)));}catch{this.book=read();}this.scene=null;this.table=null;}

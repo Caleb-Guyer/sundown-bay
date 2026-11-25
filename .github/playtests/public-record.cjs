@@ -116,6 +116,23 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
             };
             const silhouette=comparePixels(this,items,samplePath(true),samplePath(false));
             q.detail={indices,pixels:silhouette,bytes:batch.detailBytes};
+            const actors=items.filter(([name])=>this.models.get(name)?.actorStream);
+            const submitted=[],drawActors=indexed=>function(list){
+              let vertices=0;const originals=new Map();
+              batch.flush=function(){vertices+=this.used;return flush.call(this);};
+              try{
+                for(const item of list){
+                  const m=this.models.get(item[0]);
+                  if(!indexed&&!originals.has(m)){
+                    originals.set(m,[m.indices,m.batchSources,m.vertexCount]);m.indices=m.batchSources=null;m.vertexCount=m.count;
+                  }
+                  batch.append(item);
+                }
+                batch.flush();
+              }finally{batch.flush=flush;for(const [m,a] of originals)[m.indices,m.batchSources,m.vertexCount]=a;}
+              submitted.push(vertices);
+            };
+            q.animated={pixels:comparePixels(this,actors,drawActors(true),drawActors(false)),submitted};
             const props=items.filter(([name,,,,,,,,car,,vapor])=>{const m=this.models.get(name);
               return m?.count&&!m.dynamic&&!m.sections&&!car&&!vapor&&m.count<=batch.indices.length&&m.vertexCount<=batch.vertices.length/6;});
             const times=[[],[]],counts=[0,0];let hits=0,triIndices=0;
@@ -151,6 +168,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const detail=await js("recQA.compare.detail");console.log("PERF distance detail",JSON.stringify(detail));
       assert(detail.indices[1]<detail.indices[0]&&detail.bytes<=4*1024*1024);
       assert(detail.pixels.silhouette<detail.pixels.painted*.01&&detail.pixels.recolored<detail.pixels.painted*.015);
+      const animated=await js("recQA.compare.animated");console.log("PERF animated characters",JSON.stringify(animated));
+      assert(animated.submitted[1]>0&&animated.submitted[1]<animated.submitted[0]*.85);
+      assert(animated.pixels.painted>0&&animated.pixels.silhouette===0&&animated.pixels.recolored===0);
       assert.equal(await js("recQA.view.gl.getError()"),0);
     }
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
@@ -165,6 +185,16 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await js("recQA.samples=false");
     console.log("PERF drive",mode,await js("(()=>{const a=recQA.frames.sort((a,b)=>a-b);return {median:a[Math.floor(a.length*.5)],p95:a[Math.floor(a.length*.95)],samples:a.length,metres:Math.round(Math.hypot(recQA.subject.x-recQA.start[0],recQA.subject.z-recQA.start[1]))};})()"));
     await js(`const drawMap=window.drawBayMap;window.drawBayMap=function(context,state){if(state.streetCar)recQA.map=state;return drawMap(context,state);};`);
+    if(aboard){
+      await waitFor("!!recQA.map?.streetCar");await parkAt({x:149.50,z:8});
+      await waitFor("document.querySelector('#context').innerText.includes('Look at Mara’s contact print')",30000);
+      await tap("KeyN");await waitFor("document.querySelector('#chapterLine').textContent.includes('slide the contact')");
+      await tap("Escape");assert(!(await js(book+".sleeve")));
+      await tap("KeyN");await key("keyDown","Space");
+      try{await waitFor(book+".sleeve===true");await snap("sleeve");}finally{await key("keyUp","Space");}
+      await tap("Enter");await waitFor("document.querySelector('#chapterFilm').hidden");
+      console.log("PASS Mara's contact print in the passenger seat, closed unread and opened to the third bolt");
+    }
     await tap("Escape");await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('One-minute frame check')).click()");
     await waitFor("document.querySelector('#panel').hidden&&recQA.map?.streetCar");
     const checkId=mode==="street"?"Street drive":"Overhead drive";
@@ -189,7 +219,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await tap("KeyF");await waitFor("document.querySelector('.finder-cross.locked')");
     await snap("lens");await tap("Space");await waitFor("document.querySelector('.file-notice')?.hidden===false");
     if(aboard){
-      await tap("KeyH");for(let i=0;i<8;i++)await tap("ArrowRight");
+      await waitFor("document.querySelector('.finder-status')?.textContent.includes('Can we match it')");
+      await tap("KeyH");
       await waitFor("document.querySelector('.finder-status')?.textContent.includes('tin in focus')");await snap("portrait");
       await tap("Space");await waitFor("document.querySelector('.file-portrait')?.hidden===false");await tap("Digit2");
     }else await tap("Digit1");

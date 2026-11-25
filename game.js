@@ -755,6 +755,13 @@
     const b=campaign.beat(),table=campaign.table;
     chapterSoundLabel();
     $("dispatchClock").hidden=b?.watch!=="work";
+    if(table?.kind==="filmSleeve"){
+      $("chapterSlug").textContent=$("chapterTitle").textContent="";
+      $("chapterWho").textContent="Mara Vega";
+      $("chapterLine").textContent=table.pull<1?"Hold Space to slide the contact print out. Esc puts it away.":
+        "Dad shot it from the third bolt in the fence. I could still put him in that frame. Enter puts it away.";
+      $("chapterSkip").hidden=true;$("chapterInsert").hidden=false;BayRecordArt.sleeve($("chapterInsert"),table.pull,table.photo);return;
+    }
     if(table?.kind==="watchBook"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";$("chapterWho").textContent="Dalia’s departure book";
       $("chapterLine").textContent="Marlin Pier · Last sailing before the closure. Press Esc to put the book back.";
@@ -779,7 +786,14 @@
     if(panel)closePanel();
     sound.reel(null);
     campaign.negativeNumber=(id==="negative"?(maraFilm.pending||maraFilm.published):maraFilm.published)?.frame;
-    filmReplay=replay;if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
+    filmReplay=replay;if(id==="film-sleeve"){
+      const photo=document.createElement("canvas");photo.width=384;photo.height=216;
+      const roll=new BayLotNegative.Roll();roll.matchPrint();
+      rideScenery.paint(photo,roll.eye(footLevel(-150.90,-91.18)),{id:"vega-contact"},0,{curb:true,sensorWidth:384,
+        hours:{minute:385,night:0,rain:0},cars:[],scene:list=>BayLotNegative.actor(list,model,footLevel,1)},true);
+      BayRecordArt.tone(photo);campaign.table={kind:"filmSleeve",pull:0,photo};
+    }
+    else if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
     if(id==="firstCopy")campaign.negativeNumber=inscribedCopy.pierPhoto.frame;
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
@@ -816,6 +830,11 @@
           if(!campaign.book.morning){campaign.book.morning={...campaign.watch.departure};campaign.write();}
         }
       }
+      return true;
+    }
+    if(campaign.table?.kind==="filmSleeve"){
+      if(ev.code==="Space")keys.add("Space");
+      else if(["Escape","Enter","KeyN"].includes(ev.code))endFilm("");
       return true;
     }
     if(campaign.table?.kind==="watchBook"){if(["Escape","Enter","KeyF"].includes(ev.code))endFilm("");return true;}
@@ -6376,6 +6395,9 @@
       if(heat&&!story.warnedHeat){story.warnedHeat=true;speak("Mara Vega","Those lights for us? I’m putting the film in my sock.");}
       else if(car.flatSide&&!story.warnedFlat){story.warnedFlat=true;speak("Mara Vega","Feel that pull? Portside Tire can put a fresh one on.");}
       else if(story.route==="live"&&story.remaining<16&&!story.warnedClock){story.warnedClock=true;speak("Mara Vega","That’s the station van with the dish. The bulletin’s almost on.");}
+      else if(story.phase==="port"&&!heat&&!campaign.book.sleeve&&!story.offeredSleeve&&!story.remarked&&dist(car,BayExposure.pickup)>22){
+        story.offeredSleeve=true;story.sleeveCall=elapsed;speak("Mara Vega","Look what fell out of Dad’s camera bag. Pull up a second if you want to see it.");
+      }
       return;
     }
     lastHud=lastMap=-10;
@@ -6393,7 +6415,7 @@
         campaign.book.route=story.route;campaign.advance("return");campaign.write();if(campaign.book.intro)enterFilm(story.route);
       }
     }else speak("Mara Vega",({boarded:"Port Sol. The sale goes to a vote tonight. I want a picture of what they nailed to that fence.",
-      docks:"There, by the crane. Red sign on the fence. Pull in and I’ll get the camera.",
+      docks:campaign.book.sleeve?"Third bolt, just like his print. That’s Luis with the tins. Pull in by the red sign.":"There, by the crane. Red sign on the fence. Pull in and I’ll get the camera.",
       late:"They’ve gone to the weather. Take me to Cine Luna. The projectionist owes me one."})[event]);
   }
   function ferryLanding(){
@@ -9695,6 +9717,10 @@
       }else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
     }else if(chapter)contextHint("F",({firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
+    else if(active?.story?.offeredSleeve&&!campaign.book.sleeve&&!heat&&!transfer&&car===active.story.ride&&active.story.phase==="port"&&!active.story.remarked&&(active.story.sleeveStop(car)||elapsed-active.story.sleeveCall<9)){
+      if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print");
+      else contextHint("","Stop to look at Mara’s contact print");
+    }
     else if(beachHint)contextHint(...beachHint);
     else if(phoneHint)contextHint(...phoneHint);
     else if(nearNeedle())contextHint("F","Play Needle Drop · Tideway Arcade");
@@ -10185,7 +10211,7 @@
         q(".finder-body").classList.add("contact-sheet");portrait.focus({preventScroll:true});
       }
       status.textContent=second?"Two negatives. Which one goes out tonight?":!first?(ready?"Lot number in focus.":"Keep the whole sale notice in the frame."):
-        !roll.asked?"Mara: “Uncle Luis? Can I get one with you in it?”":roll.raise<1?
+        !roll.asked?(campaign.book.sleeve?"Mara: “Luis, Dad took one of you right here. Can we match it?”":"Mara: “Uncle Luis? Can I get one with you in it?”"):roll.raise<1?
         (campaign.book.morning?.luis==="ashore"?"Luis: “Missed the boat. Kept his tin, though.”":"Luis: “This blue one was my brother’s. Get the latch in.”"):
         ready?"Luis and the tin in focus.":"Turn right to frame Luis and the blue tin.";
     }
@@ -10194,7 +10220,7 @@
       const step=Math.min(6,Math.floor((now-start)/160));if(step>Math.round(roll.raise*6)){roll.raise=step/6;draw();}
       if(step<6)requestAnimationFrame(t=>lift(start,t));
     }
-    function invite(){if(!roll.ask())return;draw();canvas.focus({preventScroll:true});lift(performance.now(),performance.now());}
+    function invite(){if(!roll.ask(campaign.book.sleeve))return;draw();canvas.focus({preventScroll:true});lift(performance.now(),performance.now());}
     function shoot(){
       if(!filming())return;
       if(roll.expose(canvas,project,footLevel))draw();
@@ -11008,6 +11034,7 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyN"&&!campaign.book.sleeve&&!heat&&!transfer&&active?.story?.sleeveStop(car)){enterFilm("film-sleeve");return;}
     if(luz.rider){
       if(ev.code==="Space"&&luz.rider.phase==="line"&&!luz.rider.rope)luz.rider.charge=0;
       if(ev.code==="KeyF")luz.assist();
@@ -11219,6 +11246,14 @@
         if(campaign.beat().watch==="work"){
           const words=campaign.watch.caption();if($("chapterLine").textContent!==words)$("chapterLine").textContent=words;
         }
+      }else if(campaign.table.kind==="filmSleeve"){
+        const sleeve=campaign.table;
+        if(sleeve.pull<1&&held("Space")){
+          sleeve.pull=Math.min(1,sleeve.pull+delta*.75);
+          if(sleeve.pull===1){campaign.book.sleeve=true;campaign.write();setFilmPage();}
+          else if(now-lastFilmPaint>=1000/24){BayRecordArt.sleeve($("chapterInsert"),sleeve.pull,sleeve.photo);lastFilmPaint=now;}
+        }
+        return;
       }else if(campaign.table.kind==="watchBook"){return;
       }else if(campaign.table.kind==="splice"){
         const edit=campaign.table,dir=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));

@@ -296,11 +296,16 @@
       }
       this.skin();
     }
+    skinPlan(){
+      const src=this.rest;
+      let plan=this.skinMap;
+      if(plan?.rest!==src||plan.bindings!==this.bindings||plan.count!==this.bindings.length)plan=this.skinMap=skinPlan(src,this.bindings);
+      return plan;
+    }
     skin(){
       const dst=this.vertices,src=this.rest;
       if(!this.bindings.length)return;
-      let plan=this.skinMap;
-      if(plan?.rest!==src||plan.bindings!==this.bindings||plan.count!==this.bindings.length)plan=this.skinMap=skinPlan(src,this.bindings);
+      const plan=this.skinPlan();
       for(let k=0;k<plan.unique.length;k++){
         const i=plan.unique[k],j=i*6;
         const {a,b,t}=this.bindings[i],x=src[j],y=src[j+1],z=src[j+2];

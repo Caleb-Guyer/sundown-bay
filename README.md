@@ -230,6 +230,8 @@ For **Last Ferry Out**, look for Inez Cruz and her red lunch tin outside the Mar
 
 For **Last Exposure**, pick up Mara Vega outside the Marlin Motel and park at Lot 14. Press **F** to use her camera. Click the scene or use the arrows to aim, **W/S** to zoom, and **Space** for the shutter. Take the sale notice on **14A**. You can file it immediately or ask Luis for **14B**, a portrait with his brother’s lunch tin. Pick a negative, then reach the Sol FM van in 105 seconds for **$425** or take the print to Cine Luna for **$300**. That exact frame appears in Bay Wire, and Cine Luna projects it if you pick the print route.
 
+On the first drive to Port Sol, Mara finds her father’s contact print. Pull up anywhere before the docks and press **N**. Hold **Space** to take the print out of its sleeve. If you study his camera position, Mara can match the old portrait when Luis raises the blue tin.
+
 After the handoff, stop by Luz’s blue news box north of the Marlin Motel or Vic’s in Old Palms. The street edition runs your frame as a newsprint photograph. Press **F** at the box to read it, then **Fold a copy for later** to keep that issue under **J → Folded copies**. Each saved paper keeps the photograph it carried that day.
 
 **The First Copy** starts when you bring a folded edition with Mara’s photograph back to Luis at the Lot 14 gate. Show him the paper with **F**. The picture determines what he writes. Turn the issue over in **J → Folded copies** to read his note later.
