@@ -60,17 +60,19 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
       if(!bell&&data.lap===1){await snap("bell");bell=true;}
       await new Promise(f=>setTimeout(f,65));
     }
-    await hold([]);await waitFor(state+".clubCup?.last",12000);
+    await hold([]);await waitFor(state+".clubCup?.last",12000);await tap("KeyJ");await waitFor("!document.querySelector('#panel').hidden");
     const record=await js(state+".clubCup"),stats=await js("({ranks:proof.ranks,sectors:[...proof.sectors],furthest:proof.pass,length:BayCoastCup.length})");
     assert.equal(record.last.car,"Marlin GT");assert.equal(record.starts,1);assert.equal(record.last.time,record.best);assert(record.lap>12&&record.last.time>record.lap);
     assert.equal(await js(state+".wallet"),money+[0,205,130,75][record.last.place]);assert.equal(stats.sectors.length,10);
-    assert(stats.furthest[1]>stats.length);assert(stats.ranks.length>0);
+    assert(stats.furthest[1]>stats.length,"Both rivals must be racing. Distances "+JSON.stringify(stats.furthest));
+    assert.equal(record.last.laps.length,2);assert.equal(record.splits.length,10);assert(record.last.field.every(r=>r.time!==null||r.back>=0));
+    assert(stats.ranks.length>0);
     await load();await tap("KeyJ");await waitFor(button("Sol Motor Club"));await js(button("Sol Motor Club")+".click()");
     await waitFor("document.querySelector('#panelBody').innerText.includes('"+record.last.plate+"')");await snap("result");
     assert.deepEqual(await js(state+".clubCup"),record);assert.deepEqual(errors,[]);
     console.log("PASS",mode,"met Luz, brought the Marlin GT to the grid, drove both laps using real steering, brake and throttle, crossed every sector and retained the paid result after reload.",record.last,"Positions",stats.ranks,"Rival distances",stats.furthest,"Audio starts 0, cursor locks 0.");
   }catch(e){
-    console.log("Race state",await js("JSON.stringify({phase:proof.map?.coastCup?.phase,lap:proof.map?.coastCup?.completed,gate:proof.map?.coastCup?.gate,clock:proof.map?.coastCup?.clock,hero:proof.map?.player&&[proof.map.player.x,proof.map.player.z],v:proof.map?.streetCar&&[proof.map.streetCar.x,proof.map.streetCar.z,proof.map.streetCar.yaw,proof.map.streetCar.speed],hud:document.querySelector('#objective').innerText,context:document.querySelector('#context').innerText,panel:document.querySelector('#panelBody').innerText})"));
+    console.log("Race state",await js("JSON.stringify({rivals:proof.map?.coastCup?.runners.map(r=>({at:r.at,blocked:r.blocked,pos:[r.v.x,r.v.z],lane:[r.offset,r.targetOffset],room:r.room,near:proof.map.cars.filter(o=>o!==r.v&&Math.hypot(o.x-r.v.x,o.z-r.v.z)<7).map(o=>[o.kind,o.x,o.z])})),phase:proof.map?.coastCup?.phase,lap:proof.map?.coastCup?.completed,gate:proof.map?.coastCup?.gate,clock:proof.map?.coastCup?.clock,hero:proof.map?.player&&[proof.map.player.x,proof.map.player.z],v:proof.map?.streetCar&&[proof.map.streetCar.x,proof.map.streetCar.z,proof.map.streetCar.yaw,proof.map.streetCar.speed],hud:document.querySelector('#objective').innerText,context:document.querySelector('#context').innerText,panel:document.querySelector('#panelBody').innerText})"));
     await snap("failure");throw e;
   }finally{await hold([]);}
 };

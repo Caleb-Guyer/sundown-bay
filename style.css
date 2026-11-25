@@ -434,3 +434,10 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 #starliteGauge:not([hidden])~#speech span{font-size:clamp(.75rem,1.55vw,.95rem)}
 
 .company-return{display:block;width:100%;height:auto;margin:8px auto 18px}
+
+.cup-sheet-title {margin:14px 0 6px;font:italic bold 1.15rem Georgia,serif;color:#24453e}
+.cup-classification {width:100%;border-collapse:collapse;font:700 .8rem Consolas,monospace;color:#253f39}
+.cup-classification th {font-size:.70rem;letter-spacing:.05em;text-transform:uppercase;color:#5c6b5e}
+.cup-classification th,.cup-classification td {text-align:left;padding:6px 8px;border-bottom:1px solid #a6ab91}
+.cup-classification th:last-child,.cup-classification td:last-child {text-align:right;white-space:nowrap}
+.cup-classification .cup-own-result {background:#e4d8ab}

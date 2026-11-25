@@ -321,7 +321,11 @@
       const book=save.clubCup,other=BayCoastCup.read(latest.clubCup);
       book.known=true;
       if(other.starts>book.starts){Object.assign(book,other);if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;}
-      for(const key of ["best","lap"])if(other[key]&&(!book[key]||other[key]<book[key]))book[key]=other[key];
+      if(book.last?.id&&other.last?.id===book.last.id&&book.last.field&&other.last.field){
+        other.last.field.forEach((entry,i)=>{if(entry.time!==null)book.last.field[i].time=entry.time;});
+      }
+      if(other.best&&(!book.best||other.best<book.best)){book.best=other.best;book.splits=other.splits;}
+      if(other.lap&&(!book.lap||other.lap<book.lap))book.lap=other.lap;
     }
     if(latest?.oceanBeat?.known){
       const incoming=BayOceanBeat.read(latest.oceanBeat);
@@ -5218,8 +5222,11 @@
       for(const o of area.cars)if(Math.abs(o.x-q.x)<5.7&&Math.abs(o.z-q.z)<5.7){
         const hit=BayDriving.contact(probe,o);if(hit&&hit.depth>=(BayDriving.contact(v,o)?.depth||0))return false;
       }
-      if(!car&&dist(hero,q)<3&&BayDriving.clearance(probe,hero)<.50)return false;
-      return !area.people.some(w=>Math.abs(w.x-q.x)<3&&Math.abs(w.z-q.z)<3&&BayDriving.clearance(probe,w)<.38);
+      const crowding=(w,r)=>{
+        const d=BayDriving.clearance(probe,w);return d<r&&d<=BayDriving.clearance(v,w)+.000001;
+      };
+      if(!car&&dist(hero,q)<3&&crowding(hero,.5))return false;
+      return !area.people.some(w=>Math.abs(w.x-q.x)<3&&Math.abs(w.z-q.z)<3&&crowding(w,.38));
     }
   };
   const cupPlace=n=>["","1st","2nd","3rd"][n];
@@ -5231,6 +5238,7 @@
   function cupEntry(){
     if((active&&!active.cup)||heat||room||green.run?.accepted||transfer||windowRide||unit.eye||!cup.staged(car))return false;
     if(!cup.start(car))return false;
+    cup.id=Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7);
     active={job:BayCoastCup.job,cup:true};waypoint=null;save.clubCup.known=true;persist();
     speak("Luz Quintero","Two laps. North to the boardwalk, then three more lefts. Watch my board.");lastHud=lastMap=-10;return true;
   }
@@ -5242,12 +5250,29 @@
         active={job:BayCoastCup.job,cup:true};waypoint=null;closePanel();lastHud=lastMap=-10;
       }),makeButton("Run the solo clock","The original four-checkpoint run"+(save.best?" · Best "+watch(save.best):""),"Time trial",()=>startJob("race")));
     }
-    if(r)body.append(makeButton(cupPlace(r.place)+" · "+r.car,r.plate+" · Two laps "+raceWatch(r.time)+" · Fast lap "+raceWatch(r.lap),"Last finish",closePanel));
+    if(r){
+      const title=document.createElement("h3");title.className="cup-sheet-title";title.textContent="Last classification";body.append(title);
+      const table=document.createElement("table");table.className="cup-classification";table.setAttribute("aria-label","Coastline Circuit finishing order");
+      const line=(values,heading=false,you=false)=>{
+        const tr=document.createElement("tr");if(you)tr.className="cup-own-result";
+        for(const value of values){const cell=document.createElement(heading?"th":"td");cell.textContent=value;tr.append(cell);}table.append(tr);
+      };
+      line(["Pos","Driver","At the flag"],true);
+      if(r.field){
+        const field=r.field.map((e,i)=>({...e,name:BayCoastCup.drivers[i].name}));
+        field.push({name:"You · "+r.plate,time:r.time,back:0,you:true});
+        field.sort((a,b)=>(a.time??Infinity)-(b.time??Infinity)||a.back-b.back);
+        field.forEach((e,i)=>line([cupPlace(i+1),e.name,e.time===null?Math.round(e.back)+" m back":raceWatch(e.time)],false,e.you));
+      }else line([cupPlace(r.place),"You · "+r.plate,raceWatch(r.time)],false,true);
+      body.append(table);
+      const info=document.createElement("p");info.className="finish-detail";
+      info.textContent=r.car+(r.laps?" · Lap 1 "+raceWatch(r.laps[0])+" · Lap 2 "+raceWatch(r.laps[1]):" · Fast lap "+raceWatch(r.lap));body.append(info);
+    }
     if(book.best){const p=document.createElement("p");p.className="statline";p.textContent=book.wins+" wins in "+book.starts+" finishes · Best two laps "+raceWatch(book.best)+" · Fast lap "+raceWatch(book.lap);body.append(p);}
   }
   function cupHint(){
     if(cupNear())return ["F","Luz’s timing stand · Coastline Circuit"];
-    if(active?.cup&&cup.phase==="count")return ["","Hold for the flag · "+Math.ceil(cup.count)];
+    if(active?.cup&&cup.phase==="count")return ["",""];
     if(car&&(!active||active.cup)&&!heat&&!green.run?.accepted&&!room&&!transfer&&dist(car,BayCoastCup.grid)<13&&["parked","return"].includes(cup.phase)){
       if(cup.phase==="return")return ["","Club cars returning to the grid"];
       return cup.staged(car)?["H","Start two laps with Pili and Vic"]:["","Line up facing north inside the white brackets"];
@@ -5264,11 +5289,19 @@
     if(event==="go"){sound.cue("job");note("Green flag","Two laps · First left at the boardwalk",1.6);}
     else if(event==="lap"){sound.cue("job");note("White flag","One lap to go · "+raceWatch(cup.laps[0]),2.2);}
     else if(event==="timeout"){active=null;note("Course closed","Meet the field back on Ocean Drive.");}
-    else if(event==="finish"){
+    else if(event==="classified"){
+      try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
+      const last=save.clubCup.last;if(last?.id===cup.id&&last.field){
+        cup.runners.forEach((r,i)=>{if(r.time!==null)last.field[i].time=r.time;});persist();
+      }
+    }else if(event==="finish"){
       try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
       const book=save.clubCup,lap=Math.min(...cup.laps),place=cup.place,pay=[0,205,130,75][place];
-      book.known=true;book.starts++;book.wins+=Number(place===1);book.best=Math.min(book.best||Infinity,cup.finish);book.lap=Math.min(book.lap||Infinity,lap);
-      book.last={place,time:cup.finish,lap,car:formatVehicle(car),plate:BayStreetCars.plateFor(car)};
+      book.known=true;book.starts++;book.wins+=Number(place===1);
+      if(!book.best||cup.finish<book.best){book.best=cup.finish;book.splits=cup.splits.slice();}
+      book.lap=Math.min(book.lap||Infinity,lap);
+      book.last={id:cup.id,place,time:cup.finish,lap,laps:cup.laps.slice(),car:formatVehicle(car),plate:BayStreetCars.plateFor(car),
+        field:cup.runners.map(r=>({time:r.time,back:Math.max(0,2*BayCoastCup.length-r.at)}))};
       save.wallet+=pay;save.paid++;persist();active=null;sound.cue("paid");
       note(cupPlace(place)+" · Coastline Circuit",raceWatch(cup.finish)+" · +"+cash(pay)+" · Fast lap "+raceWatch(lap),5);
       speak("Luz Quintero",place===1?"That’s the checkered flag. You put a whole car on the club sheet!":"Got you across. Your two laps are on the sheet.");
@@ -5472,6 +5505,7 @@
   const freeTowTarget={...recoveryYard.drop,kind:"recovery-drop",name:"Portside handoff lane"};
   const currentTarget=()=>active?.cup?cupTarget():active?.engineSeven?engineTarget():green.run?.accepted&&!active?green.run.s.route.target:mantaRide.run&&skiff===manta?mantaRide.target(clubBoat):active?.campana?campana.target(car===iceVan):!active&&waypoint?.kind==="campana-track"?{...campana.counter,name:"La Campana"}:windowRide?windowTarget():active?.buttonwood?works.target(car,skiff===pip):active?.brisas?(club.reserve&&!BayBrisasClub.switches(car)?{...plum,name:"Plum Solena 64"}:club.target):active?.palm?(palm.match?null:palm.target):active?.gull?gullTarget():active?.moto?motos.target():active?.rescue?rescue.target(rescueEnv):airTarget()||(active?.skate?skateTarget():transit.flag?transit.flag.s:transit.aboard?transit.target:active?.neon?neonTarget():active?.bridge?bridgeSite:active?.wash?wash.marker():active?.band?band.destination(car):active?.valet?valet.target(car):active?.relay?cycles.target(hero):watchCrew.towing?watchCrew.target():active?.recovery?recovery.target(car):cabs.booking||active?.cabFare?cabs.target(car):active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:car===wrecker&&tow.target&&(BayRecovery.worst(tow.target)||tow.target.flatSide)?freeTowTarget:waypoint);
   function streetTarget(){
+    if(active?.cup&&(cup.phase==="count"||cup.phase==="parked"&&dist(pos(),BayCoastCup.grid)<7))return null;
     if(active?.engineSeven&&(!company.manual||car!==engine7))return null;
     if(mantaRide.run&&dist(pos(),mantaRide.target(clubBoat))<30)return null;
     if(windowRide?.held)return null;
@@ -8412,7 +8446,9 @@
         const racing=cup.phase==="race",count=cup.phase==="count";
         $("objectiveTag").textContent=racing?"Coastline Circuit  /  Lap "+(cup.completed+1)+" of 2":"Sol Motor Club  /  Coastline Circuit";
         $("objectiveText").textContent=racing?cupPlace(cup.rank())+" of 3  ·  "+cup.battle()+"  ·  "+raceWatch(cup.clock):count?"Flag in "+Math.ceil(cup.count):"Bring a car to the northbound grid";
-        $("roadTurn").textContent=racing?cupTarget().name+"  ·  "+meters+" m  ·  "+(cupTarget().turn||"Across the stripe"):count?"Pili #7  ·  Vic #4":"Ocean Drive · Stop in the brackets and honk";
+        const reference=save.clubCup.splits[cup.splits?.length-1],delta=reference?cup.split-reference:null;
+        const split=racing&&delta!==null&&cup.clock-cup.split<3.2?(delta>0?"+":"−")+Math.abs(delta).toFixed(2)+" s vs best · ":"";
+        $("roadTurn").textContent=racing?split+cupTarget().name+"  ·  "+meters+" m  ·  "+(cupTarget().turn||"Across the stripe"):count?"Pili #7  ·  Vic #4":"Ocean Drive · Stop in the brackets and honk";
       }else if(mantaRide.run&&skiff===manta){
         const r=mantaRide.run;$("objectiveTag").textContent="North Float Double · "+r.time.toFixed(1)+" s";
         $("objectiveText").textContent=r.leg==="ramp"?"Clear the striped ramp eastbound":"Cross Yellowtail’s wake · "+meters+" m";
@@ -8797,7 +8833,7 @@
     else if(!car&&!active&&dist(hero,course[0])<4)contextHint("F","Line up for Low Tide Dash");
     else if(!car&&!active&&dist(hero,maraOnBreak())<3)contextHint("F",save.edition?"Read Mara’s Bay Wire story":"Meet Mara Vega");
     else if(tar&&active?.job.id==="tape"&&car&&dist(p,tar)<12)contextHint("E","Park and meet the contact on foot");
-    else if(tar&&active&&!field&&!active.story&&!active.plate&&!ferry&&active.job.id!=="tape"&&active.job.id!=="dash"&&dist(p,tar)<12&&(!car||(active.job.id!=="race"&&Math.abs(car.speed)>7)))contextHint("",car?"Slow down at the marker":"Bring a car to the marker");
+    else if(tar&&active&&!active.cup&&!field&&!active.story&&!active.plate&&!ferry&&active.job.id!=="tape"&&active.job.id!=="dash"&&dist(p,tar)<12&&(!car||(active.job.id!=="race"&&Math.abs(car.speed)>7)))contextHint("",car?"Slow down at the marker":"Bring a car to the marker");
     else if(speaker){
       const action=speaker.name==="June"&&save.tapes.includes(0)&&!save.juneReturned?"Give June her demo":"Talk to "+speaker.name;
       contextHint("F",action+(nearby?"  ·  E  Take "+formatVehicle(nearby):""));
