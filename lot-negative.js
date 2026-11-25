@@ -12,10 +12,10 @@
   }
   class Archive {
     constructor(){let s;try{s=JSON.parse(localStorage.getItem(key));}catch{}
-      this.pending=readFrame(s?.pending);this.published=readFrame(s?.published);}
-    write(){try{localStorage.setItem(key,JSON.stringify({pending:this.pending,published:this.published}));}catch{}}
+      this.pending=readFrame(s?.pending);this.published=readFrame(s?.published);this.day=Number.isSafeInteger(s?.day)&&s.day>0?s.day:0;}
+    write(){try{localStorage.setItem(key,JSON.stringify({pending:this.pending,published:this.published,day:this.day}));}catch{}}
     file(f){this.pending=readFrame(f);this.write();}
-    deliver(){this.published=this.pending;this.pending=null;this.write();}
+    deliver(day=0){this.published=this.pending;this.pending=null;this.day=day;this.write();}
   }
   const decoded=new WeakMap();
   function photo(f){
@@ -66,5 +66,5 @@
     const step=Math.round(clamp(raise,0,1)*6),name="lot-porter/"+step;
     model(name,g=>porter(g,step));list.push([name,subject.x,ground(subject.x,subject.z),subject.z,subject.yaw]);
   }
-  window.BayLotNegative={key,Archive,Roll,actor,subject,notice,photo,captions};
+  window.BayLotNegative={key,Archive,Roll,actor,subject,notice,photo,captions,readFrame};
 })();

@@ -107,7 +107,15 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
           q.previous=now;q.block=block;q.frames.push(path);
           if(block>=8){
             q.pixels=comparePixels(this,items,batchDraw);
-            const batch=this.streetBatch,pose=batch.repeatedPose,flush=batch.flush;
+            const batch=this.streetBatch,pose=batch.repeatedPose,flush=batch.flush,detail=batch.distanceDetail;
+            const indices=[],samplePath=useDetail=>function(list){
+              const before=recQA.vertices;recQA.samples=true;
+              if(!useDetail)batch.distanceDetail=()=>null;
+              try{batchDraw.call(this,list);}finally{batch.distanceDetail=detail;recQA.samples=false;}
+              indices.push(recQA.vertices-before);
+            };
+            const silhouette=comparePixels(this,items,samplePath(true),samplePath(false));
+            q.detail={indices,pixels:silhouette,bytes:batch.detailBytes};
             const props=items.filter(([name,,,,,,,,car,,vapor])=>{const m=this.models.get(name);
               return m?.count&&!m.dynamic&&!m.sections&&!car&&!vapor&&m.count<=batch.indices.length&&m.vertexCount<=batch.vertices.length/6;});
             const times=[[],[]],counts=[0,0];let hits=0,triIndices=0;
@@ -140,6 +148,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       assert(pixels.painted>350&&pixels.silhouette<pixels.painted*.01&&pixels.recolored<pixels.painted*.015);
       const poses=await js("recQA.compare.poses");console.log("PERF stationary scenery",JSON.stringify(poses));
       assert(poses.hits>0&&poses.bytes>0&&poses.bytes<=3*1024*1024&&poses.indices[0]===poses.indices[1]);
+      const detail=await js("recQA.compare.detail");console.log("PERF distance detail",JSON.stringify(detail));
+      assert(detail.indices[1]<detail.indices[0]&&detail.bytes<=4*1024*1024);
+      assert(detail.pixels.silhouette<detail.pixels.painted*.01&&detail.pixels.recolored<detail.pixels.painted*.015);
       assert.equal(await js("recQA.view.gl.getError()"),0);
     }
     await tap("KeyF");await waitFor(book+".stage==='ride'");await tap("KeyE");
@@ -257,6 +268,20 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert.equal(await js("typeof BayRoomSamples"),"undefined");await js("loadRoomVoices()");await waitFor("window.BayRoomSamples");
     const signal=await js(`(()=>{const sink=new OfflineAudioContext(1,128,11025);
       const pcm=BayRoomVoices.buffer(sink,'${voice}').getChannelData(0);return pcm.reduce((v,x)=>v+x*x,0)/pcm.length;})()`);assert(signal>.0001);
+    await loadFootAt({x:149.03,z:-10.91});await waitFor("document.querySelector('#context').innerText.includes('Bay Wire')");
+    await tap("KeyF");await waitFor("document.querySelector('.bay-front-page')?.getAttribute('aria-label')?.includes('Mara Vega')");
+    const press=new RegExp(aboard?"Two lunches":"Public landing");
+    assert(press.test(await js("document.querySelector('.bay-front-page').getAttribute('aria-label')")));
+    await waitFor("!!BayStreetEditionArt.cover(window.newFrame??=JSON.parse(localStorage.getItem(BayLotNegative.key)).published)");
+    await snap("news-box");
+    await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('Fold a copy')).click()");
+    const pocket="JSON.parse(localStorage.getItem(BayPavement.archiveKey)).at(-1)";
+    assert.deepEqual(await js(pocket+".pierPhoto"),selected);
+    await send("Page.reload");await ready();await js("document.querySelector('#play').click()");
+    await tap("KeyJ");await waitFor("document.querySelector('#panelBody').innerText.includes('Folded copies')");
+    await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('Folded copies')).click()");
+    await waitFor("document.querySelector('.bay-front-page')?.getAttribute('aria-label')?.includes('Photograph by Mara Vega')");
+    console.log("PASS news box, Mara "+selected.frame+" street edition, folded and reopened after reload");
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     console.log("PASS",mode,"Six Sharp departure, gangway or sailing bell, carbon and Mara callback; Public Record, First Crossing, Room Tone edit, car radio broadcast and Dalia’s response",route,credit);
   }catch(e){console.log("Campaign state",await js("JSON.stringify({book:"+book+",who:document.querySelector('#chapterWho').textContent,line:document.querySelector('#chapterLine').textContent,hint:document.querySelector('#context').innerText,at:window.recQA?.hero&&[recQA.hero.x,recQA.hero.z],goal:window.recQA?.goal,panel:document.querySelector('#panelTitle').innerText})"));await snap("failure");throw e;}

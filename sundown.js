@@ -113,6 +113,45 @@
     const indices=used<=65535&&remap.BYTES_PER_ELEMENT===4?new Uint16Array(remap):remap;
     return {vertices:packed.subarray(0,used*6),indices};
   }
+  // Collapse details within small model-space cells. All paint at a shared
+  // position moves together, including the two sides of a material seam.
+  function streetDetail(data,b,cell){
+    const x0=b.x-b.hw,y0=b.y-b.hh,z0=b.z-b.hd;
+    const nx=Math.ceil(2*b.hw/cell)+1,ny=Math.ceil(2*b.hh/cell)+1;
+    const bins=new Map(),corners=new Array(data.length/6);
+    for(let j=0,p=0;p<data.length;j++,p+=6){
+      const x=(data[p]-x0)/cell,y=(data[p+1]-y0)/cell,z=(data[p+2]-z0)/cell;
+      const u=Math.floor(x),v=Math.floor(y),w=Math.floor(z),key=u+nx*(v+ny*w);
+      const d=(x-u-.5)**2+(y-v-.5)**2+(z-w-.5)**2;
+      let bin=bins.get(key);
+      if(!bin){bin={at:p,d,locked:false};bins.set(key,bin);}
+      else if(d<bin.d){bin.d=d;bin.at=p;}
+      corners[j]=bin;
+    }
+    // A distant aerial, wheel spoke or painted stripe is still visible along
+    // its length. Keep its narrow edge, including that edge's adjacent faces.
+    for(let i=0;i<corners.length;i+=3){
+      for(let k=0;k<3;k++){
+        const a=i+k,b=i+(k+1)%3,c=i+(k+2)%3;
+        if(corners[a]!==corners[b]||corners[a]===corners[c]||corners[a].locked)continue;
+        const p=a*6,q=c*6;
+        if((data[p]-data[q])**2+(data[p+1]-data[q+1])**2+(data[p+2]-data[q+2])**2>9*cell*cell)corners[a].locked=true;
+      }
+    }
+    const out=new Float32Array(data.length);let used=0;
+    for(let i=0;i<corners.length;i+=3){
+      const a=corners[i].locked?i*6:corners[i].at,b=corners[i+1].locked?(i+1)*6:corners[i+1].at,c=corners[i+2].locked?(i+2)*6:corners[i+2].at;
+      if(a===b||b===c||a===c)continue;
+      for(let k=0;k<3;k++){
+        const p=k===0?a:k===1?b:c,q=(i+k)*6;
+        out[used++]=data[p];out[used++]=data[p+1];out[used++]=data[p+2];
+        out[used++]=data[q+3];out[used++]=data[q+4];out[used++]=data[q+5];
+      }
+    }
+    if(!used||used>=data.length*.78)return null;
+    const stream=out.subarray(0,used),packed=indexGeometry(stream,false);
+    return {data:packed?packed.vertices.slice():stream.slice(),indices:packed?.indices||null,count:used/6};
+  }
   function drawRange(gl,model,first,count){
     if(!model.elements){gl.drawArrays(gl.TRIANGLES,first,count);return;}
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
@@ -179,6 +218,7 @@
       this.vertices=new Float32Array(24576*6);
       this.indices=new Uint16Array(65532);
       this.savedPoses=new Set();this.poseBytes=0;
+      this.details=new Map();this.detailBytes=0;this.buildDetail=true;
       gl.bindBuffer(gl.ARRAY_BUFFER,this.vertexBuffer);
       gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength,gl.STREAM_DRAW);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
@@ -214,12 +254,35 @@
       while(this.poseBytes+vertices.byteLength>3*1024*1024)this.forgetPose(this.savedPoses.values().next().value);
       p.vertices=vertices.slice();this.poseBytes+=p.vertices.byteLength;this.savedPoses.add(p);
     }
+    distanceDetail(model,data,x,y,z){
+      const view=this.view,v=view.basis,b=model.bounds;
+      if(!v?.f||!b||b.r>15||model.count<480||model.count>12000||view.scale>.65)return null;
+      // Use a sphere about the model origin to include off-centre and tilted
+      // geometry. The nearest visible surface sets the allowed pixel error.
+      const depth=((x-v.camera.x)*v.sn+(z-v.camera.z)*v.cs)*v.cp+(y-v.camera.y)*v.sp;
+      const near=depth-b.r-Math.hypot(b.x,b.y,b.z);
+      const pitch=near/(view.canvas.height*.5*v.f*1.733*Math.max(v.xMargin,v.yMargin));
+      const cell=pitch>=.24?.24:pitch>=.12?.12:pitch>=.055?.055:0;
+      if(!cell)return null;
+      const tiers=model.detailLevels??={};
+      if(Object.hasOwn(tiers,cell))return tiers[cell];
+      if(!this.buildDetail)return null;
+      this.buildDetail=false;
+      const detail=tiers[cell]=streetDetail(data,b,cell);if(!detail)return null;
+      const bytes=detail.data.byteLength+(detail.indices?.byteLength||0);
+      while(this.detailBytes+bytes>4*1024*1024){
+        const [old,entry]=this.details.entries().next().value;
+        delete entry.model.detailLevels[entry.cell];this.detailBytes-=entry.bytes;this.details.delete(old);
+        if(entry.model.batchPose?.sources===old.data){this.forgetPose(entry.model.batchPose);entry.model.batchPose.sources=null;}
+      }
+      this.details.set(detail,{model,cell,bytes});this.detailBytes+=bytes;return detail;
+    }
     append(item){
       const view=this.view;
       const [name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0,car,,vapor]=item;
       const model=view.models.get(name);
       if(!model?.count)return;
-      const data=view.cpu.get(name);
+      let data=view.cpu.get(name);
       if(model.poseChanged){model.bounds=meshBounds(data,0,model.count);model.poseChanged=false;}
       if(!view.inFrame(model.bounds,x,y,z,yaw,tiltX,tiltZ,car?.damage?1.4:0))return;
       if(model.sections||car?.damage||vapor||model.count>this.indices.length){
@@ -241,17 +304,23 @@
         }
       }
       if(n>this.vertices.length/6){this.flush();view.draw(...item);return;}
-      if(this.glow!==glow||this.count+count>this.indices.length||(this.used+n)*6>this.vertices.length)this.flush();
-      this.glow=glow;
       if(indices&&!sources){
         sources=model.batchSources=new Uint32Array(n);
         for(let i=0;i<model.count;i++)sources[indices[i]]=i*6;
       }
+      if(!model.dynamic&&!vapor&&!car?.damage){
+        const small=this.distanceDetail(model,data,x,y,z);
+        if(small&&small.count<count*.82){
+          data=small.data;indices=small.indices;sources=null;count=small.count;n=data.length/6;
+        }
+      }
+      if(this.glow!==glow||this.count+count>this.indices.length||(this.used+n)*6>this.vertices.length)this.flush();
+      this.glow=glow;
       const dest=this.vertices;
       const start=this.used*6;
       // The source list changes with distance and the visible sides of a closed
       // model. Only two identical consecutive static draws can admit a pose.
-      const pose=!model.dynamic&&!car&&n>=48?this.repeatedPose(model,sources,x,y,z,yaw,tiltX,tiltZ):null;
+      const pose=!model.dynamic&&!car&&n>=48?this.repeatedPose(model,sources||data,x,y,z,yaw,tiltX,tiltZ):null;
       if(pose?.vertices)dest.set(pose.vertices,start);
       else{
         const co=Math.cos(yaw),si=Math.sin(yaw),cx=Math.cos(tiltX),sx=Math.sin(tiltX),cz=Math.cos(tiltZ),sz=Math.sin(tiltZ);
@@ -738,6 +807,7 @@
     drawOpaque(list){
       if(this.scale>.75){for(const item of list)this.draw(...item);return;}
       const batch=this.streetBatch??=new StreetBatch(this);
+      batch.buildDetail=true;
       for(const item of list)batch.append(item);
       batch.flush();
     }
@@ -760,7 +830,7 @@
       const gl=this.gl,eye=this.basis.camera;gl.uniform4f(this.u.waterParams,eye.x,eye.z,t,1);
       this.draw("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
     }
-    drawPrint(name,canvas,revision,x,y,z,yaw){
+    drawPrint(name,canvas,revision,x,y,z,yaw,tiltX=0){
       if(!this.gl||this.lost||!this.models.has(name))return;
       const gl=this.gl;
       // A window print and the moving curb television can share one street view.
@@ -785,7 +855,7 @@
         }
         gl.activeTexture(gl.TEXTURE0);
       }
-      gl.uniform1f(this.u.showPrint,1);this.draw(name,x,y,z,yaw);gl.uniform1f(this.u.showPrint,0);
+      gl.uniform1f(this.u.showPrint,1);this.draw(name,x,y,z,yaw,tiltX);gl.uniform1f(this.u.showPrint,0);
     }
     drawSearchlight(name){
       const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);
@@ -19125,10 +19195,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   class Archive {
     constructor(){let s;try{s=JSON.parse(localStorage.getItem(key));}catch{}
-      this.pending=readFrame(s?.pending);this.published=readFrame(s?.published);}
-    write(){try{localStorage.setItem(key,JSON.stringify({pending:this.pending,published:this.published}));}catch{}}
+      this.pending=readFrame(s?.pending);this.published=readFrame(s?.published);this.day=Number.isSafeInteger(s?.day)&&s.day>0?s.day:0;}
+    write(){try{localStorage.setItem(key,JSON.stringify({pending:this.pending,published:this.published,day:this.day}));}catch{}}
     file(f){this.pending=readFrame(f);this.write();}
-    deliver(){this.published=this.pending;this.pending=null;this.write();}
+    deliver(day=0){this.published=this.pending;this.pending=null;this.day=day;this.write();}
   }
   const decoded=new WeakMap();
   function photo(f){
@@ -19179,7 +19249,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const step=Math.round(clamp(raise,0,1)*6),name="lot-porter/"+step;
     model(name,g=>porter(g,step));list.push([name,subject.x,ground(subject.x,subject.z),subject.z,subject.yaw]);
   }
-  window.BayLotNegative={key,Archive,Roll,actor,subject,notice,photo,captions};
+  window.BayLotNegative={key,Archive,Roll,actor,subject,notice,photo,captions,readFrame};
 })();
 
 ;
@@ -62215,7 +62285,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   ];
   const archiveKey="sundownBay.pocketEditions.v1";
   const validIssue=q=>q&&Number.isSafeInteger(q.day)&&q.day>0&&["headline","deck","section","listing","local"].every(k=>typeof q[k]==="string"&&q[k].length<500)&&(!q.photo||Object.hasOwn(captions,q.photo));
-  const issueId=q=>JSON.stringify([q.day,q.headline,q.deck,q.listing,q.local]);
+  const issueId=q=>JSON.stringify([q.day,q.headline,q.deck,q.listing,q.local,q.pierPhoto?.image]);
+  const pierLead=(day,stories,save,film)=>save.edition&&film?.published&&(film.day===day||!stories.length)?film.published:null;
   class Street{
     constructor(){
       this.props=sites.map(([id,kind,x,z,yaw,wx,wz,name,style])=>{
@@ -62226,23 +62297,31 @@ window.buildBayCity = function buildBayCity(g,water) {
       this.bits=[];this.hand=null;this.lift=null;this.serial=0;this.archive=[];this.readArchive();
     }
     readArchive(){
-      try{const raw=JSON.parse(localStorage.getItem(archiveKey));if(Array.isArray(raw))this.archive=raw.filter(validIssue).slice(-5);}catch{}
+      try{const raw=JSON.parse(localStorage.getItem(archiveKey));if(Array.isArray(raw))this.archive=raw.filter(validIssue).slice(-5).map(q=>{
+        if(q.pierPhoto)q.pierPhoto=BayLotNegative.readFrame(q.pierPhoto);return q;
+      });}catch{}
     }
     indexOf(q){const id=issueId(q);return this.archive.findIndex(p=>issueId(p)===id);}
     keep(q){
       this.readArchive();if(!validIssue(q)||this.indexOf(q)>=0)return false;
-      this.archive=[...this.archive.slice(-4),q];try{localStorage.setItem(archiveKey,JSON.stringify(this.archive));}catch{}
-      return true;
+      const next=[...this.archive.slice(-4),q];try{localStorage.setItem(archiveKey,JSON.stringify(next));}catch{return false;}
+      this.archive=next;return true;
     }
-    edition(clock,stories,save,bill){
-      const day=clock.day+1,story=stories.length?stories[(day-1)%stories.length]:null,stunt=save.stunt,slot=frontPages[(day-1)%frontPages.length];
+    edition(clock,stories,save,bill,film){
+      const day=clock.day+1,pierPhoto=pierLead(day,stories,save,film);
+      const story=!pierPhoto&&stories.length?stories[(day-1)%stories.length]:null,stunt=save.stunt,slot=frontPages[(day-1)%frontPages.length];
       let [headline,deck]=slot;
-      if(story){headline=captions[story.id];deck=story.news;}
+      if(pierPhoto){
+        const portrait=pierPhoto.frame==="14B",print=save.edition==="print";
+        headline=portrait?"Two lunches on the six o’clock boat":"Public landing goes up for sale";
+        deck=portrait?(print?"The Luna audience knew Luis Vega before the lights came up. He is still carrying his brother’s blue tin.":"Luis Vega called Sol FM after the bulletin. For twenty-three years he packed two lunches for the crossing."):
+          (print?"Mara Vega put the fine print on the big screen. The Port Sol ferry landing is listed with the shed.":"Dockhands heard the sale on Sol FM. The notice names the public landing as well as the shed.");
+      }else if(story){headline=captions[story.id];deck=story.news;}
       else if(save.edition){headline="Lot 14 notice reaches the bay";deck=save.edition==="print"?"Mara Vega’s photograph of the Port Sol notice is on the bill at Cine Luna.":"Mara Vega took the Port Sol story to Sol FM. Dockhands heard the report before the end of their shift.";}
       else if(stunt){headline="Romy lands it on the flatbed";deck="The car meet’s "+stunt.distance.toFixed(1)+" m jump has earned a place on the Cine Luna poster.";}
       const local=clock.rain>.3?"A shower is moving through town. Route 6 regulars are sharing the awnings along Ocean.":clock.market==="open"?"El Mercado is open for the evening. Look for the striped awnings on Mercado Street.":"El Mercado’s evening stalls open at six. Port Sol is taking deliveries down on Gantry.";
       const run=save.engineSeven?.log.at(-1),watch=run?.day===day?"Station Seven filed an all-clear for "+run.title+". "+run.crew+" signed the return slip.":local;
-      return {day,headline,deck,photo:story?.id||null,section:story?"Neighborhood edition":"City edition",local:watch,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
+      return {day,headline,deck,photo:story?.id||null,...(pierPhoto?{pierPhoto}:{}),section:pierPhoto?"Port Sol":story?"Neighborhood edition":"City edition",local:watch,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
     }
     impact(p,v,env){
       const k=kinds[p.kind],speed=Math.abs(v.speed),dir=v.speed<0?-1:1;
@@ -62383,7 +62462,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
     }
   }
-  window.BayPavement={Street,archiveKey};
+  window.BayPavement={Street,archiveKey,pierLead};
 })();
 
 ;
@@ -62629,7 +62708,19 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const p of state.props)draw(p);
     for(const b of state.bits)draw(b);
   }
-  window.BayPavementArt={world,overhead};
+  function rackPrint(view,model,see,state,frame){
+    if(!frame)return;
+    for(const p of state.props){
+      if(p.kind!=="box"||!p.stock||!see(p,20))continue;
+      const image=BayStreetEditionArt.cover(frame);if(!image)return;
+      model("pavement/front-photo",g=>{
+        const left=.25,right=-.182,top=.917,bottom=.544,z=.235;
+        for(const [u,v] of [[0,0],[1,0],[1,1],[0,0],[1,1],[0,1]])g.vertices.push(u?right:left,v?bottom:top,z,u,v,0);
+      });
+      view.drawPrint("pavement/front-photo",image,1,p.x,p.y,p.z,p.yaw,p.tilt);
+    }
+  }
+  window.BayPavementArt={world,overhead,rackPrint};
 })();
 
 ;
@@ -62758,6 +62849,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     const image=document.createElement("canvas");image.width=600;image.height=400;
     const c=image.getContext("2d");
     if(id==="ocean"||!window.BayNeighborhoodEdition?.paint(image,id))oceanDrawing(c);
+    screen(c,image);plates.set(id,image);return image;
+  }
+  function screen(c,image){
     // Convert the photograph into round letterpress dots. The dot lattice is
     // angled against the page rulings, just as on a screened zinc plate.
     const pixels=c.getImageData(0,0,image.width,image.height),d=pixels.data;
@@ -62770,7 +62864,24 @@ window.buildBayCity = function buildBayCity(g,water) {
       const coverage=.60*dot+.40*(1-tone);
       d[i]=232-coverage*199;d[i+1]=221-coverage*183;d[i+2]=192-coverage*151;
     }
-    c.putImageData(pixels,0,0);plates.set(id,image);return image;
+    c.putImageData(pixels,0,0);
+  }
+  const pierPlates=new WeakMap(),covers=new WeakMap(),mounted=new WeakMap();
+  function pierPlate(frame){
+    let p=pierPlates.get(frame);if(p)return p;
+    const img=BayLotNegative.photo(frame);if(!img?.naturalWidth)return null;
+    p=document.createElement("canvas");p.width=400;p.height=225;
+    const c=p.getContext("2d");c.drawImage(img,0,0,p.width,p.height);screen(c,p);
+    pierPlates.set(frame,p);return p;
+  }
+  function cover(frame){
+    let c=covers.get(frame);if(c)return c;
+    const p=pierPlate(frame);if(!p)return null;
+    c=document.createElement("canvas");c.width=360;c.height=310;const g=c.getContext("2d");
+    box(g,0,0,360,310,paper);label(g,"BAY WIRE",180,53,"bold 55px "+serif,ink,"center");box(g,10,60,340,2,ink);
+    label(g,frame.frame==="14B"?"Two lunches on the six o’clock boat":"Public landing goes up for sale",10,88,"bold 21px "+serif);
+    g.drawImage(p,10,97,340,191);label(g,"PORT SOL   /   M. VEGA   /   "+frame.frame,10,303,"bold 11px monospace");
+    covers.set(frame,c);return c;
   }
   function lines(c,value,font,measure){
     c.font=font;const words=String(value||"").trim().split(/\s+/u),rows=[];let line="";
@@ -62823,9 +62934,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     const titleSize=headline.length>76?39:headline.length>47?44:51,headFont="bold "+titleSize+"px "+serif;
     const head=lines(c,headline,headFont,full),deck=lines(c,issue.deck,deckFont,full);
     const locals=lines(c,issue.local,bodyFont,railW),listing=lines(c,issue.listing,bodyFont,railW);
-    const caption=lines(c,cutlines[id],captionFont,picW),headTop=166,headLead=titleSize*1.005;
+    const pier=issue.pierPhoto,cutline=pier?BayLotNegative.captions[pier.frame]+". Frame "+pier.frame+".":cutlines[id];
+    const caption=lines(c,cutline,captionFont,picW),headTop=166,headLead=titleSize*1.005;
     const deckTop=headTop+head.length*headLead+7,bylineY=deckTop+deck.length*26+20,body=bylineY+19;
-    const imageH=Math.round(picW*2/3),railTop=body+27,lineH=24;
+    const imageH=Math.round(picW*(pier?9/16:2/3)),railTop=body+27,lineH=24;
     const listingHead=railTop+locals.length*lineH+(locals.length?27:0);
     const footer=Math.ceil(Math.max(body+imageH+10+caption.length*20,listingHead+(listing.length?13+listing.length*lineH:0))+23);
     canvas.width=width;canvas.height=footer+36;
@@ -62836,8 +62948,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     label(c,"DAY "+String(day).padStart(2,"0"),width-margin,133,"bold 15px "+sans,ink,"right");
     box(c,margin,140,full,.9,ink);label(c,section,margin,160,"bold 15px "+sans,oxblood);
     column(c,head,margin,headTop,headFont,headLead);column(c,deck,margin,deckTop,deckFont,26);
-    label(c,id==="ocean"?"Street drawing by Meli Funes":"From the picture desk of Meli Funes",margin,bylineY,"bold 15px "+sans);
-    c.drawImage(plate(id),margin,body,picW,imageH);
+    label(c,pier?"Photograph by Mara Vega":id==="ocean"?"Street drawing by Meli Funes":"From the picture desk of Meli Funes",margin,bylineY,"bold 15px "+sans);
+    mounted.set(canvas,issue);
+    if(pier){
+      const print=()=>{const p=pierPlate(pier);if(p&&mounted.get(canvas)===issue)c.drawImage(p,margin+1,body+1,picW-2,imageH-2);};
+      const img=BayLotNegative.photo(pier);if(img?.naturalWidth)print();else img?.addEventListener("load",print,{once:true});
+    }else c.drawImage(plate(id),margin,body,picW,imageH);
     c.strokeStyle=ink;c.lineWidth=1;c.strokeRect(margin+.5,body+.5,picW-1,imageH-1);
     column(c,caption,margin,body+imageH+7,captionFont,20,muted);
     const railLine=rail-14;
@@ -62856,7 +62972,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     label(c,"1",width-margin,footer+21,"bold 16px "+serif,ink,"right");
     return true;
   }
-  window.BayStreetEditionArt=Object.freeze({paint});
+  window.BayStreetEditionArt=Object.freeze({paint,cover});
 })();
 
 ;
@@ -72141,7 +72257,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const v of cars)if(Math.abs(v.x-x)<5&&Math.abs(v.z-z)<5&&BayDriving.clearance(v,{x,z})<.44)return false;
     return dist({x,z},transit.bus)>7||BayDriving.clearance(transit.bus,{x,z})>.4;
   }
-  const pavementEnv={ground:footLevel,clear:(x,z,r)=>valid(x,z,r),safe:workerSafe,issue:()=>pavement.edition(hours,neighbors.editions,save,BayCineProgram.describe(filmOptions())),
+  const pavementEnv={ground:footLevel,clear:(x,z,r)=>valid(x,z,r),safe:workerSafe,issue:()=>pavement.edition(hours,neighbors.editions,save,BayCineProgram.describe(filmOptions()),maraFilm),
     capNeedsService:p=>!!summerCaps.byStand.get(p.id)?.cap,
     tendCap(p,w,dt){
       const busy=summerCaps.tend(p,w,dt,pavement,this,hours);
@@ -72200,6 +72316,18 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(pavement.hand&&!free)pavement.drop();
     if(pavement.lift&&pavement.stepLift(dt,hero,free&&held("KeyL")&&!held("KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight")))lastHud=-10;
     pavement.attendants(dt,pos(),pavementEnv);
+    if(maraFilm.published&&(free||car&&Math.abs(car.speed)<7)&&!active&&!heat&&!panel&&!room&&elapsed>speechTill){
+      const lead=BayPavement.pierLead(hours.day+1,neighbors.editions,save,maraFilm);
+      if(lead){
+        const stand=pavement.props.find(p=>p.kind==="box"&&p.stock&&p.phase==="upright"&&!p.worker.target&&p.calledPrint!==lead&&dist(pos(),p.worker)<(car?8:5));
+        if(stand){
+          stand.calledPrint=lead;
+          const luis=lead.frame==="14B",ocean=stand.id==="ocean";
+          speak(stand.worker.name,luis?(ocean?"I know that blue tin. Luis could flick the latch with one thumb. Look, Mara caught him doing it.":"Luis on the front page! Bet his brother cuts that one out."):
+            (ocean?"See the word ‘landing’ on that notice? That’s where my sister catches the six.":"The shed, sure. I never saw the landing in the small print till Mara put it on the front."));
+        }
+      }
+    }
   }
   function starliteFree(){
     return play&&!active&&!heat&&!room&&!transfer&&!unit.transition&&!unit.eye&&!windowRide&&!afternoon.photo&&!bell.open&&!broadcastDesk.mix;
@@ -72307,9 +72435,11 @@ window.buildBayCity = function buildBayCity(g,water) {
   function paperPanel(body,archive){
     const copies=pavement.archive,issue=archive?copies[paperIndex]:openPaper;if(!issue)return;
     const page=document.createElement("canvas");page.className="bay-front-page";page.setAttribute("role","img");
-    page.setAttribute("aria-label",[issue.headline,issue.deck,issue.local,issue.listing].join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
+    const photo=issue.pierPhoto?"Photograph by Mara Vega. "+BayLotNegative.captions[issue.pierPhoto.frame]:null;
+    page.setAttribute("aria-label",[issue.headline,issue.deck,photo,issue.local,issue.listing].filter(Boolean).join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
     if(!archive)body.append(makeButton("Fold a copy for later","Keep this front page with your last five papers.","Keep paper",()=>{
       pavement.keep(issue);paperIndex=pavement.indexOf(issue);
+      if(paperIndex<0){note("Bay Wire","Browser storage is full. This copy is still open.",4);return;}
       openPanel("pocket-papers");
     }));
     body.append(makeButton("Starlite Motor Theatre","Coast Road, 1983 · Gantry Street. Three spaces, speakers on the posts.","Mark drive-in",()=>clockPin(starliteBooth)));
@@ -73912,7 +74042,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     if(event==="complete"){
       const route=BayExposure.routes[story.route];save.wallet+=route.pay;save.paid++;save.edition=story.route;
-      maraFilm.deliver();persist();dropJob();sound.cue("paid");speak("Mara Vega",save.edition==="live"?"Hear that? Top of the hour. That’s our pier.":"Front row’s on me. Wait till they see what’s on that screen.");
+      maraFilm.deliver(hours.day+1);persist();dropJob();sound.cue("paid");speak("Mara Vega",save.edition==="live"?"Hear that? Top of the hour. That’s our pier.":"Front row’s on me. Wait till they see what’s on that screen.");
       note("Last Exposure complete","+"+cash(route.pay)+"  ·  Read Bay Wire on your phone (J)",5.4);
       if(campaign.book.stage!=="filed"){
         campaign.book.route=story.route;campaign.advance("return");campaign.write();if(campaign.book.intro)enterFilm(story.route);
@@ -76648,6 +76778,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(play&&see(ada,65))visible.push([personSkin(4,"local",0,theatre.run?1:0),ada.x,footLevel(ada.x,ada.z),ada.z,ada.yaw]);
     }
     view.drawOpaque(visible);
+    if(play&&maraFilm.published)BayPavementArt.rackPrint(view,model,see,pavement,BayPavement.pierLead(hours.day+1,neighbors.editions,save,maraFilm));
     if(play&&see(starliteSite,76)){
       const dx=starliteSite.x-eye.x,dz=starliteSite.z+9.89-eye.z;
       if(dz>-.25&&dx*Math.sin(eye.yaw)+dz*Math.cos(eye.yaw)>-.5){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}

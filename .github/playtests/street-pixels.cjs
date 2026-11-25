@@ -1,6 +1,6 @@
 // Invoked on the hosted WebGL context, with the exact same camera, poses and
 // lighting for both draws. Leave the playtest's default framebuffer untouched.
-module.exports=function streetPixels(view,items,drawBatch){
+module.exports=function streetPixels(view,items,drawBatch,reference){
   const gl=view.gl,w=320,h=Math.round(w*view.canvas.height/view.canvas.width);
   const target=gl.getParameter(gl.FRAMEBUFFER_BINDING),rb=gl.getParameter(gl.RENDERBUFFER_BINDING);
   const viewport=gl.getParameter(gl.VIEWPORT),clear=gl.getParameter(gl.COLOR_CLEAR_VALUE);
@@ -14,7 +14,7 @@ module.exports=function streetPixels(view,items,drawBatch){
     if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error("Incomplete comparison framebuffer");
     function render(batch){
       view.bound=null;gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-      if(batch)drawBatch.call(view,items);else for(const a of items)view.draw(...a);
+      if(batch)drawBatch.call(view,items);else if(reference)reference.call(view,items);else for(const a of items)view.draw(...a);
       const p=new Uint8Array(w*h*4);gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,p);return p;
     }
     const a=render(false),b=render(true);let painted=0,silhouette=0,recolored=0;

@@ -239,5 +239,17 @@
     for(const p of state.props)draw(p);
     for(const b of state.bits)draw(b);
   }
-  window.BayPavementArt={world,overhead};
+  function rackPrint(view,model,see,state,frame){
+    if(!frame)return;
+    for(const p of state.props){
+      if(p.kind!=="box"||!p.stock||!see(p,20))continue;
+      const image=BayStreetEditionArt.cover(frame);if(!image)return;
+      model("pavement/front-photo",g=>{
+        const left=.25,right=-.182,top=.917,bottom=.544,z=.235;
+        for(const [u,v] of [[0,0],[1,0],[1,1],[0,0],[1,1],[0,1]])g.vertices.push(u?right:left,v?bottom:top,z,u,v,0);
+      });
+      view.drawPrint("pavement/front-photo",image,1,p.x,p.y,p.z,p.yaw,p.tilt);
+    }
+  }
+  window.BayPavementArt={world,overhead,rackPrint};
 })();

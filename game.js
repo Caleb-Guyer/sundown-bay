@@ -4576,7 +4576,7 @@
     for(const v of cars)if(Math.abs(v.x-x)<5&&Math.abs(v.z-z)<5&&BayDriving.clearance(v,{x,z})<.44)return false;
     return dist({x,z},transit.bus)>7||BayDriving.clearance(transit.bus,{x,z})>.4;
   }
-  const pavementEnv={ground:footLevel,clear:(x,z,r)=>valid(x,z,r),safe:workerSafe,issue:()=>pavement.edition(hours,neighbors.editions,save,BayCineProgram.describe(filmOptions())),
+  const pavementEnv={ground:footLevel,clear:(x,z,r)=>valid(x,z,r),safe:workerSafe,issue:()=>pavement.edition(hours,neighbors.editions,save,BayCineProgram.describe(filmOptions()),maraFilm),
     capNeedsService:p=>!!summerCaps.byStand.get(p.id)?.cap,
     tendCap(p,w,dt){
       const busy=summerCaps.tend(p,w,dt,pavement,this,hours);
@@ -4635,6 +4635,18 @@
     if(pavement.hand&&!free)pavement.drop();
     if(pavement.lift&&pavement.stepLift(dt,hero,free&&held("KeyL")&&!held("KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight")))lastHud=-10;
     pavement.attendants(dt,pos(),pavementEnv);
+    if(maraFilm.published&&(free||car&&Math.abs(car.speed)<7)&&!active&&!heat&&!panel&&!room&&elapsed>speechTill){
+      const lead=BayPavement.pierLead(hours.day+1,neighbors.editions,save,maraFilm);
+      if(lead){
+        const stand=pavement.props.find(p=>p.kind==="box"&&p.stock&&p.phase==="upright"&&!p.worker.target&&p.calledPrint!==lead&&dist(pos(),p.worker)<(car?8:5));
+        if(stand){
+          stand.calledPrint=lead;
+          const luis=lead.frame==="14B",ocean=stand.id==="ocean";
+          speak(stand.worker.name,luis?(ocean?"I know that blue tin. Luis could flick the latch with one thumb. Look, Mara caught him doing it.":"Luis on the front page! Bet his brother cuts that one out."):
+            (ocean?"See the word ‘landing’ on that notice? That’s where my sister catches the six.":"The shed, sure. I never saw the landing in the small print till Mara put it on the front."));
+        }
+      }
+    }
   }
   function starliteFree(){
     return play&&!active&&!heat&&!room&&!transfer&&!unit.transition&&!unit.eye&&!windowRide&&!afternoon.photo&&!bell.open&&!broadcastDesk.mix;
@@ -4742,9 +4754,11 @@
   function paperPanel(body,archive){
     const copies=pavement.archive,issue=archive?copies[paperIndex]:openPaper;if(!issue)return;
     const page=document.createElement("canvas");page.className="bay-front-page";page.setAttribute("role","img");
-    page.setAttribute("aria-label",[issue.headline,issue.deck,issue.local,issue.listing].join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
+    const photo=issue.pierPhoto?"Photograph by Mara Vega. "+BayLotNegative.captions[issue.pierPhoto.frame]:null;
+    page.setAttribute("aria-label",[issue.headline,issue.deck,photo,issue.local,issue.listing].filter(Boolean).join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
     if(!archive)body.append(makeButton("Fold a copy for later","Keep this front page with your last five papers.","Keep paper",()=>{
       pavement.keep(issue);paperIndex=pavement.indexOf(issue);
+      if(paperIndex<0){note("Bay Wire","Browser storage is full. This copy is still open.",4);return;}
       openPanel("pocket-papers");
     }));
     body.append(makeButton("Starlite Motor Theatre","Coast Road, 1983 · Gantry Street. Three spaces, speakers on the posts.","Mark drive-in",()=>clockPin(starliteBooth)));
@@ -6347,7 +6361,7 @@
     }
     if(event==="complete"){
       const route=BayExposure.routes[story.route];save.wallet+=route.pay;save.paid++;save.edition=story.route;
-      maraFilm.deliver();persist();dropJob();sound.cue("paid");speak("Mara Vega",save.edition==="live"?"Hear that? Top of the hour. That’s our pier.":"Front row’s on me. Wait till they see what’s on that screen.");
+      maraFilm.deliver(hours.day+1);persist();dropJob();sound.cue("paid");speak("Mara Vega",save.edition==="live"?"Hear that? Top of the hour. That’s our pier.":"Front row’s on me. Wait till they see what’s on that screen.");
       note("Last Exposure complete","+"+cash(route.pay)+"  ·  Read Bay Wire on your phone (J)",5.4);
       if(campaign.book.stage!=="filed"){
         campaign.book.route=story.route;campaign.advance("return");campaign.write();if(campaign.book.intro)enterFilm(story.route);
@@ -9083,6 +9097,7 @@
       if(play&&see(ada,65))visible.push([personSkin(4,"local",0,theatre.run?1:0),ada.x,footLevel(ada.x,ada.z),ada.z,ada.yaw]);
     }
     view.drawOpaque(visible);
+    if(play&&maraFilm.published)BayPavementArt.rackPrint(view,model,see,pavement,BayPavement.pierLead(hours.day+1,neighbors.editions,save,maraFilm));
     if(play&&see(starliteSite,76)){
       const dx=starliteSite.x-eye.x,dz=starliteSite.z+9.89-eye.z;
       if(dz>-.25&&dx*Math.sin(eye.yaw)+dz*Math.cos(eye.yaw)>-.5){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}

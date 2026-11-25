@@ -25,7 +25,8 @@
   ];
   const archiveKey="sundownBay.pocketEditions.v1";
   const validIssue=q=>q&&Number.isSafeInteger(q.day)&&q.day>0&&["headline","deck","section","listing","local"].every(k=>typeof q[k]==="string"&&q[k].length<500)&&(!q.photo||Object.hasOwn(captions,q.photo));
-  const issueId=q=>JSON.stringify([q.day,q.headline,q.deck,q.listing,q.local]);
+  const issueId=q=>JSON.stringify([q.day,q.headline,q.deck,q.listing,q.local,q.pierPhoto?.image]);
+  const pierLead=(day,stories,save,film)=>save.edition&&film?.published&&(film.day===day||!stories.length)?film.published:null;
   class Street{
     constructor(){
       this.props=sites.map(([id,kind,x,z,yaw,wx,wz,name,style])=>{
@@ -36,23 +37,31 @@
       this.bits=[];this.hand=null;this.lift=null;this.serial=0;this.archive=[];this.readArchive();
     }
     readArchive(){
-      try{const raw=JSON.parse(localStorage.getItem(archiveKey));if(Array.isArray(raw))this.archive=raw.filter(validIssue).slice(-5);}catch{}
+      try{const raw=JSON.parse(localStorage.getItem(archiveKey));if(Array.isArray(raw))this.archive=raw.filter(validIssue).slice(-5).map(q=>{
+        if(q.pierPhoto)q.pierPhoto=BayLotNegative.readFrame(q.pierPhoto);return q;
+      });}catch{}
     }
     indexOf(q){const id=issueId(q);return this.archive.findIndex(p=>issueId(p)===id);}
     keep(q){
       this.readArchive();if(!validIssue(q)||this.indexOf(q)>=0)return false;
-      this.archive=[...this.archive.slice(-4),q];try{localStorage.setItem(archiveKey,JSON.stringify(this.archive));}catch{}
-      return true;
+      const next=[...this.archive.slice(-4),q];try{localStorage.setItem(archiveKey,JSON.stringify(next));}catch{return false;}
+      this.archive=next;return true;
     }
-    edition(clock,stories,save,bill){
-      const day=clock.day+1,story=stories.length?stories[(day-1)%stories.length]:null,stunt=save.stunt,slot=frontPages[(day-1)%frontPages.length];
+    edition(clock,stories,save,bill,film){
+      const day=clock.day+1,pierPhoto=pierLead(day,stories,save,film);
+      const story=!pierPhoto&&stories.length?stories[(day-1)%stories.length]:null,stunt=save.stunt,slot=frontPages[(day-1)%frontPages.length];
       let [headline,deck]=slot;
-      if(story){headline=captions[story.id];deck=story.news;}
+      if(pierPhoto){
+        const portrait=pierPhoto.frame==="14B",print=save.edition==="print";
+        headline=portrait?"Two lunches on the six o’clock boat":"Public landing goes up for sale";
+        deck=portrait?(print?"The Luna audience knew Luis Vega before the lights came up. He is still carrying his brother’s blue tin.":"Luis Vega called Sol FM after the bulletin. For twenty-three years he packed two lunches for the crossing."):
+          (print?"Mara Vega put the fine print on the big screen. The Port Sol ferry landing is listed with the shed.":"Dockhands heard the sale on Sol FM. The notice names the public landing as well as the shed.");
+      }else if(story){headline=captions[story.id];deck=story.news;}
       else if(save.edition){headline="Lot 14 notice reaches the bay";deck=save.edition==="print"?"Mara Vega’s photograph of the Port Sol notice is on the bill at Cine Luna.":"Mara Vega took the Port Sol story to Sol FM. Dockhands heard the report before the end of their shift.";}
       else if(stunt){headline="Romy lands it on the flatbed";deck="The car meet’s "+stunt.distance.toFixed(1)+" m jump has earned a place on the Cine Luna poster.";}
       const local=clock.rain>.3?"A shower is moving through town. Route 6 regulars are sharing the awnings along Ocean.":clock.market==="open"?"El Mercado is open for the evening. Look for the striped awnings on Mercado Street.":"El Mercado’s evening stalls open at six. Port Sol is taking deliveries down on Gantry.";
       const run=save.engineSeven?.log.at(-1),watch=run?.day===day?"Station Seven filed an all-clear for "+run.title+". "+run.crew+" signed the return slip.":local;
-      return {day,headline,deck,photo:story?.id||null,section:story?"Neighborhood edition":"City edition",local:watch,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
+      return {day,headline,deck,photo:story?.id||null,...(pierPhoto?{pierPhoto}:{}),section:pierPhoto?"Port Sol":story?"Neighborhood edition":"City edition",local:watch,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
     }
     impact(p,v,env){
       const k=kinds[p.kind],speed=Math.abs(v.speed),dir=v.speed<0?-1:1;
@@ -193,5 +202,5 @@
       }
     }
   }
-  window.BayPavement={Street,archiveKey};
+  window.BayPavement={Street,archiveKey,pierLead};
 })();

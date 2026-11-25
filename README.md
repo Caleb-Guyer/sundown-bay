@@ -230,6 +230,8 @@ For **Last Ferry Out**, look for Inez Cruz and her red lunch tin outside the Mar
 
 For **Last Exposure**, pick up Mara Vega outside the Marlin Motel and park at Lot 14. Press **F** to use her camera. Click the scene or use the arrows to aim, **W/S** to zoom, and **Space** for the shutter. Take the sale notice on **14A**. You can file it immediately or ask Luis for **14B**, a portrait with his brother’s lunch tin. Pick a negative, then reach the Sol FM van in 105 seconds for **$425** or take the print to Cine Luna for **$300**. That exact frame appears in Bay Wire, and Cine Luna projects it if you pick the print route.
 
+After the handoff, stop by Luz’s blue news box north of the Marlin Motel or Vic’s in Old Palms. The street edition runs your frame as a newsprint photograph. Press **F** at the box to read it, then **Fold a copy for later** to keep that issue under **J → Folded copies**. Each saved paper keeps the photograph it carried that day.
+
 At three stars, patrol cars set up roadblocks. At four, some crews lay spike strips. Clip one and the car pulls toward the flat tire. At five, Air One joins the chase.
 
 Board a boat at either pier while wanted and Harbor Patrol follows you offshore. One launch responds at one or two stars. At three stars a second launch moves to intercept. At five, the same Air One helicopter follows you over water with its searchlight. Hold **V** to look astern or open the offshore chart with **M** to see the patrol boats. If all units lose sight of you, they search your last reported position.

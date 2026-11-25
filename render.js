@@ -112,6 +112,45 @@
     const indices=used<=65535&&remap.BYTES_PER_ELEMENT===4?new Uint16Array(remap):remap;
     return {vertices:packed.subarray(0,used*6),indices};
   }
+  // Collapse details within small model-space cells. All paint at a shared
+  // position moves together, including the two sides of a material seam.
+  function streetDetail(data,b,cell){
+    const x0=b.x-b.hw,y0=b.y-b.hh,z0=b.z-b.hd;
+    const nx=Math.ceil(2*b.hw/cell)+1,ny=Math.ceil(2*b.hh/cell)+1;
+    const bins=new Map(),corners=new Array(data.length/6);
+    for(let j=0,p=0;p<data.length;j++,p+=6){
+      const x=(data[p]-x0)/cell,y=(data[p+1]-y0)/cell,z=(data[p+2]-z0)/cell;
+      const u=Math.floor(x),v=Math.floor(y),w=Math.floor(z),key=u+nx*(v+ny*w);
+      const d=(x-u-.5)**2+(y-v-.5)**2+(z-w-.5)**2;
+      let bin=bins.get(key);
+      if(!bin){bin={at:p,d,locked:false};bins.set(key,bin);}
+      else if(d<bin.d){bin.d=d;bin.at=p;}
+      corners[j]=bin;
+    }
+    // A distant aerial, wheel spoke or painted stripe is still visible along
+    // its length. Keep its narrow edge, including that edge's adjacent faces.
+    for(let i=0;i<corners.length;i+=3){
+      for(let k=0;k<3;k++){
+        const a=i+k,b=i+(k+1)%3,c=i+(k+2)%3;
+        if(corners[a]!==corners[b]||corners[a]===corners[c]||corners[a].locked)continue;
+        const p=a*6,q=c*6;
+        if((data[p]-data[q])**2+(data[p+1]-data[q+1])**2+(data[p+2]-data[q+2])**2>9*cell*cell)corners[a].locked=true;
+      }
+    }
+    const out=new Float32Array(data.length);let used=0;
+    for(let i=0;i<corners.length;i+=3){
+      const a=corners[i].locked?i*6:corners[i].at,b=corners[i+1].locked?(i+1)*6:corners[i+1].at,c=corners[i+2].locked?(i+2)*6:corners[i+2].at;
+      if(a===b||b===c||a===c)continue;
+      for(let k=0;k<3;k++){
+        const p=k===0?a:k===1?b:c,q=(i+k)*6;
+        out[used++]=data[p];out[used++]=data[p+1];out[used++]=data[p+2];
+        out[used++]=data[q+3];out[used++]=data[q+4];out[used++]=data[q+5];
+      }
+    }
+    if(!used||used>=data.length*.78)return null;
+    const stream=out.subarray(0,used),packed=indexGeometry(stream,false);
+    return {data:packed?packed.vertices.slice():stream.slice(),indices:packed?.indices||null,count:used/6};
+  }
   function drawRange(gl,model,first,count){
     if(!model.elements){gl.drawArrays(gl.TRIANGLES,first,count);return;}
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
@@ -178,6 +217,7 @@
       this.vertices=new Float32Array(24576*6);
       this.indices=new Uint16Array(65532);
       this.savedPoses=new Set();this.poseBytes=0;
+      this.details=new Map();this.detailBytes=0;this.buildDetail=true;
       gl.bindBuffer(gl.ARRAY_BUFFER,this.vertexBuffer);
       gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength,gl.STREAM_DRAW);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.indexBuffer);
@@ -213,12 +253,35 @@
       while(this.poseBytes+vertices.byteLength>3*1024*1024)this.forgetPose(this.savedPoses.values().next().value);
       p.vertices=vertices.slice();this.poseBytes+=p.vertices.byteLength;this.savedPoses.add(p);
     }
+    distanceDetail(model,data,x,y,z){
+      const view=this.view,v=view.basis,b=model.bounds;
+      if(!v?.f||!b||b.r>15||model.count<480||model.count>12000||view.scale>.65)return null;
+      // Use a sphere about the model origin to include off-centre and tilted
+      // geometry. The nearest visible surface sets the allowed pixel error.
+      const depth=((x-v.camera.x)*v.sn+(z-v.camera.z)*v.cs)*v.cp+(y-v.camera.y)*v.sp;
+      const near=depth-b.r-Math.hypot(b.x,b.y,b.z);
+      const pitch=near/(view.canvas.height*.5*v.f*1.733*Math.max(v.xMargin,v.yMargin));
+      const cell=pitch>=.24?.24:pitch>=.12?.12:pitch>=.055?.055:0;
+      if(!cell)return null;
+      const tiers=model.detailLevels??={};
+      if(Object.hasOwn(tiers,cell))return tiers[cell];
+      if(!this.buildDetail)return null;
+      this.buildDetail=false;
+      const detail=tiers[cell]=streetDetail(data,b,cell);if(!detail)return null;
+      const bytes=detail.data.byteLength+(detail.indices?.byteLength||0);
+      while(this.detailBytes+bytes>4*1024*1024){
+        const [old,entry]=this.details.entries().next().value;
+        delete entry.model.detailLevels[entry.cell];this.detailBytes-=entry.bytes;this.details.delete(old);
+        if(entry.model.batchPose?.sources===old.data){this.forgetPose(entry.model.batchPose);entry.model.batchPose.sources=null;}
+      }
+      this.details.set(detail,{model,cell,bytes});this.detailBytes+=bytes;return detail;
+    }
     append(item){
       const view=this.view;
       const [name,x=0,y=0,z=0,yaw=0,tiltX=0,tiltZ=0,glow=0,car,,vapor]=item;
       const model=view.models.get(name);
       if(!model?.count)return;
-      const data=view.cpu.get(name);
+      let data=view.cpu.get(name);
       if(model.poseChanged){model.bounds=meshBounds(data,0,model.count);model.poseChanged=false;}
       if(!view.inFrame(model.bounds,x,y,z,yaw,tiltX,tiltZ,car?.damage?1.4:0))return;
       if(model.sections||car?.damage||vapor||model.count>this.indices.length){
@@ -240,17 +303,23 @@
         }
       }
       if(n>this.vertices.length/6){this.flush();view.draw(...item);return;}
-      if(this.glow!==glow||this.count+count>this.indices.length||(this.used+n)*6>this.vertices.length)this.flush();
-      this.glow=glow;
       if(indices&&!sources){
         sources=model.batchSources=new Uint32Array(n);
         for(let i=0;i<model.count;i++)sources[indices[i]]=i*6;
       }
+      if(!model.dynamic&&!vapor&&!car?.damage){
+        const small=this.distanceDetail(model,data,x,y,z);
+        if(small&&small.count<count*.82){
+          data=small.data;indices=small.indices;sources=null;count=small.count;n=data.length/6;
+        }
+      }
+      if(this.glow!==glow||this.count+count>this.indices.length||(this.used+n)*6>this.vertices.length)this.flush();
+      this.glow=glow;
       const dest=this.vertices;
       const start=this.used*6;
       // The source list changes with distance and the visible sides of a closed
       // model. Only two identical consecutive static draws can admit a pose.
-      const pose=!model.dynamic&&!car&&n>=48?this.repeatedPose(model,sources,x,y,z,yaw,tiltX,tiltZ):null;
+      const pose=!model.dynamic&&!car&&n>=48?this.repeatedPose(model,sources||data,x,y,z,yaw,tiltX,tiltZ):null;
       if(pose?.vertices)dest.set(pose.vertices,start);
       else{
         const co=Math.cos(yaw),si=Math.sin(yaw),cx=Math.cos(tiltX),sx=Math.sin(tiltX),cz=Math.cos(tiltZ),sz=Math.sin(tiltZ);
@@ -737,6 +806,7 @@
     drawOpaque(list){
       if(this.scale>.75){for(const item of list)this.draw(...item);return;}
       const batch=this.streetBatch??=new StreetBatch(this);
+      batch.buildDetail=true;
       for(const item of list)batch.append(item);
       batch.flush();
     }
@@ -759,7 +829,7 @@
       const gl=this.gl,eye=this.basis.camera;gl.uniform4f(this.u.waterParams,eye.x,eye.z,t,1);
       this.draw("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
     }
-    drawPrint(name,canvas,revision,x,y,z,yaw){
+    drawPrint(name,canvas,revision,x,y,z,yaw,tiltX=0){
       if(!this.gl||this.lost||!this.models.has(name))return;
       const gl=this.gl;
       // A window print and the moving curb television can share one street view.
@@ -784,7 +854,7 @@
         }
         gl.activeTexture(gl.TEXTURE0);
       }
-      gl.uniform1f(this.u.showPrint,1);this.draw(name,x,y,z,yaw);gl.uniform1f(this.u.showPrint,0);
+      gl.uniform1f(this.u.showPrint,1);this.draw(name,x,y,z,yaw,tiltX);gl.uniform1f(this.u.showPrint,0);
     }
     drawSearchlight(name){
       const gl=this.gl;gl.depthMask(false);gl.enable(gl.BLEND);

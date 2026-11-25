@@ -122,6 +122,9 @@
     const image=document.createElement("canvas");image.width=600;image.height=400;
     const c=image.getContext("2d");
     if(id==="ocean"||!window.BayNeighborhoodEdition?.paint(image,id))oceanDrawing(c);
+    screen(c,image);plates.set(id,image);return image;
+  }
+  function screen(c,image){
     // Convert the photograph into round letterpress dots. The dot lattice is
     // angled against the page rulings, just as on a screened zinc plate.
     const pixels=c.getImageData(0,0,image.width,image.height),d=pixels.data;
@@ -134,7 +137,24 @@
       const coverage=.60*dot+.40*(1-tone);
       d[i]=232-coverage*199;d[i+1]=221-coverage*183;d[i+2]=192-coverage*151;
     }
-    c.putImageData(pixels,0,0);plates.set(id,image);return image;
+    c.putImageData(pixels,0,0);
+  }
+  const pierPlates=new WeakMap(),covers=new WeakMap(),mounted=new WeakMap();
+  function pierPlate(frame){
+    let p=pierPlates.get(frame);if(p)return p;
+    const img=BayLotNegative.photo(frame);if(!img?.naturalWidth)return null;
+    p=document.createElement("canvas");p.width=400;p.height=225;
+    const c=p.getContext("2d");c.drawImage(img,0,0,p.width,p.height);screen(c,p);
+    pierPlates.set(frame,p);return p;
+  }
+  function cover(frame){
+    let c=covers.get(frame);if(c)return c;
+    const p=pierPlate(frame);if(!p)return null;
+    c=document.createElement("canvas");c.width=360;c.height=310;const g=c.getContext("2d");
+    box(g,0,0,360,310,paper);label(g,"BAY WIRE",180,53,"bold 55px "+serif,ink,"center");box(g,10,60,340,2,ink);
+    label(g,frame.frame==="14B"?"Two lunches on the six o’clock boat":"Public landing goes up for sale",10,88,"bold 21px "+serif);
+    g.drawImage(p,10,97,340,191);label(g,"PORT SOL   /   M. VEGA   /   "+frame.frame,10,303,"bold 11px monospace");
+    covers.set(frame,c);return c;
   }
   function lines(c,value,font,measure){
     c.font=font;const words=String(value||"").trim().split(/\s+/u),rows=[];let line="";
@@ -187,9 +207,10 @@
     const titleSize=headline.length>76?39:headline.length>47?44:51,headFont="bold "+titleSize+"px "+serif;
     const head=lines(c,headline,headFont,full),deck=lines(c,issue.deck,deckFont,full);
     const locals=lines(c,issue.local,bodyFont,railW),listing=lines(c,issue.listing,bodyFont,railW);
-    const caption=lines(c,cutlines[id],captionFont,picW),headTop=166,headLead=titleSize*1.005;
+    const pier=issue.pierPhoto,cutline=pier?BayLotNegative.captions[pier.frame]+". Frame "+pier.frame+".":cutlines[id];
+    const caption=lines(c,cutline,captionFont,picW),headTop=166,headLead=titleSize*1.005;
     const deckTop=headTop+head.length*headLead+7,bylineY=deckTop+deck.length*26+20,body=bylineY+19;
-    const imageH=Math.round(picW*2/3),railTop=body+27,lineH=24;
+    const imageH=Math.round(picW*(pier?9/16:2/3)),railTop=body+27,lineH=24;
     const listingHead=railTop+locals.length*lineH+(locals.length?27:0);
     const footer=Math.ceil(Math.max(body+imageH+10+caption.length*20,listingHead+(listing.length?13+listing.length*lineH:0))+23);
     canvas.width=width;canvas.height=footer+36;
@@ -200,8 +221,12 @@
     label(c,"DAY "+String(day).padStart(2,"0"),width-margin,133,"bold 15px "+sans,ink,"right");
     box(c,margin,140,full,.9,ink);label(c,section,margin,160,"bold 15px "+sans,oxblood);
     column(c,head,margin,headTop,headFont,headLead);column(c,deck,margin,deckTop,deckFont,26);
-    label(c,id==="ocean"?"Street drawing by Meli Funes":"From the picture desk of Meli Funes",margin,bylineY,"bold 15px "+sans);
-    c.drawImage(plate(id),margin,body,picW,imageH);
+    label(c,pier?"Photograph by Mara Vega":id==="ocean"?"Street drawing by Meli Funes":"From the picture desk of Meli Funes",margin,bylineY,"bold 15px "+sans);
+    mounted.set(canvas,issue);
+    if(pier){
+      const print=()=>{const p=pierPlate(pier);if(p&&mounted.get(canvas)===issue)c.drawImage(p,margin+1,body+1,picW-2,imageH-2);};
+      const img=BayLotNegative.photo(pier);if(img?.naturalWidth)print();else img?.addEventListener("load",print,{once:true});
+    }else c.drawImage(plate(id),margin,body,picW,imageH);
     c.strokeStyle=ink;c.lineWidth=1;c.strokeRect(margin+.5,body+.5,picW-1,imageH-1);
     column(c,caption,margin,body+imageH+7,captionFont,20,muted);
     const railLine=rail-14;
@@ -220,5 +245,5 @@
     label(c,"1",width-margin,footer+21,"bold 16px "+serif,ink,"right");
     return true;
   }
-  window.BayStreetEditionArt=Object.freeze({paint});
+  window.BayStreetEditionArt=Object.freeze({paint,cover});
 })();
