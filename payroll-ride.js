@@ -125,6 +125,7 @@
       list.push(["street-prop-1",j.x,height,j.z,yaw]);
       if(run.coverPose.age<.14)list.push(["street-flash",j.x+.23*Math.sin(yaw),height,j.z+.23*Math.cos(yaw),yaw]);
     }
+    if(run.empty)return;
     const to=run.receiver?counterTop(run.route):j;
     const seat=a.motion.ride?.seat||0;
     if(seat){const lap=BayDriving.world(a,0,.22);j.x+=(lap.x-j.x)*seat;j.z+=(lap.z-j.z)*seat;
@@ -137,7 +138,9 @@
     const t=Math.min(1,Math.max(0,(run.pass-.25)*2.5));
     const prop=run.film?"starlite-reel-can":"payroll-tin";
     model(prop,run.film?g=>{g.cyl(0,0,0,.19,.19,.105,16,"#748484");g.cyl(0,.061,0,.195,.195,.02,16,"#b2b9a6");g.box(0,.074,0,.16,.006,.055,"#e0ba77");}:tin);
-    list.push([prop,j.x+(to.x-j.x)*t,j.y+(to.y-j.y)*t,j.z+(to.z-j.z)*t,a.yaw]);
+    if(run.flight){
+      const p=BayFeaturePrint.airborne(run.flight);list.push([prop,p.x,p.y,p.z,run.flight.age*8,run.flight.age*3]);
+    }else list.push([prop,j.x+(to.x-j.x)*t,j.y+(to.y-j.y)*t,j.z+(to.z-j.z)*t,a.yaw]);
   }
   function counter(route,ground){
     const s=stops[route],r=actor(s);
@@ -172,7 +175,8 @@
       ctx.beginPath();ctx.moveTo(px(p.x),py(p.z));ctx.lineTo(px(p.x+.45*Math.sin(yaw)),py(p.z+.45*Math.cos(yaw)));ctx.stroke();
     }
     if(j)person(j,run.film?["#ba8167"]:colors);if(r)person(r,stops[run.route||r.route].colors);
-    const p=run.pass>.55?counterTop(run.route):BayDriving.world(j,.22,.18);
+    if(run.empty)return;
+    const p=run.flight?BayFeaturePrint.airborne(run.flight):run.pass>.55?counterTop(run.route):BayDriving.world(j,.22,.18);
     if(run.film){ctx.fillStyle="#b2b9a6";ctx.beginPath();ctx.arc(px(p.x),py(p.z),Math.max(1,s*.19),0,Math.PI*2);ctx.fill();}
     else{ctx.fillStyle="#c39e65";ctx.fillRect(px(p.x)-s*.13,py(p.z)-s*.08,Math.max(1,s*.26),Math.max(1,s*.16));}
     if(run.photoOffered&&run.aboard&&!run.photoTaken){

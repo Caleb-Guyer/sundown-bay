@@ -26,10 +26,22 @@ module.exports=async function featurePrint({js,send,waitFor,key,tap,mode}){
   await waitFor("q.ride?.aboard",30000);assert(await js("q.boarded"));
   await snap("pickup");
   await key("keyDown","KeyW");try{await waitFor("Math.abs(q.v.speed)>4",20000);}finally{await key("keyUp","KeyW");}
+  if(mode==="street"){
+    await js("q.at(q.v,4.2,56.9);BayDriving.settle(q.v);q.v.speed=q.v.vz=6.4");
+    await waitFor("document.querySelector('#objectiveText').textContent.includes('Toss the reel')",20000);
+    await tap("KeyH");
+    await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).featurePrint?.rolling===1",10000);
+    assert(await js("document.querySelector('#chapterFilm').hidden&&document.querySelector('#stars').getAttribute('aria-label')!=='No heat'"));
+    await snap("catch");
+  }
   await js("q.at(q.v,-143,126);BayDriving.settle(q.v)");
   await waitFor("document.querySelector('#stars').getAttribute('aria-label')==='No heat'",85000);
-  await js("q.at(q.v,4.6,63.2);BayDriving.settle(q.v)");
-  await waitFor("q.ride.stage==='receipt'",45000);assert(await js("q.exited"));
+  if(mode==="street"){
+    await waitFor("!document.querySelector('#chapterFilm').hidden",35000);
+  }else{
+    await js("q.at(q.v,4.6,63.2);BayDriving.settle(q.v)");
+    await waitFor("q.ride.stage==='receipt'",45000);assert(await js("q.exited"));
+  }
   const save="JSON.parse(localStorage.getItem('sundownBay.v1'))";
   const record=await js(save+".featurePrint");assert.equal(record.first+record.late,1);assert(record.best>0);
   await snap("house");await tap("Enter");

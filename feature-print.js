@@ -6,7 +6,7 @@
   const job={id:"feature-print",name:"Before the Feature",by:"Ada Soler"};
   function read(raw){
     const count=n=>Number.isSafeInteger(n)&&n>=0?n:0;
-    return {first:count(raw?.first),late:count(raw?.late),best:Number.isFinite(raw?.best)&&raw.best>0?raw.best:0,
+    return {first:count(raw?.first),late:count(raw?.late),rolling:Math.min(count(raw?.rolling),count(raw?.first)+count(raw?.late)),best:Number.isFinite(raw?.best)&&raw.best>0?raw.best:0,
       last:["first","late"].includes(raw?.last)?raw.last:""};
   }
   class Run {
@@ -14,6 +14,17 @@
       this.ride=new BayPayroll.Ride(curb);
       this.ride.film=true;this.ride.jules.shirt="#bc694c";this.ride.jules.skin="#ba8167";
       this.rounds=3;this.cool=0;this.clock=0;this.arrival=null;this.lastCall=false;
+    }
+    canPass(v){
+      if(!v||v!==this.ride.car||!this.ride.aboard||this.ride.flight||!this.ride.waiting||v.speed<3||v.speed>21)return false;
+      const clerk=this.ride.waiting,p=BayDriving.local(v,clerk.x,clerk.z);
+      return p.x>.5&&p.x<9.5&&Math.abs(p.z)<6&&Math.hypot(p.x,p.z)<10;
+    }
+    pass(v,ground){
+      if(!this.canPass(v))return false;
+      const start=BayDriving.world(v,bayCarLayout(v.kind).track+.13,0),clerk=this.ride.waiting;
+      this.ride.flight={start:{...start,y:ground(v.x,v.z)+1.11},end:{x:clerk.x,y:clerk.y+1.18,z:clerk.z},age:0};
+      this.arrival=Math.max(.1,this.clock);return true;
     }
     // Romy only responds when a moving patrol car is actually visible behind the passenger window.
     target(v,units,cars,people,solids,ground){
@@ -45,6 +56,10 @@
       effects.traces.push({x:from.x,y:from.y,z:from.z,ex:to.x,ez:to.z,yaw:Math.atan2(to.x-from.x,to.z-from.z),life:.15});
       return true;
     }
+  }
+  function airborne(f){
+    const t=Math.min(1,f.age/.62),a=f.start,b=f.end;
+    return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t+3.3*t*(1-t),z:a.z+(b.z-a.z)*t};
   }
   function brake(v,dt,clear){
     const speed=Math.max(0,v.speed-18*dt),step=(v.speed+speed)*.5*dt;
@@ -85,5 +100,5 @@
     c.fillStyle="#e8d6af";c.font="10px monospace";c.fillText("SOLER 16   /   "+String(183+f).padStart(4,"0"),30,268);
     if(slip){c.fillStyle="#ecdbaf";c.font="italic 13px Georgia";c.fillText("Gantry Street, before the fire",260,249);}
   }
-  window.BayFeaturePrint={curb,deadline,job,read,Run,brake,frame};
+  window.BayFeaturePrint={curb,deadline,job,read,Run,airborne,brake,frame};
 })();
