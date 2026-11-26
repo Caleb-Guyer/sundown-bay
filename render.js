@@ -825,6 +825,7 @@
           model.counts=new Int32Array(model.sections.length);
         }
         if(name==="city"){model.city=true;this.sunKey=null;}
+        else if(model.indices)model.worldSections=true;
       }
       this.models.set(name,model);
     }
@@ -839,7 +840,7 @@
       }
       // A distant car or person must still have an outline.
       if(indices.length<18||indices.length>model.count*.8)return;
-      if(model.city&&model.indices){
+      if((model.city||model.worldSections)&&model.indices){
         model.farKeep=new Uint8Array(model.count/3);
         for(let i=0;i<indices.length;i+=3)model.farKeep[indices[i]/3]=1;
       }
@@ -1171,10 +1172,14 @@
         (model.sections||!tiltX&&!tiltZ&&this.farFromCamera(base.bounds,x,y,z,yaw));
       if(reduced&&!model.distanceReady)this.prepareDistanceMesh(model,this.cpu.get(name));
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}
-      const city=reduced&&model.city&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ;
-      const solid=!this.effectPass&&!vapor&&this.beginStreetSurface(glow,!city);
+      // Static buildings assembled in world coordinates can share the city's
+      // visible-face indexer. Vehicle-local, transparent and effect draws use
+      // their ordinary transforms and section ranges.
+      const worldList=reduced&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ&&
+        (model.city||model.worldSections&&!this.effectPass&&!vehicle&&!vapor);
+      const solid=!this.effectPass&&!vapor&&this.beginStreetSurface(glow,!worldList);
       if(!solid&&this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
-      if(!solid||!city){
+      if(!solid||!worldList){
         const uniforms=solid?this.modelSurface.u:this.u,state=solid?this.modelSurface:this;
         if(tiltX!==state.tiltX||tiltZ!==state.tiltZ){
           gl.uniform4f(uniforms.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));
@@ -1183,7 +1188,7 @@
         gl.uniform3f(uniforms.origin,x,y,z);gl.uniform2f(uniforms.turn,Math.cos(yaw),Math.sin(yaw));
       }
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
-      if(city){
+      if(worldList){
         const list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model);
       }else if(model.starts&&this.multiDraw){
         this.drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0);

@@ -826,6 +826,7 @@
           model.counts=new Int32Array(model.sections.length);
         }
         if(name==="city"){model.city=true;this.sunKey=null;}
+        else if(model.indices)model.worldSections=true;
       }
       this.models.set(name,model);
     }
@@ -840,7 +841,7 @@
       }
       // A distant car or person must still have an outline.
       if(indices.length<18||indices.length>model.count*.8)return;
-      if(model.city&&model.indices){
+      if((model.city||model.worldSections)&&model.indices){
         model.farKeep=new Uint8Array(model.count/3);
         for(let i=0;i<indices.length;i+=3)model.farKeep[indices[i]/3]=1;
       }
@@ -1172,10 +1173,14 @@
         (model.sections||!tiltX&&!tiltZ&&this.farFromCamera(base.bounds,x,y,z,yaw));
       if(reduced&&!model.distanceReady)this.prepareDistanceMesh(model,this.cpu.get(name));
       if(this.bound!==model.buf){gl.bindBuffer(gl.ARRAY_BUFFER,model.buf);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(this.col,3,gl.FLOAT,false,24,12);this.bound=model.buf;}
-      const city=reduced&&model.city&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ;
-      const solid=!this.effectPass&&!vapor&&this.beginStreetSurface(glow,!city);
+      // Static buildings assembled in world coordinates can share the city's
+      // visible-face indexer. Vehicle-local, transparent and effect draws use
+      // their ordinary transforms and section ranges.
+      const worldList=reduced&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ&&
+        (model.city||model.worldSections&&!this.effectPass&&!vehicle&&!vapor);
+      const solid=!this.effectPass&&!vapor&&this.beginStreetSurface(glow,!worldList);
       if(!solid&&this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
-      if(!solid||!city){
+      if(!solid||!worldList){
         const uniforms=solid?this.modelSurface.u:this.u,state=solid?this.modelSurface:this;
         if(tiltX!==state.tiltX||tiltZ!==state.tiltZ){
           gl.uniform4f(uniforms.tilt,Math.cos(tiltX),Math.sin(tiltX),Math.cos(tiltZ),Math.sin(tiltZ));
@@ -1184,7 +1189,7 @@
         gl.uniform3f(uniforms.origin,x,y,z);gl.uniform2f(uniforms.turn,Math.cos(yaw),Math.sin(yaw));
       }
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
-      if(city){
+      if(worldList){
         const list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model);
       }else if(model.starts&&this.multiDraw){
         this.drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0);
@@ -4624,6 +4629,16 @@
   const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
   const smooth=x=>{x=clamp(x,0,1);return x*x*(3-2*x);};
   const flashing=(v,t)=>BayBoulevardLanes.flash(v,t);
+  const red=[142,23,20],blue=[24,68,152],amber=[155,79,18];
+  function signalSide(v,t){
+    if(v.kind==="cruiser"){
+      if(v.beatCar)return BayOceanBeatArt.pulse(t,v.beatLights);
+      return v.role?(Math.floor(t*2)%2?1:-1):0;
+    }
+    if(!v.responseLights)return 0;
+    if(v.kind==="ambulance")return BayAmbulanceArt.pulse(t);
+    return v.kind==="pumper"?BayEngineSevenArt.beaconPhase(t,v):0;
+  }
   function box(x,z,w,d,s=0,c=1,car=null){
     return {x,z,w,d,s,c,car,r:Math.hypot(w,d)};
   }
@@ -4638,11 +4653,25 @@
     else{const a=(-b.d-v)/dv,y=(b.d-v)/dv;enter=Math.max(enter,Math.min(a,y));leave=Math.min(leave,Math.max(a,y));}
     return leave>=enter?Math.min(limit,enter+.55):limit;
   }
+  // Signed edge crossings bound the beam on each row of the light texture.
+  // A half-texel guard keeps both edges under the original coverage test.
+  function spanEdge(rows,ax,az,bx,bz,left,north){
+    if(Math.abs(bz-az)<1e-9)return;
+    const start=clamp(Math.ceil((north-Math.max(az,bz))/metres-.5),0,size);
+    const end=clamp(Math.ceil((north-Math.min(az,bz))/metres-.5),0,size);
+    const slope=(bx-ax)/(bz-az);
+    let at=(ax-left+(north-(start+.5)*metres-az)*slope)/metres;
+    const edge=bz>az?rows[0]:rows[1];
+    for(let row=start;row<end;row++,at-=slope)edge[row]=at;
+  }
   class Field {
     constructor(solids){
       this.buildings=solids.filter(b=>(b.top??b.h??4)>.65&&(b.bottom||0)<1.8&&b.w>.26&&b.d>.26)
         .map(b=>box(b.x,b.z,b.w*.5,b.d*.5));
       this.pixels=new Uint8ClampedArray(size*size*4);
+      this.words=new Uint32Array(this.pixels.buffer);
+      this.black=new Uint32Array(Uint8Array.of(0,0,0,255).buffer)[0];
+      this.rows=[new Float64Array(size),new Float64Array(size)];
       this.size=size;this.span=span;this.version=0;this.last=-Infinity;this.enabled=false;
       this.canvasVersion=-1;this.stops=new Float32Array(rays+1);this.glare=new WeakMap();
     }
@@ -4664,17 +4693,29 @@
       this.north=Math.round(focus.z/metres)*metres+span*.5;
       const blocks=this.buildings.filter(b=>Math.abs(b.x-focus.x)<92+b.w&&Math.abs(b.z-focus.z)<92+b.d);
       const sources=[];
+      let lampCount=0;
       const add=(v,active)=>{
         const shape=v.footprint||bayCarLayout(v.kind||"cruiser"),s=Math.sin(v.yaw),c=Math.cos(v.yaw);
         const body=box(v.x,v.z,shape.track,shape.halfLength,s,c,v);
-        blocks.push(body);if(active)sources.push(body);
+        blocks.push(body);
+        body.signal=light>.045?signalSide(v,t):0;
+        body.lamps=active;
+        if(active)lampCount++;
+        if(active||body.signal)sources.push(body);
       };
       if(own)add(own,true);
-      for(const {v} of nearby)add(v,sources.length<14&&(v===bus||v.path||Math.abs(v.speed)>.45||v.owner?.phase==="drive"||flashing(v,t)));
-      this.pixels.fill(0);
+      for(const {v} of nearby)add(v,lampCount<14&&(v===bus||v.path||Math.abs(v.speed)>.45||v.owner?.phase==="drive"||flashing(v,t)));
+      this.words.fill(this.black);
       for(const body of sources){
         const v=body.car,primary=v===own;
         const obstacles=blocks.filter(b=>b!==body&&Math.abs(b.x-body.x)<58+b.r&&Math.abs(b.z-body.z)<58+b.r);
+        if(body.signal){
+          const side=body.signal,dx=side*body.c,dz=-side*body.s;
+          const hue=v.kind==="pumper"?amber:v.kind==="cruiser"&&side>0?blue:red;
+          this.paint(v.x+dx*body.w,v.z+dz*body.w,dx,dz,8+6*wet,.73,hue,
+            light*(.57+.36*wet),obstacles);
+        }
+        if(!body.lamps)continue;
         if(own&&!primary&&v.path&&this.high&&light>.16)this.askToDip(v,own,t,dt,obstacles);
         const flash=flashing(v,t),main=primary&&this.high?!flash:flash,level=Math.max(light,main?.37:0)*(primary?1:.84);
         if(level<.04)continue;
@@ -4722,20 +4763,38 @@
       const maxY=clamp(Math.ceil((this.north-Math.min(z-.5,tipZ-half*Math.abs(s)))/metres),0,size);
       // Start the visibility fan a little behind the lens so it has width at the bumper.
       const offset=.45/slope,ox=x-s*offset,oz=z-c*offset,full=length+offset,stops=this.stops;
+      if(minX>=maxX||minY>=maxY)return;
       stops.fill(full);
       for(const b of blocks){
         const bx=b.x-ox,bz=b.z-oz,along=bx*s+bz*c,side=bx*c-bz*s;
         if(along+b.r<=0||along-b.r>full||Math.abs(side)>Math.max(0,along)*slope+b.r*(1+slope))continue;
-        for(let i=0;i<=rays;i++){
+        // Any ray that can hit the box must pass its bounding circle. Along
+        // that ray, |side - along * angle| <= radius * sqrt(1 + angle²).
+        const reach=b.r*Math.sqrt(1+slope*slope),factor=rays*.5/slope;
+        const first=along>0?Math.max(0,Math.ceil((side-reach)/along*factor+rays*.5-1e-7)):0;
+        const last=along>0?Math.min(rays,Math.floor((side+reach)/along*factor+rays*.5+1e-7)):rays;
+        for(let i=first;i<=last;i++){
           const angle=(2*i/rays-1)*slope;
           stops[i]=hit(b,ox,oz,s+c*angle,c-s*angle,stops[i]);
         }
       }
+      const narrow=length>16&&Math.abs(s*c)>.12;
+      if(narrow){
+        const l=x-.45*c,r=x+.45*c,nearL=z+.45*s,nearR=z-.45*s;
+        const farL=tipX-half*c,farR=tipX+half*c,zL=tipZ+half*s,zR=tipZ-half*s;
+        this.rows[0].fill(minX,minY,maxY);this.rows[1].fill(maxX,minY,maxY);
+        spanEdge(this.rows,l,nearL,farL,zL,this.left,this.north);
+        spanEdge(this.rows,farL,zL,farR,zR,this.left,this.north);
+        spanEdge(this.rows,farR,zR,r,nearR,this.left,this.north);
+        spanEdge(this.rows,r,nearR,l,nearL,this.left,this.north);
+      }
       for(let py=minY;py<maxY;py++){
+        const first=narrow?Math.max(minX,Math.floor(this.rows[0][py]-.5)):minX;
+        const endX=narrow?Math.min(maxX,Math.ceil(this.rows[1][py]+.5)):maxX;
         const dz=this.north-(py+.5)*metres-z;
-        let dx=this.left+(minX+.5)*metres-x;
+        const dx=this.left+(first+.5)*metres-x;
         let f=dx*s+dz*c,u=dx*c-dz*s;
-        for(let px=minX;px<maxX;px++,f+=metres*s,u+=metres*c){
+        for(let px=first;px<endX;px++,f+=metres*s,u+=metres*c){
           if(f<0||f>=length)continue;
           const ratio=u/((f+offset)*slope);
           if(Math.abs(ratio)>=1)continue;
@@ -4753,18 +4812,16 @@
       if(!this.canvas){
         this.canvas=document.createElement("canvas");this.canvas.width=this.canvas.height=size;
         this.context=this.canvas.getContext("2d",{alpha:false});
-        this.image=this.context.createImageData(size,size);
+        this.image=new ImageData(this.pixels,size,size);
       }
       if(this.canvasVersion!==this.version){
-        this.image.data.set(this.pixels);
-        for(let i=3;i<this.image.data.length;i+=4)this.image.data[i]=255;
         this.context.putImageData(this.image,0,0);this.canvasVersion=this.version;
       }
       ctx.save();ctx.globalCompositeOperation="lighter";ctx.globalAlpha=.58;
       ctx.drawImage(this.canvas,px(this.left),py(this.north),span*scale,span*scale);ctx.restore();
     }
   }
-  window.BayRoadLights={Field};
+  window.BayRoadLights={Field,signalSide};
 })();
 
 ;
@@ -7266,7 +7323,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     c.restore();
   }
-  window.BayAmbulanceArt={shape,fit,build,install,world,map,mapTruck,loading,rear,point};
+  window.BayAmbulanceArt={shape,fit,build,install,pulse,world,map,mapTruck,loading,rear,point};
 })();
 
 ;
@@ -9970,7 +10027,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(v.pumpWorking){c.fillStyle="#dded99";c.fillRect(-1.053,-.568,.128,.16);}
     c.restore();
   }
-  window.BayEngineSevenArt={owns,shapes,cockpitStyles,fit,build,driverEnds,hoodHeight,brakeLights,signal,map,beacons};
+  window.BayEngineSevenArt={owns,shapes,cockpitStyles,fit,build,driverEnds,hoodHeight,brakeLights,signal,map,beacons,beaconPhase};
 })();
 
 ;
@@ -15090,8 +15147,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(cab) {rect(c,-.31,-.07,.62,.29,"#34474c");rect(c,-.24,-.035,.48,.20,"#ffe3a0");}
       if(police) {
         rect(c,-.52,-.16,1.04,.29,"#414e55");
-        rect(c,-.46,-.12,.40,.22,t%1<.5?"#ff6d78":"#ad5561");
-        rect(c,.06,-.12,.40,.22,t%1<.5?"#7299b1":"#a3e5ff");
+        const side=BayRoadLights.signalSide(car,t);
+        rect(c,-.46,-.12,.40,.22,side<0?"#ff6d78":"#ad5561");
+        rect(c,.06,-.12,.40,.22,side>0?"#a3e5ff":"#7299b1");
       }
     }
     const lit=car.brakes>.18||car.handbrake>.48;
@@ -50861,22 +50919,41 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(next>=line.length-.03)service.startDock(service.phase==="outbound");
     }
 
-  function yieldTo(unit,key,v,ux,uz,remaining,offset,time){
-      const dx=v.x-unit.x,dz=v.z-unit.z,range=Math.hypot(dx,dz);
-      if(unit.responseLights&&range<48&&Math.abs(unit.speed)>1.1){
-        const sx=Math.sin(unit.yaw),sz=Math.cos(unit.yaw),along=dx*sx+dz*sz,across=Math.abs(dx*sz-dz*sx),alignment=ux*sx+uz*sz;
-        let style=null;
-        if(Math.abs(alignment)>.71&&along> -3.7&&across<7&&along<44)style="shoulder";
-        else if(Math.abs(alignment)<.5){const cross=-(dx*sz-dz*sx)/(ux*sz-uz*sx),ahead=along+cross*alignment;
-          if(cross>5.0&&cross<23&&ahead>1&&ahead<38)style="cross";}
-        if(style){v[key]={style,until:time+.75};}
-      }
-      const y=v[key];if(!y)return null;
-      if(!unit.responseLights||y.until<time){v[key]=null;return null;}
-      if(y.style==="cross")return {goal:0,max:Math.max(0,Math.min(4.3,(remaining-8)*.95)),cross:true};
-      const goal=2.03*limit((remaining-.8)/5,0,1);
-      return {goal,max:Math.abs(goal-offset)>.35?3.9:.18,cross:false};
+  function requestedLane(unit,v,ux,uz){
+    const dx=v.x-unit.x,dz=v.z-unit.z;
+    if(dx*dx+dz*dz>=48*48||Math.abs(unit.speed)<=1.1)return null;
+    const sx=Math.sin(unit.yaw),sz=Math.cos(unit.yaw),along=dx*sx+dz*sz,across=dx*sz-dz*sx,alignment=ux*sx+uz*sz;
+    if(Math.abs(alignment)>.71&&along> -3.7&&Math.abs(across)<7&&along<44)return "shoulder";
+    if(Math.abs(alignment)<.5){
+      const cross=-across/(ux*sz-uz*sx),ahead=along+cross*alignment;
+      if(cross>5&&cross<23&&ahead>1&&ahead<38)return "cross";
     }
+    return null;
+  }
+  function laneResponse(v,key,style,remaining,offset,time){
+    if(style){const y=v[key]??={};y.style=style;y.until=time+.75;}
+    const y=v[key];
+    if(!y)return null;
+    if(y.until<time){v[key]=null;return null;}
+    if(y.style==="cross")return {goal:0,max:Math.max(0,Math.min(4.3,(remaining-8)*.95)),cross:true};
+    const goal=2.03*limit((remaining-.8)/5,0,1);
+    return {goal,max:Math.abs(goal-offset)>.35?3.9:.18,cross:false};
+  }
+  function yieldTo(unit,key,v,ux,uz,remaining,offset,time){
+    if(!unit.responseLights){if(v[key])v[key]=null;return null;}
+    return laneResponse(v,key,requestedLane(unit,v,ux,uz),remaining,offset,time);
+  }
+  function yieldToPatrol(patrol,v,ux,uz,remaining,offset,time){
+    let nearest=Infinity,style=null;
+    for(const unit of patrol){
+      if(unit.footUnit||unit.role==="roadblock"||unit.speed<=1.1)continue;
+      const d=(unit.x-v.x)**2+(unit.z-v.z)**2;
+      if(d>=nearest||d>=48*48)continue;
+      const request=requestedLane(unit,v,ux,uz);
+      if(request){nearest=d;style=request;}
+    }
+    return laneResponse(v,"patrolYield",style,remaining,offset,time);
+  }
   class Service{
     constructor(v,site,memory){
       this.v=v;this.site=site;this.saved=memory;this.index=memory.next;this.joined=false;this.holding=false;this.phase="ready";this.age=0;this.wait=10;
@@ -51287,7 +51364,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     yielding(v,ux,uz,remaining,offset,time){return yieldTo(this.v,"rescueYield",v,ux,uz,remaining,offset,time);}
   }
-  window.BayRescue={Service,followResponse,yieldTo,read,cases,apron,track,instructions};
+  window.BayRescue={Service,followResponse,yieldTo,yieldToPatrol,read,cases,apron,track,instructions};
 })();
 
 ;
@@ -68073,7 +68150,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     ctx.textAlign="right";text(release?"UNIT 04":"OCEAN 12",r,foot+17,16,print,mono,"bold");ctx.restore();
     return true;
   }
-  window.BayOceanBeatArt={colors,dress,pose,world,car,carMap,mapPerson,paint};
+  window.BayOceanBeatArt={colors,dress,pose,world,car,carMap,mapPerson,paint,pulse};
 })();
 
 ;
@@ -77890,7 +77967,9 @@ window.buildBayCity = function buildBayCity(g,water) {
         else v.corner=(v.corner+1)%v.path.length;
         continue;
       }
-      const yielding=play&&(rescue.yielding(v,ux,uz,remaining,offset,streetTime)||BayRescue.yieldTo(engine7,"sevenYield",v,ux,uz,remaining,offset,streetTime));
+      const yielding=play&&(rescue.yielding(v,ux,uz,remaining,offset,streetTime)||
+        BayRescue.yieldTo(engine7,"sevenYield",v,ux,uz,remaining,offset,streetTime)||
+        (patrol.length||v.patrolYield)&&BayRescue.yieldToPatrol(patrol,v,ux,uz,remaining,offset,streetTime));
       v.indicator=yielding&&!yielding.cross?1:BayMotorCourt.signal(v);
       v.wait=Math.max(0,v.wait-dt);
       if(v.wantsCurb&&!v.greenId&&!v.brisasLead&&!v.guestId&&!v.washGuest&&!v.pullOver&&streetTime>=(v.curbCheck||0)){
@@ -79317,7 +79396,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(car!==spider&&see(spider,89)){const list=[];BayCaletaArt.roof(list,model,roadBody(spider),footLevel(spider.x,spider.z)+.008);for(const a of list)view.draw(...a);}
     for(const v of patrol)if(v.visual&&see(v,100)){
       const y=footLevel(v.x,v.z);view.draw(v.visual,v.x,y+.01,v.z,v.yaw,0,v.lean,0,v);
-      view.draw(Math.floor(streetTime*5.5)%2?"flash-red":"flash-blue",v.x,y+.02,v.z,v.yaw);
+      const side=BayRoadLights.signalSide(v,streetTime);
+      if(side)view.draw(side<0?"flash-red":"flash-blue",v.x,y+.02,v.z,v.yaw);
     }
     const canopies=[];
     for(const p of walkers)if(!p.onTour&&see(p,53)){
@@ -80092,7 +80172,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       const pulse=BayStreetReactions.hornPulse(v,streetTime);
       if(pulse>.10&&(v.path||v===taxi||v===car)&&see(v,47))view.draw("horn-wave",v.x,footLevel(v.x,v.z)+bayCarLayout(v.kind).glass[5]+.32+pulse*.16,v.z,eye.yaw);
     }
-    for(const v of patrol)if(see(v,110))view.draw(Math.floor(t*5.5)%2?"flash-red":"flash-blue",v.x,footLevel(v.x,v.z)+.01,v.z,v.yaw,0,v.lean);
+    for(const v of patrol)if(see(v,110)){
+      const side=BayRoadLights.signalSide(v,t);
+      if(side)view.draw(side<0?"flash-red":"flash-blue",v.x,footLevel(v.x,v.z)+.01,v.z,v.yaw,0,v.lean);
+    }
     tapes.forEach((o,i)=>{
       if(save.tapes.includes(i)||!see(o,72))return;
       if(i===1)BaySoundShell.demo(view,o);else view.draw(i===0?"motel-tape":"tape",o.x,1.1+Math.sin(t*2+i)*.12,o.z,t*1.3+i);

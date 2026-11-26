@@ -7826,7 +7826,9 @@
         else v.corner=(v.corner+1)%v.path.length;
         continue;
       }
-      const yielding=play&&(rescue.yielding(v,ux,uz,remaining,offset,streetTime)||BayRescue.yieldTo(engine7,"sevenYield",v,ux,uz,remaining,offset,streetTime));
+      const yielding=play&&(rescue.yielding(v,ux,uz,remaining,offset,streetTime)||
+        BayRescue.yieldTo(engine7,"sevenYield",v,ux,uz,remaining,offset,streetTime)||
+        (patrol.length||v.patrolYield)&&BayRescue.yieldToPatrol(patrol,v,ux,uz,remaining,offset,streetTime));
       v.indicator=yielding&&!yielding.cross?1:BayMotorCourt.signal(v);
       v.wait=Math.max(0,v.wait-dt);
       if(v.wantsCurb&&!v.greenId&&!v.brisasLead&&!v.guestId&&!v.washGuest&&!v.pullOver&&streetTime>=(v.curbCheck||0)){
@@ -9253,7 +9255,8 @@
     if(car!==spider&&see(spider,89)){const list=[];BayCaletaArt.roof(list,model,roadBody(spider),footLevel(spider.x,spider.z)+.008);for(const a of list)view.draw(...a);}
     for(const v of patrol)if(v.visual&&see(v,100)){
       const y=footLevel(v.x,v.z);view.draw(v.visual,v.x,y+.01,v.z,v.yaw,0,v.lean,0,v);
-      view.draw(Math.floor(streetTime*5.5)%2?"flash-red":"flash-blue",v.x,y+.02,v.z,v.yaw);
+      const side=BayRoadLights.signalSide(v,streetTime);
+      if(side)view.draw(side<0?"flash-red":"flash-blue",v.x,y+.02,v.z,v.yaw);
     }
     const canopies=[];
     for(const p of walkers)if(!p.onTour&&see(p,53)){
@@ -10028,7 +10031,10 @@
       const pulse=BayStreetReactions.hornPulse(v,streetTime);
       if(pulse>.10&&(v.path||v===taxi||v===car)&&see(v,47))view.draw("horn-wave",v.x,footLevel(v.x,v.z)+bayCarLayout(v.kind).glass[5]+.32+pulse*.16,v.z,eye.yaw);
     }
-    for(const v of patrol)if(see(v,110))view.draw(Math.floor(t*5.5)%2?"flash-red":"flash-blue",v.x,footLevel(v.x,v.z)+.01,v.z,v.yaw,0,v.lean);
+    for(const v of patrol)if(see(v,110)){
+      const side=BayRoadLights.signalSide(v,t);
+      if(side)view.draw(side<0?"flash-red":"flash-blue",v.x,footLevel(v.x,v.z)+.01,v.z,v.yaw,0,v.lean);
+    }
     tapes.forEach((o,i)=>{
       if(save.tapes.includes(i)||!see(o,72))return;
       if(i===1)BaySoundShell.demo(view,o);else view.draw(i===0?"motel-tape":"tape",o.x,1.1+Math.sin(t*2+i)*.12,o.z,t*1.3+i);

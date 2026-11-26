@@ -24,6 +24,20 @@ module.exports=async function admission({js,send,tap,waitFor,errors,mode}){
       care.service=this;care.hero=env.hero;care.floor=env.ground;return work.apply(this,arguments);};
     const people=BayLocals.animatePeople;BayLocals.animatePeople=function(list){care.people=list;return people.apply(this,arguments);};
     const update=BayCamera.prototype.update;BayCamera.prototype.update=function(){care.rig=this;return update.apply(this,arguments);};
+    const clock=BayHours.Clock.prototype.step;BayHours.Clock.prototype.step=function(dt){
+      if(!care.clock){care.clock=this;this.wake(1290);}return clock.call(this,dt);};
+    const paint=BayRoadLights.Field.prototype.paint;care.sides=new Set();
+    BayRoadLights.Field.prototype.paint=function(x,z,s,c,length,spread,rgb,gain,blocks){
+      const v=care.service?.v;
+      if(!v?.responseLights||spread!==.73||rgb[0]!==142||Math.hypot(v.x-x,v.z-z)>2.5)return paint.apply(this,arguments);
+      const col=Math.floor((x+3.5*s-this.left)*this.size/this.span),row=Math.floor((this.north-z-3.5*c)*this.size/this.span);
+      const i=(row*this.size+col)*4,was=this.pixels[i];
+      paint.apply(this,arguments);
+      if(col>=0&&row>=0&&col<this.size&&row<this.size&&this.pixels[i]>was+16){
+        care.sides.add(Math.sign(s*Math.cos(v.yaw)-c*Math.sin(v.yaw)));
+        if(Math.hypot(v.x-care.hero.x,v.z-care.hero.z)<32)care.nearLamps=true;
+      }
+    };
     care.at=(h,x,z,yaw=0)=>Object.assign(h,{x,z,y:care.floor(x,z),yaw});
     care.status=()=>JSON.stringify({phase:care.service.phase,age:Math.round(care.service.age),
       blocked:Math.round(care.service.blocked),cursor:Math.round(care.service.cursor),length:Math.round(care.service.line?.length),
@@ -40,6 +54,8 @@ module.exports=async function admission({js,send,tap,waitFor,errors,mode}){
   await waitFor("document.querySelector('#objectiveText').textContent.includes('Rescue 4')");
   await js("care.at(care.hero,62.4,43.2,1.48);care.rig.reset(care.hero)");
   try{
+    await watch("response lights","care.nearLamps&&care.sides.size===2",145);
+    await snap("rescue-lamps");console.log("PASS both Rescue 4 light banks cast red light on the nearby street during its night response",mode);
     await watch("arrival","['scene','rear','sceneRoll','toPatient'].includes(care.service.phase)",150);
     await frameCrew();
     await snap("rescue-curb");

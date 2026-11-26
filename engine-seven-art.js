@@ -375,5 +375,5 @@
     if(v.pumpWorking){c.fillStyle="#dded99";c.fillRect(-1.053,-.568,.128,.16);}
     c.restore();
   }
-  window.BayEngineSevenArt={owns,shapes,cockpitStyles,fit,build,driverEnds,hoodHeight,brakeLights,signal,map,beacons};
+  window.BayEngineSevenArt={owns,shapes,cockpitStyles,fit,build,driverEnds,hoodHeight,brakeLights,signal,map,beacons,beaconPhase};
 })();

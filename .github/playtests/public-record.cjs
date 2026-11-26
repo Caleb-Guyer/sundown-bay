@@ -13,6 +13,19 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     console.log("PERF city indices "+label,JSON.stringify(proof));
     assert(proof.counts[1]<proof.counts[0]&&proof.ranges[1]===1&&proof.ranges[0]>1);
     assert(proof.pixels.painted>300&&proof.pixels.silhouette<proof.pixels.painted*.001&&proof.pixels.recolored<proof.pixels.painted*.005);
+    await js(`recQA.sceneryDraws=new Map();recQA.sceneryReady=false;
+      recQA.view.draw=function(name,...args){
+        if(this.models.get(name)?.worldSections&&!this.casting&&!this.effectPass&&!args[7]&&!args[9]&&!args.slice(0,6).some(Boolean))
+          recQA.sceneryDraws.set(name,[name,...args]);
+        return BayView.prototype.draw.call(this,name,...args);};
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{delete recQA.view.draw;recQA.sceneryReady=true;}));`);
+    await waitFor("recQA.sceneryReady");
+    const scenery=await js("("+require("./scenery-indices.cjs").toString()+")(recQA.view,[...recQA.sceneryDraws.values()],recQA,comparePixels)");
+    console.log("PERF scenery indices "+label,JSON.stringify(scenery));
+    if(scenery.pixels.painted){
+      assert(scenery.counts[1]<=scenery.counts[0]&&scenery.runs[1]<=scenery.runs[0]);
+      assert(scenery.pixels.silhouette<=Math.ceil(scenery.pixels.painted*.001)&&scenery.pixels.recolored<=Math.ceil(scenery.pixels.painted*.005));
+    }
     await js(`recQA.surfaceResult=null;recQA.wallResult=null;
       recQA.view.drawOpaque=function(items){delete this.drawOpaque;
         recQA.surfaceResult=(${require("./street-surface.cjs").toString()})(this,items,comparePixels);

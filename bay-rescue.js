@@ -116,22 +116,41 @@
       if(next>=line.length-.03)service.startDock(service.phase==="outbound");
     }
 
-  function yieldTo(unit,key,v,ux,uz,remaining,offset,time){
-      const dx=v.x-unit.x,dz=v.z-unit.z,range=Math.hypot(dx,dz);
-      if(unit.responseLights&&range<48&&Math.abs(unit.speed)>1.1){
-        const sx=Math.sin(unit.yaw),sz=Math.cos(unit.yaw),along=dx*sx+dz*sz,across=Math.abs(dx*sz-dz*sx),alignment=ux*sx+uz*sz;
-        let style=null;
-        if(Math.abs(alignment)>.71&&along> -3.7&&across<7&&along<44)style="shoulder";
-        else if(Math.abs(alignment)<.5){const cross=-(dx*sz-dz*sx)/(ux*sz-uz*sx),ahead=along+cross*alignment;
-          if(cross>5.0&&cross<23&&ahead>1&&ahead<38)style="cross";}
-        if(style){v[key]={style,until:time+.75};}
-      }
-      const y=v[key];if(!y)return null;
-      if(!unit.responseLights||y.until<time){v[key]=null;return null;}
-      if(y.style==="cross")return {goal:0,max:Math.max(0,Math.min(4.3,(remaining-8)*.95)),cross:true};
-      const goal=2.03*limit((remaining-.8)/5,0,1);
-      return {goal,max:Math.abs(goal-offset)>.35?3.9:.18,cross:false};
+  function requestedLane(unit,v,ux,uz){
+    const dx=v.x-unit.x,dz=v.z-unit.z;
+    if(dx*dx+dz*dz>=48*48||Math.abs(unit.speed)<=1.1)return null;
+    const sx=Math.sin(unit.yaw),sz=Math.cos(unit.yaw),along=dx*sx+dz*sz,across=dx*sz-dz*sx,alignment=ux*sx+uz*sz;
+    if(Math.abs(alignment)>.71&&along> -3.7&&Math.abs(across)<7&&along<44)return "shoulder";
+    if(Math.abs(alignment)<.5){
+      const cross=-across/(ux*sz-uz*sx),ahead=along+cross*alignment;
+      if(cross>5&&cross<23&&ahead>1&&ahead<38)return "cross";
     }
+    return null;
+  }
+  function laneResponse(v,key,style,remaining,offset,time){
+    if(style){const y=v[key]??={};y.style=style;y.until=time+.75;}
+    const y=v[key];
+    if(!y)return null;
+    if(y.until<time){v[key]=null;return null;}
+    if(y.style==="cross")return {goal:0,max:Math.max(0,Math.min(4.3,(remaining-8)*.95)),cross:true};
+    const goal=2.03*limit((remaining-.8)/5,0,1);
+    return {goal,max:Math.abs(goal-offset)>.35?3.9:.18,cross:false};
+  }
+  function yieldTo(unit,key,v,ux,uz,remaining,offset,time){
+    if(!unit.responseLights){if(v[key])v[key]=null;return null;}
+    return laneResponse(v,key,requestedLane(unit,v,ux,uz),remaining,offset,time);
+  }
+  function yieldToPatrol(patrol,v,ux,uz,remaining,offset,time){
+    let nearest=Infinity,style=null;
+    for(const unit of patrol){
+      if(unit.footUnit||unit.role==="roadblock"||unit.speed<=1.1)continue;
+      const d=(unit.x-v.x)**2+(unit.z-v.z)**2;
+      if(d>=nearest||d>=48*48)continue;
+      const request=requestedLane(unit,v,ux,uz);
+      if(request){nearest=d;style=request;}
+    }
+    return laneResponse(v,"patrolYield",style,remaining,offset,time);
+  }
   class Service{
     constructor(v,site,memory){
       this.v=v;this.site=site;this.saved=memory;this.index=memory.next;this.joined=false;this.holding=false;this.phase="ready";this.age=0;this.wait=10;
@@ -542,5 +561,5 @@
     }
     yielding(v,ux,uz,remaining,offset,time){return yieldTo(this.v,"rescueYield",v,ux,uz,remaining,offset,time);}
   }
-  window.BayRescue={Service,followResponse,yieldTo,read,cases,apron,track,instructions};
+  window.BayRescue={Service,followResponse,yieldTo,yieldToPatrol,read,cases,apron,track,instructions};
 })();

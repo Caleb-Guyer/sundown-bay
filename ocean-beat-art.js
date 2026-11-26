@@ -288,5 +288,5 @@
     ctx.textAlign="right";text(release?"UNIT 04":"OCEAN 12",r,foot+17,16,print,mono,"bold");ctx.restore();
     return true;
   }
-  window.BayOceanBeatArt={colors,dress,pose,world,car,carMap,mapPerson,paint};
+  window.BayOceanBeatArt={colors,dress,pose,world,car,carMap,mapPerson,paint,pulse};
 })();

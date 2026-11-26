@@ -551,5 +551,5 @@
     }
     c.restore();
   }
-  window.BayAmbulanceArt={shape,fit,build,install,world,map,mapTruck,loading,rear,point};
+  window.BayAmbulanceArt={shape,fit,build,install,pulse,world,map,mapTruck,loading,rear,point};
 })();

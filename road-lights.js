@@ -3,6 +3,16 @@
   const clamp=(x,lo,hi)=>Math.max(lo,Math.min(hi,x));
   const smooth=x=>{x=clamp(x,0,1);return x*x*(3-2*x);};
   const flashing=(v,t)=>BayBoulevardLanes.flash(v,t);
+  const red=[142,23,20],blue=[24,68,152],amber=[155,79,18];
+  function signalSide(v,t){
+    if(v.kind==="cruiser"){
+      if(v.beatCar)return BayOceanBeatArt.pulse(t,v.beatLights);
+      return v.role?(Math.floor(t*2)%2?1:-1):0;
+    }
+    if(!v.responseLights)return 0;
+    if(v.kind==="ambulance")return BayAmbulanceArt.pulse(t);
+    return v.kind==="pumper"?BayEngineSevenArt.beaconPhase(t,v):0;
+  }
   function box(x,z,w,d,s=0,c=1,car=null){
     return {x,z,w,d,s,c,car,r:Math.hypot(w,d)};
   }
@@ -17,11 +27,25 @@
     else{const a=(-b.d-v)/dv,y=(b.d-v)/dv;enter=Math.max(enter,Math.min(a,y));leave=Math.min(leave,Math.max(a,y));}
     return leave>=enter?Math.min(limit,enter+.55):limit;
   }
+  // Signed edge crossings bound the beam on each row of the light texture.
+  // A half-texel guard keeps both edges under the original coverage test.
+  function spanEdge(rows,ax,az,bx,bz,left,north){
+    if(Math.abs(bz-az)<1e-9)return;
+    const start=clamp(Math.ceil((north-Math.max(az,bz))/metres-.5),0,size);
+    const end=clamp(Math.ceil((north-Math.min(az,bz))/metres-.5),0,size);
+    const slope=(bx-ax)/(bz-az);
+    let at=(ax-left+(north-(start+.5)*metres-az)*slope)/metres;
+    const edge=bz>az?rows[0]:rows[1];
+    for(let row=start;row<end;row++,at-=slope)edge[row]=at;
+  }
   class Field {
     constructor(solids){
       this.buildings=solids.filter(b=>(b.top??b.h??4)>.65&&(b.bottom||0)<1.8&&b.w>.26&&b.d>.26)
         .map(b=>box(b.x,b.z,b.w*.5,b.d*.5));
       this.pixels=new Uint8ClampedArray(size*size*4);
+      this.words=new Uint32Array(this.pixels.buffer);
+      this.black=new Uint32Array(Uint8Array.of(0,0,0,255).buffer)[0];
+      this.rows=[new Float64Array(size),new Float64Array(size)];
       this.size=size;this.span=span;this.version=0;this.last=-Infinity;this.enabled=false;
       this.canvasVersion=-1;this.stops=new Float32Array(rays+1);this.glare=new WeakMap();
     }
@@ -43,17 +67,29 @@
       this.north=Math.round(focus.z/metres)*metres+span*.5;
       const blocks=this.buildings.filter(b=>Math.abs(b.x-focus.x)<92+b.w&&Math.abs(b.z-focus.z)<92+b.d);
       const sources=[];
+      let lampCount=0;
       const add=(v,active)=>{
         const shape=v.footprint||bayCarLayout(v.kind||"cruiser"),s=Math.sin(v.yaw),c=Math.cos(v.yaw);
         const body=box(v.x,v.z,shape.track,shape.halfLength,s,c,v);
-        blocks.push(body);if(active)sources.push(body);
+        blocks.push(body);
+        body.signal=light>.045?signalSide(v,t):0;
+        body.lamps=active;
+        if(active)lampCount++;
+        if(active||body.signal)sources.push(body);
       };
       if(own)add(own,true);
-      for(const {v} of nearby)add(v,sources.length<14&&(v===bus||v.path||Math.abs(v.speed)>.45||v.owner?.phase==="drive"||flashing(v,t)));
-      this.pixels.fill(0);
+      for(const {v} of nearby)add(v,lampCount<14&&(v===bus||v.path||Math.abs(v.speed)>.45||v.owner?.phase==="drive"||flashing(v,t)));
+      this.words.fill(this.black);
       for(const body of sources){
         const v=body.car,primary=v===own;
         const obstacles=blocks.filter(b=>b!==body&&Math.abs(b.x-body.x)<58+b.r&&Math.abs(b.z-body.z)<58+b.r);
+        if(body.signal){
+          const side=body.signal,dx=side*body.c,dz=-side*body.s;
+          const hue=v.kind==="pumper"?amber:v.kind==="cruiser"&&side>0?blue:red;
+          this.paint(v.x+dx*body.w,v.z+dz*body.w,dx,dz,8+6*wet,.73,hue,
+            light*(.57+.36*wet),obstacles);
+        }
+        if(!body.lamps)continue;
         if(own&&!primary&&v.path&&this.high&&light>.16)this.askToDip(v,own,t,dt,obstacles);
         const flash=flashing(v,t),main=primary&&this.high?!flash:flash,level=Math.max(light,main?.37:0)*(primary?1:.84);
         if(level<.04)continue;
@@ -101,20 +137,38 @@
       const maxY=clamp(Math.ceil((this.north-Math.min(z-.5,tipZ-half*Math.abs(s)))/metres),0,size);
       // Start the visibility fan a little behind the lens so it has width at the bumper.
       const offset=.45/slope,ox=x-s*offset,oz=z-c*offset,full=length+offset,stops=this.stops;
+      if(minX>=maxX||minY>=maxY)return;
       stops.fill(full);
       for(const b of blocks){
         const bx=b.x-ox,bz=b.z-oz,along=bx*s+bz*c,side=bx*c-bz*s;
         if(along+b.r<=0||along-b.r>full||Math.abs(side)>Math.max(0,along)*slope+b.r*(1+slope))continue;
-        for(let i=0;i<=rays;i++){
+        // Any ray that can hit the box must pass its bounding circle. Along
+        // that ray, |side - along * angle| <= radius * sqrt(1 + angle²).
+        const reach=b.r*Math.sqrt(1+slope*slope),factor=rays*.5/slope;
+        const first=along>0?Math.max(0,Math.ceil((side-reach)/along*factor+rays*.5-1e-7)):0;
+        const last=along>0?Math.min(rays,Math.floor((side+reach)/along*factor+rays*.5+1e-7)):rays;
+        for(let i=first;i<=last;i++){
           const angle=(2*i/rays-1)*slope;
           stops[i]=hit(b,ox,oz,s+c*angle,c-s*angle,stops[i]);
         }
       }
+      const narrow=length>16&&Math.abs(s*c)>.12;
+      if(narrow){
+        const l=x-.45*c,r=x+.45*c,nearL=z+.45*s,nearR=z-.45*s;
+        const farL=tipX-half*c,farR=tipX+half*c,zL=tipZ+half*s,zR=tipZ-half*s;
+        this.rows[0].fill(minX,minY,maxY);this.rows[1].fill(maxX,minY,maxY);
+        spanEdge(this.rows,l,nearL,farL,zL,this.left,this.north);
+        spanEdge(this.rows,farL,zL,farR,zR,this.left,this.north);
+        spanEdge(this.rows,farR,zR,r,nearR,this.left,this.north);
+        spanEdge(this.rows,r,nearR,l,nearL,this.left,this.north);
+      }
       for(let py=minY;py<maxY;py++){
+        const first=narrow?Math.max(minX,Math.floor(this.rows[0][py]-.5)):minX;
+        const endX=narrow?Math.min(maxX,Math.ceil(this.rows[1][py]+.5)):maxX;
         const dz=this.north-(py+.5)*metres-z;
-        let dx=this.left+(minX+.5)*metres-x;
+        const dx=this.left+(first+.5)*metres-x;
         let f=dx*s+dz*c,u=dx*c-dz*s;
-        for(let px=minX;px<maxX;px++,f+=metres*s,u+=metres*c){
+        for(let px=first;px<endX;px++,f+=metres*s,u+=metres*c){
           if(f<0||f>=length)continue;
           const ratio=u/((f+offset)*slope);
           if(Math.abs(ratio)>=1)continue;
@@ -132,16 +186,14 @@
       if(!this.canvas){
         this.canvas=document.createElement("canvas");this.canvas.width=this.canvas.height=size;
         this.context=this.canvas.getContext("2d",{alpha:false});
-        this.image=this.context.createImageData(size,size);
+        this.image=new ImageData(this.pixels,size,size);
       }
       if(this.canvasVersion!==this.version){
-        this.image.data.set(this.pixels);
-        for(let i=3;i<this.image.data.length;i+=4)this.image.data[i]=255;
         this.context.putImageData(this.image,0,0);this.canvasVersion=this.version;
       }
       ctx.save();ctx.globalCompositeOperation="lighter";ctx.globalAlpha=.58;
       ctx.drawImage(this.canvas,px(this.left),py(this.north),span*scale,span*scale);ctx.restore();
     }
   }
-  window.BayRoadLights={Field};
+  window.BayRoadLights={Field,signalSide};
 })();

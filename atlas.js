@@ -336,8 +336,9 @@
       if(cab) {rect(c,-.31,-.07,.62,.29,"#34474c");rect(c,-.24,-.035,.48,.20,"#ffe3a0");}
       if(police) {
         rect(c,-.52,-.16,1.04,.29,"#414e55");
-        rect(c,-.46,-.12,.40,.22,t%1<.5?"#ff6d78":"#ad5561");
-        rect(c,.06,-.12,.40,.22,t%1<.5?"#7299b1":"#a3e5ff");
+        const side=BayRoadLights.signalSide(car,t);
+        rect(c,-.46,-.12,.40,.22,side<0?"#ff6d78":"#ad5561");
+        rect(c,.06,-.12,.40,.22,side>0?"#a3e5ff":"#7299b1");
       }
     }
     const lit=car.brakes>.18||car.handbrake>.48;
