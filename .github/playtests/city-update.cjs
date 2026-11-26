@@ -17,24 +17,31 @@ const view=Object.assign(Object.create(BayView.prototype),{gl,models:new Map(),a
 const mesh=new BayMesh(),city=buildBayCity(mesh,new BayMesh());const data=new Float32Array(mesh.vertices);
 view.upload("city",data);const model=view.models.get("city");view.prepareDistanceMesh(model,data);
 const list=new CityIndicesForTest(view,model,data),ref=new model.indices.constructor(model.count);
+const broad=new Uint8Array(model.count/3),depthRef=new model.indices.constructor(model.count);
+for(let i=0;i<data.length;i+=18){
+  const a=data.slice(i,i+3),ab=a.map((v,k)=>data[i+6+k]-v),ac=a.map((v,k)=>data[i+12+k]-v);
+  broad[i/18]=Math.hypot(ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0])>=36;
+}
 let frames=0,partial=0;
 for(let step=0;step<260;step++){
   const t=Math.min(step,249),yaw=(t<120?.018*t:2.16-.033*(t-120)),old=actual;
   view.basis={camera:{x:146-.55*t,y:2.2,z:-36+.28*t},sn:Math.sin(yaw),cs:Math.cos(yaw),sp:0,cp:1,
     horizontal:1.15,vertical:.65,xMargin:Math.hypot(1,1.15),yMargin:Math.hypot(1,.65)};
   drawn=0;list.draw(view,model);
-  let n=0;
+  let n=0,d=0;
   for(let i=0;i<list.parts.length;i++){
     const state=list.states[i];if(state<0)continue;
     const part=list.parts[i],far=!!(state&64),faces=far?list.farFaces:list.faces;
     for(let j=part.first;j<part.end;j+=3){const tri=j/3;
       if((faces[tri]&state)||(far&&!model.farKeep[tri]))continue;
-      for(let k=0;k<3;k++)ref[n++]=model.indices[j+k];
+      for(let k=0;k<3;k++){ref[n++]=model.indices[j+k];if(broad[tri])depthRef[d++]=model.indices[j+k];}
     }
   }
   assert.equal(drawn,n);const bytes=n*ref.BYTES_PER_ELEMENT;
   assert(Buffer.from(ref.buffer,0,bytes).equals(Buffer.from(list.buffer.data.buffer,0,bytes)),"GPU geometry on frame "+step);
-  if(actual!==old){frames++;full+=bytes;if(actual-old<bytes)partial++;}
+  assert.equal(list.depthCount,d);const depthBytes=d*ref.BYTES_PER_ELEMENT;
+  assert(Buffer.from(depthRef.buffer,0,depthBytes).equals(Buffer.from(list.depthBuffer.data.buffer,0,depthBytes)),"depth surfaces on frame "+step);
+  if(actual!==old){frames++;full+=bytes+depthBytes;if(actual-old<bytes+depthBytes)partial++;}
 }
 assert(frames>100&&partial>100&&actual<full*.98);
 console.log("PASS identical city geometry over 260 moving and held views, "+partial+" partial uploads, "+actual+" bytes submitted versus "+full+" for whole lists");

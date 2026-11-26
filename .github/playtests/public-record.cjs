@@ -13,6 +13,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     console.log("PERF city indices "+label,JSON.stringify(proof));
     assert(proof.counts[1]<proof.counts[0]&&proof.ranges[1]===1&&proof.ranges[0]>1);
     assert(proof.pixels.painted>300&&proof.pixels.silhouette<proof.pixels.painted*.001&&proof.pixels.recolored<proof.pixels.painted*.005);
+    const depth=await js("("+require("./street-depth.cjs").toString()+")(recQA.view,comparePixels)");
+    console.log("PERF street depth "+label,JSON.stringify(depth));
+    assert(depth.indices>0&&depth.pixels.painted>10000&&depth.pixels.changed===0);
     const wallGrid=await js("("+require("./wall-grid.cjs").toString()+")(recQA.view)");
     console.log("PERF wall grid "+label,JSON.stringify(wallGrid));
     if(wallGrid.indexed)assert(wallGrid.queries>0&&wallGrid.candidates[1]<wallGrid.candidates[0]);
