@@ -30767,6 +30767,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     model("marlin14-porch",porch);
     model("marlin14-phone",phoneCase);model("marlin14-receiver",handset);
     model("marlin14-message-light",g=>g.box(0,0,0,.056,.024,.009,"#ff9857"));
+    for(let i=0;i<=12;i++)model("marlin14-cord-"+i,g=>cord(g,i/12));
     model("marlin14-call-slip",g=>{
       flat(g,0,0,.34,.235,0,"#eadca4");flat(g,-.132,0,.025,.235,.001,"#bf7964");
       for(const [i,w] of [.18,.13,.15].entries())flat(g,-.08+w*.5,-.06+i*.044,w,.008,.002,"#5e6a62");
@@ -30799,11 +30800,30 @@ window.buildBayCity = function buildBayCity(g,water) {
     g.box(0,0,0,.29,.43,.092,"#525b55");g.box(0,.005,-.057,.269,.40,.047,"#d0b48a");
     g.box(.053,.071,-.09,.137,.058,.012,"#e7dbb9");g.box(.053,.071,-.097,.092,.009,.006,"#555d54");
     for(let j=0;j<4;j++)for(let i=0;i<3;i++)g.box(.012+i*.041,.012-j*.038,-.091,.031,.025,.016,"#52665f");
-    for(let i=0;i<11;i++){
-      const a=[-.115+(i%2)*.024,-.19-i*.018,-.04],b=[-.115+((i+1)%2)*.024,-.208-i*.018,-.04];
-      g.pole(a,b,.009,"#474e47",5);
+  }
+  function cord(g,f){
+    const tip=[-.089+.092*f-.14*Math.sin(.43*f),.018+.19*f-.15*Math.cos(.43*f),-.12-.63*f];
+    let last=[-.04,-.19,-.058];
+    for(let i=1;i<=26;i++){
+      const k=i/26,loop=Math.sin(k*Math.PI),twist=k*14*Math.PI;
+      const p=[-.04+(tip[0]+.04)*k+.011*Math.cos(twist)*loop,
+        -.19+(tip[1]+.19)*k-loop*(.21+.10*f),-.058+(tip[2]+.058)*k+.012*Math.sin(twist)*loop];
+      g.pole(last,p,.007,"#3d4941",4);last=p;
     }
-    g.pole([-.091,-.389,-.04],[-.042,-.185,-.043],.009,"#474e47",5);
+  }
+  function grip(g,skin,shirt){
+    // Left palm behind the receiver. Four bent fingers bring its spine against the palm.
+    g.pole([-.16,-.23,-.23],[-.045,-.05,.005],.048,skin,7);
+    g.pole([-.31,-.46,-.57],[-.15,-.216,-.21],.066,shirt,8);
+    g.pole([-.16,-.234,-.235],[-.151,-.210,-.203],.062,shirt,8);
+    g.box(-.035,-.012,.014,.069,.104,.05,skin,-.19);
+    for(let i=0;i<4;i++){
+      const y=.029-i*.024;
+      g.pole([-.046,y,.004],[-.036,y-.004,-.037],.012,skin,6);
+      g.pole([-.036,y-.004,-.037],[.009-i*.002,y-.009,-.043],.011,skin,6);
+    }
+    g.pole([-.032,-.038,.030],[.037,.002,.018],.016,skin,6);
+    g.pole([.037,.002,.018],[.033,.023,-.010],.014,skin,6);
   }
   function handset(g){
     g.box(0,0,0,.055,.218,.061,"#315851");
@@ -30821,6 +30841,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     const f=receiverLift(room,t),ring=room?.ringing&&t%3.1<.7;
     view.draw("marlin14-phone",phone.x,phone.y,phone.z,0,0,0,.55);
     view.draw("marlin14-receiver",phone.x-.089+.092*f,phone.y+.018+.19*f,phone.z-.117-.63*f,-f*.76,0,-f*.43,.55);
+    view.draw("marlin14-cord-"+Math.round(f*12),phone.x,phone.y,phone.z,0,0,0,.55);
+    if(f>.04&&room.grip)view.draw(room.grip,phone.x-.089+.092*f,phone.y+.018+.19*f,phone.z-.117-.63*f,-f*.76,0,-f*.43,.55);
     if(ring)view.draw("marlin14-message-light",phone.x+.053,phone.y+.158,phone.z-.093,0,0,0,.98);
   }
 
@@ -30957,7 +30979,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     ctx.fillStyle="#443e39";ctx.beginPath();ctx.ellipse(0,-.134,.125,.108,0,0,Math.PI*2);ctx.fill();
     ctx.restore();
   }
-  window.BayMarlinRoom={outside,spawn,points,clear,install,draw,map,outsideWorld,atPhone,wakeFile,saveWake};
+  window.BayMarlinRoom={outside,spawn,points,clear,install,draw,map,outsideWorld,atPhone,wakeFile,saveWake,grip};
 })();
 
 ;
@@ -62478,7 +62500,13 @@ window.buildBayCity = function buildBayCity(g,water) {
       this.film=loadFilm();this.eye=null;this.transition=null;this.nextSave=0;this.lastSave="";
     }
     get other(){return this.lead==="guest"?"frankie":"guest";}
-    save(){const s={met:this.met,solo:this.solo,lead:this.lead,motors:this.motors,...this.places},signature=JSON.stringify(s);if(signature!==this.lastSave&&put(key,s))this.lastSave=signature;}
+    save(){
+      const s={met:this.met,solo:this.solo,lead:this.lead,motors:this.motors,...this.places},signature=JSON.stringify(s);
+      if(signature===this.lastSave)return;
+      // An older open tab can still be driving solo after another tab recruits Frankie.
+      if(!this.met&&get(key)?.met===true)return;
+      if(put(key,s))this.lastSave=signature;
+    }
     remember(p,v,id=this.lead){
       const where=place({x:p.x,z:p.z,yaw:p.yaw,ride:v?.garageKey,flat:v?.flatSide,axle:v?.flatAxle},id);
       const other=id==="guest"?"frankie":"guest";this.places[id]=where;
@@ -73210,6 +73238,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(save.buttonwood.working&&!active){active={buttonwood:true,job:potJob};resumeButtonwood();cameraSnap();}
     if(save.campana.shift&&!active){active={campana:true,job:iceJob};Object.assign(hero,{x:campana.station.stand.x,z:campana.station.z-2.6});resetFeet();cameraSnap();}
     else if(active&&save.campana.shift){campana.abandon();commitPaletas();}
+    if(homeWalk.book?.spare)staffWagon();
     if(unit.met||unit.solo&&campaign.book.intro)restoreCrew();
     restoreBaggageCars();markClaim();restoreMeterCar();
     if(save.shore.carried&&!active)waypoint={...BaySurfPatrol.tower};
@@ -76243,6 +76272,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   function phoneLine(take=true){
     if(room.callStep==null){
       room.ringing=false;room.callStep=0;room.liftAt=streetTime;room.rise=0;
+      if(!isTop()){
+        const colors=unit.lead==="guest"?personColors[0]:BayExposureArt.palette,shirt=BayCourtPlayers.kitColors[worn()]||colors[1];
+        room.grip="marlin14-hand/"+colors[0]+"/"+shirt;model(room.grip,g=>BayMarlinRoom.grip(g,colors[0],shirt));
+      }
       Object.assign(room,BayMarlinRoom.atPhone,{pitch:-.12});
       speak("Bea · front desk",wakeLead(wakeBook.message).line);
     }else{

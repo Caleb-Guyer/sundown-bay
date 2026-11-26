@@ -199,6 +199,9 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
     const world=BayView.prototype.draw;BayView.prototype.draw=function(id){if(id==='anniversary-chair')ga.chair=true;return world.apply(this,arguments);};
     document.querySelector('#play').click();true`);
   await waitFor("ga.h&&ga.cab");assert.equal(await js("ga.cab.memory.bunch"),bouquet);
+  if(await js("document.querySelector('#mode').textContent!=='On foot'")){
+    await tap("KeyE");await waitFor("document.querySelector('#mode').textContent==='On foot'");
+  }
   await js("const chair=BayCab.chairs[ga.cab.memory.bunch];Object.assign(ga.h,{x:chair.x,z:chair.z-.82,yaw:0});true");
   try{await waitFor("document.querySelector('#context').textContent.includes('flower card')");}
   catch(e){

@@ -29,7 +29,13 @@
       this.film=loadFilm();this.eye=null;this.transition=null;this.nextSave=0;this.lastSave="";
     }
     get other(){return this.lead==="guest"?"frankie":"guest";}
-    save(){const s={met:this.met,solo:this.solo,lead:this.lead,motors:this.motors,...this.places},signature=JSON.stringify(s);if(signature!==this.lastSave&&put(key,s))this.lastSave=signature;}
+    save(){
+      const s={met:this.met,solo:this.solo,lead:this.lead,motors:this.motors,...this.places},signature=JSON.stringify(s);
+      if(signature===this.lastSave)return;
+      // An older open tab can still be driving solo after another tab recruits Frankie.
+      if(!this.met&&get(key)?.met===true)return;
+      if(put(key,s))this.lastSave=signature;
+    }
     remember(p,v,id=this.lead){
       const where=place({x:p.x,z:p.z,yaw:p.yaw,ride:v?.garageKey,flat:v?.flatSide,axle:v?.flatAxle},id);
       const other=id==="guest"?"frankie":"guest";this.places[id]=where;

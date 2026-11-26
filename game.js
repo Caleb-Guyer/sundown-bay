@@ -1307,6 +1307,7 @@
     if(save.buttonwood.working&&!active){active={buttonwood:true,job:potJob};resumeButtonwood();cameraSnap();}
     if(save.campana.shift&&!active){active={campana:true,job:iceJob};Object.assign(hero,{x:campana.station.stand.x,z:campana.station.z-2.6});resetFeet();cameraSnap();}
     else if(active&&save.campana.shift){campana.abandon();commitPaletas();}
+    if(homeWalk.book?.spare)staffWagon();
     if(unit.met||unit.solo&&campaign.book.intro)restoreCrew();
     restoreBaggageCars();markClaim();restoreMeterCar();
     if(save.shore.carried&&!active)waypoint={...BaySurfPatrol.tower};
@@ -4340,6 +4341,10 @@
   function phoneLine(take=true){
     if(room.callStep==null){
       room.ringing=false;room.callStep=0;room.liftAt=streetTime;room.rise=0;
+      if(!isTop()){
+        const colors=unit.lead==="guest"?personColors[0]:BayExposureArt.palette,shirt=BayCourtPlayers.kitColors[worn()]||colors[1];
+        room.grip="marlin14-hand/"+colors[0]+"/"+shirt;model(room.grip,g=>BayMarlinRoom.grip(g,colors[0],shirt));
+      }
       Object.assign(room,BayMarlinRoom.atPhone,{pitch:-.12});
       speak("Bea · front desk",wakeLead(wakeBook.message).line);
     }else{
