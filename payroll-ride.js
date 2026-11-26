@@ -41,6 +41,17 @@
     constructor(start=pickup){this.pickup=start;this.jules=actor(start);this.stage="curb";this.seat=0;this.car=null;this.delay=0;this.pass=0;}
     get holding(){return heldStages.has(this.stage);}
     get aboard(){return this.stage==="ride";}
+    spill(v,impact){
+      if(!this.aboard||this.car!==v||this.envelopes||impact<7.5)return false;
+      this.envelopes={count:0,reach:0};return true;
+    }
+    gather(dt,driver,holding){
+      const e=this.envelopes;
+      if(!e||e.count===3||!this.aboard||driver!==this.car)return;
+      if(!holding||Math.abs(driver.speed)>5.4){e.reach=Math.max(0,e.reach-dt*2);return;}
+      e.reach+=dt/1.05;
+      if(e.reach>=1){e.reach=0;e.count++;return e.count===3?"packed":"found";}
+    }
     seeClerk(route,ground){
       if(!route){this.waiting=null;return;}
       if(this.waiting?.route===route)return;
@@ -130,6 +141,14 @@
     const seat=a.motion.ride?.seat||0;
     if(seat){const lap=BayDriving.world(a,0,.22);j.x+=(lap.x-j.x)*seat;j.z+=(lap.z-j.z)*seat;
       j.y+=(a.y+a.motion.ride.seatY+.23-j.y)*seat;}
+    if(run.aboard&&run.envelopes&&run.envelopes.count<3){
+      model("loose-wages",g=>{g.box(0,0,0,.21,.012,.105,"#dec497");g.box(.062,.008,.018,.03,.007,.031,"#a85446");});
+      for(let i=run.envelopes.count;i<3;i++){
+        const n=i===run.envelopes.count?Math.max(0,(run.envelopes.reach-.45)/.55):0;
+        const p=BayDriving.world(a,(i-1)*.13*(1-n),.39-n*.17);
+        list.push(["loose-wages",p.x,j.y-.36+n*.46,p.z,a.yaw+.28*i]);
+      }
+    }
     if(run.photoOffered&&run.aboard&&!run.photoTaken){
       const p=BayDriving.world(a,-.12,.33);
       model("night-shift-print",g=>{g.box(0,0,0,.158,.006,.118,"#efe3ca");g.box(0,.0035,-.004,.142,.004,.091,"#886955");});
@@ -185,6 +204,40 @@
     }
   }
   let shiftPortrait=null;
+  const wageNames=["T. Ramos","N. Santos","M. Vale"];
+  function footwell(canvas,e){
+    const c=canvas.getContext("2d");if(!c)return;
+    const block=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
+    const stroke=(points,color,width)=>{c.strokeStyle=color;c.lineWidth=width;c.beginPath();for(let i=0;i<points.length;i++){const [x,y]=points[i];if(i)c.lineTo(x,y);else c.moveTo(x,y);}c.stroke();};
+    block(0,0,278,105,"#554b42");block(0,0,278,12,"#2d3635");
+    for(let i=0;i<35;i++)stroke([[i*11-38,105],[i*11-4,12]],"#64594d",2);
+    block(174,25,95,76,"#333d39");block(173,19,94,75,"#60918a");block(179,24,83,64,"#aaba9b");block(183,28,75,55,"#425954");
+    block(174,9,92,8,"#c0a35f");block(198,11,42,4,"#974c43");
+    const positions=[[43,71,-.24],[99,34,.13],[125,80,-.12]],target=positions[Math.min(e.count,2)];
+    const reach=Math.min(1,e.reach/.45),lift=Math.max(0,(e.reach-.45)/.55);
+    const mix=(a,b,t)=>a+(b-a)*t;
+    for(const [i,[x,y,a]] of positions.entries()){
+      const t=i<e.count?1:i===e.count?lift:0;
+      c.save();c.translate(mix(x,219+i*2,t),mix(y,48+i*7,t));c.rotate(a*(1-t)+.025*t);
+      block(-29,-14,60,32,"#796b53");block(-30,-16,60,32,"#ead0a0");
+      stroke([[-30,-16],[0,-2],[30,-16]],"#ab865d",1.3);block(17,1,6,6,"#b66754");
+      c.fillStyle="#53483a";c.font="italic 10px Georgia";c.fillText(wageNames[i],-25,10);c.restore();
+    }
+    if(e.count<3){
+      const hx=mix(mix(232,target[0],reach),219,lift),hy=mix(mix(-9,target[1],reach),53,lift);
+      c.save();c.lineCap="round";stroke([[246,-8],[hx+14,hy-9],[hx,hy]],"#865e49",10);
+      stroke([[hx+14,hy-9],[hx,hy],[hx-4,hy+4]],"#c38e69",6);
+      stroke([[hx+8,hy-7],[hx-2,hy-5]],"#cd9771",4);
+      stroke([[246,-8],[hx+20,hy-13]],"#507178",15);c.restore();
+    }
+  }
+  function deliveryLine(route,count){
+    if(!Number.isInteger(count))return null;
+    if(route==="port")return count===3?"Even put the lid back on for me. Doesn’t change the weight.":"There’s one under your seat. Keep it. I already weighed the tin.";
+    return count===3?"Tino, Neve, and there’s mine. He even tucked the flap back in. Who’s got a pen?":
+      count===0?"Three of us short. Wait. There’s my name under the passenger seat. Jules, lend me your torch.":
+      "I’ve got "+(count===1?"one of the three":"two of the three")+". Leave the car here, Jules. I can read the names with the door light on.";
+  }
   function nightShiftPhoto(canvas,reverse,signed){
     canvas.width=600;canvas.height=360;
     const c=canvas.getContext("2d");if(!c)return;
@@ -248,5 +301,5 @@
     c.fillStyle="#624e43";c.font="italic 22px Georgia";c.fillText("Last load before breakfast",29,337);
     c.font="13px monospace";c.fillText("SEP  1998",497,335);
   }
-  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto};
+  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto,footwell,deliveryLine};
 })();

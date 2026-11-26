@@ -37,11 +37,26 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   try{await waitFor("q.ride.photoOffered&&document.querySelector('#context').textContent.includes('photograph')",24000);
     await tap("KeyN");await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.print===1");
   }finally{await key("keyUp","KeyW");}
+  await js(`q.at(q.car,72,84);q.car.yaw=0;BayDriving.settle(q.car);
+    q.blocker=q.cars.find(v=>v!==q.car&&!v.path&&!v.serviceCar&&!v.meetCar&&!v.guestId&&['coupe','hatch','sedan'].includes(v.kind));
+    if(!q.blocker)throw Error('No parked car for payroll collision');
+    q.back={x:q.blocker.x,z:q.blocker.z,y:q.blocker.y,yaw:q.blocker.yaw};q.at(q.blocker,72,110);q.blocker.yaw=0;BayDriving.settle(q.blocker);true`);
+  await key("keyDown","KeyW");
+  try{await waitFor("q.ride.envelopes&&!document.querySelector('#wageEnvelopes').hidden",22000);}
+  finally{await key("keyUp","KeyW");}
+  await js("Object.assign(q.blocker,q.back);BayDriving.settle(q.blocker);q.at(q.car,-143,126);BayDriving.settle(q.car);true");
+  await key("keyDown","KeyU");
+  try{await waitFor("q.ride.envelopes.count===1");}
+  finally{await key("keyUp","KeyU");}
+  await snap("payroll-footwell");
+  if(port){await key("keyDown","KeyU");try{await waitFor("q.ride.envelopes.count===3");}finally{await key("keyUp","KeyU");}}
+  const gathered=await js("q.ride.envelopes.count");assert(port?gathered===3:gathered>0&&gathered<3);
   await js("q.at(q.car,-143,126);BayDriving.settle(q.car)");
   await waitFor("document.querySelector('#stars').getAttribute('aria-label')==='No heat'",75000);
   await js("q.at(q.car,"+(port?"-138,-73":"6,66")+");q.car.yaw=0;BayDriving.settle(q.car)");
   await waitFor("q.ride.stage==='exit'||q.ride.stage==='deliver'",30000);
   await waitFor("q.ride.stage==='receipt'",30000);assert(await js("q.exitDoor&&q.ride.receiver.name==="+JSON.stringify(name)));
+  assert.equal(await js("document.querySelector('#chapterLine').textContent"),await js("BayPayroll.deliveryLine("+JSON.stringify(route)+","+gathered+")"));
   await snap("collection-handoff");await tap("Enter");
   assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.last"),route);
   console.log("PASS Jules walked in, opened both doors, carried the tin to "+name+" and completed "+route,mode);
@@ -86,6 +101,8 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   const clerk=await js("BayPayroll.stops["+JSON.stringify(route)+"]");
   await js("q.at(q.h,"+clerk.x+","+clerk.z+");q.rig.reset(q.h)");await tap("KeyF");
   await waitFor("document.querySelector('#panel').dataset.screen==='payroll-receipt'&&!document.querySelector('#panel').hidden");
+  assert(await js("document.querySelector('#panelBody').textContent.includes('"+gathered+" of 3 back in the tin')"));
+  console.log("PASS recovered "+gathered+" envelopes after a driving impact and kept the handoff on the signed counter copy",mode);
   await snap("collection-copy");await tap("Escape");
   console.log("PASS visited "+name+" and read the signed receipt after reloading",mode);
   await js("q.bea=q.people.find(p=>p.coffeeRegular);q.at(q.h,q.bea.x+.55,q.bea.z);q.rig.reset(q.h)");

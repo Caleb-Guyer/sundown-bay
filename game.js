@@ -170,7 +170,7 @@
     result.buttonwood=BayButtonwood.read(null);result.brisas=BayBrisasClub.read(null);result.palm=BayPalmLeague.read(null);result.gull=BayGullSales.read(null);result.moto=BaySecondSeat.read(null);result.rescue=BayRescue.read(null);result.skate=BaySkate.read(null);result.airmail=BayPelicanAir.read(null);
     result.luggage=luggage.read(null);result.green=BayOnGreen.read(null);result.threads=threads.read(null,result.courts);
     result.clubCup=BayCoastCup.read(null);result.catchBook=BayRedCork.read(null);
-    result.collection={last:"",luna:0,port:0,best:0,print:0};
+    result.collection={last:"",luna:0,port:0,best:0,print:0,envelopes:null};
     result.freight=BayPortSpur.saved(null);
     result.oceanBeat=BayOceanBeat.read(null);result.releaseCopy=null;result.meterCopy=null;
     result.pictureJumps=jumps.read(null);result.copies=carbon.read(null);
@@ -180,6 +180,7 @@
         for(const id of ["luna","port","best"])if(Number.isFinite(raw.collection[id])&&raw.collection[id]>=0)result.collection[id]=raw.collection[id];
         if([1,2].includes(raw.collection.print))result.collection.print=raw.collection.print;
         if(["luna","port"].includes(raw.collection.last))result.collection.last=raw.collection.last;
+        if(result.collection.last&&[0,1,2,3].includes(raw.collection.envelopes))result.collection.envelopes=raw.collection.envelopes;
       }
       result.houseFee=raw.houseFee===true;
       result.countyRelay=BayCountyRelay.read(raw.countyRelay);
@@ -929,6 +930,10 @@
     if(b?.art==="meterCopy"&&meterCar()){
       const v=meterCar();BayCabArt.meterSlip($("chapterInsert"),BayStreetCars.plateFor(v),district(v),formatVehicle(v));
       $("chapterLine").textContent="Read me those letters. "+BayStreetCars.plateFor(v)+". Good. I put the street underneath in case I got the number wrong.";
+    }
+    if(b?.shot==="payrollDesk"&&payrollReceipt?.envelopes){
+      $("chapterWho").textContent=payrollReceipt.receiver.name;
+      $("chapterLine").textContent=BayPayroll.deliveryLine(payrollReceipt.route,payrollReceipt.envelopes.count);
     }
     if(b?.art==="releaseCopy"&&save.releaseCopy){
       const copy=save.releaseCopy;
@@ -4925,6 +4930,9 @@
     if(v===personalCar)BayMotelParking.write(v);
   }
   function dent(v,x,z,speed){
+    if(v===car&&active?.payroll?.spill(v,speed)){
+      speak("Jules","The lid! Three envelopes under my feet. Give me a slow stretch and I can reach them.");lastHud=-10;
+    }
     if(!BayRecovery.impact(v,x,z,speed))return;
     keepBodywork(v);
     if(v.path&&!v.recoveryOwner&&v.damage[BayRecovery.worst(v)]>=.55)v.wantsCurb=true;
@@ -7453,6 +7461,8 @@
     signedNote(b,luna?"Marisol and twenty-one names from the Marlin night shift. Each envelope has a signature beside the hours.":"Mixed metal · one biscuit tin. Lid included. Contents accepted as received.","Filed by "+c.receiver.name);
     const sheet=document.createElement("canvas");sheet.style.width="100%";sheet.style.height="auto";sheet.setAttribute("role","img");
     sheet.setAttribute("aria-label",luna?"Signed wage receipt":"Scale house receipt");BayStreetAction.paper(sheet,luna?"payReceipt":"portReceipt");b.append(sheet);
+    const line=BayPayroll.deliveryLine(c.route,save.collection.envelopes);
+    if(line)signedNote(b,line,c.receiver.name+" · "+save.collection.envelopes+" of 3 back in the tin at handoff");
   }
   const shiftKeeper=walkers.find(p=>p.coffeeRegular);
   function besideShiftKeeper(){
@@ -7493,6 +7503,10 @@
       const v=ride.car,near=dist(v,venues.cinema)<53?"luna":dist(v,venues.port)<53?"port":null;
       ride.seeClerk(near,footLevel);
       if(near&&v===car&&!heat&&dist(v,near==="luna"?venues.cinema:venues.port)<7.7)dest=near;
+      const movingEnvelopes=ride.gather(dt,car,held("KeyU"));
+      if(movingEnvelopes==="packed")speak("Jules","Tino. Neve. Marisol. That's all three. I'm sitting on the lid this time.");
+      if(movingEnvelopes)lastHud=-10;
+      if(ride.envelopes?.count<3&&held("KeyU"))dest=null;
     }
     if(!save.collection.print&&ride.offerPrint(dt,car)){
       speak("Jules","Wait. That's Romy's mum in the middle. There's pencil on the back. Want to keep it?");
@@ -7509,6 +7523,7 @@
     const route=ride.route;payrollReceipt=ride;
     const clean=streetAction.count===run.incidents,amount=(route==="port"?460:250)+(clean?75:0);
     save.wallet+=amount;save.paid++;save.collection.last=route;save.collection[route]++;
+    save.collection.envelopes=ride.envelopes?.count??null;
     save.collection.best=save.collection.best?Math.min(save.collection.best,run.clock):run.clock;
     active=null;waypoint=null;persist();BayDriving.settle(car);enterFilm(route==="port"?"collectionPort":"collectionLuna");
     sound.cue("paid");note("Last Collection","+"+cash(amount)+(clean?" · Clean getaway":""),10);
@@ -10665,6 +10680,9 @@
     $("airLeg").textContent=leg;$("airGuide").textContent=guide;contextHint(label,hint);return true;
   }
   function hud(){
+    const envelopes=active?.payroll?.aboard&&car===active.payroll.car?active.payroll.envelopes:null;
+    const footwell=$("wageEnvelopes");footwell.hidden=!envelopes||envelopes.count===3;
+    if(!footwell.hidden)BayPayroll.footwell(footwell,envelopes);
     const w=BayStreetAction.weapons[streetAction.slot],armed=!!w&&actionFeet();
     $("streetWeapon").hidden=!armed;
     if(armed)$("streetWeapon").textContent=w.name+"   "+(streetAction.loading?"Reloading":streetAction.rounds[streetAction.slot]+" / "+w.size)+"   ·   Click or Space to fire   ·   0 holster";
@@ -10802,6 +10820,7 @@
         const r=active.payroll;
         if(r.holding)$("objectiveText").textContent=r.stage==="enter"||r.stage==="approach"?"Wait for Jules at the passenger door":"Jules is handing over the payroll";
         if(r.blocked)$("roadTurn").textContent="Leave room beside the passenger door";
+        else if(envelopes?.count<3)$("roadTurn").textContent="Ease below 12 mph · Hold U for Jules · "+envelopes.count+"/3 back in the tin";
         else if(active.vehicle)$("roadTurn").textContent="1  Cine Luna · return wages     2  Port Sol · sell the tin";
       }
       if(active?.cup){
@@ -12479,6 +12498,7 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyU"&&active?.payroll?.aboard&&car===active.payroll.car&&active.payroll.envelopes?.count<3)return;
     if(ev.code==="KeyF"&&atTimetable()){openPanel("route-six");return;}
     if(ev.code==="KeyL"&&transit.player&&transitKeys(ev.code))return;
     if(active?.laundry&&linenKey(ev.code))return;
