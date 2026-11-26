@@ -35,7 +35,7 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
   }
   await key("keyDown","KeyW");
   try{
-    await waitFor("p.through&&!document.querySelector('#passScore').hidden",23000);
+    await waitFor("p.through&&!document.querySelector('#passScore').hidden&&document.querySelector('#passScore').textContent.includes('Double gap')",23000);
     assert.match(await js("document.querySelector('#passScore').textContent"),/Double gap/);await shot("gap");
     await waitFor("p.reel.best?.gaps===1",16000);
   }catch(e){console.log("Playtest state",await js("JSON.stringify({driver:[p.car?.x,p.car?.z,p.car?.speed],pair:p.pair.map(v=>[v.x,v.z,v.speed]),score:p.reel?.run?.score,best:p.reel?.best?.score})"));throw e;}
@@ -65,6 +65,33 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
   await waitFor("document.querySelector('#context').textContent.includes('Watch Clean Through')");
   if(mode==="street"){await waitFor("rail.rev>=2");await shot("screen");}
   await tap("KeyF");await waitFor("!!"+slider);
+  const rowWith=label=>"Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.textContent.includes("+JSON.stringify(label)+"))";
+  await js(rowWith("Take envelope")+".click();true");
+  const record="JSON.parse(localStorage.getItem('sundownBay.latePlate.v1'))";
+  assert.equal(await js(record+".packet.street"),"Biscayne Street");
+  await js("Object.assign(rail.hero,BayCurbWire.desk.stand,{yaw:BayCurbWire.desk.yaw+Math.PI});rail.cam.reset(rail.hero);true");
+  await waitFor("document.querySelector('#context').textContent.includes('Portside envelope')");await tap("KeyF");
+  const proof="document.querySelector('canvas[aria-label^=\"Bay Wire late edition proof\"]')";
+  await waitFor(proof+"?.getContext('2d').getImageData(20,20,1,1).data[3]===255");
+  if(mode==="street"){
+    const wide=await js(proof+".toDataURL()");await js(rowWith("Turn proof")+".click();true");
+    await waitFor(proof+"?.getContext('2d').getImageData(20,20,1,1).data[3]===255");assert.notEqual(await js(proof+".toDataURL()"),wide);
+  }
+  await waitFor(proof+"?.getContext('2d').getImageData(20,20,1,1).data[3]===255");
+  await js(`const page=BayCleanThrough.PictureDesk.prototype.page;
+    BayCleanThrough.PictureDesk.prototype.page=function(c,p,crop){const result=page.apply(this,arguments);
+      if(result&&c.width===128)rail.aired=crop;return result;};true`);
+  await shot("edition");await js(rowWith("Print edition")+".click();true");
+  assert.equal(await js(record+".issue.crop"),mode==="street"?"driver":"street");
+  await waitFor("rail.aired==="+JSON.stringify(mode==="street"?"driver":"street"));
+  await js("window.plateReload=true;true");await send("Page.reload");
+  await waitFor("!window.plateReload&&document.readyState==='complete'&&typeof BayCleanThrough==='object'");
+  await js("document.querySelector('#play').click();true");await waitFor("!document.querySelector('#hud').hidden");
+  await tap("KeyJ");await waitFor("!!("+rowWith("On the Curb")+")");await js(rowWith("On the Curb")+".click();true");
+  await js(rowWith("Late Plate")+".click();true");
+  await waitFor(proof+"?.getContext('2d').getImageData(20,20,1,1).data[3]===255");
+  assert.equal(await js(record+".packet"),null);
+  console.log("PASS Late Plate",mode,"physical Portside envelope and desk handoff, proof chosen and published, archived photograph reopened after reload");
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS Roadside camera",mode,"driver-controlled cuts, printed traffic photograph, saved cover after reload, camera released");
   console.log("PASS Clean Through",mode,card.score,"points, double gap under driver input, five clear seconds, saved moving traffic reel and scrub after reload");

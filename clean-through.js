@@ -3,6 +3,7 @@
   "use strict";
   const key="sundownBay.cleanThrough.v1",tick=.1,hold=5,round=n=>Math.round(n*100)/100;
   const paint=/^#[a-f0-9]{6}$/i;
+  const jpeg=s=>typeof s==="string"&&s.length<=96000&&/^data:image\/jpeg;base64,\/9j\/[a-zA-Z0-9+/]+={0,2}$/.test(s);
   function read(){
     let c;try{c=JSON.parse(localStorage.getItem(key));}catch{}
     if(!c||!Number.isSafeInteger(c.score)||c.score<1||!Number.isSafeInteger(c.passes)||c.passes<1||
@@ -10,7 +11,7 @@
         !Array.isArray(c.frames)||c.frames.length<2||c.frames.length>36)return null;
     if(!c.frames.every(f=>Array.isArray(f)&&f.length&&f.length<=5&&f.every(a=>Array.isArray(a)&&a.length===7&&
         a.slice(0,6).every(Number.isFinite)&&a[4]>0&&a[4]<8&&a[5]>0&&a[5]<3&&paint.test(a[6]))))return null;
-    if(typeof c.cover!=="string"||c.cover.length>96000||!/^data:image\/jpeg;base64,\/9j\/[a-zA-Z0-9+/]+={0,2}$/.test(c.cover))delete c.cover;
+    if(!jpeg(c.cover))delete c.cover;
     return c;
   }
   function pose(v,id){
@@ -163,5 +164,54 @@
     c.restore();c.fillStyle="#263b34";c.fillRect(9,h-37,w-18,28);c.fillStyle="#f4dfb3";c.font="bold 15px monospace";
     c.textAlign="left";c.fillText(card.street.toUpperCase(),21,h-18);c.textAlign="right";c.fillText((f/10).toFixed(1)+" s",w-21,h-18);
   }
-  window.BayCleanThrough={Reel,draw,key};
+  const editionKey="sundownBay.latePlate.v1";
+  const goodPrint=p=>p&&jpeg(p.cover)&&typeof p.street==="string"&&p.street.length<=80&&
+    typeof p.model==="string"&&p.model.length<=80&&Number.isSafeInteger(p.score)&&p.score>0;
+  class PictureDesk{
+    constructor(){
+      this.packet=this.issue=null;this.images=new WeakMap();this.refresh();
+    }
+    refresh(){
+      let data;try{data=JSON.parse(localStorage.getItem(editionKey));}catch{return;}
+      this.packet=goodPrint(data?.packet)?data.packet:null;
+      this.issue=goodPrint(data?.issue)&&["street","driver"].includes(data.issue.crop)?data.issue:null;
+    }
+    store(packet,issue){
+      try{localStorage.setItem(editionKey,JSON.stringify({packet,issue}));}catch{return false;}
+      this.packet=packet;this.issue=issue;return true;
+    }
+    collect(card){
+      this.refresh();
+      if(this.packet||!goodPrint(card)||this.issue?.cover===card.cover)return false;
+      const {cover,street,model,score}=card;
+      return this.store({cover,street,model,score},this.issue);
+    }
+    publish(crop,cover){
+      this.refresh();
+      if(!this.packet||this.packet.cover!==cover||!["street","driver"].includes(crop))return false;
+      return this.store(null,{...this.packet,crop});
+    }
+    page(canvas,p,crop,ready){
+      let image=this.images.get(p);
+      if(!image){image=new Image();this.images.set(p,image);image.src=p.cover;}
+      if(!image.complete||!image.naturalWidth){
+        if(ready&&!image.complete)image.addEventListener("load",ready,{once:true});
+        return false;
+      }
+      const c=canvas.getContext("2d"),w=600,h=384,tight=crop==="driver";
+      const sw=image.naturalWidth*(tight?.57:1),sh=sw*201/560;
+      c.save();c.scale(canvas.width/w,canvas.height/h);
+      c.fillStyle="#f0e5c7";c.fillRect(0,0,w,h);c.fillStyle="#24413d";c.textAlign="left";
+      c.font="bold 36px Georgia, serif";c.fillText("THE BAY WIRE",20,43);
+      c.font="bold 13px monospace";c.textAlign="right";c.fillText("LATE CITY EDITION",580,31);
+      c.fillStyle="#a84535";c.fillRect(20,54,560,4);c.textAlign="left";c.fillStyle="#2e3431";
+      c.font="bold 30px Georgia, serif";c.fillText(tight?"Room for one more":"The street between shifts",20,94);
+      c.drawImage(image,(image.naturalWidth-sw)/2,(image.naturalHeight-sh)/2,sw,sh,20,108,560,201);
+      c.font="italic 17px Georgia, serif";c.fillText(tight?p.model+" slips through the traffic.":"Afternoon traffic on "+p.street+".",20,337,550);
+      c.fillStyle="#7c5544";c.fillRect(20,349,560,1);c.font="bold 12px monospace";
+      c.fillText("PICTURE DESK  /  ROMY VALE & JULES",20,370);c.textAlign="right";c.fillText(p.street.toUpperCase(),580,370,230);
+      c.restore();return true;
+    }
+  }
+  window.BayCleanThrough={Reel,draw,key,PictureDesk};
 })();

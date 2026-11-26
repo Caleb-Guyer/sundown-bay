@@ -68660,6 +68660,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   "use strict";
   const key="sundownBay.cleanThrough.v1",tick=.1,hold=5,round=n=>Math.round(n*100)/100;
   const paint=/^#[a-f0-9]{6}$/i;
+  const jpeg=s=>typeof s==="string"&&s.length<=96000&&/^data:image\/jpeg;base64,\/9j\/[a-zA-Z0-9+/]+={0,2}$/.test(s);
   function read(){
     let c;try{c=JSON.parse(localStorage.getItem(key));}catch{}
     if(!c||!Number.isSafeInteger(c.score)||c.score<1||!Number.isSafeInteger(c.passes)||c.passes<1||
@@ -68667,7 +68668,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         !Array.isArray(c.frames)||c.frames.length<2||c.frames.length>36)return null;
     if(!c.frames.every(f=>Array.isArray(f)&&f.length&&f.length<=5&&f.every(a=>Array.isArray(a)&&a.length===7&&
         a.slice(0,6).every(Number.isFinite)&&a[4]>0&&a[4]<8&&a[5]>0&&a[5]<3&&paint.test(a[6]))))return null;
-    if(typeof c.cover!=="string"||c.cover.length>96000||!/^data:image\/jpeg;base64,\/9j\/[a-zA-Z0-9+/]+={0,2}$/.test(c.cover))delete c.cover;
+    if(!jpeg(c.cover))delete c.cover;
     return c;
   }
   function pose(v,id){
@@ -68820,7 +68821,56 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.restore();c.fillStyle="#263b34";c.fillRect(9,h-37,w-18,28);c.fillStyle="#f4dfb3";c.font="bold 15px monospace";
     c.textAlign="left";c.fillText(card.street.toUpperCase(),21,h-18);c.textAlign="right";c.fillText((f/10).toFixed(1)+" s",w-21,h-18);
   }
-  window.BayCleanThrough={Reel,draw,key};
+  const editionKey="sundownBay.latePlate.v1";
+  const goodPrint=p=>p&&jpeg(p.cover)&&typeof p.street==="string"&&p.street.length<=80&&
+    typeof p.model==="string"&&p.model.length<=80&&Number.isSafeInteger(p.score)&&p.score>0;
+  class PictureDesk{
+    constructor(){
+      this.packet=this.issue=null;this.images=new WeakMap();this.refresh();
+    }
+    refresh(){
+      let data;try{data=JSON.parse(localStorage.getItem(editionKey));}catch{return;}
+      this.packet=goodPrint(data?.packet)?data.packet:null;
+      this.issue=goodPrint(data?.issue)&&["street","driver"].includes(data.issue.crop)?data.issue:null;
+    }
+    store(packet,issue){
+      try{localStorage.setItem(editionKey,JSON.stringify({packet,issue}));}catch{return false;}
+      this.packet=packet;this.issue=issue;return true;
+    }
+    collect(card){
+      this.refresh();
+      if(this.packet||!goodPrint(card)||this.issue?.cover===card.cover)return false;
+      const {cover,street,model,score}=card;
+      return this.store({cover,street,model,score},this.issue);
+    }
+    publish(crop,cover){
+      this.refresh();
+      if(!this.packet||this.packet.cover!==cover||!["street","driver"].includes(crop))return false;
+      return this.store(null,{...this.packet,crop});
+    }
+    page(canvas,p,crop,ready){
+      let image=this.images.get(p);
+      if(!image){image=new Image();this.images.set(p,image);image.src=p.cover;}
+      if(!image.complete||!image.naturalWidth){
+        if(ready&&!image.complete)image.addEventListener("load",ready,{once:true});
+        return false;
+      }
+      const c=canvas.getContext("2d"),w=600,h=384,tight=crop==="driver";
+      const sw=image.naturalWidth*(tight?.57:1),sh=sw*201/560;
+      c.save();c.scale(canvas.width/w,canvas.height/h);
+      c.fillStyle="#f0e5c7";c.fillRect(0,0,w,h);c.fillStyle="#24413d";c.textAlign="left";
+      c.font="bold 36px Georgia, serif";c.fillText("THE BAY WIRE",20,43);
+      c.font="bold 13px monospace";c.textAlign="right";c.fillText("LATE CITY EDITION",580,31);
+      c.fillStyle="#a84535";c.fillRect(20,54,560,4);c.textAlign="left";c.fillStyle="#2e3431";
+      c.font="bold 30px Georgia, serif";c.fillText(tight?"Room for one more":"The street between shifts",20,94);
+      c.drawImage(image,(image.naturalWidth-sw)/2,(image.naturalHeight-sh)/2,sw,sh,20,108,560,201);
+      c.font="italic 17px Georgia, serif";c.fillText(tight?p.model+" slips through the traffic.":"Afternoon traffic on "+p.street+".",20,337,550);
+      c.fillStyle="#7c5544";c.fillRect(20,349,560,1);c.font="bold 12px monospace";
+      c.fillText("PICTURE DESK  /  ROMY VALE & JULES",20,370);c.textAlign="right";c.fillText(p.street.toUpperCase(),580,370,230);
+      c.restore();return true;
+    }
+  }
+  window.BayCleanThrough={Reel,draw,key,PictureDesk};
 })();
 
 ;
@@ -71792,7 +71842,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   view.buildings=city.opaqueBuildings;
   const jumps=BayPictureJumps;
   const carbon=BayCarbonCopies,tireCloud=[];let puffAt=-10,puffId=0,copySide="left";
-  const passReel=new BayCleanThrough.Reel(city.opaqueBuildings);let passFilm=null;
+  const passReel=new BayCleanThrough.Reel(city.opaqueBuildings),pictureDesk=new BayCleanThrough.PictureDesk();
+  let passFilm=null,freshPlate=0,deskCrop="street";
   if(view.gl){BayPictureJumpArt.build(cityMesh,jumps.sites);view.add("city",cityMesh);cityMesh.vertices.length=0;
     view.add("bay-water",waterMesh);waterMesh.vertices.length=0;}
   const rideScenery=new BayRideFilm.Scenery(()=>{
@@ -79805,8 +79856,34 @@ window.buildBayCity = function buildBayCity(g,water) {
       const print=document.createElement("img");print.className="take-print";print.src=card.cover;
       print.alt="Romy’s roadside photograph of the "+card.model+" passing traffic on "+card.street;
       body.append(print);
+      if(atCopyRail()&&!pictureDesk.packet&&card.cover!==pictureDesk.issue?.cover){
+        body.append(makeButton("Late Plate","Meli held a hole on page three. Take her the actual print at the Bay Wire desk.","Take envelope",()=>{
+          if(!atCopyRail()||!pictureDesk.collect(card)){note("Portside Tire","The envelope could not be filed.",2);return;}
+          clockPin(wirePin);speak("Romy","Mind the corners. She knows if you fold it, even if you flatten it back out.");lastHud=-10;
+        }));
+      }else if(!pictureDesk.packet&&card.cover!==pictureDesk.issue?.cover)body.append(makeButton("Late Plate","Romy left a press envelope at her cutting table, across from Portside Tire.","Mark table",()=>clockPin({...carbon.rail,name:"Romy’s cutting table"})));
     }
+    if(pictureDesk.packet)body.append(makeButton("Late Plate · Envelope in hand","Bring the picture to Meli’s curb desk on foot.","Mark Bay Wire",()=>clockPin(wirePin)));
     directions();
+  }
+  function platePanel(body){
+    const edit=wireDeskNear()&&!!pictureDesk.packet,p=edit?pictureDesk.packet:pictureDesk.issue;
+    if(!p)return;
+    const canvas=document.createElement("canvas");canvas.width=600;canvas.height=384;canvas.className="take-print";
+    canvas.setAttribute("role","img");canvas.setAttribute("aria-label","Bay Wire late edition proof from "+p.street);
+    const redraw=()=>pictureDesk.page(canvas,p,edit?deskCrop:p.crop);
+    pictureDesk.page(canvas,p,edit?deskCrop:p.crop,redraw);body.append(canvas);
+    if(!edit){signedNote(body,"Filed in the picture desk archive. The street monitor carries this edition.","Meli Funes · Bay Wire");return;}
+    signedNote(body,"Romy wants the whole block. My editor wants the driver. I’ve got one space left on the page. Put your finger on the one we run.","Meli Funes · Picture desk");
+    const switchCrop=makeButton("Try the other crop",deskCrop==="street"?"Wide street photograph":"Tight driver photograph","Turn proof",()=>{
+      deskCrop=deskCrop==="street"?"driver":"street";openPanel("late-plate",true);
+    });body.append(switchCrop);
+    body.append(makeButton("Send this page to press",deskCrop==="street"?"The street between shifts":"Room for one more","Print edition",()=>{
+      if(!wireDeskNear()||!pictureDesk.publish(deskCrop,p.cover)){note("Bay Wire","The edition could not be filed.",2);return;}
+      freshPlate=streetTime+18;wireLastFrame="";if(waypoint?.kind===wirePin.kind)waypoint=null;
+      closePanel();lastHud=lastMap=-10;
+      speak("Meli Funes",deskCrop==="street"?"Leave the edges in. Used to be, I could tell whose block it was by the pavement.":"There. You can feel the driver holding their breath. Send that one.");
+    }));
   }
   function rollPassFilm(now){
     const f=passFilm;if(!f?.playing||now-f.drawn<50)return;
@@ -80828,6 +80905,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function wirePanel(b){
     const book=curbWire.book;book.refresh();
+    if(pictureDesk.packet&&wireDeskNear()||pictureDesk.issue)b.append(makeButton("Late Plate",pictureDesk.packet&&wireDeskNear()?"Meli is making room on page three.":"Bay Wire · Late city edition","Open proof",()=>openPanel("late-plate")));
     if(neighbors.editions.length)b.append(makeButton("Bay Wire · Neighborhood edition",neighbors.editions.map(s=>s.name).join(" · "),"Read",()=>openPanel("wire-edition")));
     const all=[...new Map([...book.clips,book.cover,book.air,...Object.values(book.edits)].filter(Boolean).map(c=>[c.id,c])).values()];
     const at=Math.max(0,all.findIndex(c=>c.id===wireSelected)),clip=all[at];
@@ -80887,13 +80965,21 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function updateWireTV(t){
     const book=curbWire.book,editions=neighbors.editions;
-    if(!play||room||dist(pos(),wireDesk)>20||!book.cover&&!editions.length)return null;
+    const issue=pictureDesk.issue;
+    if(!play||room||dist(pos(),wireDesk)>20||!book.cover&&!editions.length&&!issue)return null;
     const playlist=book.complete?BayCurbWire.assignments.map(id=>book.edits[id]):book.cover?[book.cover]:[];
     // A hand-picked clip opens the loop even after the whole edition is signed.
     if(book.complete&&book.cover&&playlist[0].id!==book.pin)playlist.unshift(book.cover);
     const clipSeconds=playlist.reduce((sum,c)=>sum+BayCurbWire.duration(c),0);
-    let time=t%(clipSeconds+editions.length*5),clip=playlist[0];
+    const plateAt=clipSeconds+editions.length*5;
+    let time=t%(plateAt+(issue?5:0)),clip=playlist[0];
     if(!wireTV){wireTV=document.createElement("canvas");wireTV.width=128;wireTV.height=80;}
+    if(issue&&(streetTime<freshPlate||time>=plateAt)){
+      const stamp="press/"+issue.crop+"/"+issue.score;
+      if(wireLastFrame===stamp)return wireTV;
+      if(!pictureDesk.page(wireTV,issue,issue.crop))return null;
+      wireLastFrame=stamp;wireTVVersion++;return wireTV;
+    }
     const page=streetTime<(freshEdition?.until??0)?freshEdition.story:time>=clipSeconds?editions[Math.floor((time-clipSeconds)/5)]:null;
     if(page){
       const stamp="edition/"+page.id;if(wireLastFrame!==stamp){BayNeighborhoodEdition.paint(wireTV,page.id);wireTVVersion++;wireLastFrame=stamp;}
@@ -83074,7 +83160,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     else if(coffee.stage==="walk"||coffee.stage==="table")contextHint("",coffee.stage==="table"?"Bea’s at the coffee shelf · Come around to the green cup":coffee.bea.coffeePause?"Bea’s waiting on the sidewalk":"Walk with Bea to the Palm Diner");
     else if(paletaHint()){ /* Nina or the next customer has the window. */ }
     else if(drain){contextHint(drain.cleared?"":"L",drain.cleared?"Curb drain clear · "+drain.name:drain.work?"Lifting leaves · "+Math.round(drain.work*100)+"%":"Hold to lift the leaves from the curb drain");}
-    else if(!active&&!unit.eye&&!afternoon.photo&&(wireDeskNear()||wireWitnessNear()))contextHint("F",wireDeskNear()?"Bay Wire · Meli’s curb desk":"Watch the clip with "+(curbWire.author.curbName||curbWire.author.name));
+    else if(!active&&!unit.eye&&!afternoon.photo&&(wireDeskNear()||wireWitnessNear()))contextHint("F",wireDeskNear()?(pictureDesk.packet?"Give Meli the Portside envelope":"Bay Wire · Meli’s curb desk"):"Watch the clip with "+(curbWire.author.curbName||curbWire.author.name));
     else if(corner)contextHint(corner.startsWith("Walk light")||corner.startsWith("Flashing hand")?"":"F",corner);
     else if(crewHint()){ /* The character on location supplies the prompt. */ }
     else if(broadcastDesk.mix)contextHint("E",broadcastDesk.mix.result?"Step away · Space try again · F sleeve book":"Step away · V change view");
@@ -83874,6 +83960,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       const clock=nearbyClock();title=clock.route.landmark;kicker="On Green  /  "+clock.route.street;clockCard(b,clock);
     }else if(next==="curb-wire"){
       title="On the Curb";kicker="Bay Wire  /  Street clips";wirePanel(b);
+    }else if(next==="late-plate"){
+      title="Late Plate";kicker=pictureDesk.packet&&wireDeskNear()?"Bay Wire / Picture desk":"Bay Wire / Page three";platePanel(b);
     }else if(next==="wire-edition"){
       title="Neighborhood edition";kicker="Bay Wire  /  Picture desk";
       for(const story of neighbors.editions)editionPrint(b,story);
@@ -84251,7 +84339,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(pavement.archive.length)b.prepend(makeButton("Folded copies","Bay Wire papers you picked up on the street.","Read",()=>{paperIndex=pavement.archive.length-1;openPanel("pocket-papers");}));
       if(houseLights.s.opened)b.prepend(makeButton("House Lights","Frankie's two-exposure call sheet and the cinema print.","Open sleeve",()=>openPanel("house-lights")));
       if(unit.met)b.prepend(makeButton("Second Unit · "+BaySecondUnit.names[unit.other],"Call for a Window Seat shoot, find your partner or browse your prints.","Call sheet",()=>openPanel("unit-sheet")));
-      if(curbWire.book.met||curbWire.book.clips.length)b.prepend(wireButton());
+      if(curbWire.book.met||curbWire.book.clips.length||pictureDesk.issue)b.prepend(wireButton());
       if(save.edition)b.append(makeButton("Bay Wire",BayExposure.routes[save.edition].headline,"Read edition",()=>openPanel("edition")));
       if(save.meet.cover)b.append(makeButton("Bay Wire · Night edition","Your photograph from Cine Luna.","Read cover",()=>openPanel("meet-cover")));
       if(!active&&!watchCrew.towing)b.append(makeButton("Rosario León","Night counter at El Mercado. Serving from 6 PM to 2 AM.","Set waypoint",()=>clockPin(BayMercadoArt.counter)),
@@ -84559,6 +84647,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(paletaKey(ev.code))return;
     if(neighborKey(ev.code))return;
     if(ev.code==="KeyF"&&!unit.eye&&!unit.transition&&!windowRide&&byCinema()&&!crewDeskNear()){cabAction();return;}
+    if(ev.code==="KeyF"&&!active&&!unit.eye&&!afternoon.photo&&pictureDesk.packet&&wireDeskNear()){deskCrop="street";openPanel("late-plate");return;}
     if(ev.code==="KeyF"&&!active&&!unit.eye&&!afternoon.photo&&(wireDeskNear()||wireWitnessNear())){wireOpen(wireWitnessNear()?.id);return;}
     if(ev.code==="KeyF"&&atCopyRail()){if(atPassScreen())openPanel("clean-through");else readCopies(copySide);return;}
     if(ev.code==="KeyF"&&cornerAction(true))return;
