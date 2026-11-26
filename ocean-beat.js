@@ -3,7 +3,7 @@
 (() => {
   "use strict";
   const posts=[
-    {x:138.15,z:-18.5,dir:2,yaw:Math.PI,name:"Ocean Drive",stand:{x:136.35,z:-20.8}},
+    {x:137.85,z:-11.7,dir:2,yaw:Math.PI,name:"Ocean Drive",stand:{x:136.35,z:-20.8}},
     {x:5.35,z:48,dir:0,yaw:0,name:"Cine Luna",stand:{x:7.52,z:46.4}}
   ];
   const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);

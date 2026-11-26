@@ -545,7 +545,7 @@
     c.restore();
   }
   let stoppedPrint;
-  function drawStopped(c,opt,px,py,s,ride){
+  function drawStopped(ctx,opt,px,py,s,ride){
     if(!opt.lowDetail||s>16||!ride.stopped||(ride.gateOpen!==1&&ride.gateOpen!==0))return false;
     // The boardwalk draws its people separately at their moving seat positions.
     // Other riders can be painted inside a cabin, interleaved with the spokes.
@@ -555,15 +555,28 @@
       if(id==="player"?!opt.boardwalk?.player:!opt.boardwalk?.people?.some(p=>p.id===id))return false;
     }
     const night=opt.weather?.night||opt.dusk||0,lamps=night>.27?3:night>.24?2:night>.18?1:0;
-    const density=s<7?8:s<10?14:22;
+    if(!ctx.getTransform)return false;
+    ctx.save();ctx.translate(px(centre.x),py(centre.z));ctx.scale(s,s);
+    const pose=ctx.getTransform();
     if(!stoppedPrint||stoppedPrint.angle!==ride.angle||stoppedPrint.open!==ride.gateOpen||
-      stoppedPrint.loading!==ride.loading||stoppedPrint.lamps!==lamps||stoppedPrint.density!==density){
-      const draw=BayMapSheet(-11,-15,25,32,density,ink=>{
-        streetMap(ink,opt,x=>x-centre.x,z=>centre.z-z,1,()=>true,ride);
-      });
-      stoppedPrint={angle:ride.angle,open:ride.gateOpen,loading:ride.loading,lamps,density,draw};
+      stoppedPrint.loading!==ride.loading||stoppedPrint.lamps!==lamps||Math.hypot(pose.a-stoppedPrint.a,pose.b-stoppedPrint.b)>.07*s){
+      // Rasterize thin spokes on the same pixel grid as the destination.
+      // Keep the inverse so the wheel still tracks the street between paints.
+      const {a,b,c,d,e,f}=pose;
+      const corners=[[-11,-15],[14,-15],[-11,17],[14,17]];
+      const xs=corners.map(([x,y])=>a*x+c*y+e),ys=corners.map(([x,y])=>b*x+d*y+f);
+      const left=Math.floor(Math.min(...xs))-1,top=Math.floor(Math.min(...ys))-1;
+      const canvas=stoppedPrint?.canvas||document.createElement("canvas");
+      canvas.width=Math.ceil(Math.max(...xs))-left+1;canvas.height=Math.ceil(Math.max(...ys))-top+1;
+      const ink=canvas.getContext("2d");
+      if(!ink){ctx.restore();return false;}
+      const tx=e-left,ty=f-top,det=a*d-b*c;
+      ink.setTransform(a,b,c,d,tx,ty);
+      streetMap(ink,opt,x=>x-centre.x,z=>centre.z-z,1,()=>true,ride);
+      const inverse=[d/det,-b/det,-c/det,a/det,(c*ty-d*tx)/det,(b*tx-a*ty)/det];
+      stoppedPrint={angle:ride.angle,open:ride.gateOpen,loading:ride.loading,lamps,a,b,canvas,inverse};
     }
-    c.save();c.translate(px(centre.x),py(centre.z));c.scale(s,s);stoppedPrint.draw(c);c.restore();
+    ctx.transform(...stoppedPrint.inverse);ctx.drawImage(stoppedPrint.canvas,0,0);ctx.restore();
     return true;
   }
   function map(c,opt,px,py,s,visible){
