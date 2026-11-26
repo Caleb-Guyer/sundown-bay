@@ -26,7 +26,7 @@
   view.buildings=city.opaqueBuildings;
   const jumps=BayPictureJumps;
   const carbon=BayCarbonCopies,tireCloud=[];let puffAt=-10,puffId=0,copySide="left";
-  const passReel=new BayCleanThrough.Reel();let passFilm=null;
+  const passReel=new BayCleanThrough.Reel(city.opaqueBuildings);let passFilm=null;
   if(view.gl){BayPictureJumpArt.build(cityMesh,jumps.sites);view.add("city",cityMesh);cityMesh.vertices.length=0;
     view.add("bay-water",waterMesh);waterMesh.vertices.length=0;}
   const rideScenery=new BayRideFilm.Scenery(()=>{
@@ -7998,13 +7998,13 @@
     scrub.type="range";scrub.min=0;scrub.max=1000;scrub.value=0;scrub.setAttribute("aria-label","Clean Through film position");
     const f=passFilm={canvas,card,play,scrub,at:0,playing:true,time:performance.now(),drawn:-1};
     play.textContent="Pause";play.onclick=()=>{if(f.at>=1)f.at=0;f.playing=!f.playing;f.time=performance.now();play.textContent=f.playing?"Pause":"Play";};
-    scrub.oninput=()=>{f.playing=false;f.at=Number(scrub.value)/1000;play.textContent="Play";BayCleanThrough.draw(canvas,card,f.at);};
-    controls.append(play,scrub);body.append(canvas,controls);BayCleanThrough.draw(canvas,card,0);
+    scrub.oninput=()=>{f.playing=false;f.at=Number(scrub.value)/1000;play.textContent="Play";BayCleanThrough.draw(canvas,card,f.at,city.opaqueBuildings);};
+    controls.append(play,scrub);body.append(canvas,controls);BayCleanThrough.draw(canvas,card,0,city.opaqueBuildings);
   }
   function rollPassFilm(now){
     const f=passFilm;if(!f?.playing||now-f.drawn<50)return;
     f.at=Math.min(1,f.at+Math.max(0,now-f.time)/(160*(f.card.frames.length-1)));f.time=f.drawn=now;
-    f.scrub.value=Math.round(f.at*1000);BayCleanThrough.draw(f.canvas,f.card,f.at);
+    f.scrub.value=Math.round(f.at*1000);BayCleanThrough.draw(f.canvas,f.card,f.at,city.opaqueBuildings);
     if(f.at>=1){f.playing=false;f.play.textContent="Replay";}
   }
   function logPictureJump(v,landing){
