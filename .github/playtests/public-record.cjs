@@ -120,6 +120,13 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert.equal(perf.base.sum,perf.indexed.sum);assert(perf.indexed.candidates<perf.base.candidates*.18);
     console.log("PERF",mode,JSON.stringify(perf));
     if(mode==="overhead"){
+      const wheel=await js("("+require("./wheel-map.cjs").toString()+")()");
+      console.log("PERF Coast Wheel",JSON.stringify(wheel));
+      for(const p of wheel){
+        assert(p.overlap>.96&&p.error<6,"Coast Wheel ink at scale "+p.scale);
+        if(p.scale<=16){assert(p.cached.drawImage>=9&&p.original.stroke-p.cached.stroke>130);}
+        else assert.deepEqual(p.cached,p.original);
+      }
       const roof=await js("("+require("./motel-roof.cjs").toString()+")()");
       console.log("PERF motel roof",JSON.stringify(roof));
       for(const p of roof){

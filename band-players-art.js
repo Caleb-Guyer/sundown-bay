@@ -288,7 +288,7 @@
     let cues=padTimes.get(song);if(!cues){cues=[[],[],[]];for(const n of song.pattern)cues[n.pad].push(n.at);padTimes.set(song,cues);}
     const notes=cues[i];if(!notes.length)return 1;
     let lo=0,hi=notes.length;while(lo<hi){const k=(lo+hi)>>1;if(notes[k]<beat-.001)lo=k+1;else hi=k;}
-    const next=lo<notes.length?notes[lo]:notes[0]+song.bars*4;
+    const next=lo<notes.length?notes[lo]:notes[0]+song.beats;
     const seconds=(next-beat)*60/song.bpm;
     // Prepare early enough that a well-timed tap meets the head in a single small wrist motion.
     return mix(band.playing ? .36 : 0,1,ease(seconds/.117));
@@ -346,7 +346,7 @@
     if(!parts){parts={guitar:preparePicks("guitar",song.accompaniment),bass:preparePicks("bass",song.accompaniment)};fingering.set(song,parts);}
     const notes=parts[part];if(!notes.length)return null;
     if(beat<0)return {fret:notes[0].u,string:notes[0].v,pick:-notes[0].stroke};
-    const length=song.bars*4,clock=beat%length,sec=60/song.bpm;
+    const length=song.beats,clock=beat%length,sec=60/song.bpm;
     let lo=0,hi=notes.length;
     while(lo<hi){const m=(lo+hi)>>1;if(notes[m].at<=clock)lo=m+1;else hi=m;}
     const prev=notes[(lo+notes.length-1)%notes.length],next=notes[lo%notes.length];

@@ -36,7 +36,8 @@
       at[c.id]=([c.home,c.job].includes(raw?.at?.[c.id])||c.id==="bea"&&Object.hasOwn(chairs,raw?.bunch)&&raw.at?.bea===raw.bunch)?raw.at[c.id]:"";
       fares[c.id]=Number.isSafeInteger(raw?.fares?.[c.id])?clamp(raw.fares[c.id],0,99999):0;
     }
-    return {at,fares,bunch:Object.hasOwn(chairs,raw?.bunch)?raw.bunch:"",reel:["player","mina"].includes(raw?.reel)?raw.reel:"",rides:Number.isSafeInteger(raw?.rides)?clamp(raw.rides,0,99999):0};
+    const bunch=Object.hasOwn(chairs,raw?.bunch)?raw.bunch:"";
+    return {at,fares,bunch,waltz:!!bunch&&raw.waltz===true,reel:["player","mina"].includes(raw?.reel)?raw.reel:"",rides:Number.isSafeInteger(raw?.rides)?clamp(raw.rides,0,99999):0};
   }
   function intersection(p,forward){
     const [dx,dz]=directions[p.dir],along=dx?p.x:p.z,sign=(dx||dz)*(forward?1:-1);

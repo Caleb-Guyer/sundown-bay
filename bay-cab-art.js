@@ -747,7 +747,7 @@
   function flowerTag(canvas,id,reply){
     const seat=BayCab.chairs[id];if(!seat)return;
     canvas.width=760;canvas.height=420;
-    canvas.setAttribute("aria-label",(reply?"On the back of Bea’s card. ":"Bea’s anniversary flowers. ")+(reply?seat.reply:seat.inscription));
+    canvas.setAttribute("aria-label",(reply?"On the back of Bea’s card. ":"Bea’s anniversary flowers. ")+(reply?seat.reply+" The Wheel Keeps Time, 3/4. Sol Sound Shell.":seat.inscription));
     const c=canvas.getContext("2d");
     c.fillStyle="#324e4a";c.fillRect(0,0,760,420);
     c.save();c.translate(380,210);c.rotate(reply?.025:-.04);
@@ -765,7 +765,11 @@
     const lines=reply?(id==="marlin"?["I put them where I can see them","from the pillow."]:["Played your waltz at half speed.","Nobody hurried me."]):[seat.inscription];
     c.fillStyle=reply?"#345369":"#354b40";c.font="italic 31px Georgia";
     lines.forEach((line,i)=>c.fillText(line,-225,8+i*39,452));
-    c.font="italic 26px Georgia";c.fillText(reply?(id==="marlin"?"Mum":"Otis"):"Bea",150,103);
+    if(reply){
+      c.fillStyle="#596460";c.font="italic 17px Georgia";c.fillText("The Wheel Keeps Time",-225,82);
+      c.font="13px monospace";c.fillText("3/4   •   Sol Sound Shell",-224,106);
+    }
+    c.fillStyle=reply?"#345369":"#354b40";c.font="italic 26px Georgia";c.fillText(reply?(id==="marlin"?"Mum":"Otis"):"Bea",150,103);
     c.restore();
   }
   function meterSlip(canvas,plate,street,model){

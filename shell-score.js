@@ -3,12 +3,12 @@
   'use strict';
 
   const padNames = ['K', 'S', 'H'];
-  function drumChart(bars) {
+  function drumChart(bars,beatsPerBar=4) {
     const pattern = [];
     bars.forEach((bar, measure) => {
       [...bar.replaceAll(' ', '')].forEach((mark, sixteenth) => {
         const pad = padNames.indexOf(mark);
-        if (pad >= 0) pattern.push({at: measure * 4 + sixteenth / 4, pad});
+        if (pad >= 0) pattern.push({at: measure * beatsPerBar + sixteenth / 4, pad});
       });
     });
     return pattern;
@@ -76,10 +76,23 @@
     ])
   };
 
+  // Otis left the changes in Bea's handwriting. The first phrase leaves room for the wheel.
+  const waltz = {
+    id:'wheel-waltz', name:'The Wheel Keeps Time', bpm:84, bars:8, beatsPerBar:3,
+    grips:[[55,59,62],[54,57,62],[55,59,64],[55,60,64],[55,59,62],[54,57,60],[54,57,62],[55,59,62]],
+    bass:[[[0,43,1.55],[2,50,.55]],[[0,42,1.65],[2,45,.45]],[[0,40,1.60],[2,47,.50]],
+      [[0,36,2.20]],[[0,43,1.55],[2,47,.60]],[[0,38,1.72],[2,45,.50]],[[0,38,1.4],[1.5,42,.9]],[[0,43,2.75]]],
+    phrases:[[[0,71,1.4],[2,69,.64]],[[0,66,2.28]],[[.5,67,.43],[1,71,1.5]],[[0,72,1.65],[2,69,.56]],
+      [[0,67,1.65],[2,66,.60]],[[0,64,1],[1.5,66,.62]],[[0,69,1.65],[2,66,.58]],[[0,67,2.56]]],
+    strums:[[1,.38,.69],[2,.28,.46]],
+    pattern:drumChart(['K--- S--- H---','K--- S--- H---','K--- S--- H-H-','K--- S--- H---',
+      'K--- S--- H---','K--- S-H- H---','K--- S--- H-S-','K--- H--- S---'],3)
+  };
+
   function voicesFor(song) {
     const events = [];
     for (let bar = 0; bar < song.bars; bar++) {
-      const base = bar * 4;
+      const base = bar * (song.beatsPerBar || 4);
       for (const [at, note, length] of song.bass[bar]) {
         events.push({at: base + at, kind: 'bass', note, length, velocity: at === 0 ? 1 : .82});
       }
@@ -94,8 +107,9 @@
     return events.sort((a,b) => a.at - b.at);
   }
 
-  const songs = [jetty, neon].map(score => ({
+  const songs = [jetty, neon, waltz].map(score => ({
     id: score.id, name: score.name, bpm: score.bpm, bars: score.bars,
+    beatsPerBar: score.beatsPerBar || 4, beats: score.bars * (score.beatsPerBar || 4),
     pattern: score.pattern, accompaniment: voicesFor(score)
   }));
   const catalogue = new Map(songs.map(s => [s.id, s]));
@@ -103,9 +117,8 @@
   const clampGain = x => clamp(Number(x) || 0, 0, 1);
   const empty = [];
 
-  function visit(notes, from, to, bars, repeat, play) {
+  function visit(notes, from, to, span, repeat, play) {
     if (!notes.length || to <= 0 || from >= to) return;
-    const span = bars * 4;
     const begin = repeat ? Math.floor(Math.max(0, from) / span) * span : 0;
     for (let base = begin; base < to; base += span) {
       let lo = 0, hi = notes.length;
@@ -244,7 +257,7 @@
         if (state.playback !== replaySource || song !== replaySong) {
           replaySource = state.playback;
           replaySong = song;
-          const notes = replaySource.filter(n => Number.isFinite(n?.at) && n.at >= 0 && n.at < song.bars*4 &&
+          const notes = replaySource.filter(n => Number.isFinite(n?.at) && n.at >= 0 && n.at < song.beats &&
             Number.isInteger(n.pad) && n.pad >= 0 && n.pad < 3).sort((a,b) => a.at-b.at);
           if (notes.length !== replayPart.length || notes.some((n,i) => n.at !== replayPart[i].at || n.pad !== replayPart[i].pad)) replayPart = notes;
         }
@@ -255,7 +268,7 @@
     function update(state, now) {
       const song = catalogue.get(state?.song);
       if (!song || !Number.isFinite(state.beat) || clampGain(state.gain) < .003) { if (transport) stop(now); return 0; }
-      const rate = song.bpm/60, span = song.bars*4;
+      const rate = song.bpm/60, span = song.beats;
       const repeat = state.source === 'stage' && !state.live;
       if (!repeat && state.beat >= span) { if (transport) stop(now); return 0; }
       open(); mix(state,now);
@@ -278,9 +291,9 @@
       const from = Math.max(transport.cursor, at-.07), to = Math.max(from, at+.123*rate);
       const time = position => now + Math.max(.004,(position-at)/rate);
       if (from < 0 && state.live) {
-        for (let i = Math.max(-4,Math.ceil(from)); i < Math.min(0,to); i++) playPad(3,time(i),i === -4 ? 1 : .72);
+        for (let i = Math.max(-song.beatsPerBar,Math.ceil(from)); i < Math.min(0,to); i++) playPad(3,time(i),i === -song.beatsPerBar ? 1 : .72);
       }
-      visit(song.accompaniment,from,to,song.bars,repeat,(n,pos) => {
+      visit(song.accompaniment,from,to,song.beats,repeat,(n,pos) => {
         const start = time(pos), seconds = n.length/rate;
         if (n.kind === 'bass') { string(n.note,start,seconds,.31*n.velocity,true); return; }
         if (state.guitar === false) return;
@@ -291,7 +304,7 @@
           string(n.notes[idx],start+i*.009,seconds,.091*n.velocity*(1-i*.07),false);
         }
       });
-      visit(drumPart,from,to,song.bars,repeat,(n,pos) => {
+      visit(drumPart,from,to,song.beats,repeat,(n,pos) => {
         const accent = isTape ? 1 : (n.pad === 2 ? .76 : 1) * (pos % 1 ? .87 : 1);
         playPad(n.pad,time(pos),accent);
       });

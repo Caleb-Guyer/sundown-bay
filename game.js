@@ -375,6 +375,7 @@
       if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
       save.cab.fares.bea=Math.max(save.cab.fares.bea,BayCab.read(latest.cab).fares.bea);
     }
+    if(save.cab.bunch&&latest?.cab?.bunch===save.cab.bunch&&latest.cab.waltz===true)save.cab.waltz=true;
     if(latest?.meterCopy?.rev>(save.meterCopy?.rev||0)){
       const copy=BayCab.readMeter(latest.meterCopy);if(copy)save.meterCopy=copy;
     }
@@ -864,7 +865,11 @@
     if(campaign.scene?.id==="collectionOpen"&&campaign.scene.index===0&&save.collection.last){
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
     }
-    if(b?.art==="flowerTag")BayCabArt.flowerTag($("chapterInsert"),save.cab.bunch,campaign.scene.id==="flowerReply");
+    if(b?.art==="flowerTag"){
+      const reply=campaign.scene.id==="flowerReply";
+      BayCabArt.flowerTag($("chapterInsert"),save.cab.bunch,reply);
+      if(reply)$("chapterLine").textContent=save.cab.bunch==="wheel"?"Otis pencilled a title beneath his name. Ben has the sheet at the Sol Sound Shell.":"There’s a tune tucked under the ribbon. Mum asked Ben to leave a copy at the Sol Sound Shell.";
+    }
     if(b?.art==="meterCopy"&&meterCar()){
       const v=meterCar();BayCabArt.meterSlip($("chapterInsert"),BayStreetCars.plateFor(v),district(v),formatVehicle(v));
       $("chapterLine").textContent="Read me those letters. "+BayStreetCars.plateFor(v)+". Good. I put the street underneath in case I got the number wrong.";
@@ -912,6 +917,11 @@
     if(campaign.table?.kind==="splice")sound.reel(null);
     campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("roadChoices").hidden=true;$("game").classList.toggle("in-chapter",false);
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
+    if(id==="flowerReply"&&save.cab.bunch&&!save.cab.waltz){
+      save.cab.waltz=true;persist();
+      waypoint={...band.site.board,kind:"set-list",name:"The Wheel Keeps Time · Sol Sound Shell"};
+      note("Bea’s family waltz","The band put it on the set list. Ben has a stool for you.",5);
+    }
     if(filmReplay){filmReplay=false;return;}
     if(id==="collectionLuna"||id==="collectionPort"){payrollReceipt=null;return;}
     if(id==="lastMeter"){pointToMeterRank();return;}
@@ -5282,10 +5292,10 @@
   }
   function beginSet(id){
     if(!atSetList()||band.june.ride||!BaySessions.byId(id))return;
-    if(id==="neon"&&!save.band.shows&&!save.juneReturned)return;
+    if(id==="neon"&&!save.band.shows&&!save.juneReturned||id==="wheel-waltz"&&!save.cab.waltz)return;
     if(!band.begin(id,hero,motion,bandEnv))return;
     active={job:bandJob,band:true};waypoint=null;band.outing="";kitCam=0;band.pan=band.tilt=0;keys.clear();closePanel();lastMap=lastHud=-10;
-    speak("Ben Mora","Take my stool. White line’s your beat. I’ll count you in.");
+    speak("Ben Mora",id==="wheel-waltz"?"Bea wrote the changes on florist paper. Still smells of mint. Three to the bar. You take the first one.":"Take my stool. White line’s your beat. I’ll count you in.");
   }
   function cueTape(id){
     if(!bandEnv.deck()||!band.playTape(id))return;
@@ -5311,14 +5321,14 @@
     const take=band.take,box=$("bandHud");box.hidden=!take;$("hud").classList.toggle("onstage",!!take);
     if(!take)return;
     $("bandName").textContent=take.song.name;
-    $("bandBar").textContent=take.phase==="seat"?"CHANGEOVER":take.phase==="result"?take.score+"%":take.beat<0?"COUNT  "+Math.ceil(-take.beat):"BAR  "+Math.min(take.song.bars,1+Math.floor(take.beat/4))+" / "+take.song.bars;
-    $("bandPhrase").textContent=take.phase==="result"?(take.master?"New cassette master":take.pay?"Take complete":"Try the take again"):take.phase==="seat"?"Ben is giving you his stool":take.phase==="leave"?"Stepping away":take.beat<0?"Four beats in":take.feedbackTime?take.feedback:"Play at the white line";
+    $("bandBar").textContent=take.phase==="seat"?"CHANGEOVER":take.phase==="result"?take.score+"%":take.beat<0?"COUNT  "+Math.ceil(-take.beat):"BAR  "+Math.min(take.song.bars,1+Math.floor(take.beat/take.song.beatsPerBar))+" / "+take.song.bars;
+    $("bandPhrase").textContent=take.phase==="result"?(take.master?"New cassette master":take.pay?"Take complete":"Try the take again"):take.phase==="seat"?"Ben is giving you his stool":take.phase==="leave"?"Stepping away":take.beat<0?(take.song.beatsPerBar===3?"Three beats in":"Four beats in"):take.feedbackTime?take.feedback:"Play at the white line";
     $("bandChain").textContent=take.phase==="result"?(take.pay?cash(take.pay)+"  ·  ":"")+"Best streak "+take.longest:take.chain>1?take.chain+" in a row":"";
     const c=$("bandRoll");if(!c.getContext)return;
     const ctx=c.getContext("2d"),w=c.width,h=c.height,mark=130,unit=90,beat=take.beat;
     ctx.fillStyle="#142b2e";ctx.fillRect(0,0,w,h);
     for(let k=Math.floor(beat)-1;k<beat+6;k++){
-      const x=mark+(k-beat)*unit;if(x<92)continue;ctx.fillStyle=k%4===0?"#628078":"#344b49";ctx.fillRect(x,0,k%4===0?2:1,h);
+      const x=mark+(k-beat)*unit;if(x<92)continue;ctx.fillStyle=k%take.song.beatsPerBar===0?"#628078":"#344b49";ctx.fillRect(x,0,k%take.song.beatsPerBar===0?2:1,h);
     }
     ctx.font="bold 16px monospace";ctx.textAlign="left";ctx.textBaseline="middle";
     for(let i=0;i<3;i++){
@@ -9003,15 +9013,20 @@
     }
   }
   let recoveryArtReady=false,wheelArtReady=false,pedalArtReady=false;
+  // High-detail frames also use these meshes for projected street shadows.
+  const wheelBounds={x:0,y:13,z:0,hw:13,hh:15,hd:15,r:25},performerBounds={x:0,y:1,z:0,hw:2.6,hh:2.6,hd:2.6,r:4.6};
+  function streetGroupVisible(bounds,p,y){
+    return view.scale>.74||view.inFrame(bounds,p.x,y,p.z,0,0,0);
+  }
   function drawBoardwalk(list,see,t){
-    if(see(BayCoastWheelArt.centre,320)){
+    if(see(BayCoastWheelArt.centre,320)&&streetGroupVisible(wheelBounds,BayCoastWheelArt.centre,0)){
       if(!wheelArtReady){BayCoastWheelArt.install(model);wheelArtReady=true;}
       BayCoastWheelArt.world(list,see,t,hours,boardwalk.wheel);
     }
     if(!see(bikePin,110)&&!see(coastGate,135)&&!see(cycles.javi,80)&&!cycles.bikes.some(b=>see(b,75)))return;
     if(!pedalArtReady){BayBoardwalkArt.install(model);BayPedalArt.install(model);pedalArtReady=true;}
     for(const p of [boardwalk.mags,...boardwalk.people]){
-      if(!see(p,67))continue;const key="wheel-regular/"+p.id;
+      if(!see(p,67)||!streetGroupVisible(performerBounds,p,p.y+p.motion.lift))continue;const key="wheel-regular/"+p.id;
       if(!p.mesh){p.mesh=new BayPlayerMesh(BayBoardwalkArt.colors[p.id],BayBoardwalkArt.roles[p.id]);BayBoardwalkArt.dress(p.mesh,p.id);view.add(key,p.mesh,true);}
       const changed=p.mesh.update(p.motion),posed=BayBoardwalkArt.pose(p,t);if(changed||posed)view.updateAnimated(key);
       list.push([key,p.x,p.y+p.motion.lift,p.z,p.yaw]);
@@ -9046,7 +9061,7 @@
   function drawBand(list,see,t){
     if(!play)return;
     for(const p of band.performers){
-      if(!see(p,p.ride?44:66))continue;
+      if(!see(p,p.ride?44:66)||(!p.ride&&!streetGroupVisible(performerBounds,p,p.y+p.motion.lift)))continue;
       const key="shell-player/"+p.id;
       if(!p.mesh){p.mesh=new BayPlayerMesh(BayBandPlayers.colors[p.id],BayBandPlayers.roles[p.id]);BayBandPlayers.dress(p.mesh,p.id);view.add(key,p.mesh,true);}
       const dodge=p===band.june&&p.state==="motel"&&band.local.startle;
@@ -11506,8 +11521,9 @@
       signedNote(b,band.june.state==="shell"?"“June’s on guitar. Lena’s got the bass. When I stand up, the sticks are yours.”":"“It’s an open rehearsal. Pull up to the kit when I get off. June’s usually at the Marlin before the evening set.”","Ben Mora");
       const controls=document.createElement("p");controls.textContent="Tap A for kick, S for snare and D for hi-hat as each diamond reaches the white line. A take of 55% or better earns a cut of the door and a cassette for your car.";b.append(controls);
       for(const song of BayShellScore.songs){
-        const best=save.band.best[song.id],open=song.id==="jetty"||save.band.shows>0||save.juneReturned;
-        const row=makeButton(song.name,open?song.bpm+" BPM  ·  "+(song.id==="jetty"?"Straight backbeat":"Syncopated backbeat")+(best?"  ·  Best "+best.score+"%":""):
+        const waltz=song.id==="wheel-waltz";if(waltz&&!save.cab.waltz)continue;
+        const best=save.band.best[song.id],open=waltz||song.id==="jetty"||save.band.shows>0||save.juneReturned;
+        const row=makeButton(song.name,open?song.bpm+" BPM  ·  "+(waltz?"3/4 · Bea Salas’s family waltz":song.id==="jetty"?"Straight backbeat":"Syncopated backbeat")+(best?"  ·  Best "+best.score+"%":""):
           "Cut a first take or bring June her blue-dot demo.",""+(open?"Take the sticks":"Side B"),()=>beginSet(song.id));row.disabled=!open;b.append(row);
       }
     }else if(next==="valet-desk"){

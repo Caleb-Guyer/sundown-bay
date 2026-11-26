@@ -364,18 +364,73 @@
     for(let i=0;i<8;i++){const a=i*tau/8;c.beginPath();c.moveTo(0,-.85);c.lineTo(3.35*Math.sin(a),-.85+3.35*Math.cos(a));c.stroke();}
     c.strokeStyle="#e99a76";c.lineWidth=1.10;c.beginPath();c.moveTo(-2.5,4);c.lineTo(0,-.85);c.lineTo(2.5,4);c.stroke();c.restore();
   }
+  function wheelLine(c,a,b,w,color){
+    c.beginPath();c.moveTo(...a);c.lineTo(...b);c.lineWidth=w;c.strokeStyle=color;c.stroke();
+  }
+  function wheelPoly(c,a,color){
+    c.beginPath();c.moveTo(...a[0]);for(let i=1;i<a.length;i++)c.lineTo(...a[i]);c.closePath();c.fillStyle=color;c.fill();
+  }
+  function wheelDot(c,p,r,color){c.beginPath();c.arc(p[0],p[1],r,0,tau);c.fillStyle=color;c.fill();}
+  // Each cabin hangs level while the rim turns. Only its projected origin moves.
+  const projectPart=(x,h,z)=>[x+.33*h,z+.13*h];
+  const prints=new Map(),cabinSheet=[-3.1,-1.13,5.7,2.40],crestSheet=[-.62,-2.55,1.24,5.1];
+  function partPrint(c,key,bounds,painter,id,gate){
+    let image=prints.get(key);
+    const [x,z,w,h]=bounds;
+    if(!image){
+      const density=32,width=Math.ceil(w*density),height=Math.ceil(h*density);
+      if(typeof OffscreenCanvas==="function")image=new OffscreenCanvas(width,height);
+      else {image=document.createElement("canvas");image.width=width;image.height=height;}
+      const ink=image.getContext("2d");if(!ink){painter(c,id,gate);return;}
+      ink.setTransform(width/w,0,0,height/h,-x*width/w,-z*height/h);
+      ink.lineJoin="round";ink.lineCap="round";painter(ink,id,gate);prints.set(key,image);
+    }
+    c.drawImage(image,x,z,w,h);
+  }
+  function crestPrint(c,side){
+    const P=(u,h)=>projectPart(0,h,side*u);
+    for(const [r,col] of [[1.36,ivory],[1.22,red]]){
+      const loop=[];for(let i=0;i<16;i++)loop.push(P(r*Math.sin(i*tau/16),r*Math.cos(i*tau/16)));
+      wheelPoly(c,loop,col);
+    }
+    wheelPoly(c,[P(-2.23,-.31),P(-1.77,.47),P(2.20,.34),P(1.76,-.38)],ivory);
+    wheelPoly(c,[P(-2.08,-.25),P(-1.68,.38),P(2.05,.29),P(1.66,-.28)],blue);
+    for(let i=0;i<5;i++){
+      const paths=glyphs["COAST"[i]],start=-.95+i*.41;
+      for(const part of paths)for(let j=1;j<part.length;j++){
+        const at=p=>P(start+.26*p[0]+.03*p[1],-.17+.39*p[1]);wheelLine(c,at(part[j-1]),at(part[j]),.039,ivory);
+      }
+    }
+  }
+  function cabinPrint(c,i,gate){
+    const shell=paints[i],trim=stripes[i],top=.87,west=-1.72,back=.81;
+    const P=projectPart;
+    wheelPoly(c,[P(-1.60,-.12,-.77),P(1.60,-.12,-.77),P(1.76,-.12,-.59),P(1.76,-.12,.63),
+      P(1.58,-.12,.79),P(-1.58,-.12,.79),P(-1.77,-.12,.62),P(-1.77,-.12,-.60)],shell);
+    for(const side of [-1,1]){
+      wheelPoly(c,[P(-1.61,.05,side*.75),P(1.61,.05,side*.75),P(1.61,top,side*back),P(-1.61,top,side*back)],shell);
+      wheelLine(c,P(-1.57,.645,side*.784),P(1.56,.645,side*.784),.071,trim);
+      wheelLine(c,P(-1.58,top,side*back),P(1.61,top,side*back),.11,ivory);
+    }
+    wheelLine(c,P(1.68,top,-.73),P(1.68,top,.73),.13,trim);
+    wheelLine(c,P(-.43,seatY,-.50),P(1.44,seatY,-.50),.36,trim);
+    wheelLine(c,P(-1.05,seatY,.50),P(.012,seatY,.50),.36,trim);
+    const yaw=gate*1.47;
+    wheelLine(c,P(west,.915,.646),P(west-1.285*Math.sin(yaw),.915,.646-1.285*Math.cos(yaw)),.10,ivory);
+    for(const side of [-1,1]){
+      for(const end of [-1,1])wheelLine(c,P(end*1.60,top,side*.68),P(end*1.64,2.08,0),.075,side>0?ivory:shell);
+    }
+    for(const part of glyphs[String(i+1)])for(let j=1;j<part.length;j++){
+      const at=p=>P(.98+p[0]*.19,.30+p[1]*.28,-.86);
+      wheelLine(c,at(part[j-1]),at(part[j]),.038,ivory);
+    }
+  }
   function streetMap(c,opt,px,py,s,visible,ride){
     if(!visible(px(centre.x),py(centre.z),19*s))return;
     const angle=ride.angle||0,open=clamp(ride.gateOpen||0,0,1),night=opt.weather?.night||opt.dusk||0;
     c.save();c.translate(px(centre.x),py(centre.z));c.scale(s,-s);c.lineCap="round";c.lineJoin="round";
     const point=(x,h,z)=>[x+.33*h,z+.13*h],volume=(x,h,z)=>h-.33*x-.13*z;
-    function line(a,b,w,color){
-      c.beginPath();c.moveTo(...a);c.lineTo(...b);c.lineWidth=w;c.strokeStyle=color;c.stroke();
-    }
-    function poly(a,color){
-      c.beginPath();c.moveTo(...a[0]);for(let i=1;i<a.length;i++)c.lineTo(...a[i]);c.closePath();c.fillStyle=color;c.fill();
-    }
-    function dot(p,r,color){c.beginPath();c.arc(p[0],p[1],r,0,tau);c.fillStyle=color;c.fill();}
+    const line=(a,b,w,col)=>wheelLine(c,a,b,w,col),poly=(a,col)=>wheelPoly(c,a,col),dot=(p,r,col)=>wheelDot(c,p,r,col);
     function box(x0,z0,x1,z1,h,col){poly([point(x0,h,z0),point(x1,h,z0),point(x1,h,z1),point(x0,h,z1)],col);}
     const rim=(x,r,a)=>[x,centre.y-r*Math.cos(a),r*Math.sin(a)];
     const shadeAt=p=>[p[0]-.21*p[1],p[2]-.17*p[1]];
@@ -434,43 +489,19 @@
     }
     beam([-2.89,centre.y,0],[2.89,centre.y,0],.47,ink);
     for(const side of [-1,1])pieces.push({depth:volume(side*2.99,centre.y,0),crest:side});
+    const usePrints=opt.lowDetail&&s<=16;
     function drawCrest(side){
-      const x=side*2.99,P=(u,h)=>point(x,centre.y+h,side*u);
-      for(const [r,col] of [[1.36,ivory],[1.22,red]]){
-        const loop=[];for(let i=0;i<16;i++)loop.push(P(r*Math.sin(i*tau/16),r*Math.cos(i*tau/16)));
-        poly(loop,col);
-      }
-      poly([P(-2.23,-.31),P(-1.77,.47),P(2.20,.34),P(1.76,-.38)],ivory);
-      poly([P(-2.08,-.25),P(-1.68,.38),P(2.05,.29),P(1.66,-.28)],blue);
-      for(let i=0;i<5;i++){
-        const paths=glyphs["COAST"[i]],start=-.95+i*.41;
-        for(const part of paths)for(let j=1;j<part.length;j++){
-          const at=p=>P(start+.26*p[0]+.03*p[1],-.17+.39*p[1]);line(at(part[j-1]),at(part[j]),.039,ivory);
-        }
-      }
+      const at=point(side*2.99,centre.y,0);c.save();c.translate(...at);
+      if(usePrints)partPrint(c,"crest"+side,crestSheet,crestPrint,side,0);else crestPrint(c,side);
+      c.restore();
     }
     function drawCar(i,z,y){
-      const shell=paints[i],trim=stripes[i],top=.87,west=-1.72,back=.81;
+      const gate=i===ride.loading?open:0,at=point(0,y,z);
+      c.save();c.translate(...at);
+      if(usePrints&&(gate===0||gate===1))partPrint(c,i+8*gate,cabinSheet,cabinPrint,i,gate);
+      else cabinPrint(c,i,gate);
+      c.restore();
       const P=(x,h,v)=>point(x,y+h,z+v);
-      poly([P(-1.60,-.12,-.77),P(1.60,-.12,-.77),P(1.76,-.12,-.59),P(1.76,-.12,.63),
-        P(1.58,-.12,.79),P(-1.58,-.12,.79),P(-1.77,-.12,.62),P(-1.77,-.12,-.60)],shell);
-      for(const side of [-1,1]){
-        poly([P(-1.61,.05,side*.75),P(1.61,.05,side*.75),P(1.61,top,side*back),P(-1.61,top,side*back)],shell);
-        line(P(-1.57,.645,side*.784),P(1.56,.645,side*.784),.071,trim);
-        line(P(-1.58,top,side*back),P(1.61,top,side*back),.11,ivory);
-      }
-      line(P(1.68,top,-.73),P(1.68,top,.73),.13,trim);
-      line(P(-.43,seatY,-.50),P(1.44,seatY,-.50),.36,trim);
-      line(P(-1.05,seatY,.50),P(.012,seatY,.50),.36,trim);
-      const yaw=i===ride.loading?open*1.47:0;
-      line(P(west,.915,.646),P(west-1.285*Math.sin(yaw),.915,.646-1.285*Math.cos(yaw)),.10,ivory);
-      for(const side of [-1,1]){
-        for(const end of [-1,1])line(P(end*1.60,top,side*.68),P(end*1.64,2.08,0),.075,side>0?ivory:shell);
-      }
-      for(const part of glyphs[String(i+1)])for(let j=1;j<part.length;j++){
-        const at=p=>P(.98+p[0]*.19,.30+p[1]*.28,-.86);
-        line(at(part[j-1]),at(part[j]),.038,ivory);
-      }
       for(let j=0;j<3;j++){
         const occupant=ride.seats?.[i]?.[j];if(occupant===null||occupant===undefined)continue;
         const id=String(occupant.id??occupant),isPlayer=id==="player";

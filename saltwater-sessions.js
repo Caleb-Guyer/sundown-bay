@@ -15,20 +15,20 @@
     for(const s of songs){
       const r=raw?.best?.[s.id];
       if(!r||!Number.isInteger(r.score)||r.score<55||r.score>100||!Array.isArray(r.notes)||!r.notes.length||r.notes.length>220)continue;
-      if(!r.notes.every(n=>Number.isFinite(n?.at)&&n.at>=0&&n.at<s.bars*4&&Number.isInteger(n.pad)&&n.pad>=0&&n.pad<3))continue;
+      if(!r.notes.every(n=>Number.isFinite(n?.at)&&n.at>=0&&n.at<s.beats&&Number.isInteger(n.pad)&&n.pad>=0&&n.pad<3))continue;
       best[s.id]={score:r.score,chain:count(r.chain),june:r.june===true,notes:r.notes.map(n=>({at:n.at,pad:n.pad})).sort((a,b)=>a.at-b.at)};
     }
     return {met:raw?.met===true,shows:count(raw?.shows),best,last:Object.hasOwn(best,raw?.last)?raw.last:Object.keys(best)[0]||"",drives:count(raw?.drives)};
   }
   class Take{
     constructor(song,june){
-      this.song=song;this.june=june;this.phase="seat";this.beat=-4;this.seated=0;this.notes=song.pattern.map(n=>({...n,state:0}));
+      this.song=song;this.june=june;this.phase="seat";this.beat=-song.beatsPerBar;this.seated=0;this.notes=song.pattern.map(n=>({...n,state:0}));
       this.hits=[];this.chain=0;this.longest=0;this.landed=0;this.points=0;this.extra=0;this.feedback="";this.feedbackTime=0;this.lastPad=-1;
       this.elapsedNotes=0;this.expiredNotes=0;
     }
     strike(pad){
-      if(this.phase!=="play"||this.beat<0||this.beat>=this.song.bars*4)return;
-      if(this.hits.length<220)this.hits.push({at:Math.min(this.song.bars*4-1/96,Math.round(this.beat*96)/96),pad});
+      if(this.phase!=="play"||this.beat<0||this.beat>=this.song.beats)return;
+      if(this.hits.length<220)this.hits.push({at:Math.min(this.song.beats-1/96,Math.round(this.beat*96)/96),pad});
       let target=null,d=.285;
       for(const n of this.notes){
         const error=Math.abs(n.at-this.beat);if(!n.state&&n.pad===pad&&error<d){d=error;target=n;}
@@ -46,7 +46,7 @@
       while(this.expiredNotes<this.elapsedNotes&&this.notes[this.expiredNotes].at<this.beat-.285){
         const n=this.notes[this.expiredNotes++];if(!n.state){n.state=-1;this.chain=0;}
       }
-      return this.beat>=this.song.bars*4+.12;
+      return this.beat>=this.song.beats+.12;
     }
     finish(){
       const score=clamp(Math.round(100*(this.points-Math.max(0,this.extra-4)*.40)/Math.max(1,this.notes.length)),0,100);
@@ -215,7 +215,7 @@
     }
     retake(){
       if(this.take?.phase!=="result")return false;
-      this.take=new Take(this.song,this.june.state==="shell");this.take.phase="count";this.beat=-4;this.playing=true;
+      this.take=new Take(this.song,this.june.state==="shell");this.take.phase="count";this.beat=this.take.beat;this.playing=true;
       this.strikes=[20,20,20];return true;
     }
     stopTake(hero,motion){
@@ -274,7 +274,7 @@
         b.work="";followPath(b,b.path,1.65,dt,env);
       }else{b.work="kit";b.yaw=this.site.kit.yaw;b.join=clamp(b.join+dt*2.2,0,1);b.motion.step(dt,0,0);}
       const before=this.beat;this.beat+=dt*this.song.bpm/60;
-      if(this.beat>=this.song.bars*4){this.beat=0;this.song=env.night()?songs[1]:songs[0];}
+      if(this.beat>=this.song.beats){this.beat=0;this.song=env.night()?songs[1]:songs[0];}
       for(const n of this.song.pattern)if((n.at>before||this.beat<before)&&n.at<=this.beat)this.strikes[n.pad]=0;
       this.crowd+=((env.night()?.74:.25)-this.crowd)*dt;
     }
@@ -285,7 +285,7 @@
     audio(dt,p,env){
       if(this.tape){
         const t=this.tape;
-        if(!env.deck()||t.beat>=t.song.bars*4){this.tape=null;this.onAir=false;}
+        if(!env.deck()||t.beat>=t.song.beats){this.tape=null;this.onAir=false;}
         else {const beat=t.beat;t.beat+=dt*t.song.bpm/60;return {source:"tape",song:t.id,beat,gain:.88,pan:0,live:false,mutedPads:true,guitar:t.data.june,playback:t.data.notes};}
       }
       if(this.take&&["seat","result","leave"].includes(this.take.phase))return null;

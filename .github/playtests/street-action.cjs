@@ -16,6 +16,7 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
       return result;};
     const fire=BayStreetAction.Action.prototype.fire;BayStreetAction.Action.prototype.fire=function(){q.action=this;return fire.apply(this,arguments);};
     const map=BayStreetAction.map;BayStreetAction.map=function(c,a){if(a.marks.length)q.marksDrawn=true;return map.apply(this,arguments);};
+    const bandStep=BaySessions.Band.prototype.step;BaySessions.Band.prototype.step=function(){ga.band=this;return bandStep.apply(this,arguments);};
     const world=BayView.prototype.draw;BayView.prototype.draw=function(name){if(name==="street-stain")q.marksDrawn=true;return world.apply(this,arguments);};
     q.at=(p,x,z)=>Object.assign(p,{x,z,y:q.floor(x,z)});`);
   await waitFor("fightQA.h&&fightQA.rig&&fightQA.cars?.length");
@@ -144,6 +145,7 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await send("Page.reload");await waitFor("!window.meterQA&&document.readyState==='complete'&&typeof BayCab==='object'");
   await js(`window.giftQA={};const ga=giftQA;
     const step=BayCab.Service.prototype.step;BayCab.Service.prototype.step=function(dt,env){ga.h=env.hero;ga.cab=this;return step.apply(this,arguments);};
+    const bandStep=BaySessions.Band.prototype.step;BaySessions.Band.prototype.step=function(){ga.band=this;return bandStep.apply(this,arguments);};
     const world=BayView.prototype.draw;BayView.prototype.draw=function(id){if(id==='anniversary-chair')ga.chair=true;return world.apply(this,arguments);};
     document.querySelector('#play').click();true`);
   await waitFor("ga.h&&ga.cab");assert.equal(await js("ga.cab.memory.bunch"),bouquet);
@@ -158,5 +160,22 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await waitFor("!document.querySelector('#chapterInsert').hidden");
   assert(await js("document.querySelector('#chapterInsert').getAttribute('aria-label').includes("+JSON.stringify(bouquet==="marlin"?"pillow":"Otis")+")"));
   await snap("flower-reply");assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+  await tap("Enter");await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).cab.waltz&&ga.band");
+  await js("Object.assign(ga.h,ga.band.site.board);true");await tap("KeyF");
+  await waitFor("document.querySelector('#panelBody').textContent.includes('The Wheel Keeps Time')");
+  await js(button("The Wheel Keeps Time"));await waitFor("ga.band.take?.phase==='count'",30000);
+  assert.equal(await js("ga.band.take.song.beats"),24);
+  await js(`ga.nextBeat=0;function playWaltz(){const t=ga.band.take;if(!t||t.phase==='result')return;
+    if(t.phase==='play')while(ga.nextBeat<t.notes.length&&t.notes[ga.nextBeat].at<=t.beat){
+      const code=['KeyA','KeyS','KeyD'][t.notes[ga.nextBeat++].pad];
+      for(const evt of ['keydown','keyup'])window.dispatchEvent(new KeyboardEvent(evt,{code,bubbles:true,cancelable:true}));
+    }requestAnimationFrame(playWaltz);
+  }requestAnimationFrame(playWaltz);true`);
+  await waitFor("ga.band.take?.beat>3");await snap("waltz-stage");
+  await waitFor("ga.band.take?.phase==='result'",85000);await snap("waltz-cassette");
+  const recording=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).band.best['wheel-waltz']");
+  assert(recording.score>=85&&recording.notes.length===await js("ga.band.take.song.pattern.length"));
+  assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+  console.log("PASS played Bea’s eight-bar waltz on the Sound Shell kit and saved the cassette",mode,recording.score,recording.notes.length);
   console.log("PASS Mina handed over Bea's fare, the passenger took the unmarked "+bouquet+" curb and her handwritten answer survived reload",mode);
 };

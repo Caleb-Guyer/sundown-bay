@@ -30560,7 +30560,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       at[c.id]=([c.home,c.job].includes(raw?.at?.[c.id])||c.id==="bea"&&Object.hasOwn(chairs,raw?.bunch)&&raw.at?.bea===raw.bunch)?raw.at[c.id]:"";
       fares[c.id]=Number.isSafeInteger(raw?.fares?.[c.id])?clamp(raw.fares[c.id],0,99999):0;
     }
-    return {at,fares,bunch:Object.hasOwn(chairs,raw?.bunch)?raw.bunch:"",reel:["player","mina"].includes(raw?.reel)?raw.reel:"",rides:Number.isSafeInteger(raw?.rides)?clamp(raw.rides,0,99999):0};
+    const bunch=Object.hasOwn(chairs,raw?.bunch)?raw.bunch:"";
+    return {at,fares,bunch,waltz:!!bunch&&raw.waltz===true,reel:["player","mina"].includes(raw?.reel)?raw.reel:"",rides:Number.isSafeInteger(raw?.rides)?clamp(raw.rides,0,99999):0};
   }
   function intersection(p,forward){
     const [dx,dz]=directions[p.dir],along=dx?p.x:p.z,sign=(dx||dz)*(forward?1:-1);
@@ -31686,7 +31687,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function flowerTag(canvas,id,reply){
     const seat=BayCab.chairs[id];if(!seat)return;
     canvas.width=760;canvas.height=420;
-    canvas.setAttribute("aria-label",(reply?"On the back of Bea’s card. ":"Bea’s anniversary flowers. ")+(reply?seat.reply:seat.inscription));
+    canvas.setAttribute("aria-label",(reply?"On the back of Bea’s card. ":"Bea’s anniversary flowers. ")+(reply?seat.reply+" The Wheel Keeps Time, 3/4. Sol Sound Shell.":seat.inscription));
     const c=canvas.getContext("2d");
     c.fillStyle="#324e4a";c.fillRect(0,0,760,420);
     c.save();c.translate(380,210);c.rotate(reply?.025:-.04);
@@ -31704,7 +31705,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     const lines=reply?(id==="marlin"?["I put them where I can see them","from the pillow."]:["Played your waltz at half speed.","Nobody hurried me."]):[seat.inscription];
     c.fillStyle=reply?"#345369":"#354b40";c.font="italic 31px Georgia";
     lines.forEach((line,i)=>c.fillText(line,-225,8+i*39,452));
-    c.font="italic 26px Georgia";c.fillText(reply?(id==="marlin"?"Mum":"Otis"):"Bea",150,103);
+    if(reply){
+      c.fillStyle="#596460";c.font="italic 17px Georgia";c.fillText("The Wheel Keeps Time",-225,82);
+      c.font="13px monospace";c.fillText("3/4   •   Sol Sound Shell",-224,106);
+    }
+    c.fillStyle=reply?"#345369":"#354b40";c.font="italic 26px Georgia";c.fillText(reply?(id==="marlin"?"Mum":"Otis"):"Bea",150,103);
     c.restore();
   }
   function meterSlip(canvas,plate,street,model){
@@ -35582,18 +35587,73 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(let i=0;i<8;i++){const a=i*tau/8;c.beginPath();c.moveTo(0,-.85);c.lineTo(3.35*Math.sin(a),-.85+3.35*Math.cos(a));c.stroke();}
     c.strokeStyle="#e99a76";c.lineWidth=1.10;c.beginPath();c.moveTo(-2.5,4);c.lineTo(0,-.85);c.lineTo(2.5,4);c.stroke();c.restore();
   }
+  function wheelLine(c,a,b,w,color){
+    c.beginPath();c.moveTo(...a);c.lineTo(...b);c.lineWidth=w;c.strokeStyle=color;c.stroke();
+  }
+  function wheelPoly(c,a,color){
+    c.beginPath();c.moveTo(...a[0]);for(let i=1;i<a.length;i++)c.lineTo(...a[i]);c.closePath();c.fillStyle=color;c.fill();
+  }
+  function wheelDot(c,p,r,color){c.beginPath();c.arc(p[0],p[1],r,0,tau);c.fillStyle=color;c.fill();}
+  // Each cabin hangs level while the rim turns. Only its projected origin moves.
+  const projectPart=(x,h,z)=>[x+.33*h,z+.13*h];
+  const prints=new Map(),cabinSheet=[-3.1,-1.13,5.7,2.40],crestSheet=[-.62,-2.55,1.24,5.1];
+  function partPrint(c,key,bounds,painter,id,gate){
+    let image=prints.get(key);
+    const [x,z,w,h]=bounds;
+    if(!image){
+      const density=32,width=Math.ceil(w*density),height=Math.ceil(h*density);
+      if(typeof OffscreenCanvas==="function")image=new OffscreenCanvas(width,height);
+      else {image=document.createElement("canvas");image.width=width;image.height=height;}
+      const ink=image.getContext("2d");if(!ink){painter(c,id,gate);return;}
+      ink.setTransform(width/w,0,0,height/h,-x*width/w,-z*height/h);
+      ink.lineJoin="round";ink.lineCap="round";painter(ink,id,gate);prints.set(key,image);
+    }
+    c.drawImage(image,x,z,w,h);
+  }
+  function crestPrint(c,side){
+    const P=(u,h)=>projectPart(0,h,side*u);
+    for(const [r,col] of [[1.36,ivory],[1.22,red]]){
+      const loop=[];for(let i=0;i<16;i++)loop.push(P(r*Math.sin(i*tau/16),r*Math.cos(i*tau/16)));
+      wheelPoly(c,loop,col);
+    }
+    wheelPoly(c,[P(-2.23,-.31),P(-1.77,.47),P(2.20,.34),P(1.76,-.38)],ivory);
+    wheelPoly(c,[P(-2.08,-.25),P(-1.68,.38),P(2.05,.29),P(1.66,-.28)],blue);
+    for(let i=0;i<5;i++){
+      const paths=glyphs["COAST"[i]],start=-.95+i*.41;
+      for(const part of paths)for(let j=1;j<part.length;j++){
+        const at=p=>P(start+.26*p[0]+.03*p[1],-.17+.39*p[1]);wheelLine(c,at(part[j-1]),at(part[j]),.039,ivory);
+      }
+    }
+  }
+  function cabinPrint(c,i,gate){
+    const shell=paints[i],trim=stripes[i],top=.87,west=-1.72,back=.81;
+    const P=projectPart;
+    wheelPoly(c,[P(-1.60,-.12,-.77),P(1.60,-.12,-.77),P(1.76,-.12,-.59),P(1.76,-.12,.63),
+      P(1.58,-.12,.79),P(-1.58,-.12,.79),P(-1.77,-.12,.62),P(-1.77,-.12,-.60)],shell);
+    for(const side of [-1,1]){
+      wheelPoly(c,[P(-1.61,.05,side*.75),P(1.61,.05,side*.75),P(1.61,top,side*back),P(-1.61,top,side*back)],shell);
+      wheelLine(c,P(-1.57,.645,side*.784),P(1.56,.645,side*.784),.071,trim);
+      wheelLine(c,P(-1.58,top,side*back),P(1.61,top,side*back),.11,ivory);
+    }
+    wheelLine(c,P(1.68,top,-.73),P(1.68,top,.73),.13,trim);
+    wheelLine(c,P(-.43,seatY,-.50),P(1.44,seatY,-.50),.36,trim);
+    wheelLine(c,P(-1.05,seatY,.50),P(.012,seatY,.50),.36,trim);
+    const yaw=gate*1.47;
+    wheelLine(c,P(west,.915,.646),P(west-1.285*Math.sin(yaw),.915,.646-1.285*Math.cos(yaw)),.10,ivory);
+    for(const side of [-1,1]){
+      for(const end of [-1,1])wheelLine(c,P(end*1.60,top,side*.68),P(end*1.64,2.08,0),.075,side>0?ivory:shell);
+    }
+    for(const part of glyphs[String(i+1)])for(let j=1;j<part.length;j++){
+      const at=p=>P(.98+p[0]*.19,.30+p[1]*.28,-.86);
+      wheelLine(c,at(part[j-1]),at(part[j]),.038,ivory);
+    }
+  }
   function streetMap(c,opt,px,py,s,visible,ride){
     if(!visible(px(centre.x),py(centre.z),19*s))return;
     const angle=ride.angle||0,open=clamp(ride.gateOpen||0,0,1),night=opt.weather?.night||opt.dusk||0;
     c.save();c.translate(px(centre.x),py(centre.z));c.scale(s,-s);c.lineCap="round";c.lineJoin="round";
     const point=(x,h,z)=>[x+.33*h,z+.13*h],volume=(x,h,z)=>h-.33*x-.13*z;
-    function line(a,b,w,color){
-      c.beginPath();c.moveTo(...a);c.lineTo(...b);c.lineWidth=w;c.strokeStyle=color;c.stroke();
-    }
-    function poly(a,color){
-      c.beginPath();c.moveTo(...a[0]);for(let i=1;i<a.length;i++)c.lineTo(...a[i]);c.closePath();c.fillStyle=color;c.fill();
-    }
-    function dot(p,r,color){c.beginPath();c.arc(p[0],p[1],r,0,tau);c.fillStyle=color;c.fill();}
+    const line=(a,b,w,col)=>wheelLine(c,a,b,w,col),poly=(a,col)=>wheelPoly(c,a,col),dot=(p,r,col)=>wheelDot(c,p,r,col);
     function box(x0,z0,x1,z1,h,col){poly([point(x0,h,z0),point(x1,h,z0),point(x1,h,z1),point(x0,h,z1)],col);}
     const rim=(x,r,a)=>[x,centre.y-r*Math.cos(a),r*Math.sin(a)];
     const shadeAt=p=>[p[0]-.21*p[1],p[2]-.17*p[1]];
@@ -35652,43 +35712,19 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     beam([-2.89,centre.y,0],[2.89,centre.y,0],.47,ink);
     for(const side of [-1,1])pieces.push({depth:volume(side*2.99,centre.y,0),crest:side});
+    const usePrints=opt.lowDetail&&s<=16;
     function drawCrest(side){
-      const x=side*2.99,P=(u,h)=>point(x,centre.y+h,side*u);
-      for(const [r,col] of [[1.36,ivory],[1.22,red]]){
-        const loop=[];for(let i=0;i<16;i++)loop.push(P(r*Math.sin(i*tau/16),r*Math.cos(i*tau/16)));
-        poly(loop,col);
-      }
-      poly([P(-2.23,-.31),P(-1.77,.47),P(2.20,.34),P(1.76,-.38)],ivory);
-      poly([P(-2.08,-.25),P(-1.68,.38),P(2.05,.29),P(1.66,-.28)],blue);
-      for(let i=0;i<5;i++){
-        const paths=glyphs["COAST"[i]],start=-.95+i*.41;
-        for(const part of paths)for(let j=1;j<part.length;j++){
-          const at=p=>P(start+.26*p[0]+.03*p[1],-.17+.39*p[1]);line(at(part[j-1]),at(part[j]),.039,ivory);
-        }
-      }
+      const at=point(side*2.99,centre.y,0);c.save();c.translate(...at);
+      if(usePrints)partPrint(c,"crest"+side,crestSheet,crestPrint,side,0);else crestPrint(c,side);
+      c.restore();
     }
     function drawCar(i,z,y){
-      const shell=paints[i],trim=stripes[i],top=.87,west=-1.72,back=.81;
+      const gate=i===ride.loading?open:0,at=point(0,y,z);
+      c.save();c.translate(...at);
+      if(usePrints&&(gate===0||gate===1))partPrint(c,i+8*gate,cabinSheet,cabinPrint,i,gate);
+      else cabinPrint(c,i,gate);
+      c.restore();
       const P=(x,h,v)=>point(x,y+h,z+v);
-      poly([P(-1.60,-.12,-.77),P(1.60,-.12,-.77),P(1.76,-.12,-.59),P(1.76,-.12,.63),
-        P(1.58,-.12,.79),P(-1.58,-.12,.79),P(-1.77,-.12,.62),P(-1.77,-.12,-.60)],shell);
-      for(const side of [-1,1]){
-        poly([P(-1.61,.05,side*.75),P(1.61,.05,side*.75),P(1.61,top,side*back),P(-1.61,top,side*back)],shell);
-        line(P(-1.57,.645,side*.784),P(1.56,.645,side*.784),.071,trim);
-        line(P(-1.58,top,side*back),P(1.61,top,side*back),.11,ivory);
-      }
-      line(P(1.68,top,-.73),P(1.68,top,.73),.13,trim);
-      line(P(-.43,seatY,-.50),P(1.44,seatY,-.50),.36,trim);
-      line(P(-1.05,seatY,.50),P(.012,seatY,.50),.36,trim);
-      const yaw=i===ride.loading?open*1.47:0;
-      line(P(west,.915,.646),P(west-1.285*Math.sin(yaw),.915,.646-1.285*Math.cos(yaw)),.10,ivory);
-      for(const side of [-1,1]){
-        for(const end of [-1,1])line(P(end*1.60,top,side*.68),P(end*1.64,2.08,0),.075,side>0?ivory:shell);
-      }
-      for(const part of glyphs[String(i+1)])for(let j=1;j<part.length;j++){
-        const at=p=>P(.98+p[0]*.19,.30+p[1]*.28,-.86);
-        line(at(part[j-1]),at(part[j]),.038,ivory);
-      }
       for(let j=0;j<3;j++){
         const occupant=ride.seats?.[i]?.[j];if(occupant===null||occupant===undefined)continue;
         const id=String(occupant.id??occupant),isPlayer=id==="player";
@@ -39056,12 +39092,12 @@ window.buildBayCity = function buildBayCity(g,water) {
   'use strict';
 
   const padNames = ['K', 'S', 'H'];
-  function drumChart(bars) {
+  function drumChart(bars,beatsPerBar=4) {
     const pattern = [];
     bars.forEach((bar, measure) => {
       [...bar.replaceAll(' ', '')].forEach((mark, sixteenth) => {
         const pad = padNames.indexOf(mark);
-        if (pad >= 0) pattern.push({at: measure * 4 + sixteenth / 4, pad});
+        if (pad >= 0) pattern.push({at: measure * beatsPerBar + sixteenth / 4, pad});
       });
     });
     return pattern;
@@ -39129,10 +39165,23 @@ window.buildBayCity = function buildBayCity(g,water) {
     ])
   };
 
+  // Otis left the changes in Bea's handwriting. The first phrase leaves room for the wheel.
+  const waltz = {
+    id:'wheel-waltz', name:'The Wheel Keeps Time', bpm:84, bars:8, beatsPerBar:3,
+    grips:[[55,59,62],[54,57,62],[55,59,64],[55,60,64],[55,59,62],[54,57,60],[54,57,62],[55,59,62]],
+    bass:[[[0,43,1.55],[2,50,.55]],[[0,42,1.65],[2,45,.45]],[[0,40,1.60],[2,47,.50]],
+      [[0,36,2.20]],[[0,43,1.55],[2,47,.60]],[[0,38,1.72],[2,45,.50]],[[0,38,1.4],[1.5,42,.9]],[[0,43,2.75]]],
+    phrases:[[[0,71,1.4],[2,69,.64]],[[0,66,2.28]],[[.5,67,.43],[1,71,1.5]],[[0,72,1.65],[2,69,.56]],
+      [[0,67,1.65],[2,66,.60]],[[0,64,1],[1.5,66,.62]],[[0,69,1.65],[2,66,.58]],[[0,67,2.56]]],
+    strums:[[1,.38,.69],[2,.28,.46]],
+    pattern:drumChart(['K--- S--- H---','K--- S--- H---','K--- S--- H-H-','K--- S--- H---',
+      'K--- S--- H---','K--- S-H- H---','K--- S--- H-S-','K--- H--- S---'],3)
+  };
+
   function voicesFor(song) {
     const events = [];
     for (let bar = 0; bar < song.bars; bar++) {
-      const base = bar * 4;
+      const base = bar * (song.beatsPerBar || 4);
       for (const [at, note, length] of song.bass[bar]) {
         events.push({at: base + at, kind: 'bass', note, length, velocity: at === 0 ? 1 : .82});
       }
@@ -39147,8 +39196,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     return events.sort((a,b) => a.at - b.at);
   }
 
-  const songs = [jetty, neon].map(score => ({
+  const songs = [jetty, neon, waltz].map(score => ({
     id: score.id, name: score.name, bpm: score.bpm, bars: score.bars,
+    beatsPerBar: score.beatsPerBar || 4, beats: score.bars * (score.beatsPerBar || 4),
     pattern: score.pattern, accompaniment: voicesFor(score)
   }));
   const catalogue = new Map(songs.map(s => [s.id, s]));
@@ -39156,9 +39206,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   const clampGain = x => clamp(Number(x) || 0, 0, 1);
   const empty = [];
 
-  function visit(notes, from, to, bars, repeat, play) {
+  function visit(notes, from, to, span, repeat, play) {
     if (!notes.length || to <= 0 || from >= to) return;
-    const span = bars * 4;
     const begin = repeat ? Math.floor(Math.max(0, from) / span) * span : 0;
     for (let base = begin; base < to; base += span) {
       let lo = 0, hi = notes.length;
@@ -39297,7 +39346,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         if (state.playback !== replaySource || song !== replaySong) {
           replaySource = state.playback;
           replaySong = song;
-          const notes = replaySource.filter(n => Number.isFinite(n?.at) && n.at >= 0 && n.at < song.bars*4 &&
+          const notes = replaySource.filter(n => Number.isFinite(n?.at) && n.at >= 0 && n.at < song.beats &&
             Number.isInteger(n.pad) && n.pad >= 0 && n.pad < 3).sort((a,b) => a.at-b.at);
           if (notes.length !== replayPart.length || notes.some((n,i) => n.at !== replayPart[i].at || n.pad !== replayPart[i].pad)) replayPart = notes;
         }
@@ -39308,7 +39357,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     function update(state, now) {
       const song = catalogue.get(state?.song);
       if (!song || !Number.isFinite(state.beat) || clampGain(state.gain) < .003) { if (transport) stop(now); return 0; }
-      const rate = song.bpm/60, span = song.bars*4;
+      const rate = song.bpm/60, span = song.beats;
       const repeat = state.source === 'stage' && !state.live;
       if (!repeat && state.beat >= span) { if (transport) stop(now); return 0; }
       open(); mix(state,now);
@@ -39331,9 +39380,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       const from = Math.max(transport.cursor, at-.07), to = Math.max(from, at+.123*rate);
       const time = position => now + Math.max(.004,(position-at)/rate);
       if (from < 0 && state.live) {
-        for (let i = Math.max(-4,Math.ceil(from)); i < Math.min(0,to); i++) playPad(3,time(i),i === -4 ? 1 : .72);
+        for (let i = Math.max(-song.beatsPerBar,Math.ceil(from)); i < Math.min(0,to); i++) playPad(3,time(i),i === -song.beatsPerBar ? 1 : .72);
       }
-      visit(song.accompaniment,from,to,song.bars,repeat,(n,pos) => {
+      visit(song.accompaniment,from,to,song.beats,repeat,(n,pos) => {
         const start = time(pos), seconds = n.length/rate;
         if (n.kind === 'bass') { string(n.note,start,seconds,.31*n.velocity,true); return; }
         if (state.guitar === false) return;
@@ -39344,7 +39393,7 @@ window.buildBayCity = function buildBayCity(g,water) {
           string(n.notes[idx],start+i*.009,seconds,.091*n.velocity*(1-i*.07),false);
         }
       });
-      visit(drumPart,from,to,song.bars,repeat,(n,pos) => {
+      visit(drumPart,from,to,song.beats,repeat,(n,pos) => {
         const accent = isTape ? 1 : (n.pad === 2 ? .76 : 1) * (pos % 1 ? .87 : 1);
         playPad(n.pad,time(pos),accent);
       });
@@ -40292,7 +40341,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     let cues=padTimes.get(song);if(!cues){cues=[[],[],[]];for(const n of song.pattern)cues[n.pad].push(n.at);padTimes.set(song,cues);}
     const notes=cues[i];if(!notes.length)return 1;
     let lo=0,hi=notes.length;while(lo<hi){const k=(lo+hi)>>1;if(notes[k]<beat-.001)lo=k+1;else hi=k;}
-    const next=lo<notes.length?notes[lo]:notes[0]+song.bars*4;
+    const next=lo<notes.length?notes[lo]:notes[0]+song.beats;
     const seconds=(next-beat)*60/song.bpm;
     // Prepare early enough that a well-timed tap meets the head in a single small wrist motion.
     return mix(band.playing ? .36 : 0,1,ease(seconds/.117));
@@ -40350,7 +40399,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!parts){parts={guitar:preparePicks("guitar",song.accompaniment),bass:preparePicks("bass",song.accompaniment)};fingering.set(song,parts);}
     const notes=parts[part];if(!notes.length)return null;
     if(beat<0)return {fret:notes[0].u,string:notes[0].v,pick:-notes[0].stroke};
-    const length=song.bars*4,clock=beat%length,sec=60/song.bpm;
+    const length=song.beats,clock=beat%length,sec=60/song.bpm;
     let lo=0,hi=notes.length;
     while(lo<hi){const m=(lo+hi)>>1;if(notes[m].at<=clock)lo=m+1;else hi=m;}
     const prev=notes[(lo+notes.length-1)%notes.length],next=notes[lo%notes.length];
@@ -40609,20 +40658,20 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const s of songs){
       const r=raw?.best?.[s.id];
       if(!r||!Number.isInteger(r.score)||r.score<55||r.score>100||!Array.isArray(r.notes)||!r.notes.length||r.notes.length>220)continue;
-      if(!r.notes.every(n=>Number.isFinite(n?.at)&&n.at>=0&&n.at<s.bars*4&&Number.isInteger(n.pad)&&n.pad>=0&&n.pad<3))continue;
+      if(!r.notes.every(n=>Number.isFinite(n?.at)&&n.at>=0&&n.at<s.beats&&Number.isInteger(n.pad)&&n.pad>=0&&n.pad<3))continue;
       best[s.id]={score:r.score,chain:count(r.chain),june:r.june===true,notes:r.notes.map(n=>({at:n.at,pad:n.pad})).sort((a,b)=>a.at-b.at)};
     }
     return {met:raw?.met===true,shows:count(raw?.shows),best,last:Object.hasOwn(best,raw?.last)?raw.last:Object.keys(best)[0]||"",drives:count(raw?.drives)};
   }
   class Take{
     constructor(song,june){
-      this.song=song;this.june=june;this.phase="seat";this.beat=-4;this.seated=0;this.notes=song.pattern.map(n=>({...n,state:0}));
+      this.song=song;this.june=june;this.phase="seat";this.beat=-song.beatsPerBar;this.seated=0;this.notes=song.pattern.map(n=>({...n,state:0}));
       this.hits=[];this.chain=0;this.longest=0;this.landed=0;this.points=0;this.extra=0;this.feedback="";this.feedbackTime=0;this.lastPad=-1;
       this.elapsedNotes=0;this.expiredNotes=0;
     }
     strike(pad){
-      if(this.phase!=="play"||this.beat<0||this.beat>=this.song.bars*4)return;
-      if(this.hits.length<220)this.hits.push({at:Math.min(this.song.bars*4-1/96,Math.round(this.beat*96)/96),pad});
+      if(this.phase!=="play"||this.beat<0||this.beat>=this.song.beats)return;
+      if(this.hits.length<220)this.hits.push({at:Math.min(this.song.beats-1/96,Math.round(this.beat*96)/96),pad});
       let target=null,d=.285;
       for(const n of this.notes){
         const error=Math.abs(n.at-this.beat);if(!n.state&&n.pad===pad&&error<d){d=error;target=n;}
@@ -40640,7 +40689,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       while(this.expiredNotes<this.elapsedNotes&&this.notes[this.expiredNotes].at<this.beat-.285){
         const n=this.notes[this.expiredNotes++];if(!n.state){n.state=-1;this.chain=0;}
       }
-      return this.beat>=this.song.bars*4+.12;
+      return this.beat>=this.song.beats+.12;
     }
     finish(){
       const score=clamp(Math.round(100*(this.points-Math.max(0,this.extra-4)*.40)/Math.max(1,this.notes.length)),0,100);
@@ -40809,7 +40858,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     retake(){
       if(this.take?.phase!=="result")return false;
-      this.take=new Take(this.song,this.june.state==="shell");this.take.phase="count";this.beat=-4;this.playing=true;
+      this.take=new Take(this.song,this.june.state==="shell");this.take.phase="count";this.beat=this.take.beat;this.playing=true;
       this.strikes=[20,20,20];return true;
     }
     stopTake(hero,motion){
@@ -40868,7 +40917,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         b.work="";followPath(b,b.path,1.65,dt,env);
       }else{b.work="kit";b.yaw=this.site.kit.yaw;b.join=clamp(b.join+dt*2.2,0,1);b.motion.step(dt,0,0);}
       const before=this.beat;this.beat+=dt*this.song.bpm/60;
-      if(this.beat>=this.song.bars*4){this.beat=0;this.song=env.night()?songs[1]:songs[0];}
+      if(this.beat>=this.song.beats){this.beat=0;this.song=env.night()?songs[1]:songs[0];}
       for(const n of this.song.pattern)if((n.at>before||this.beat<before)&&n.at<=this.beat)this.strikes[n.pad]=0;
       this.crowd+=((env.night()?.74:.25)-this.crowd)*dt;
     }
@@ -40879,7 +40928,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     audio(dt,p,env){
       if(this.tape){
         const t=this.tape;
-        if(!env.deck()||t.beat>=t.song.bars*4){this.tape=null;this.onAir=false;}
+        if(!env.deck()||t.beat>=t.song.beats){this.tape=null;this.onAir=false;}
         else {const beat=t.beat;t.beat+=dt*t.song.bpm/60;return {source:"tape",song:t.id,beat,gain:.88,pan:0,live:false,mutedPads:true,guitar:t.data.june,playback:t.data.notes};}
       }
       if(this.take&&["seat","result","leave"].includes(this.take.phase))return null;
@@ -70218,6 +70267,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
       save.cab.fares.bea=Math.max(save.cab.fares.bea,BayCab.read(latest.cab).fares.bea);
     }
+    if(save.cab.bunch&&latest?.cab?.bunch===save.cab.bunch&&latest.cab.waltz===true)save.cab.waltz=true;
     if(latest?.meterCopy?.rev>(save.meterCopy?.rev||0)){
       const copy=BayCab.readMeter(latest.meterCopy);if(copy)save.meterCopy=copy;
     }
@@ -70707,7 +70757,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(campaign.scene?.id==="collectionOpen"&&campaign.scene.index===0&&save.collection.last){
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
     }
-    if(b?.art==="flowerTag")BayCabArt.flowerTag($("chapterInsert"),save.cab.bunch,campaign.scene.id==="flowerReply");
+    if(b?.art==="flowerTag"){
+      const reply=campaign.scene.id==="flowerReply";
+      BayCabArt.flowerTag($("chapterInsert"),save.cab.bunch,reply);
+      if(reply)$("chapterLine").textContent=save.cab.bunch==="wheel"?"Otis pencilled a title beneath his name. Ben has the sheet at the Sol Sound Shell.":"There’s a tune tucked under the ribbon. Mum asked Ben to leave a copy at the Sol Sound Shell.";
+    }
     if(b?.art==="meterCopy"&&meterCar()){
       const v=meterCar();BayCabArt.meterSlip($("chapterInsert"),BayStreetCars.plateFor(v),district(v),formatVehicle(v));
       $("chapterLine").textContent="Read me those letters. "+BayStreetCars.plateFor(v)+". Good. I put the street underneath in case I got the number wrong.";
@@ -70755,6 +70809,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(campaign.table?.kind==="splice")sound.reel(null);
     campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("roadChoices").hidden=true;$("game").classList.toggle("in-chapter",false);
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
+    if(id==="flowerReply"&&save.cab.bunch&&!save.cab.waltz){
+      save.cab.waltz=true;persist();
+      waypoint={...band.site.board,kind:"set-list",name:"The Wheel Keeps Time · Sol Sound Shell"};
+      note("Bea’s family waltz","The band put it on the set list. Ben has a stool for you.",5);
+    }
     if(filmReplay){filmReplay=false;return;}
     if(id==="collectionLuna"||id==="collectionPort"){payrollReceipt=null;return;}
     if(id==="lastMeter"){pointToMeterRank();return;}
@@ -75125,10 +75184,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function beginSet(id){
     if(!atSetList()||band.june.ride||!BaySessions.byId(id))return;
-    if(id==="neon"&&!save.band.shows&&!save.juneReturned)return;
+    if(id==="neon"&&!save.band.shows&&!save.juneReturned||id==="wheel-waltz"&&!save.cab.waltz)return;
     if(!band.begin(id,hero,motion,bandEnv))return;
     active={job:bandJob,band:true};waypoint=null;band.outing="";kitCam=0;band.pan=band.tilt=0;keys.clear();closePanel();lastMap=lastHud=-10;
-    speak("Ben Mora","Take my stool. White line’s your beat. I’ll count you in.");
+    speak("Ben Mora",id==="wheel-waltz"?"Bea wrote the changes on florist paper. Still smells of mint. Three to the bar. You take the first one.":"Take my stool. White line’s your beat. I’ll count you in.");
   }
   function cueTape(id){
     if(!bandEnv.deck()||!band.playTape(id))return;
@@ -75154,14 +75213,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     const take=band.take,box=$("bandHud");box.hidden=!take;$("hud").classList.toggle("onstage",!!take);
     if(!take)return;
     $("bandName").textContent=take.song.name;
-    $("bandBar").textContent=take.phase==="seat"?"CHANGEOVER":take.phase==="result"?take.score+"%":take.beat<0?"COUNT  "+Math.ceil(-take.beat):"BAR  "+Math.min(take.song.bars,1+Math.floor(take.beat/4))+" / "+take.song.bars;
-    $("bandPhrase").textContent=take.phase==="result"?(take.master?"New cassette master":take.pay?"Take complete":"Try the take again"):take.phase==="seat"?"Ben is giving you his stool":take.phase==="leave"?"Stepping away":take.beat<0?"Four beats in":take.feedbackTime?take.feedback:"Play at the white line";
+    $("bandBar").textContent=take.phase==="seat"?"CHANGEOVER":take.phase==="result"?take.score+"%":take.beat<0?"COUNT  "+Math.ceil(-take.beat):"BAR  "+Math.min(take.song.bars,1+Math.floor(take.beat/take.song.beatsPerBar))+" / "+take.song.bars;
+    $("bandPhrase").textContent=take.phase==="result"?(take.master?"New cassette master":take.pay?"Take complete":"Try the take again"):take.phase==="seat"?"Ben is giving you his stool":take.phase==="leave"?"Stepping away":take.beat<0?(take.song.beatsPerBar===3?"Three beats in":"Four beats in"):take.feedbackTime?take.feedback:"Play at the white line";
     $("bandChain").textContent=take.phase==="result"?(take.pay?cash(take.pay)+"  ·  ":"")+"Best streak "+take.longest:take.chain>1?take.chain+" in a row":"";
     const c=$("bandRoll");if(!c.getContext)return;
     const ctx=c.getContext("2d"),w=c.width,h=c.height,mark=130,unit=90,beat=take.beat;
     ctx.fillStyle="#142b2e";ctx.fillRect(0,0,w,h);
     for(let k=Math.floor(beat)-1;k<beat+6;k++){
-      const x=mark+(k-beat)*unit;if(x<92)continue;ctx.fillStyle=k%4===0?"#628078":"#344b49";ctx.fillRect(x,0,k%4===0?2:1,h);
+      const x=mark+(k-beat)*unit;if(x<92)continue;ctx.fillStyle=k%take.song.beatsPerBar===0?"#628078":"#344b49";ctx.fillRect(x,0,k%take.song.beatsPerBar===0?2:1,h);
     }
     ctx.font="bold 16px monospace";ctx.textAlign="left";ctx.textBaseline="middle";
     for(let i=0;i<3;i++){
@@ -78846,15 +78905,20 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   let recoveryArtReady=false,wheelArtReady=false,pedalArtReady=false;
+  // High-detail frames also use these meshes for projected street shadows.
+  const wheelBounds={x:0,y:13,z:0,hw:13,hh:15,hd:15,r:25},performerBounds={x:0,y:1,z:0,hw:2.6,hh:2.6,hd:2.6,r:4.6};
+  function streetGroupVisible(bounds,p,y){
+    return view.scale>.74||view.inFrame(bounds,p.x,y,p.z,0,0,0);
+  }
   function drawBoardwalk(list,see,t){
-    if(see(BayCoastWheelArt.centre,320)){
+    if(see(BayCoastWheelArt.centre,320)&&streetGroupVisible(wheelBounds,BayCoastWheelArt.centre,0)){
       if(!wheelArtReady){BayCoastWheelArt.install(model);wheelArtReady=true;}
       BayCoastWheelArt.world(list,see,t,hours,boardwalk.wheel);
     }
     if(!see(bikePin,110)&&!see(coastGate,135)&&!see(cycles.javi,80)&&!cycles.bikes.some(b=>see(b,75)))return;
     if(!pedalArtReady){BayBoardwalkArt.install(model);BayPedalArt.install(model);pedalArtReady=true;}
     for(const p of [boardwalk.mags,...boardwalk.people]){
-      if(!see(p,67))continue;const key="wheel-regular/"+p.id;
+      if(!see(p,67)||!streetGroupVisible(performerBounds,p,p.y+p.motion.lift))continue;const key="wheel-regular/"+p.id;
       if(!p.mesh){p.mesh=new BayPlayerMesh(BayBoardwalkArt.colors[p.id],BayBoardwalkArt.roles[p.id]);BayBoardwalkArt.dress(p.mesh,p.id);view.add(key,p.mesh,true);}
       const changed=p.mesh.update(p.motion),posed=BayBoardwalkArt.pose(p,t);if(changed||posed)view.updateAnimated(key);
       list.push([key,p.x,p.y+p.motion.lift,p.z,p.yaw]);
@@ -78889,7 +78953,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function drawBand(list,see,t){
     if(!play)return;
     for(const p of band.performers){
-      if(!see(p,p.ride?44:66))continue;
+      if(!see(p,p.ride?44:66)||(!p.ride&&!streetGroupVisible(performerBounds,p,p.y+p.motion.lift)))continue;
       const key="shell-player/"+p.id;
       if(!p.mesh){p.mesh=new BayPlayerMesh(BayBandPlayers.colors[p.id],BayBandPlayers.roles[p.id]);BayBandPlayers.dress(p.mesh,p.id);view.add(key,p.mesh,true);}
       const dodge=p===band.june&&p.state==="motel"&&band.local.startle;
@@ -81349,8 +81413,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       signedNote(b,band.june.state==="shell"?"“June’s on guitar. Lena’s got the bass. When I stand up, the sticks are yours.”":"“It’s an open rehearsal. Pull up to the kit when I get off. June’s usually at the Marlin before the evening set.”","Ben Mora");
       const controls=document.createElement("p");controls.textContent="Tap A for kick, S for snare and D for hi-hat as each diamond reaches the white line. A take of 55% or better earns a cut of the door and a cassette for your car.";b.append(controls);
       for(const song of BayShellScore.songs){
-        const best=save.band.best[song.id],open=song.id==="jetty"||save.band.shows>0||save.juneReturned;
-        const row=makeButton(song.name,open?song.bpm+" BPM  ·  "+(song.id==="jetty"?"Straight backbeat":"Syncopated backbeat")+(best?"  ·  Best "+best.score+"%":""):
+        const waltz=song.id==="wheel-waltz";if(waltz&&!save.cab.waltz)continue;
+        const best=save.band.best[song.id],open=waltz||song.id==="jetty"||save.band.shows>0||save.juneReturned;
+        const row=makeButton(song.name,open?song.bpm+" BPM  ·  "+(waltz?"3/4 · Bea Salas’s family waltz":song.id==="jetty"?"Straight backbeat":"Syncopated backbeat")+(best?"  ·  Best "+best.score+"%":""):
           "Cut a first take or bring June her blue-dot demo.",""+(open?"Take the sticks":"Side B"),()=>beginSet(song.id));row.disabled=!open;b.append(row);
       }
     }else if(next==="valet-desk"){
