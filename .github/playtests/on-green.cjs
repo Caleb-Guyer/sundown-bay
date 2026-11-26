@@ -73,10 +73,10 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
       assert.equal(await js("club.run.react"),null);assert(Math.abs(await js("ride.speed"))<.5);
     }
     const returnLap=process.argv.includes("--return-lap");
-    if(returnLap){
+    if(returnLap||manual){
       await controls();
       await js(`window.oceanKeys=(${oceanDriver.toString()});window.driveOcean=function(leg,end){
-        const pressed=new Set(),memory={};
+        const pressed=new Set(),memory={raceSpeed:${manual?17:11.5}};
         function drive(){
           const v=ride,done=leg==='race'?club.run?.phase!=='running':v.x>154.2&&Math.abs(v.speed)<.3;
           const next=done?[]:oceanKeys(v,leg,end,traffic,memory);

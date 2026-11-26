@@ -27,7 +27,7 @@ module.exports = function oceanDriver(car, leg, endZ, traffic = [], memory = {})
       memory.lane = lane;
     }
     heading = Math.max(-.50, Math.min(.50, (lane - car.x) * .23));
-    speed = 11.5;
+    speed = memory.raceSpeed ?? 11.5;
   } else {
     const dx = 155.4 - car.x, dz = endZ - car.z;
     const distance = Math.hypot(dx, dz);
