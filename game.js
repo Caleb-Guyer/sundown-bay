@@ -8036,16 +8036,18 @@
     scrub.oninput=()=>{f.playing=false;f.at=Number(scrub.value)/1000;play.textContent="Play";BayCleanThrough.draw(canvas,card,f.at,city.opaqueBuildings);};
     controls.append(play,scrub);body.append(canvas,controls);BayCleanThrough.draw(canvas,card,0,city.opaqueBuildings);
     signedNote(body,card.score+" points · "+card.passes+" clean "+(card.passes===1?"pass":"passes")+" · "+card.gaps+" double "+(card.gaps===1?"gap":"gaps"),card.model+" / "+card.street);
-    if(card.cover){
-      const print=document.createElement("img");print.className="take-print";print.src=card.cover;
-      print.alt="Romy’s roadside photograph of the "+card.model+" passing traffic on "+card.street;
+    const negative=BayCleanThrough.latestPrint(passReel);
+    if(negative){
+      const print=document.createElement("img");print.className="take-print";print.src=negative.cover;
+      print.alt="Romy’s roadside photograph of the "+negative.model+" passing traffic on "+negative.street;
       body.append(print);
-      if(atCopyRail()&&!pictureDesk.packet&&card.cover!==pictureDesk.issue?.cover){
+      if(negative.cover!==card.cover)signedNote(body,negative.street+" · "+negative.model,"Latest photograph · "+negative.score+" points");
+      if(atCopyRail()&&!pictureDesk.packet&&negative.cover!==pictureDesk.issue?.cover){
         body.append(makeButton("Late Plate","Meli held a hole on page three. Take her the actual print at the Bay Wire desk.","Take envelope",()=>{
-          if(!atCopyRail()||!pictureDesk.collect(card)){note("Portside Tire","The envelope could not be filed.",2);return;}
+          if(!atCopyRail()||!pictureDesk.collect(negative)){note("Portside Tire","The envelope could not be filed.",2);return;}
           clockPin(wirePin);speak("Romy","Mind the corners. She knows if you fold it, even if you flatten it back out.");lastHud=-10;
         }));
-      }else if(!pictureDesk.packet&&card.cover!==pictureDesk.issue?.cover)body.append(makeButton("Late Plate","Romy left a press envelope at her cutting table, across from Portside Tire.","Mark table",()=>clockPin({...carbon.rail,name:"Romy’s cutting table"})));
+      }else if(!pictureDesk.packet&&negative.cover!==pictureDesk.issue?.cover)body.append(makeButton("Late Plate","Romy left a press envelope at her cutting table, across from Portside Tire.","Mark table",()=>clockPin({...carbon.rail,name:"Romy’s cutting table"})));
     }
     if(pictureDesk.packet)body.append(makeButton("Late Plate · Envelope in hand","Bring the picture to Meli’s curb desk on foot.","Mark Bay Wire",()=>clockPin(wirePin)));
     directions();

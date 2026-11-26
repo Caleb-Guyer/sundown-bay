@@ -21,9 +21,9 @@
   class Reel{
     constructor(buildings=[]){this.buildings=buildings;this.best=read();this.reset();}
     reset(){
-      this.vehicle=null;this.run=null;this.near=new Map();this.lead=[];this.sampleIn=0;this.time=0;
+      this.vehicle=null;this.run=null;this.shutter=null;this.near=new Map();this.lead=[];this.sampleIn=0;this.time=0;
     }
-    pass(v,other,side,clearance,oncoming){
+    pass(v,other,side,clearance,oncoming,cover){
       const r=this.run??={score:0,passes:0,gaps:0,seen:new Set(),last:null,quality:-1,frames:[]};
       if(r.seen.has(other))return;
       r.seen.add(other);r.passes++;
@@ -34,12 +34,16 @@
       const quality=points+(paired?250:0);
       if(quality>r.quality){
         r.quality=quality;r.frames=this.lead.slice(-22);r.after=10;r.spot={x:v.x,z:v.z,yaw:v.yaw};
-        r.cover=null;r.exposeBy=this.time+.20;
+        r.cover=cover||null;r.exposeBy=cover?-1:this.time+.20;
       }
     }
     expose(source,sky){
-      const r=this.run;if(!r||!(this.time<=r.exposeBy))return;
-      r.exposeBy=-1;r.cover=BayMeetPhoto.capture(source,sky,.5,.5,16/9,true);
+      const r=this.run,shutter=this.shutter;this.shutter=null;
+      const crossing=shutter&&this.time-shutter.time<.20,ending=r&&this.time<=r.exposeBy;
+      if(!crossing&&!ending)return;
+      const image=BayMeetPhoto.capture(source,sky,.5,.5,16/9,true);
+      if(crossing)for(const pass of shutter.cars)pass.cover=image;
+      if(ending){r.exposeBy=-1;r.cover=image;}
     }
     update(v,dt,cars,hit){
       if(!v&&!this.vehicle)return "";
@@ -70,9 +74,13 @@
           const f=p.z/(p.z-along),side=p.x+(across-p.x)*f,size=o.footprint||bayCarLayout(o.kind);
           const gap=Math.abs(side)-shape.track-size.track*Math.abs(align)-size.halfLength*Math.abs(Math.sin(o.yaw-v.yaw));
           p.pass=gap>=-.05&&gap<=1.8?{side:Math.sign(side),gap:Math.max(0,gap),opposing:align<0}:null;
+          if(p.pass){
+            if(this.shutter?.time!==this.time)this.shutter={time:this.time,cars:[]};
+            this.shutter.cars.push(p.pass);
+          }
         }
         if(p.pass&&along<-(shape.halfLength+(o.footprint||bayCarLayout(o.kind)).halfLength)){
-          this.pass(v,o,p.pass.side,p.pass.gap,p.pass.opposing);p.pass=null;p.armed=false;
+          this.pass(v,o,p.pass.side,p.pass.gap,p.pass.opposing,p.pass.cover);p.pass=null;p.armed=false;
         }
         p.x=across;p.z=along;p.t=this.time;if(!old)this.near.set(o,p);
       }
@@ -91,6 +99,11 @@
       const card={score:run.score,passes:run.passes,gaps:run.gaps,model:BayDriving.cars[v.kind]?.name||"Street car",
         street:BayStreetNames.through(run.spot,run.spot.yaw)||"Sundown Bay",frames:run.frames};
       this.last=card;this.best=read()||this.best;
+      if(run.cover){
+        const {model,street,score}=card;
+        this.contactPrint={model,street,score,cover:run.cover};
+        try{localStorage.setItem(printKey,JSON.stringify(this.contactPrint));}catch{}
+      }
       if(card.frames.length>1&&(!this.best||card.score>this.best.score)){
         this.best=card;if(run.cover)card.cover=run.cover;
         try{localStorage.setItem(key,JSON.stringify(card));}catch{
@@ -164,9 +177,14 @@
     c.restore();c.fillStyle="#263b34";c.fillRect(9,h-37,w-18,28);c.fillStyle="#f4dfb3";c.font="bold 15px monospace";
     c.textAlign="left";c.fillText(card.street.toUpperCase(),21,h-18);c.textAlign="right";c.fillText((f/10).toFixed(1)+" s",w-21,h-18);
   }
-  const editionKey="sundownBay.latePlate.v1";
+  const editionKey="sundownBay.latePlate.v1",printKey="sundownBay.contactPrint.v1";
   const goodPrint=p=>p&&jpeg(p.cover)&&typeof p.street==="string"&&p.street.length<=80&&
     typeof p.model==="string"&&p.model.length<=80&&Number.isSafeInteger(p.score)&&p.score>0;
+  function latestPrint(reel){
+    let p=reel.contactPrint;
+    if(!p){try{p=JSON.parse(localStorage.getItem(printKey));}catch{}}
+    return goodPrint(p)?p:reel.best?.cover?reel.best:null;
+  }
   class PictureDesk{
     constructor(){
       this.packet=this.issue=null;this.images=new WeakMap();this.refresh();
@@ -213,5 +231,5 @@
       c.restore();return true;
     }
   }
-  window.BayCleanThrough={Reel,draw,key,PictureDesk};
+  window.BayCleanThrough={Reel,draw,key,PictureDesk,latestPrint};
 })();
