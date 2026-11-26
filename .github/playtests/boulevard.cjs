@@ -14,7 +14,10 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
     try{
       await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayBoulevardLanes==='object'");
       await js(`window.road={left:false,right:false,touched:false,entered:false,flashed:false,litFrames:0};
-        const draw=drawBayMap;window.drawBayMap=function(c,o){if(o.mode==='radar'&&o.streetCar){road.map=o;road.car=o.streetCar;}return draw(c,o);};
+        const draw=drawBayMap;window.drawBayMap=function(c,o){if(o.mode==='radar'&&o.streetCar){road.map=o;road.car=o.streetCar;}else if(o.streetCar)road.streetMap=o;return draw(c,o);};
+        const glance=BayDriversView.prototype.glanceToward,sample=BayDriversView.prototype.sampleRear;
+        BayDriversView.prototype.glanceToward=function(...args){glance.apply(this,args);road.glance=this.glance;};
+        BayDriversView.prototype.sampleRear=function(...args){road.reflecting=this.lens;try{return sample.apply(this,args);}finally{road.reflecting=null;}};
         const original=BayBoulevardLanes.update;BayBoulevardLanes.update=function(v,ctx){
           const s=original(v,ctx),p=ctx.player;if(!s||!p)return s;
           if(s.change?.obstacle===p)road.passer=v;
@@ -34,7 +37,7 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
           return s;};
         const art=BayStreetCars.${mode==="street"?"world":"map"};
         BayStreetCars.${mode==="street"?"world":"map"}=function(...args){
-          const r=art(...args);${mode==="street"?"if(args[2]===road.friend&&args[0].some(a=>a[0]==='registry/flash/'+args[2].kind))road.litFrames++;":"if(args[1]===road.friend&&BayBoulevardLanes.flash(args[1],args[5]))road.litFrames++;"}return r;};
+          const start=args[0].length,r=art(...args);${mode==="street"?"if(args[2]===road.friend&&road.reflecting===-1&&args[0].slice(start).some(a=>a[0]==='registry/flash/'+args[2].kind))road.litFrames++;":"if(args[1]===road.friend&&road.glance<-.9&&BayBoulevardLanes.flash(args[1],args[5]))road.litFrames++;"}return r;};
         document.querySelector('#play').click();`);
       await waitFor("road.car?.garageKey==='coupe@149.00,-22.80'");
     }finally{await send("Page.removeScriptToEvaluateOnNewDocument",{identifier:seed.identifier});}
@@ -47,9 +50,11 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
     await waitFor("road.returned",75000);await key("keyUp","Space");
     assert(await js("road.separation>2.2&&!road.touched"));assert.equal(await js("audioStarts+cursorRequests"),0);
     // On Ocean, pull out from a real returning driver's spot using only the driving controls.
-    await load(149.45,-24.6,0);await key("keyDown","KeyV");await tap("Comma");await waitFor("road.car.indicator===-1");
+    await load(149.45,-24.6,0);await tap("KeyZ");await tap("Comma");await waitFor("road.car.indicator===-1");
+    await key("keyDown","ShiftLeft");await key("keyDown","Period");await waitFor("road.glance>.99&&road.car.indicator===-1");await snap("mirror-right");
+    await key("keyUp","Period");await key("keyDown","Comma");await waitFor("road.glance<-.99&&road.car.indicator===-1");
     await waitFor("!!BayBoulevardLanes.candidate(road.car,road.map.cars,road.map.time)",45000);await tap("KeyH");await waitFor("!!road.friend&&road.litFrames>0");
-    await snap("flash");await key("keyUp","KeyV");await waitFor("road.clock-road.friendAt>1.0");
+    await snap("mirror-left");await key("keyUp","Comma");await key("keyUp","ShiftLeft");await waitFor("road.glance===0&&road.clock-road.friendAt>1.0");
     await js(`(()=>{const held=new Set();function set(next){
         for(const k of held)if(!next.includes(k)){dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));held.delete(k);}
         for(const k of next)if(!held.has(k)){dispatchEvent(new KeyboardEvent('keydown',{code:k,bubbles:true,cancelable:true}));held.add(k);}}
@@ -67,5 +72,5 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
     console.log("PASS",mode,"a regular Tideway hatch signalled out around a stopped coupe, passed beside it, and rejoined the outer lane. On Ocean Drive a motorist flashed twice, slowed for the player's signal and horn, and released the gap after the keyboard merge.",result,"Audio starts 0, cursor locks 0.");
   }catch(e){
     console.log("Boulevard state",await js("JSON.stringify({car:window.road?.car&&[road.car.x,road.car.z,road.car.yaw,road.car.indicator],pass:window.road?.passer&&[road.passer.id,road.passer.x,road.passer.z,road.left,road.right,road.returned],friend:window.road?.friend&&[road.friend.id,road.friend.x,road.friend.z,road.clock-road.friendAt,road.entered,road.resumed,road.slowest,road.litFrames],hint:document.querySelector('#context').innerText})"));await snap("failure");throw e;
-  }finally{for(const code of ["Space","KeyW","KeyS","KeyA","KeyD","KeyV"])await key("keyUp",code);}
+  }finally{for(const code of ["Space","KeyW","KeyS","KeyA","KeyD","KeyV","Comma","Period","ShiftLeft"])await key("keyUp",code);}
 };

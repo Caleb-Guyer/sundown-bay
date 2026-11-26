@@ -45,9 +45,18 @@
     const mirrorAt=(a,b)=>({x:mx+a*mw,y:mirrorY+b*mh,z:mirrorZ+a*.042+b*.009});
     const out={kind,s,style,rear,roofRear,roofFront,front,sill,roof,base,cap,ey,wheel,dashZ,clusterY,high,mirrorAt,
       mirror:[mirrorAt(-.5,.5),mirrorAt(.5,.5),mirrorAt(.5,-.5),mirrorAt(-.5,-.5)]};
+    out.wings=[-1,1].map(side=>{
+      const x=side*(Math.max(base,s.track)+.152),z=ey.z+clamp(front-ey.z-.19,.34,.82),y=sill+(high?.25:.15);
+      const width=high?.29:.246,height=high?.181:.137;
+      const at=(u,v)=>({x:x+u*width,y:y+v*height,z:z-side*.46*u*width+v*.01});
+      const across=x-ey.x,ahead=z-ey.z;
+      return {x,y,z,side,at,pan:Math.atan2(across,ahead),tilt:Math.atan2(y-ey.y,Math.hypot(across,ahead)),
+        glass:[at(-.5,.5),at(.5,.5),at(.5,-.5),at(-.5,-.5)]};
+    });
     layoutCache.set(kind,out);return out;
   }
   const eye=v=>layout(v).ey,mirror=v=>layout(v).mirror;
+  const wing=(v,side)=>layout(v).wings[side<0?0:1];
   function glass(v,u,h){
     const a=layout(v);
     return {x:(u*2-1)*mix(a.base,a.cap,h),y:mix(a.sill,a.roof,h),z:mix(a.front,a.roofFront,h)};
@@ -193,6 +202,13 @@
     pane(g,at(-.514,.544),at(.514,.544),at(.514,-.544),at(-.514,-.544),p.edge);
     const pts=a.mirror.map(o=>({...o,z:o.z-.0005}));
     pane(g,pts[0],pts[1],pts[2],pts[3],"#748b8d");
+    for(const m of a.wings){
+      const at=m.at,foot=[m.side*base,sill-.025,m.z+.035];
+      g.pole(foot,[m.x-m.side*.062,m.y-.044,m.z+.035],a.high?.025:.019,"#384648",7);
+      pane(g,at(-.567,.59),at(.567,.59),at(.567,-.59),at(-.567,-.59),p.edge);
+      pane(g,at(-.535,.55),at(.535,.55),at(.535,-.55),at(-.535,-.55),"#344244");
+      pane(g,...m.glass,"#748b8d");
+    }
     const visor=side=>{const width=cap*.68,x=side*cap*.54;g.box(x,roof-.019,roofFront-.115,width,.029,.16,tint(liner,"#444f4a",.14));
       g.box(x+side*width*.26,roof-.035,roofFront-.123,width*.12,.006,.018,p.edge);};
     visor(-1);visor(1);
@@ -581,5 +597,5 @@
     if(l.fault){ctx.fillStyle="#f5b266";ctx.font="bold 15px monospace";ctx.fillText("!",155,42);}
     ctx.restore();
   }
-  window.BayDriversSeat={draw,eye,glass,hood,mirror,project,compact};
+  window.BayDriversSeat={draw,eye,glass,hood,mirror,wing,project,compact};
 })();
