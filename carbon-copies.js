@@ -88,11 +88,20 @@
       g.box(0,1.19,6.91,2.42,.91,.09,"#406257");g.box(0,1.68,6.91,2.52,.10,.22,"#a65e44");
     });
     model("carbon-print",g=>{for(const [x,y,u,w] of [[-.53,-.30,0,1],[.53,-.30,1,1],[.53,.30,1,0],[-.53,-.30,0,1],[.53,.30,1,0],[-.53,.30,0,0]])g.vertices.push(x,y,0,u,w,0);});
+    model("carbon-monitor",g=>{for(const [x,y,u,v] of [[-1,-.36,0,1],[1,-.36,1,1],[1,.36,1,0],[-1,-.36,0,1],[1,.36,1,0],[-1,.36,0,0]])g.vertices.push(x,y,0,u,v,0);});
   }
-  function world(view,book){
+  function world(view,book,reel,time){
     const y=apronY;
     view.draw("carbon-apron",pad.x,y,pad.z,0);
-    if(!view.drawPrint||view.basis.camera.z>rail.z)return;
+    if(!view.drawPrint)return;
+    const eye=view.basis.camera;
+    if(eye.z>rail.z){
+      if(reel?.best){
+        const p=reel.print(time,Math.hypot(eye.x-rail.x,eye.z-rail.z)<24);
+        view.drawPrint("carbon-monitor",p.canvas,p.rev,rail.x,y+1.19,rail.z+.074,Math.PI);
+      }
+      return;
+    }
     for(const [i,side] of sides.entries()){
       const p=poster(book,side);view.drawPrint("carbon-print",p.canvas,p.rev,rail.x+(i-.5)*1.17,y+1.20,rail.z-.055,0);
     }

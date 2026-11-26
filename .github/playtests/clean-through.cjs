@@ -1,0 +1,47 @@
+const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
+module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
+  async function shot(name){
+    const {data}=await send("Page.captureScreenshot",{format:"jpeg",quality:88});
+    const dir=path.join(__dirname,"curb-wire-proof");fs.mkdirSync(dir,{recursive:true});
+    fs.writeFileSync(path.join(dir,mode+"-record-clean-"+name+".jpg"),Buffer.from(data,"base64"));
+  }
+  await js(`window.passQA={};const p=passQA;
+    const meet=BayLocals.animatePeople;BayLocals.animatePeople=function(w,dt,v,cars){p.car=v;p.cars=cars;return meet.apply(this,arguments);};
+    const rescue=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,e){p.h=e.hero;return rescue.apply(this,arguments);};
+    const step=BayCleanThrough.Reel.prototype.update;BayCleanThrough.Reel.prototype.update=function(){
+      const result=step.apply(this,arguments);p.reel=this;
+      if(p.staged&&this.run?.gaps&&!p.through){p.through=true;
+        dispatchEvent(new KeyboardEvent("keyup",{code:"KeyW"}));dispatchEvent(new KeyboardEvent("keydown",{code:"Space"}));}
+      return result;};true`);
+  await waitFor("p.h&&p.cars?.length");
+  await js("Object.assign(p.h,{x:151,z:-27});true");await tap("KeyE");await waitFor("p.car?.kind==='coupe'",25000);
+  await js("p.pair=("+require("./pass-traffic.cjs").toString()+")(p.car,p.cars);p.staged=true;true");
+  await key("keyDown","KeyW");
+  try{
+    await waitFor("p.through&&!document.querySelector('#passScore').hidden",23000);
+    assert.match(await js("document.querySelector('#passScore').textContent"),/Double gap/);await shot("gap");
+    await waitFor("p.reel.best?.gaps===1",16000);
+  }catch(e){console.log("Playtest state",await js("JSON.stringify({driver:[p.car?.x,p.car?.z,p.car?.speed],pair:p.pair.map(v=>[v.x,v.z,v.speed]),score:p.reel?.run?.score,best:p.reel?.best?.score})"));throw e;}
+  finally{await key("keyUp","KeyW");await key("keyUp","Space");}
+  const card=await js("p.reel.best");assert.equal(card.passes,2);assert(card.score>=450&&card.frames.length>12);assert.equal(card.street,"Biscayne Street");
+  await js("window.passPage=true");await send("Page.reload");await waitFor("!window.passPage&&document.readyState==='complete'&&typeof BayCleanThrough==='object'");
+  await js("document.querySelector('#play').click()");await waitFor("!document.querySelector('#hud').hidden");await tap("KeyJ");
+  const row="Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('Clean Through'))";
+  await waitFor("!!("+row+")");await js(row+".click()");await waitFor("!!document.querySelector('input[aria-label=\"Clean Through film position\"]')");
+  const slider="document.querySelector('input[aria-label=\"Clean Through film position\"]')";
+  await waitFor("Number("+slider+".value)>80");await js(slider+".value=525;"+slider+".dispatchEvent(new Event('input'));true");
+  await shot("reel");assert.equal(await js("JSON.parse(localStorage.getItem(BayCleanThrough.key)).score"),card.score);
+  await tap("Escape");
+  await js(`window.railQA={};const rail=railQA,rs=BayRescue.Service.prototype.step;
+    BayRescue.Service.prototype.step=function(dt,e){rail.hero=e.hero;return rs.apply(this,arguments);};
+    const cam=BayCamera.prototype.update;BayCamera.prototype.update=function(){rail.cam=this;return cam.apply(this,arguments);};
+    const draw=BayCleanThrough.Reel.prototype.print;BayCleanThrough.Reel.prototype.print=function(t,near){
+      const p=draw.apply(this,arguments);if(p&&near)rail.rev=p.rev;return p;};true`);
+  await waitFor("rail.hero&&rail.cam");
+  await js("Object.assign(rail.hero,{x:BayCarbonCopies.rail.x,z:BayCarbonCopies.rail.z+2.7,y:BayCarbonCopies.apronY,yaw:Math.PI});rail.cam.reset(rail.hero);true");
+  await waitFor("document.querySelector('#context').textContent.includes('Watch Clean Through')");
+  if(mode==="street"){await waitFor("rail.rev>=2");await shot("screen");}
+  await tap("KeyF");await waitFor("!!"+slider);
+  assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+  console.log("PASS Clean Through",mode,card.score,"points, double gap under driver input, five clear seconds, saved moving traffic reel and scrub after reload");
+};

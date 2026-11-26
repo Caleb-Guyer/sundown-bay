@@ -26,6 +26,7 @@
   view.buildings=city.opaqueBuildings;
   const jumps=BayPictureJumps;
   const carbon=BayCarbonCopies,tireCloud=[];let puffAt=-10,puffId=0,copySide="left";
+  const passReel=new BayCleanThrough.Reel();let passFilm=null;
   if(view.gl){BayPictureJumpArt.build(cityMesh,jumps.sites);view.add("city",cityMesh);cityMesh.vertices.length=0;
     view.add("bay-water",waterMesh);waterMesh.vertices.length=0;}
   const rideScenery=new BayRideFilm.Scenery(()=>{
@@ -7945,11 +7946,12 @@
     copySide=side;save.copies.known=true;persist();openPanel("carbon-copies",true);
   }
   function atCopyRail(){return !active&&onStreetFeet()&&!unit.eye&&!roofs.raised&&dist(hero,carbon.rail)<3.25;}
+  function atPassScreen(){return passReel.best&&hero.z>carbon.rail.z+.21;}
   function tireFeedback(v){
     return {cold:"Rear tires warming",ready:"Rear tires ready",hot:"Rear tires overheated"}[BayDriving.tireState(v)];
   }
   function copyHint(){
-    if(atCopyRail())return ["F","Read Romy’s carbon copies"];
+    if(atCopyRail())return ["F",atPassScreen()?"Watch Clean Through · Romy’s cutting table":"Read Romy’s carbon copies"];
     if(!car||transfer||active||heat||dist(car,carbon.pad)>7)return null;
     if(!BayDriving.rearDrive.has(car.kind))return ["","Bring a rear-drive car · Romy likes the Marlin GT"];
     if(car.flatSide)return ["","Portside can fix that flat across the street"];
@@ -7978,6 +7980,32 @@
     signedNote(body,"Park in the chalk across Tideway from Portside Tire. Hold the gas and brake together, then steer until both tire marks close. Bring me one each way. — Romy","$60 for the first copy · $95 for its mate");
     body.append(makeButton("Read the "+other+" copy",save.copies[other]?.model||"Waiting for a print","Turn page",()=>readCopies(other)));
     body.append(makeButton("Mark the chalk circle","North side of Tideway, opposite Portside Tire","Set waypoint",()=>clockPin(carbon.pad)));
+    body.append(passButton());
+  }
+  function passButton(){
+    const best=passReel.best;
+    return makeButton("Clean Through",best?best.street+" · "+best.score+" points":"Romy’s moving-traffic reel","Open reel",()=>openPanel("clean-through"));
+  }
+  function passPanel(body){
+    const card=passReel.best;
+    signedNote(body,"Come past a moving car close enough to get both of you in the shot. Two cars either side of you? That’s my cover. Give me five clean seconds after the last pass. — Romy","Free roam · Start above 20 mph · Contact spoils the run");
+    if(!card)return;
+    signedNote(body,card.score+" points · "+card.passes+" clean "+(card.passes===1?"pass":"passes")+" · "+card.gaps+" double "+(card.gaps===1?"gap":"gaps"),card.model+" / "+card.street);
+    const canvas=document.createElement("canvas");canvas.width=600;canvas.height=260;canvas.className="take-print";
+    canvas.setAttribute("role","img");canvas.setAttribute("aria-label","Overhead replay of the best pass on "+card.street);
+    const controls=document.createElement("div");controls.className="timing-film-controls";
+    const play=document.createElement("button"),scrub=document.createElement("input");
+    scrub.type="range";scrub.min=0;scrub.max=1000;scrub.value=0;scrub.setAttribute("aria-label","Clean Through film position");
+    const f=passFilm={canvas,card,play,scrub,at:0,playing:true,time:performance.now(),drawn:-1};
+    play.textContent="Pause";play.onclick=()=>{if(f.at>=1)f.at=0;f.playing=!f.playing;f.time=performance.now();play.textContent=f.playing?"Pause":"Play";};
+    scrub.oninput=()=>{f.playing=false;f.at=Number(scrub.value)/1000;play.textContent="Play";BayCleanThrough.draw(canvas,card,f.at);};
+    controls.append(play,scrub);body.append(canvas,controls);BayCleanThrough.draw(canvas,card,0);
+  }
+  function rollPassFilm(now){
+    const f=passFilm;if(!f?.playing||now-f.drawn<50)return;
+    f.at=Math.min(1,f.at+Math.max(0,now-f.time)/(160*(f.card.frames.length-1)));f.time=f.drawn=now;
+    f.scrub.value=Math.round(f.at*1000);BayCleanThrough.draw(f.canvas,f.card,f.at);
+    if(f.at>=1){f.playing=false;f.play.textContent="Replay";}
   }
   function logPictureJump(v,landing){
     try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
@@ -8142,10 +8170,17 @@
       if(angle(v.signalFrom,v.yaw)*v.indicator>.52)v.signalTurned=true;
       if(v.signalTurned&&Math.abs(v.steer)<.075){v.indicator=0;v.signalFrom=null;v.signalTurned=false;}
     }
+    let hitPerson=false;
     if(!parking&&!transfer&&!campaign.scene&&Math.abs(v.speed)>=5.6){
       const hits=streetAction.bumper(v,walkers,footLevel);
-      if(hits){v.vx*=.91;v.vz*=.91;v.speed*=.91;streetIncident(hits,true);}
+      if(hits){hitPerson=true;v.vx*=.91;v.vz*=.91;v.speed*=.91;streetIncident(hits,true);}
     }
+    const filming=!active&&!transfer&&!parking&&!towing&&!v.serviceCar&&!v.meetCar&&!green.run?.accepted&&!campaign.scene;
+    const pass=passReel.update(filming?v:null,dt,cars,hitPerson||hitVehicle||impact>1||!!v.jumpFlight);
+    if(pass==="best"||pass==="bank"){
+      const c=passReel.last;note("Clean Through · "+c.score+" points",pass==="best"?"Personal best · Replay at Romy’s rail or in J":"Best "+passReel.best.score+" · "+passReel.best.street,3.6);
+      if(pass==="best"&&c.gaps)broadcastDesk.queue.unshift("Romy Vale got two cars in one shot on "+c.street+". The reel’s up at Portside.");
+    }else if(pass==="lost")note("Clean Through","Take spoiled. Find another gap.",2);
     BayCarAccess.pose(v,v.doorSide,1,hero,motion,footLevel,dt);
   }
   function inServiceBay(v){
@@ -8324,9 +8359,9 @@
       }
       if(!v.path||v===car||v===transfer?.v){v.leftWait=v.lanes=null;if(v!==car||v===transfer?.v)v.indicator=0;continue;}
       const t=v.path[v.corner],from=v.path[(v.corner+v.path.length-1)%v.path.length];
-      const dx=t.x-from.x,dz=t.z-from.z,n=Math.hypot(dx,dz)||1,ux=dx/n,uz=dz/n;
+      const {ux,uz,yaw:roadYaw}=laneSpace.direction(v,from,t);
       const remaining=(t.x-v.x)*ux+(t.z-v.z)*uz,offset=(v.x-from.x)*uz-(v.z-from.z)*ux;
-      if(v.findLane&&Math.abs(offset)<.2&&Math.abs(angle(v.yaw,Math.atan2(ux,uz)))<.15)v.findLane=false;
+      if(v.findLane&&Math.abs(offset)<.2&&Math.abs(angle(v.yaw,roadYaw))<.15)v.findLane=false;
       if(remaining<.045){
         if(v.finiteRoute&&v.corner===v.path.length-1){v.path=null;v.indicator=0;v.yaw+=angle(v.yaw,v.finiteYaw);BayDriving.settle(v);}
         else v.corner=(v.corner+1)%v.path.length;
@@ -8433,7 +8468,7 @@
       }
       v.brakes=ease(v.brakes||0,(yielding&&v.speed<1||evading||pace<before-.35||clearance<.35)?1:0,12,dt);
       const steer=step>.0001?Math.atan2(lateral,step):0;
-      let heading=Math.atan2(ux,uz)+steer;
+      let heading=roadYaw+steer;
       if(v.finiteRoute&&v.corner===v.path.length-1)heading+=angle(heading,v.finiteYaw)*clamp(1-remaining/3.8,0,1);
       const turn=step>.00001?angle(v.yaw,heading)*-Math.expm1(-8*dt):0;
       v.yaw+=turn;v.lean=ease(v.lean||0,clamp(turn/Math.max(dt,.001)*v.speed*.017,-.09,.09),7,dt);
@@ -10147,7 +10182,7 @@
       model(name,g=>g.box(0,0,0,.87,.25,.05,color));
       view.draw(name,garage.x-3.70,4.28,garage.z+garage.halfDepth+.42);
     }
-    if(see(carbon.pad,77))carbon.world(view,save.copies);
+    if(see(carbon.pad,77))carbon.world(view,save.copies,passReel,t);
     drawSkids();
     if(play)BaySandArt.world(view,model,see,sandBeach,t,hero,car);
     const visible=[],owned=transfer?.v||car;
@@ -10868,6 +10903,9 @@
     $("watchCall").hidden=!hearCall;
     if(hearCall)$("watchMessage").textContent=call.phase==="guard"?"Tali is bringing "+swimmer+" ashore":swimmer+" is waving by the "+call.slip.flag.toLowerCase()+" · "+Math.round(dist(p,call.swimmer))+" m";
     const damaged=car&&BayRecovery.worst(car);
+    const takeScore=car&&!transfer&&passReel.vehicle===car&&passReel.run;
+    $("passScore").hidden=!takeScore;
+    if(takeScore)$("passScore").textContent=(takeScore.last.paired?"Double gap":"Clean through")+" · "+takeScore.score+" pts · "+Math.max(1,Math.ceil(takeScore.left))+"s";
     $("tireCall").hidden=(!car?.flatSide&&(!damaged||car.damage[damaged]<.17))||!!transfer;
     if(!$("tireCall").hidden)$("tireCall").textContent=car.flatSide?tireStatus(car):BayRecovery.faultText(car);
     else if(car&&!transfer&&car.burn>.20){$("tireCall").hidden=false;$("tireCall").textContent=tireFeedback(car);}
@@ -11447,7 +11485,7 @@
   }
   function closePanel(){
     frameCheck.suspend();
-    timingFilm=null;
+    timingFilm=passFilm=null;
     wireView=null;
     skateProof=null;
     if(panel==="field-proof"&&active?.field?.phase==="review"){active.field.phase="return";cameraSnap();}
@@ -11901,7 +11939,7 @@
     if(next==="pause"&&needle?.phase==="ready"&&needle.held)needle.serve();
     if(next!=="map"||panel!=="map")pickingRidePin=next==="ride-map";
     if(pickingRidePin&&next==="ride-map"){next="map";chartMode="city";}
-    timingFilm=null;
+    timingFilm=passFilm=null;
     if(next!=="curb-wire")wireView=null;
     if((next==="threads"||next==="threads-prints")&&!atThreads())return;
     if(next==="radio-desk"&&!atRadioDesk()||next==="radio-sleeves"&&!save.airwaves.met)return;
@@ -12037,6 +12075,8 @@
       b.append(makeButton("The Carbon Drawer","Marlin Motel","Replay scene",()=>enterFilm("carbonMorning",true)));
     }else if(next==="ocean-copy"){
       title="Driver copy";kicker="Ocean Unit 12 / Lina Solís";beatPage(b);
+    }else if(next==="clean-through"){
+      title="Clean Through";kicker="Portside Tire / Romy’s cutting table";passPanel(b);
     }else if(next==="carbon-copies"){
       title="Carbon Copies";kicker="Portside Tire / Romy Vale";copyPanel(b);
     }else if(next==="picture-jumps"){
@@ -12384,6 +12424,7 @@
       if(save.releaseCopy)b.prepend(makeButton("Bay Patrol",save.releaseCopy.street,"Release copy",()=>openPanel("patrol-copy")));
       if(save.oceanBeat.known)b.prepend(makeButton("Ocean Unit 12",save.oceanBeat.slip?.plate||"Officer Lina Solís","Driver copy",()=>openPanel("ocean-copy")));
       if(save.copies.known)b.prepend(makeButton("Carbon Copies","Romy’s shop file · "+carbon.sides.filter(s=>save.copies[s]).length+" of 2 directions","Read copies",()=>readCopies(copySide)));
+      if(passReel.best)b.prepend(passButton());
       if(save.starlite.tickets.length)b.prepend(makeButton("Starlite ticket stubs",save.starlite.tickets.at(-1).title,"Look",()=>{ticketIndex=save.starlite.tickets.length-1;openPanel("starlite-tickets");}));
       if(pavement.archive.length)b.prepend(makeButton("Folded copies","Bay Wire papers you picked up on the street.","Read",()=>{paperIndex=pavement.archive.length-1;openPanel("pocket-papers");}));
       if(houseLights.s.opened)b.prepend(makeButton("House Lights","Frankie's two-exposure call sheet and the cinema print.","Open sleeve",()=>openPanel("house-lights")));
@@ -12691,7 +12732,7 @@
     if(neighborKey(ev.code))return;
     if(ev.code==="KeyF"&&!unit.eye&&!unit.transition&&!windowRide&&byCinema()&&!crewDeskNear()){cabAction();return;}
     if(ev.code==="KeyF"&&!active&&!unit.eye&&!afternoon.photo&&(wireDeskNear()||wireWitnessNear())){wireOpen(wireWitnessNear()?.id);return;}
-    if(ev.code==="KeyF"&&atCopyRail()){readCopies(copySide);return;}
+    if(ev.code==="KeyF"&&atCopyRail()){if(atPassScreen())openPanel("clean-through");else readCopies(copySide);return;}
     if(ev.code==="KeyF"&&cornerAction(true))return;
     if(crewKeys(ev.code)||umbrellaKey(ev.code)||radioKeys(ev.code)||buttonwoodKey(ev.code)||brisasKeys(ev.code)||palmInput(ev.code)||gullKeys(ev.code)||motoKeys(ev.code)||rescueKeys(ev.code)||airKeys(ev.code)||skateKeys(ev.code)||transitKeys(ev.code))return;
     if(neon.testing){
@@ -12958,6 +12999,7 @@
     if(!panel)streetTime+=dt;
     if(!play){traffic(dt);motion.step(dt,0,0);}
     if(play&&!panel){
+      if(passReel.vehicle&&(transfer||!car||car!==passReel.vehicle||active))passReel.reset();
       streetAction.tick(dt);elapsed+=dt;hours.step(dt);stepRankPhones();gutters.weather(hours);if(hours.total-savedAt>=20)saveTime();
       bumpLock=Math.max(0,bumpLock-dt);
       // Small steps keep steering and collision response consistent on slower hardware.
@@ -13018,6 +13060,7 @@
     }
     if(wireView&&panel==="curb-wire")paintWire(now);
     if(timingFilm?.playing)drawTimingFilm(now);
+    if(passFilm?.playing)rollPassFilm(now);
     if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;
     if(needle&&!panel){if(now-lastCabinetStreet<150)return;lastCabinetStreet=now;}
     if(play&&!panel)(isTop()?overheadResolution:streetResolution).sample(raw);

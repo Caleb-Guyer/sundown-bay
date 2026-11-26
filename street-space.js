@@ -18,6 +18,14 @@
   // road from its bumper to its stopping horizon, including on diagonal bends.
   class LaneSpace {
     constructor(){this.cells=new Map();this.used=[];}
+    direction(v,from,to){
+      const dx=to.x-from.x,dz=to.z-from.z,d=v.roadTangent??={};
+      if(dx!==d.dx||dz!==d.dz){
+        const length=Math.hypot(dx,dz)||1;d.dx=dx;d.dz=dz;
+        d.ux=dx/length;d.uz=dz/length;d.yaw=Math.atan2(d.ux,d.uz);
+      }
+      return d;
+    }
     key(p){return Math.floor(p.x/24)*65536+Math.floor(p.z/24);}
     cell(key){
       let cell=this.cells.get(key);

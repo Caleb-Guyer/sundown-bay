@@ -164,12 +164,13 @@ async function run() {
     const carbon = process.argv.includes("--carbon-copies");
     const featurePrint=process.argv.includes("--feature-print");
     const footPursuit=process.argv.includes("--foot-pursuit");
+    const cleanThrough=process.argv.includes("--clean-through");
     const walkHome=process.argv.includes("--walk-home");
     const airReplay=process.argv.includes("--last-seen");
     const action=process.argv.includes("--street-action"),admission=process.argv.includes("--admission");
-    if (!walkHome && !airReplay && !featurePrint && !footPursuit && !admission && !action && !campaign && !sand && !lights && !rank && !needle && !windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
+    if (!cleanThrough && !walkHome && !airReplay && !featurePrint && !footPursuit && !admission && !action && !campaign && !sand && !lights && !rank && !needle && !windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
     const activity = needle ? require("./needle-drop.cjs") : windows ? require("./open-windows.cjs") : lanes ? require("./boulevard.cjs") : caps ? require("./summer-caps.cjs") : freight ? require("./port-spur.cjs") : angling ? require("./red-cork.cjs") : bumpers ? require("./bumpers.cjs") : houseLights ? require("./house-lights.cjs") : cup ? require("./coast-cup.cjs") : beat ? require("./ocean-beat.cjs") : carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
-    await (walkHome ? require("./walk-home.cjs") : airReplay ? require("./last-seen.cjs") : featurePrint ? require("./feature-print.cjs") : footPursuit ? require("./foot-pursuit.cjs") : admission ? require("./street-admission.cjs") : action ? require("./street-action.cjs") : campaign ? require("./public-record.cjs") : sand ? require("./soft-sand.cjs") : lights ? require("./road-lights.cjs") : rank ? require("./ring-twice.cjs") : activity)({ js, send, waitFor, key, tap, errors, mode, local: false });
+    await (cleanThrough ? require("./clean-through.cjs") : walkHome ? require("./walk-home.cjs") : airReplay ? require("./last-seen.cjs") : featurePrint ? require("./feature-print.cjs") : footPursuit ? require("./foot-pursuit.cjs") : admission ? require("./street-admission.cjs") : action ? require("./street-action.cjs") : campaign ? require("./public-record.cjs") : sand ? require("./soft-sand.cjs") : lights ? require("./road-lights.cjs") : rank ? require("./ring-twice.cjs") : activity)({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
     assert.equal(await js("audioStarts+cursorRequests"), 0);
     if(server){

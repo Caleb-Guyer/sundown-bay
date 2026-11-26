@@ -137,6 +137,7 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 .map-key {right:0;bottom:0;border:1px solid #eee6c7a3;background:var(--ink);border-radius:3px;padding:2px 4px}
 .vehicle {right:24px;bottom:64px;text-align:right;color:var(--cream);filter:drop-shadow(1px 2px 2px #16272b)}
 .vehicle>span {display:block;font-size:.77rem}
+#passScore{width:fit-content;margin:0 0 5px auto;padding:5px 8px;color:#fbe8b4;background:#233b34ed;border-bottom:2px solid #e8b85f;font:700 .78rem/1.18 Consolas,monospace;letter-spacing:.02em}
 #tireCall {width:fit-content;margin:0 0 4px auto;padding:3px 7px;border-left:3px solid #f5b244;background:#273032ed;color:#ffe0a3;font:700 .82rem/1.15 "DM Sans","Segoe UI",sans-serif}
 .vehicle strong {font:italic 850 2.75rem/.96 "Barlow Condensed","Arial Narrow","Segoe UI",sans-serif;letter-spacing:-.08em}
 .vehicle small {font:700 .68rem Consolas,monospace;letter-spacing:.06em;margin-left:5px}
@@ -679,7 +680,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
       <div id="context" role="status"></div>
       <aside id="ringSlip" hidden><small>RING TWICE</small><strong id="ringTime"></strong><p id="ringClue"></p></aside>
       <div id="speech" role="status" aria-live="polite" hidden><strong></strong><span></span></div>
-      <div class="vehicle"><span id="tireCall" hidden></span><span id="mode"></span><strong id="speed"></strong></div>
+      <div class="vehicle"><span id="passScore" hidden></span><span id="tireCall" hidden></span><span id="mode"></span><strong id="speed"></strong></div>
       <div class="shortcuts"><button id="jobKey"><kbd>J</kbd> Jobs</button><button id="dialKey" title="Previous or next station with [ or ]" hidden><kbd>]</kbd> FM dial</button><button id="audioKey"><kbd>R</kbd> <span>Sound off</span></button><button id="pauseKey" aria-label="Pause and controls"><kbd>Esc</kbd> Pause</button></div>
       <div id="targetTag" hidden></div>
       <div id="neighborTag" aria-hidden="true" hidden></div>
@@ -974,6 +975,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "picture-jumps.js",
   "contact-patch-art.js",
   "carbon-copies.js",
+  "clean-through.js",
   "starlite.js",
   "ocean-beat.js",
   "ocean-beat-art.js",
@@ -994,6 +996,6 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "feature-print.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=f5f28eaa58d0adb6"></script>
+  <script src="sundown.js?v=37b3d921a60bd0e8"></script>
 </body>
 </html>
