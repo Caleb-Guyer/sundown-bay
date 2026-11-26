@@ -385,6 +385,8 @@
       // Compare the original float bits, including signed zero, on their way to WebGL.
       this.vertexWords=new Uint32Array(this.vertices.buffer);
       this.indices=new Uint16Array(65532);
+      this.linearIndices=Uint16Array.from({length:this.vertices.length/6},(_,i)=>i);
+      this.indexBases=new WeakMap();this.indexCopies=new Set();this.indexBytes=0;
       this.savedPoses=new Set();this.poseBytes=0;
       this.sourceIds=new WeakMap();this.nextSource=1;
       this.sideHistory=new Map();this.sideBytes=0;
@@ -400,6 +402,31 @@
       });
       this.nextBuffer=0;
       view.bound=null;this.count=0;this.used=0;this.glow=0;
+    }
+    writeIndices(source,base,at,count,fixed){
+      const dest=this.indices;
+      if(!source&&count>=64){dest.set(this.linearIndices.subarray(base,base+count),at);return;}
+      if(source&&base===0&&count===source.length){dest.set(source,at);return;}
+      let entry;
+      if(source&&fixed&&count>=384&&count===source.length){
+        entry=this.indexBases.get(source);
+        if(entry?.base===base&&entry.copy){dest.set(entry.copy,at);return;}
+        if(!entry){entry={base,copy:null};this.indexBases.set(source,entry);entry=null;}
+        else if(entry.base!==base){
+          if(entry.copy){this.indexBytes-=entry.copy.byteLength;this.indexCopies.delete(entry);entry.copy=null;}
+          entry.base=base;entry=null;
+        }
+      }
+      if(source){for(let i=0;i<count;i++)dest[at+i]=base+source[i];}
+      else for(let i=0;i<count;i++)dest[at+i]=base+i;
+      if(entry){
+        // Only retain a repeated placement. Changing traffic and lens cuts often move it.
+        while(this.indexBytes+count*2>512*1024){
+          const oldest=this.indexCopies.values().next().value;
+          this.indexBytes-=oldest.copy.byteLength;oldest.copy=null;this.indexCopies.delete(oldest);
+        }
+        entry.copy=dest.slice(at,at+count);this.indexBytes+=entry.copy.byteLength;this.indexCopies.add(entry);
+      }
     }
     uploadStream(target,source,length,history){
       const prior=history.words,known=Math.min(length,history.known);
@@ -539,7 +566,7 @@
         }
         if(pose)this.rememberPose(pose,dest.subarray(start,start+n*6));
       }
-      for(let i=0;i<count;i++)this.indices[this.count+i]=this.used+(indices?indices[i]:i);
+      this.writeIndices(indices,this.used,this.count,count,!model.dynamic);
       this.used+=n;this.count+=count;
     }
   }

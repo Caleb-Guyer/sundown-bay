@@ -10,6 +10,7 @@
         !Array.isArray(c.frames)||c.frames.length<2||c.frames.length>36)return null;
     if(!c.frames.every(f=>Array.isArray(f)&&f.length&&f.length<=5&&f.every(a=>Array.isArray(a)&&a.length===7&&
         a.slice(0,6).every(Number.isFinite)&&a[4]>0&&a[4]<8&&a[5]>0&&a[5]<3&&paint.test(a[6]))))return null;
+    if(typeof c.cover!=="string"||c.cover.length>96000||!/^data:image\/jpeg;base64,\/9j\/[a-zA-Z0-9+/]+={0,2}$/.test(c.cover))delete c.cover;
     return c;
   }
   function pose(v,id){
@@ -32,7 +33,12 @@
       const quality=points+(paired?250:0);
       if(quality>r.quality){
         r.quality=quality;r.frames=this.lead.slice(-22);r.after=10;r.spot={x:v.x,z:v.z,yaw:v.yaw};
+        r.cover=null;r.exposeBy=this.time+.20;
       }
+    }
+    expose(source,sky){
+      const r=this.run;if(!r||!(this.time<=r.exposeBy))return;
+      r.exposeBy=-1;r.cover=BayMeetPhoto.capture(source,sky,.5,.5,16/9,true);
     }
     update(v,dt,cars,hit){
       if(!v&&!this.vehicle)return "";
@@ -85,7 +91,11 @@
         street:BayStreetNames.through(run.spot,run.spot.yaw)||"Sundown Bay",frames:run.frames};
       this.last=card;this.best=read()||this.best;
       if(card.frames.length>1&&(!this.best||card.score>this.best.score)){
-        this.best=card;try{localStorage.setItem(key,JSON.stringify(card));}catch{}return "best";
+        this.best=card;if(run.cover)card.cover=run.cover;
+        try{localStorage.setItem(key,JSON.stringify(card));}catch{
+          delete card.cover;try{localStorage.setItem(key,JSON.stringify(card));}catch{}
+        }
+        return "best";
       }
       return "bank";
     }

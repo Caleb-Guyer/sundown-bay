@@ -119,6 +119,50 @@
                              : Math.hypot(out.x-subject.x,out.z-subject.z)<.53&&out.y-ground<2.18;
     }
   }
+  // The tripod stays on its mark while the driver passes it. Cut on travel,
+  // a turn, or a blocked sightline so waiting at a light holds the same shot.
+  class Roadside {
+    constructor(rig){this.rig=rig;this.stop();}
+    stop(){this.vehicle=null;this.mark=null;this.shot=0;this.retry=0;}
+    start(v){this.stop();this.vehicle=v;}
+    clear(p,q){
+      const reach=Math.max(Math.abs(p.x-q.x),Math.abs(p.z-q.z))+.3;
+      const obstacles=this.rig.space?this.rig.space.near(p.x,p.z,reach):this.rig.obstacles;
+      return safeFraction(p,q,obstacles)===1;
+    }
+    frame(v,ground,dt){
+      if(v!==this.vehicle||!v)return null;
+      const y=ground(v.x,v.z),p={x:v.x,y:y+1,z:v.z};
+      const direction=v.speed< -1?-1:1,heading=v.yaw+(direction<0?Math.PI:0);
+      const sn=Math.sin(heading),cs=Math.cos(heading);
+      let m=this.mark;
+      if(m){
+        const forward=(m.x-v.x)*m.sn+(m.z-v.z)*m.cs;
+        if(forward< -9||Math.hypot(m.x-v.x,m.z-v.z)>36||
+           Math.abs(v.speed)>2&&Math.abs(wrap(heading-m.heading))>.93||!this.clear(p,m)){
+          this.mark=m=null;
+        }
+      }
+      if(!m){
+        this.retry=Math.max(0,this.retry-dt);if(this.retry>0)return null;
+        const side=this.shot%2?-1:1,high=this.shot%2===1;
+        for(const [ahead,offset,lift] of [[high?14:18,side*(high?9:7),high?4.8:1.75],
+          [15,-side*7,2.7],[8,side*6,3.8],[6,-side*5,4.4]]){
+          const x=v.x+sn*ahead+cs*offset,z=v.z+cs*ahead-sn*offset;
+          const q={x,y:Math.max(y,ground(x,z))+lift,z,heading,sn,cs};
+          if(!this.clear(p,q))continue;
+          this.mark=m=q;this.shot++;break;
+        }
+        if(!m){this.retry=.25;return null;}
+      }
+      const lead=Math.min(2.6,Math.abs(v.speed)*.11);
+      const cx=v.x+sn*lead,cz=v.z+cs*lead,range=Math.hypot(cx-m.x,cz-m.z);
+      return {x:m.x,y:m.y,z:m.z,yaw:Math.atan2(cx-m.x,cz-m.z),
+        pitch:Math.atan2(p.y-m.y,range),focal:clamp(1.23+range*.038,1.45,2.25),
+        cx,cz,span:clamp(15+range*.49,18,32)};
+    }
+  }
+  BayCamera.Roadside=Roadside;
   BayCamera.safeFraction=safeFraction;
   window.BayCamera=BayCamera;
 })();
