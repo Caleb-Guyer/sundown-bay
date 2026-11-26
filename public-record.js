@@ -17,6 +17,8 @@
     cab:["ride",[3.8,1.50,4.2],[2.9,1.43,3.6],[0,.94,0],1.58,18],
     doubleSeat:["ride",[2.75,1.53,2.90],[1.85,1.42,2.54],[.19,1.02,.07],1.56,9],
     flowerSeat:["ride",[-2.48,1.45,-.69],[-1.95,1.19,-.54],[.07,.82,.20],1.38,5.8],
+    coneStack:["ride",[-2.8,.88,2.8],[-1.65,.83,2.15],[0,.73,0],1.40,6.1],
+    countyForeman:["ride",[-2.1,1.56,2.5],[-1.64,1.52,2.08],[0,1.41,0],1.35,6.5],
     rearPlate:["ride",[2.6,1.14,-4.7],[1.05,.89,-3.7],[0,.62,-1.55],1.54,10],
     cabWindow:["ride",[3.2,1.49,-2.35],[2.05,1.32,-1.82],[.52,1.05,-.53],1.38,7],
     sugarBowl:["motel",[.10,1.72,-10.8],[1.54,1.48,-10.34],[3.60,1.00,-9.55],1.53,6.4],
@@ -32,6 +34,14 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    countyAlone:[
+      {dur:3.8,shot:"coneStack",title:"Both Lanes Open",slug:"PALM COUNTY   /   ROADS DEPARTMENT",who:"Inez Pardo",line:"The radio said the road was open ten minutes ago. Funny. I still had three cones on the asphalt."},
+      {dur:4.2,shot:"countyForeman",who:"Inez Pardo",line:"You can take the inside lane now. If you see the orange cart out here again, give me a hand with the last one."}
+    ],
+    lastCone:[
+      {dur:3.5,shot:"coneStack",title:"The Last Cone",slug:"PALM COUNTY   /   ROADS DEPARTMENT",who:"Inez Pardo",line:"Hear that? Four bases make a different sound from three. I used to count them. Now I can hear a missing one from the cab."},
+      {dur:4.7,shot:"countyForeman",who:"Inez Pardo",line:"That vest on the handle is yours. Keep it. Next time I see you in the middle of the road, I'd like to see you a little sooner."}
+    ],
     unclaimedFare:[
       {dur:3.3,shot:"rearPlate",slug:"BAY CAB CO.   /   OFF THE CLOCK",title:"Keep the Meter Running",who:"Bay Cab driver",line:"She paid me in quarters. Said if the meter hit four dollars I should let her out wherever we were."},
       {dur:4.8,shot:"cabWindow",who:"Neve Armas",line:"Thirty-eight forty? That's the extra for nights. I can sign right here. Or leave it with Bea. She keeps our envelopes under the sugar bowl."}

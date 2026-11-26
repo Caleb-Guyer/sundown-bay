@@ -3,6 +3,7 @@
   "use strict";
   const tau=2*Math.PI;
   const fabrics={
+    roadcrew:{shirt:"#df8348",edge:"#576f70",pants:"#485968",thread:"#e8e2bb",light:"#ebe9cd",shoe:"#635546"},
     tideline:{shirt:"#ead8ad",edge:"#cbbb96",pants:"#68837f",thread:"#2c7776",light:"#ead6a5",shoe:"#ded4b7"},
     pitlane:{shirt:"#984b49",edge:"#713c40",pants:"#424e64",thread:"#f0dbb2",light:"#d2a877",shoe:"#635151"},
     marquee:{shirt:"#514e79",edge:"#3c3b61",pants:"#514e79",thread:"#e9b76d",light:"#dc8f79",shoe:"#483e4d"},
@@ -66,6 +67,7 @@
       if(id==="tideline"){if([5,7,9].includes(i))col=i===7?f.thread:"#7aa398";else if(i===1)col=f.edge;}
       if(id==="pitlane"&&(i===1||i===11))col=i===1?f.edge:"#be7363";
       if(id==="marquee"&&i===2)col=f.edge;
+      if(id==="roadcrew"&&(i===3||i===7))col=f.thread;
       facets(g,rings[i-1],rings[i],col);
     }
     const collar=ring(1.448,.097,.086);facets(g,rings.at(-1),collar,f.shirt);cap(g,collar,f.edge);
@@ -96,6 +98,11 @@
       const band0=ring(1.018,.175,.137),band1=ring(1.049,.175,.137);
       facets(g,band0,band1,"#aa7069");label(g,1,-.025,1.019,.050,.032,f.thread,.008);
       label(g,1,-.016,1.026,.032,.017,f.edge,.010);
+    }else if(id==="roadcrew"){
+      for(const face of [-1,1])for(const side of [-1,1])
+        stitch(g,face,[[side*.132,1.397],[side*.102,1.294],[side*.083,1.18]],.025,f.thread,.008);
+      label(g,1,-.15,1.245,.066,.04,f.edge,.009);
+      label(g,1,-.144,1.26,.05,.008,f.thread,.011);
     }else{
       // The bib and its straps sit over an open, rolled-sleeve fishing shirt.
       panel(g,1,[[-.119,.918],[.119,.918],[.111,1.095],[.089,1.276],[-.089,1.276],[-.111,1.095]],f.pants,.004);
@@ -113,13 +120,13 @@
     }
   }
   function sleeve(g,s,id,f){
-    const low={tideline:1.249,pitlane:1.045,marquee:1.088,netter:1.177}[id],radius={tideline:.080,pitlane:.086,marquee:.068,netter:.084}[id];
+    const low={tideline:1.249,pitlane:1.045,marquee:1.088,netter:1.177,roadcrew:1.20}[id],radius={tideline:.080,pitlane:.086,marquee:.068,netter:.084,roadcrew:.083}[id];
     const x=y=>s*(y<1.185?.245:(.25-.045*(y-1.185)/.23));
     const at=(y,r)=>ring(y,r,r*.99,x(y),y<1.185?(1.185-y)*.215:0);
     let cuff=id==="marquee"?f.light:id==="tideline"?f.thread:f.edge;
     const layers=[[low,radius*.72],[low+.016,radius*.84],[low+.045,radius*.91],[1.295,radius*.98],[1.347,radius],[1.404,radius*.95]];
     for(let i=1;i<layers.length;i++){
-      const [y,r]=layers[i],[below,br]=layers[i-1];facets(g,at(below,br),at(y,r),i===1?cuff:i===2&&id==="netter"?"#deb374":f.shirt);
+      const [y,r]=layers[i],[below,br]=layers[i-1];facets(g,at(below,br),at(y,r),id==="roadcrew"?f.edge:i===1?cuff:i===2&&id==="netter"?"#deb374":f.shirt);
     }
     cap(g,at(1.404,radius*.95),f.shirt);
     if(id==="pitlane"){
@@ -304,6 +311,7 @@
     if(id==="tideline"){stroke(-.210,.074,.210,.074,f.thread,.032);stroke(-.167,.105,.167,.105,"#80a59b",.016);}
     if(id==="pitlane"){stroke(-.216,.045,-.135,.093,f.thread,.020);stroke(.216,.045,.135,.093,f.thread,.020);ctx.fillStyle=f.thread;ctx.fillRect(.179,-.055,.037,.034);}
     if(id==="marquee")for(let i=0;i<5;i++){const a=(i+1)*Math.PI/6;stroke(.032*Math.cos(a),.067+.018*Math.sin(a),.133*Math.cos(a),.058+.071*Math.sin(a),f.thread,.016);}
+    if(id==="roadcrew")for(const side of [-1,1])stroke(side*.18,-.04,side*.09,.11,f.thread,.037);
     if(id==="netter"){stroke(-.103,-.052,.083,.114,f.pants,.045);stroke(.103,-.052,-.083,.114,f.pants,.045);}
     ellipse(0,-.064-.031*run,.104,.108,skin);ellipse(0,-.047-.031*run,.096,.094,frank?"#483b40":"#37343c");
     if(frank)ellipse(-.019,.031-.031*run,.063,.055,"#44363a");ctx.restore();

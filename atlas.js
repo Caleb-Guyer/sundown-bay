@@ -1428,7 +1428,7 @@
           if(opt.airLine?.saved.bag){const q=BayDriving.world(v,.48,-.94);BayAirmailArt.bagMap(ctx,opt,px,py,s,q,v.yaw+.28,BayAirPost.tagFor(opt.airLine.saved.bag));}
           disc(ctx,px(helm.x),py(helm.z),s*.17,"#805741");}
         if(opt.wash)BayPalmaWash.mapActivity(ctx,opt,px,py,s,visible);
-        if(opt.payroll?.stage!=="receipt"&&!opt.crew?.finder&&!opt.rainWalk?.trip&&!opt.airwaves?.mixing&&!opt.airLine?.aboard&&!opt.photograph&&!opt.keyMapActor&&!opt.band?.take&&!opt.skate?.rider){
+        if(!opt.directed&&opt.payroll?.stage!=="receipt"&&!opt.crew?.finder&&!opt.rainWalk?.trip&&!opt.airwaves?.mixing&&!opt.airLine?.aboard&&!opt.photograph&&!opt.keyMapActor&&!opt.band?.take&&!opt.skate?.rider){
           const r=Math.max(player.driving?2.7*s:opt.pickup ? .52*s : 1.1*s,5.2*ui);
           ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.lineWidth=1.5*ui;ctx.strokeStyle=mint;ctx.stroke();
           const vx=Math.sin(player.yaw||0),vy=-Math.cos(player.yaw||0);
@@ -1441,6 +1441,7 @@
       ctx.fillStyle="#6a523e";ctx.fillRect(.25*s,-.21*s,.26*s,.48*s);ctx.fillStyle="#4a8275";ctx.fillRect(.27*s,-.17*s,.19*s,.39*s);
       ctx.fillStyle="#e7d4a9";ctx.fillRect(.29*s,-.15*s,.04*s,.27*s);ctx.restore();
     }
+    if(opt.countyCrew)BayLastCone.map(ctx,opt.countyCrew,player,street,px,py,s,visible,personSprite,rotation);
     if(street&&opt.romyHome)BayPayroll.map(ctx,opt.romyHome,px,py,s,visible,personSprite);
     if(street&&opt.payroll)BayPayroll.map(ctx,opt.payroll,px,py,s,visible,personSprite);
     if(street)BayMeterRunning.map(ctx,px,py,s,visible,opt.meterFare,opt.fareLedger);

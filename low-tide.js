@@ -9,12 +9,13 @@
     {id:"marquee",name:"Blue Hour jumpsuit",price:65,note:"Indigo cotton with a gold sunburst from the Cine Luna costume shop."},
     {id:"netter",name:"Netter’s work set",price:85,note:"Mustard overshirt and blue bibs, cut from the last roll at Port Sol."}
   ];
+  const wardrobe=[...stock,{id:"roadcrew",name:"County Roads vest"}];
   const briefs=[
     {id:"marlin",name:"Postcard from the Marlin",pay:65,detail:"Wear the Tideline polo at the Marlin Motel booth. Give me three different poses."},
     {id:"luna",name:"After the early show",pay:110,detail:"Wear the Blue Hour jumpsuit at Cine Luna. Lean in for the middle exposure."},
     {id:"wheel",name:"Two at the wheel",pay:185,detail:"Bring your partner to North Boardwalk. One in the pit jacket, one in the Netter’s set. Finish with the peace sign."}
   ];
-  const custom=id=>stock.some(s=>s.id===id);
+  const custom=id=>wardrobe.some(s=>s.id===id);
   const available=(book,courts,id)=>id==="street"||book.owned.includes(id)||(["sol","mercado"].includes(id)&&courts[id].wins>0);
   const fits=(r,id)=>{
     if(!r||r.site!==id||!r.looks||!Array.isArray(r.poses)||r.poses.length!==3)return false;
@@ -25,7 +26,7 @@
   };
   function read(raw,courts){
     const book={rev:Number.isSafeInteger(raw?.rev)&&raw.rev>=0?raw.rev:0,met:raw?.met===true,
-      owned:stock.filter(s=>Array.isArray(raw?.owned)&&raw.owned.includes(s.id)).map(s=>s.id),wear:{},prints:{},featured:""};
+      owned:wardrobe.filter(s=>Array.isArray(raw?.owned)&&raw.owned.includes(s.id)).map(s=>s.id),wear:{},prints:{},featured:""};
     for(const lead of ["guest","frankie"]){
       const id=raw?.wear?.[lead]??courts.equipped;
       book.wear[lead]=available(book,courts,id)?id:"street";
@@ -54,5 +55,5 @@
     b.prints[brief.id]=r;b.featured=brief.id;b.rev++;save.wallet+=pay;if(pay)save.paid++;
     return pay;
   }
-  window.BayLowTide={site,counter,cora,stock,briefs,custom,available,fits,read,outfit,hang};
+  window.BayLowTide={site,counter,cora,stock,wardrobe,briefs,custom,available,fits,read,outfit,hang};
 })();

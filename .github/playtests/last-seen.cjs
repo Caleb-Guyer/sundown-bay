@@ -64,6 +64,43 @@ module.exports=async({js,waitFor:wait,tap,key,send,mode,errors})=>{
   await snap("air-replay");
   await js("s.value=s.max;s.dispatchEvent(new Event('input'));true");await snap("air-last-visual");
   await js(btn("Last place on camera")+".click()");assert.equal(await js(book+".air.id"),clip.id);
+  // Reload restored the same closure that was left by the pursuit above.
+  const roads="JSON.parse(localStorage.getItem(BayLastCone.key)).site";
+  const site=await js(roads);assert.equal(site.cones.length,4);assert(site.street);
+  await js(`const roadsQA={};const moveCrew=BayLastCone.Crew.prototype.step;
+    BayLastCone.Crew.prototype.step=function(){roadsQA.crew=this;return moveCrew.apply(this,arguments);};
+    const paramedic=BayRescue.Service.prototype.step;
+    BayRescue.Service.prototype.step=function(dt,e){roadsQA.hero=e.hero;return paramedic.apply(this,arguments);};
+    true`);
+  await waitFor("roadsQA.hero&&roadsQA.crew",20000);
+  await js(`const rc=roadsQA.crew,h=roadsQA.hero,r=rc.site.rack;
+    Object.assign(h,{x:r.x,z:r.z});true`);
+  await waitFor("!document.querySelector('#game').classList.contains('in-chapter')");
+  for(let attempt=0;attempt<4;attempt++){
+    const id=await js("rc.nearest(r,40)");if(id<0)break;
+    await js("Object.assign(h,{x:rc.site.cones["+id+"].x,z:rc.site.cones["+id+"].z});true");
+    await tap("KeyL");await waitFor("rc.hand==="+id);
+    if(attempt===0){
+      await js("Object.assign(h,BayDriving.world(r,0,4.5));true");
+      await key("keyDown","KeyL");
+      await js(`requestAnimationFrame(function aim(){
+        if(rc.charge===null)return;
+        if(rc.range()<Math.hypot(h.x-r.x,h.z-r.z)-.27){requestAnimationFrame(aim);return;}
+        dispatchEvent(new KeyboardEvent("keyup",{code:"KeyL",key:"l"}));
+      });true`);
+      await waitFor("rc.site.cones["+id+"].by==='player'",16000);await key("keyUp","KeyL");
+      await snap("county-cart");
+    }else{
+      await js("Object.assign(h,BayDriving.world(r,-.8,.2));true");await tap("KeyL");
+      await waitFor("rc.site.cones["+id+"].by==='player'");
+    }
+  }
+  await waitFor("rc.site.cones.every(c=>c.by!=='ground')",65000);
+  assert(await js("rc.book.best>=3.5&&JSON.parse(localStorage.getItem('sundownBay.v1')).threads.owned.includes('roadcrew')"));
+  await js("Object.assign(h,{x:rc.worker.x+.4,z:rc.worker.z+.65});true");await tap("KeyF");
+  await waitFor("document.querySelector('#game').classList.contains('in-chapter')");await snap("county-wrap");
+  await waitFor("!document.querySelector('#game').classList.contains('in-chapter')",22000);
+  console.log("PASS actual pursuit closure, saved city worksite, timed cone toss, lane reopening, wardrobe reward and cinematic",mode,site.street);
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS five-star collision pursuit, moving Air One camera, escaped search, archived replay, scrub and last-seen map pin",mode,clip.frames.length);
 };
