@@ -3,14 +3,18 @@ module.exports=function trafficPrints(){
   const sheet=document.createElement("canvas");sheet.width=552;sheet.height=368;
   const c=sheet.getContext("2d",{willReadFrequently:true}),rows=[],times=[[],[]];
   for(const kind of ["coupe","cab","van","hatch","cayo","marea","estate","stepside"]){
-    for(let i=0;i<6;i++)rows.push({kind,color:i%2?"#5c8188":"#aa6357",brakes:i%3===0?1:0,yaw:i*.81});
+    for(let i=0;i<6;i++){
+      const lenses=["coupe","cab","van","hatch"].includes(kind);
+      rows.push({kind,color:i%2?"#5c8188":"#aa6357",brakes:i%3===0?1:0,yaw:i*.81,
+        indicator:lenses&&i>1?(i%2?-1:1):0,reversing:lenses&&i%3===2});
+    }
   }
   function paint(cached){
     c.clearRect(0,0,sheet.width,sheet.height);c.lineJoin="round";
     let hits=0;
     for(let i=0;i<rows.length;i++){
       const v=rows[i],x=36+i%8*68,y=32+Math.floor(i/8)*60;
-      if(BayMapTraffic.draw(c,v,x,y,[2.1,2.94,4.2,7.5,11,9][i%6],0,cached))hits++;
+      if(BayMapTraffic.draw(c,v,x,y,[2.1,2.94,4.2,7.5,11,9][i%6],i*.17,cached))hits++;
     }
     return hits;
   }
@@ -22,7 +26,7 @@ module.exports=function trafficPrints(){
     union++;if(a[i+3]>=80&&b[i+3]>=80)intersection++;
     for(let k=0;k<3;k++)err+=Math.abs(a[i+k]*a[i+3]/255-b[i+k]*b[i+3]/255);
   }
-  const poses=[{damage:{front:.7}},{flatSide:1},{doorAngle:.4},{passengerDoor:.7},{steer:.28},{reversing:true},{indicator:1},{hornAt:-.1}];
+  const poses=[{damage:{front:.7}},{flatSide:1},{doorAngle:.4},{passengerDoor:.7},{steer:.28},{hornAt:-.1}];
   const live=poses.map(p=>!BayMapTraffic.draw(c,{...rows[0],...p},24,24,7,0,true));
   for(let i=0;i<14;i++){
     const variant=i%4===0||i%4===3?1:0,start=performance.now();

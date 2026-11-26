@@ -433,17 +433,19 @@
   }
   function drawTraffic(c,v,x,y,s,t,lowDetail){
     if(lowDetail&&v.kind==="solena"&&parkedSolena(c,v,x,y,s,t))return true;
+    const movingLamps=v.reversing||v.indicator;
+    const separateLamps=movingLamps&&(v.kind==="coupe"||v.kind==="hatch"||v.kind==="cab"||v.kind==="van");
     // The flash, damage, steer and door poses still come from this exact car.
     // At dashboard-map scale only an unchanged body can use the shared print.
     if(!lowDetail||s<2||s>16||!printKinds.has(v.kind)||v.damage||v.hydraulic||v.flatSide||
-      v.doorAngle||v.passengerDoor||v.reversing||v.indicator||Math.abs(v.steer||0)>.0001||BayStreetReactions.hornPulse(v,t)){
+      v.doorAngle||v.passengerDoor||movingLamps&&!separateLamps||Math.abs(v.steer||0)>.0001||BayStreetReactions.hornPulse(v,t)){
       carSprite(c,v,x,y,s,t);BayStreetCars.map(c,v,x,y,s,t);return false;
     }
     // Registry lenses appear at 2.2 px/m, coachwork changes at 3.5, and mirrors and plates at 4.
     const bodyScale=s<3.5&&window.bayCoachwork?.(v.kind)?3:20;
-    const liveTrim=!!(v.fmSticker||v.guestId||BayBoulevardLanes.flash(v,t));
+    const liveTrim=!!(v.fmSticker||v.guestId||v.indicator||BayBoulevardLanes.flash(v,t));
     const trimScale=liveTrim?0:s<2.2?2:s<4?3:8;
-    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit)+"/"+bodyScale+"/"+trimScale;
+    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit)+"/"+bodyScale+"/"+trimScale+(v.reversing?"/reverse":"");
     let print=trafficPrints.get(key);
     if(!print){
       // Every eligible body and its shadow fit on this 3.2 by 6.4 metre sheet.
@@ -452,7 +454,7 @@
       // Choose the same trim as the vector painter at this camera distance,
       // while rasterizing its small silhouette with spare source resolution.
       ink.lineJoin="round";ink.translate(32,64);ink.scale(20/bodyScale,20/bodyScale);
-      const body={kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0};
+      const body={kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0,reversing:!!v.reversing};
       carSprite(ink,body,0,0,bodyScale,0);
       if(trimScale){ink.scale(bodyScale/trimScale,bodyScale/trimScale);BayStreetCars.map(ink,body,0,0,trimScale,0);}
       print=freezeSurface(print);
@@ -1405,6 +1407,7 @@
         }
       } else playerIcon(ctx,x,y,(radar?7.15:6.6)*ui,player.yaw);
     }
+    if(street&&opt.romyHome)BayPayroll.map(ctx,opt.romyHome,px,py,s,visible,personSprite);
     if(street&&opt.payroll)BayPayroll.map(ctx,opt.payroll,px,py,s,visible,personSprite);
     if(opt.recovery&&street)BayRecoveryArt.map(ctx,opt,px,py,s,visible);
     if(street&&opt.lastDiner&&t<opt.lastDiner.until){

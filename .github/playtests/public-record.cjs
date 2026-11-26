@@ -139,6 +139,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       console.log("PERF overhead block pixels",JSON.stringify(ground));
       const lot=await js("("+require("./starlite-lot.cjs").toString()+")()");
       console.log("PERF Starlite lot",JSON.stringify(lot));
+      const lamps=await js("("+require("./traffic-prints.cjs").toString()+")()");
+      console.log("PERF traffic lamps",JSON.stringify(lamps));
+      assert(lamps.cars===48&&lamps.overlap>.93&&lamps.error<22&&lamps.live);
       for(const v of lot)assert(v.original.paths>50&&v.cached.paths<=5&&v.cached.images===1&&v.overlap>.98&&v.error<5);
       for(const sample of ground)assert(sample.changed<sample.pixels*.001&&sample.meanError<.12,"Block transition "+JSON.stringify(sample));
       const wheel=await js("("+require("./wheel-map.cjs").toString()+")()");

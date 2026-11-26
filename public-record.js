@@ -97,6 +97,10 @@
       {dur:3.8,shot:"laundry",slug:"MARLIN MOTEL   /   LAUNDRY ENTRANCE",title:"The Carbon Drawer",who:"Romy Vale",line:"Empty your pockets before I put that shirt in. Last time the whole wash came out yellow."},
       {dur:4.5,art:"releaseCopy",who:"Romy Vale",line:"Let me see what they wrote."}
     ],
+    walkHomeDoor:[
+      {dur:4.1,shot:"laundry",slug:"MARLIN MOTEL   /   LAUNDRY STEPS",title:"The Long Way Home",who:"Romy Vale",line:"Come under the awning a minute."},
+      {dur:6.1,art:"staffKey",who:"Romy Vale",line:"My mother always carried two keys."}
+    ],
     collectionOpen:[
       {dur:3.1,shot:"laundry",slug:"OCEAN DRIVE   /   LAUNDRY ENTRANCE",title:"Last Collection",who:"Romy Vale",line:"My mother folded sheets upstairs for twenty years. They paid her last Friday with a key to a room she already cleans."},
       {dur:4.5,art:"payEnvelope",who:"Romy Vale",line:"That's the pay office stamp. Jules has the missing envelopes at the motel curb. Pull up slow. He'll find the passenger door."}

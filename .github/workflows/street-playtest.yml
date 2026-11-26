@@ -75,6 +75,7 @@ jobs:
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --street-action --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --foot-pursuit --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --last-seen --frames
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --walk-home --frames
       - uses: actions/upload-artifact@v4
         if: always()
         with:
