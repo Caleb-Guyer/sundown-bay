@@ -1,10 +1,11 @@
 /* Public Record, the Lot 14 campaign. Camera coordinates are relative to each set. */
 (() => {
   const key="sundownBay.publicRecord.v1";
-  const spots={port:{x:-149.5,z:-91},motel:{x:151,z:-25},mara:{x:153,z:-21.5},
+  const spots={get receiving(){return BayPalmClinic.site.desk;},port:{x:-149.5,z:-91},motel:{x:151,z:-25},mara:{x:153,z:-21.5},
     gate:{x:-152.55,z:-88.1},live:{x:153,z:118},print:{x:8,z:54.8},reel:BayRoomTone.mara};
   const stages=["arrival","meet","ride","negative","return","filed"];
   const camera={
+    clinicDoor:["receiving",[.55,1.68,3.72],[.32,1.62,2.8],[0,1.30,-.65],1.42,13],
     portWide:["port",[-12,14,-22],[2,10,-19],[-5,3,4],1.4,76],
     fence:["gate",[6.7,2.1,4],[4.8,1.85,3.5],[-1,1.2,-1.6],1.62,23],
     laundry:["motel",[7,2,-8.8],[5.6,1.65,-8.1],[2.8,1.32,-5.6],1.49,15],
@@ -25,6 +26,15 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    laundryOrder:[
+      {dur:4.3,shot:"clinicDoor",slug:"PALM COUNTY CLINIC   /   RECEIVING",title:"The Laundry Line",who:"Ora Bell",line:"Look at the little bag people come in with. Wallet, keys, one shoe sometimes. Nobody ever packs a clean shirt."},
+      {dur:6.4,art:"linenSlip",who:"Ora Bell",line:"The cab phone outside the Marlin goes straight to laundry. Two rings, hang up. That's how Romy knows it's us."},
+      {dur:4.8,art:"linenSlip",who:"",line:"A shirt with a pocket, if there's one left. I've still got my house key."}
+    ],
+    laundryReceipt:[
+      {dur:4.1,art:"linenSlip",slug:"PALM COUNTY CLINIC   /   NORTH WINDOW",title:"One shirt, one comb",who:"Ora Bell",line:""},
+      {dur:4.8,shot:"clinicDoor",who:"Ora Bell",line:"There's a peppermint in the pocket. Romy does that even when we tell her we'll wash it."}
+    ],
     countyLoan:[
       {dur:6.8,voice:"loanTicket",art:"relayCard",slug:"PORTSIDE TIRE   /   COUNTY BAND",title:"Say Again, Four",who:"Cleo Moss",line:"Somebody sent me one spare repeater and two work orders. That's county arithmetic."},
       {dur:7.1,voice:"lunaCheck",shot:"cab",who:"Cleo Moss",line:"Take the receiver under the Luna sign. Key it there and listen to what comes back. The market and the Marlin both want the spare."}

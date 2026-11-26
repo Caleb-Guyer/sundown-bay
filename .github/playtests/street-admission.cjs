@@ -1,5 +1,5 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
-module.exports=async function admission({js,send,tap,waitFor,errors,mode}){
+module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
   async function snap(label){
     const {data}=await send("Page.captureScreenshot",{format:"jpeg",quality:88});
     const dir=path.join(__dirname,"curb-wire-proof");fs.mkdirSync(dir,{recursive:true});
@@ -8,6 +8,8 @@ module.exports=async function admission({js,send,tap,waitFor,errors,mode}){
   async function watch(label,condition,seconds){
     const start=Date.now();let next=start+15000;
     while(Date.now()-start<seconds*1000){
+      if(label==="response lights")await js(`if(Math.hypot(care.hero.x-62.4,care.hero.z-43.2)>56){
+        care.at(care.hero,62.4,43.2,1.23);care.rig.reset(care.hero);}`);
       if(await js(condition))return;
       if(Date.now()>=next){console.log("PERF rescue",mode,label,await js("care.status()"));next+=15000;}
       await new Promise(resolve=>setTimeout(resolve,250));
@@ -41,7 +43,7 @@ module.exports=async function admission({js,send,tap,waitFor,errors,mode}){
     care.at=(h,x,z,yaw=0)=>Object.assign(h,{x,z,y:care.floor(x,z),yaw});
     care.status=()=>JSON.stringify({phase:care.service.phase,age:Math.round(care.service.age),
       blocked:Math.round(care.service.blocked),cursor:Math.round(care.service.cursor),length:Math.round(care.service.line?.length),
-      xy:[care.service.v.x,care.service.v.z].map(Math.round),speed:Math.round(care.service.v.speed),frames:care.frames,
+      xy:[care.service.v.x,care.service.v.z].map(Math.round),speed:Math.round(care.service.v.speed),frames:care.frames,sides:[...care.sides],near:!!care.nearLamps,
       hero:[care.hero.x,care.hero.z].map(Math.round),width:document.querySelector("#world").width,
       panel:document.querySelector("#panel").hidden?"":document.querySelector("#panel").dataset.screen});
     care.frames=0;function sample(){care.frames++;requestAnimationFrame(sample);}requestAnimationFrame(sample);`);
@@ -68,7 +70,31 @@ module.exports=async function admission({js,send,tap,waitFor,errors,mode}){
     await snap("rescue-curb");throw err;
   }
   const record=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).rescue.streetSlip");assert.equal(record.name,name);assert.equal(record.assisted,false);
+  await js("care.at(care.hero,BayPalmClinic.site.desk.x,BayPalmClinic.site.desk.z);care.rig.reset(care.hero)");await tap("KeyF");
+  await waitFor("document.querySelector('#panelBody').textContent.includes('The Laundry Line')");
+  await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.textContent.includes('The Laundry Line')).click()");
+  await waitFor("document.querySelector('#chapterTitle').textContent==='The Laundry Line'");
+  await waitFor("document.querySelector('#chapterInsert').getAttribute('aria-label')?.includes('Marlin laundry claim')");
+  await snap("linen-order");await tap("Enter");
+  await js("care.p=BayClinicLaundry.targets.call;care.at(care.hero,care.p.x-.54,care.p.z+.15);care.rig.reset(care.hero)");
+  await waitFor("document.querySelector('#objectiveText').textContent.includes('Hold L')");
+  await key("keyDown","KeyL");
+  try{await waitFor("document.querySelector('#objectiveText').textContent.includes('Two rings')",15000);}
+  finally{await key("keyUp","KeyL");}
+  const order="JSON.parse(localStorage.getItem('sundownBay.v1')).rescue.laundry";
+  await waitFor(order+".stage==='collect'");
+  await js("care.p=BayClinicLaundry.targets.collect;care.at(care.hero,care.p.x-.75,care.p.z);care.rig.reset(care.hero)");await tap("KeyF");
+  await waitFor(order+".stage==='return'");await snap("linen-parcel");
   await send("Page.reload");await waitFor("!window.careQA&&document.readyState==='complete'&&typeof BayRescue==='object'");
+  await js(`window.linenQA={};const old=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,e){linenQA.h=e.hero;return old.apply(this,arguments);};
+    document.querySelector('#play').click();`);
+  await waitFor("linenQA.h&&document.querySelector('#objectiveTag').textContent.includes('The Laundry Line')");
+  await js("Object.assign(linenQA.h,BayPalmClinic.site.desk)");await tap("KeyF");
+  await waitFor("document.querySelector('#chapterTitle').textContent==='One shirt, one comb'");
+  assert.equal((await js(order)).patient,name);await snap("linen-received");await tap("Enter");
+  assert.equal((await js(order)).stage,"filed");
+  console.log("PASS rang the laundry from the Marlin cab phone, took Romy's parcel, resumed delivery after reload and signed the same patient's tag at Palm County",mode);
+  await send("Page.reload");await waitFor("!window.linenQA&&document.readyState==='complete'&&typeof BayRescue==='object'");
   assert.deepEqual(await js("BayRescue.read(JSON.parse(localStorage.getItem('sundownBay.v1')).rescue).streetSlip"),record);
   assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
   console.log("PASS flagged Rescue 4, saw the ambulance and occupied stretcher, received the same named walker at the clinic and retained the street slip after reload",mode,name);

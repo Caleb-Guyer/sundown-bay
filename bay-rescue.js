@@ -25,7 +25,8 @@
     const slip=raw?.streetSlip;
     const streetSlip=slip&&typeof slip.name==="string"&&typeof slip.place==="string"&&["traffic","shots"].includes(slip.reason)?
       {name:slip.name.slice(0,56),place:slip.place.slice(0,64),reason:slip.reason,assisted:slip.assisted===true}:null;
-    return {...(streetSlip?{streetSlip}:{}),count,best,next:Number.isInteger(raw?.next)?limit(raw.next,0,cases.length-1):0,last:cases.some(c=>c.id===raw?.last)?raw.last:null};
+    const laundry=BayClinicLaundry.read(raw?.laundry);
+    return {...(streetSlip?{streetSlip}:{}),...(laundry?{laundry}:{}),count,best,next:Number.isInteger(raw?.next)?limit(raw.next,0,cases.length-1):0,last:cases.some(c=>c.id===raw?.last)?raw.last:null};
   }
   const track=BayCab.track;
   const actor=(role,name,p)=>Object.assign(BayMotorCourt.actor(role,p,"out"),{role,name,y:p.y??.077,action:"idle",seat:0,seatMode:null});

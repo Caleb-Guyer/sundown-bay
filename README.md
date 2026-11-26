@@ -252,6 +252,10 @@ At three stars, patrol cars set up roadblocks. At four, some crews lay spike str
 
 Board a boat at either pier while wanted and Harbor Patrol follows you offshore. One launch responds at one or two stars. At three stars a second launch moves to intercept. At five, the same Air One helicopter follows you over water with its searchlight. Hold **V** to look astern or open the offshore chart with **M** to see the patrol boats. If all units lose sight of you, they search your last reported position.
 
+After a street admission or a completed Rescue 4 shift, visit **Palm County Clinic** on foot and pick up **The Laundry Line** at receiving. Take Ora’s claim to the Marlin cab phone. Hold **L** until you see the second ring and release. Meet Romy at the laundry door with **F**, then bring the named parcel back to the clinic. The desk keeps the signed tag, and you can finish a delivery after reloading.
+
+At night, watch the curb as a cruiser, Rescue 4 or Engine 7 passes. Their roof lights reflect farther on wet pavement. Drivers signal and ease aside for an approaching patrol, then return to their lane.
+
 At **Portside Tire**, the **$90 county-band scanner** stays with the car. Press **backslash** to repeat a dispatch or locate Rescue 4. Once the scanner is fitted, pick up Cleo’s **Say Again, Four** work order at the parts counter. At Cine Luna, stop at the marked curb and hold **backslash** for the test tone. Choose **1** for the Marlin Motel or **2** for the Port Sol fish market, then drive there and repeat the test. Your first signed ticket pays **$65**. In the neighborhood you picked, asking for Rescue 4 also gives you its bearing and distance. Cleo keeps the ticket at the clinic.
 
 After you lose the cops, follow the wrench on the map to Portside Tire. Pull into the open bay and take your foot off the pedals. The shop replaces a flat for free.

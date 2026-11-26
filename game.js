@@ -375,6 +375,11 @@
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    const incoming=latest?.rescue?.laundry;
+    if(incoming&&BayClinicLaundry.stages.indexOf(incoming.stage)>BayClinicLaundry.stages.indexOf(save.rescue.laundry?.stage)){
+      const order=BayClinicLaundry.read(incoming);
+      if(order){save.rescue.laundry=order;if(active?.laundry&&order.stage==="filed")active=null;}
+    }
     if(latest?.countyRelay?.rev>save.countyRelay.rev){
       save.countyRelay=BayCountyRelay.read(latest.countyRelay);
       if(active?.county&&!save.countyRelay.next)active=null;
@@ -875,6 +880,11 @@
     if(campaign.scene?.id==="collectionOpen"&&campaign.scene.index===0&&save.collection.last){
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
     }
+    if(b?.art==="linenSlip"){
+      BayClinicLaundry.slip($("chapterInsert"),save.rescue.laundry);
+      if(campaign.scene.id==="laundryOrder"&&campaign.scene.index===2)$("chapterWho").textContent=save.rescue.laundry.patient+" · pencilled on the back";
+      if(campaign.scene.id==="laundryReceipt")$("chapterLine").textContent=save.rescue.laundry.patient+". That's the name on the tag. You can put it here by my elbow.";
+    }
     if(b?.art==="relayCard")BayCountyRelay.card($("chapterInsert"),campaign.scene.id==="countySigned"?save.countyRelay.cover:"");
     if(campaign.scene?.id==="countySigned"&&campaign.scene.index===0)$("chapterLine").textContent=BayCountyRelay.line(save.countyRelay.cover);
     if(b?.art==="flowerTag"){
@@ -940,6 +950,7 @@
     }
     if(filmReplay){filmReplay=false;return;}
     if(id==="collectionLuna"||id==="collectionPort"){payrollReceipt=null;return;}
+    if(id==="laundryOrder"){note("Ora Bell","Hold L at the Marlin cab phone. Let it ring twice, then release.",5);return;}
     if(id==="countyLoan"){note("Cleo Moss","Stop by the Luna marquee. Hold backslash to send a test tone.",5);return;}
     if(id==="countySigned"){note("Say Again, Four",BayCountyRelay.sites[save.countyRelay.cover].name+" relay is on air. Press backslash nearby for Rescue 4’s range.",6);return;}
     if(id==="lastMeter"){pointToMeterRank();return;}
@@ -1202,6 +1213,7 @@
     if(save.airmail.island){note("Gull Key","Liv is at the post office. Fern 3 calls at the south float.",3.5);return;}
     if(active?.buttonwood){note("Alda’s tide book",BayButtonwood.sheets[save.buttonwood.sheet].name+" · Your next stop is marked.",4);return;}
     if(!campaign.book.intro){enterFilm("opening");return;}
+    if(!active&&save.rescue.laundry&&save.rescue.laundry.stage!=="filed"){startLaundryOrder();return;}
     if(!active&&!waypoint&&meterCar())waypoint=save.meterCopy.spent?meterPin(meterCar()):{...BayCab.stops.marlin.stand,kind:"meter-rank",name:"Marlin cab stand · Mina's slip"};
     if(!active&&!waypoint&&campaign.book.pass&&!campaign.book.trips)waypoint=chapterTarget();
     if(!active&&!waypoint&&["ride","negative","return"].includes(campaign.book.stage))waypoint=chapterTarget();
@@ -3501,6 +3513,62 @@
       call===rescue.pendingStreet?"We've got the corner. I'll call Gil as soon as his stretcher is clear.":"Four is turning for "+call.place+". Watch for the red and white doors.");
     lastHud=lastMap=-10;
   }
+  function linenPatient(){
+    return save.rescue.streetSlip?.name||BayRescue.cases.find(c=>c.id===save.rescue.last)?.name;
+  }
+  function startLaundryOrder(){
+    if(active||heat)return;
+    const fresh=!save.rescue.laundry;
+    if(fresh){const patient=linenPatient();if(!patient)return;save.rescue.laundry={patient,stage:"call"};persist();}
+    if(save.rescue.laundry.stage==="filed"){enterFilm("laundryReceipt",true);return;}
+    active={job:{id:"clinic-laundry",name:"The Laundry Line",by:"Ora Bell"},laundry:true,start:null,rings:0};
+    waypoint=null;if(panel)closePanel();lastMap=lastHud=-10;
+    if(fresh)enterFilm("laundryOrder");
+  }
+  function linenReach(){
+    if(!active?.laundry||!onStreetFeet()||heat||panel)return false;
+    const at=BayClinicLaundry.targets[save.rescue.laundry.stage];
+    return at&&dist(hero,at)<2.5;
+  }
+  function linenKey(code){
+    if(!linenReach())return false;
+    const order=save.rescue.laundry;
+    if(order.stage==="call"&&code==="KeyL"){
+      active.start=streetTime;active.rings=0;
+      rankPhones.talk={site:BayClinicLaundry.targets.call,actor:hero,laundry:true,amount:0,last:streetTime};
+    }else if(order.stage==="collect"&&code==="KeyF"){
+      order.stage="return";persist();
+      speak("Romy Vale","Here. I didn't put a size on the outside. Just the name.");
+    }else if(order.stage==="return"&&code==="KeyF"){
+      order.stage="filed";active=null;persist();enterFilm("laundryReceipt");
+    }else return false;
+    lastHud=lastMap=-10;return true;
+  }
+  function endLinenCall(){
+    if(!active?.laundry||active.start===null)return;
+    const rings=BayClinicLaundry.count(streetTime-active.start);active.start=null;
+    if(linenReach()){
+      if(rings===2){
+        save.rescue.laundry.stage="collect";persist();
+        speak("Romy · through the laundry window","Two rings! Give me a second to find the string. Come around to the laundry door.");
+      }else speak("Marlin switchboard",rings<2?"The laundry bell only caught the first part. Try two full rings.":"Front desk here. Laundry picks up on two. Give them another try.");
+    }
+    lastHud=lastMap=-10;
+  }
+  function stepLinenCall(){
+    if(active.start===null)return;
+    if(!linenReach()||!held("KeyL")){active.start=null;lastHud=-10;return;}
+    const rings=BayClinicLaundry.count(streetTime-active.start);
+    if(rings!==active.rings){active.rings=rings;sound.cue("rank-ring",{distance:0});lastHud=-10;}
+  }
+  function linenParcel(){
+    const stage=save.rescue.laundry?.stage;
+    if(stage==="filed")return {x:-95.58,y:1.18,z:56.81,yaw:.13};
+    if(stage==="collect")return {x:laundryContact.x-.44,z:laundryContact.z+.1,y:footLevel(laundryContact.x,laundryContact.z),yaw:.3};
+    if(stage!=="return"||!active?.laundry||room)return null;
+    const actor=car||hero,p=BayDriving.world(actor,car?.42:.35,car?-.34:.08);
+    return {...p,y:(car?footLevel(car.x,car.z)+.77:hero.y+.49),yaw:actor.yaw};
+  }
   function joinRescue(desk){
     if(active||heat||!rescue.recruit(desk))return;
     active={job:{id:"rescue",name:"Rescue 4",by:"Anaïs Park"},rescue:true};waypoint=null;
@@ -3520,6 +3588,10 @@
     signedNote(b,"The truck comes back through our north drive. Bring the stretcher straight through the big door. I'll be right here when you come in.","Cleo Moss · Receiving");
     if(l.phase==="ready"||l.phase==="rest")b.append(makeButton("Take the next call","Drive out with Anaïs and bring the patient back to receiving.","Join the crew",()=>joinRescue(true)));
     else b.append(makeButton(l.queued?"Release your place":"Wait for the next shift",l.queued?"Gil will keep the next shift.":"Rescue 4 is working at "+c.place+". Stay near the desk until it gets back.",l.queued?"Cancel":"Wait at the clinic",()=>{l.queued=!l.queued;closePanel();lastHud=-10;}));
+    if(linenPatient()||save.rescue.laundry){
+      const filed=save.rescue.laundry?.stage==="filed";
+      b.append(makeButton("The Laundry Line",filed?"Laundry received for "+save.rescue.laundry.patient+".":"Ora has a linen order for "+(save.rescue.laundry?.patient||linenPatient())+".",filed?"Read signed tag":"Take the claim",startLaundryOrder));
+    }
     if(save.countyRelay.cover)signedNote(b,"Spare 04-113 · "+BayCountyRelay.sites[save.countyRelay.cover].name+". Reading five. Driver's carbon on file.","Cleo Moss · Radio service");
     const slip=save.rescue.streetSlip;
     if(slip)signedNote(b,slip.name+" · "+slip.place+" · "+(slip.reason==="traffic"?"Traffic injury":"Street injury")+". Received by Ora Bell."+(slip.assisted?" You helped with the handoff.":""),"Latest street admission · Rescue 4");
@@ -3571,6 +3643,8 @@
   function drawRescue(list,see,t){
     if(see(clinic.center,170)){if(!clinicArtReady){BayPalmClinic.install(model);clinicArtReady=true;}BayPalmClinic.world(list,see,t,hours,!!rescue.recovering,save.rescue);}
     if(!unitArtReady&&see(unit4,165)){BayAmbulanceArt.install(model);unitArtReady=true;}
+    const parcel=linenParcel();
+    if(parcel&&see(parcel,54)){model("clinic-laundry-parcel",BayClinicLaundry.parcel);list.push(["clinic-laundry-parcel",parcel.x,parcel.y,parcel.z,parcel.yaw]);}
     const l=rescue,crew=BayRescueCrew,patient=l.patient;
     const actors=[l.medic,l.driver,l.dispatcher,l.nurse];
     if(l.deferredPerson)actors.push(l.deferredPerson);
@@ -6601,7 +6675,7 @@
     save.wallet+=amount;save.paid++;persist();active=null;sound.cue("paid");note("Job complete","+"+cash(amount)+msg,5);
   }
   const freeTowTarget={...recoveryYard.drop,kind:"recovery-drop",name:"Portside handoff lane"};
-  const currentTarget=()=>active?.county?BayCountyRelay.sites[save.countyRelay.next]:active?.payroll?.aboard&&car!==active.vehicle?{x:active.vehicle.x,z:active.vehicle.z,name:"Jules and the payroll car"}:active?.freight&&spur.trip?(spur.trip.phase==="board"?spur.trip.start.desk:spur.trip.target.desk):active?.cup?cupTarget():active?.engineSeven?engineTarget():green.run?.accepted&&!active?green.run.s.route.target:mantaRide.run&&skiff===manta?mantaRide.target(clubBoat):active?.campana?campana.target(car===iceVan):!active&&waypoint?.kind==="campana-track"?{...campana.counter,name:"La Campana"}:windowRide?windowTarget():active?.buttonwood?works.target(car,skiff===pip):active?.brisas?(club.reserve&&!BayBrisasClub.switches(car)?{...plum,name:"Plum Solena 64"}:club.target):active?.palm?(palm.match?null:palm.target):active?.gull?gullTarget():active?.moto?motos.target():active?.rescue?rescue.target(rescueEnv):airTarget()||(active?.skate?skateTarget():transit.flag?transit.flag.s:transit.aboard?transit.target:active?.neon?neonTarget():active?.bridge?bridgeSite:active?.wash?wash.marker():active?.band?band.destination(car):active?.valet?valet.target(car):active?.relay?cycles.target(hero):watchCrew.towing?watchCrew.target():active?.recovery?recovery.target(car):cabs.booking||active?.cabFare?cabs.target(car):active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:car===wrecker&&tow.target&&(BayRecovery.worst(tow.target)||tow.target.flatSide)?freeTowTarget:waypoint);
+  const currentTarget=()=>active?.laundry?BayClinicLaundry.targets[save.rescue.laundry.stage]:active?.county?BayCountyRelay.sites[save.countyRelay.next]:active?.payroll?.aboard&&car!==active.vehicle?{x:active.vehicle.x,z:active.vehicle.z,name:"Jules and the payroll car"}:active?.freight&&spur.trip?(spur.trip.phase==="board"?spur.trip.start.desk:spur.trip.target.desk):active?.cup?cupTarget():active?.engineSeven?engineTarget():green.run?.accepted&&!active?green.run.s.route.target:mantaRide.run&&skiff===manta?mantaRide.target(clubBoat):active?.campana?campana.target(car===iceVan):!active&&waypoint?.kind==="campana-track"?{...campana.counter,name:"La Campana"}:windowRide?windowTarget():active?.buttonwood?works.target(car,skiff===pip):active?.brisas?(club.reserve&&!BayBrisasClub.switches(car)?{...plum,name:"Plum Solena 64"}:club.target):active?.palm?(palm.match?null:palm.target):active?.gull?gullTarget():active?.moto?motos.target():active?.rescue?rescue.target(rescueEnv):airTarget()||(active?.skate?skateTarget():transit.flag?transit.flag.s:transit.aboard?transit.target:active?.neon?neonTarget():active?.bridge?bridgeSite:active?.wash?wash.marker():active?.band?band.destination(car):active?.valet?valet.target(car):active?.relay?cycles.target(hero):watchCrew.towing?watchCrew.target():active?.recovery?recovery.target(car):cabs.booking||active?.cabFare?cabs.target(car):active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:car===wrecker&&tow.target&&(BayRecovery.worst(tow.target)||tow.target.flatSide)?freeTowTarget:waypoint);
   function streetTarget(){
     if(active?.cup&&(cup.phase==="count"||cup.phase==="parked"&&dist(pos(),BayCoastCup.grid)<7))return null;
     if(active?.engineSeven&&(!company.manual||car!==engine7))return null;
@@ -7122,6 +7196,7 @@
     sound.cue("paid");note("Last Collection","+"+cash(amount)+(clean?" · Clean getaway":""),10);
   }
   function advanceJob(dt){
+    if(active?.laundry){stepLinenCall();return;}
     if(active?.county){stepCountyTest(dt);return;}
     if(active?.job.id==="collection"){advanceCollection(dt);return;}
     if(active?.freight)return;
@@ -8278,7 +8353,7 @@
       rankPhones.talk=null;
     }
     else if(talk){
-      const holding=talk.helper?talk.actor.phase==="wait"&&available&&streetTime<talk.until:
+      const holding=talk.laundry?active?.laundry&&active.start!=null&&linenReach():talk.helper?talk.actor.phase==="wait"&&available&&streetTime<talk.until:
         rankPhones.near===talk.site&&ringFoot()&&(rankPhones.lifted||streetTime<talk.until);
       const age=Math.max(0,Math.min(.1,streetTime-talk.last));talk.last=streetTime;
       talk.amount=ease(talk.amount,holding?1:0,holding?9:13,age);
@@ -8949,7 +9024,7 @@
       field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,outsideCopies:outsideCases.mounted,
       slideProjection:play&&modeName==="street"?projection:null,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
-      publicBoat:play&&luz.book.pass?luz:null,record:play&&modeName==="street"?campaign.book:null,sandBeach:play&&modeName==="street"?sandBeach:null,rankPhones:play?rankPhones:null,roadLights:modeName==="street"?roadLights:null,arcadeSong:play&&modeName==="street"&&dist(p,BayNeedle.site)<85?needleSong().r:null,
+      publicBoat:play&&luz.book.pass?luz:null,record:play&&modeName==="street"?campaign.book:null,sandBeach:play&&modeName==="street"?sandBeach:null,rankPhones:play?rankPhones:null,linenParcel:play&&modeName==="street"?linenParcel():null,roadLights:modeName==="street"?roadLights:null,arcadeSong:play&&modeName==="street"&&dist(p,BayNeedle.site)<85?needleSong().r:null,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,houseMark:houseLights.mark,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
       personal:carPin(),copies:save.copies,tireCloud:elapsed-puffAt<1.55?tireCloud:null,
       luggage:play?{book:save.luggage,rack:rackContents(),hand:onStreetFeet()&&!bell.pass?luggage.hand(save.luggage):null,
@@ -10372,6 +10447,12 @@
       const meters=Math.round(guide?.meters??dist(p,tar));
       $("objectiveText").textContent=destination+(ferry&&meters<10?"":"  ·  "+meters+" m");
       $("roadTurn").textContent=guide?.turn||(ferry?.phase==="water"?(meters>30?ferry.ship.route.name+"  ·  Port side":"Paloma "+Math.round(ferry.ship.speed*1.944)+" kn  ·  You "+Math.round(Math.abs(skiff?.speed||0)*1.944)+" kn"):"");
+      if(active?.laundry){
+        const stage=save.rescue.laundry.stage;
+        $("objectiveText").textContent=heat?"Lose the patrol before the handoff":!linenReach()?tar.name+" · "+meters+" m":
+          stage==="collect"?"F · Collect the parcel from Romy":stage==="return"?"F · Return the parcel for "+save.rescue.laundry.patient:
+          active.start===null?"Hold L · Ring the laundry twice":active.rings===2?"Two rings · Release L now":active.rings>2?"Front desk · Release and try again":active.rings===1?"One ring · Keep holding L":"Receiver up · Waiting for the bell";
+      }
       if(active?.county){
         const checking=save.countyRelay.next==="luna",close=car&&dist(car,tar)<=8;
         $("objectiveText").textContent=heat?"Lose the patrol to clear the channel":!car?.upgrades.scanner?"Get into a car with a county scanner":close?(Math.abs(car.speed)>1.5?"Stop at the curb":"Hold backslash · "+Math.min(5,Math.floor(active.hold*5/1.2))+"/5 tone"):(checking?"Test the dead spot at ":"Put the relay at ")+tar.name+" · "+meters+" m";
@@ -10573,7 +10654,7 @@
       }
     }
     const payee=atPayrollCounter();
-    const showing=payee?["F",payee.receiver.name+" · Read the receipt"]:streetCallNear()?["H",heat||rescue.pendingStreet?"Flag Rescue 4 · Track the ambulance":"Flag Rescue 4 · F to help with the stretcher"]:atLaundry()?["F","Talk to Romy · Last Collection"]:angler?(angler.phase==="miss"||angler.phase==="landed"?["Space","Cast again · E put the rod back"]:["E","Put the rod back"]):rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
+    const showing=active?.laundry&&linenReach()?(save.rescue.laundry.stage==="call"?["L","Ring the laundry twice"]:["F",save.rescue.laundry.stage==="return"?"Give Ora the parcel":"Take the parcel"]):payee?["F",payee.receiver.name+" · Read the receipt"]:streetCallNear()?["H",heat||rescue.pendingStreet?"Flag Rescue 4 · Track the ambulance":"Flag Rescue 4 · F to help with the stretcher"]:atLaundry()?["F","Talk to Romy · Last Collection"]:angler?(angler.phase==="miss"||angler.phase==="landed"?["Space","Cast again · E put the rod back"]:["E","Put the rod back"]):rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint();
     const freightHint=spurHint();
     if(spur.trip||spur.aboard){
       const r=spur.trip;const st=r?.phase==="board"?r.start:r?.target||spur.destination;
@@ -12039,6 +12120,7 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(active?.laundry&&linenKey(ev.code))return;
     if(ev.code==="KeyN"&&offeredShiftPrint()){
       active.payroll.photoTaken=true;save.collection.print=1;persist();lastHud=-10;
       speak("Jules","Says ‘For B.’ Bea still works the Marlin desk. I'll leave it with your things in Fourteen.");return;
@@ -12220,6 +12302,7 @@
     else if(["Equal","NumpadAdd","Minus","NumpadSubtract"].includes(ev.code)){cameraRig.changeZoom(["Equal","NumpadAdd"].includes(ev.code)?-.12:.12);saveCamera();}
   });
   addEventListener("keyup",ev=>{
+    if(ev.code==="KeyL"&&active?.laundry)endLinenCall();
     if(ev.code==="Backslash"&&active?.county)active.hold=0;
     if(luz.rider&&ev.code==="Space"){keys.delete(ev.code);if(!panel)luz.release();else luz.rider.charge=null;return;}
     if(ev.code==="Space"&&active?.angling&&!panel)active.angling.release(streetTime,hours.rain);
@@ -12330,7 +12413,7 @@
         if(beat==="work")BaySixSharpArt.clock($("dispatchClock"),w.second());
       }else if(art==="watchCopy"){
         if(!campaign.watch.printed){BaySixSharpArt.docket($("chapterInsert"),campaign.watch.departure);campaign.watch.printed=true;}
-      }else if(["inscription","landingOrder","payEnvelope","payReceipt","portReceipt","releaseCopy","meterCopy","flowerTag","relayCard"].includes(art))return;
+      }else if(["inscription","landingOrder","payEnvelope","payReceipt","portReceipt","releaseCopy","meterCopy","flowerTag","relayCard","linenSlip"].includes(art))return;
       else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
