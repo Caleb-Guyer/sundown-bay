@@ -238,15 +238,22 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
           const q=uploadTrial,n=q.frame++,block=Math.floor(n/8),ring=[0,3].includes(block%4)?1:0,b=this.streetBatch;
           if(n===64){
             b.buffers=streams;b.nextBuffer=0;BayView.prototype.drawOpaque=batchDraw;batch.uploadStream=update;
-            q.reference=comparePixels(this,items,batchDraw,function(list){
-              batch.uploadStream=function(target,source,length,history){
-                this.view.gl.bufferSubData(target,0,source.subarray(0,length));history.known=0;
-              };
-              try{batchDraw.call(this,list);}finally{batch.uploadStream=update;}
-            },true);
-            q.image=comparePixels(this,items,batchDraw,function(list){
-              b.buffers=single;b.nextBuffer=0;try{batchDraw.call(this,list);}finally{b.buffers=streams;b.nextBuffer=0;}
-            });return batchDraw.call(this,items);
+            // Both uploads must use the same geometry. A second draw in one frame
+            // would otherwise be allowed to construct the next distant mesh.
+            const chooseDetail=b.distanceDetail;
+            b.distanceDetail=function(...args){this.buildDetail=false;return chooseDetail.apply(this,args);};
+            try{
+              q.reference=comparePixels(this,items,batchDraw,function(list){
+                batch.uploadStream=function(target,source,length,history){
+                  this.view.gl.bufferSubData(target,0,source.subarray(0,length));history.known=0;
+                };
+                try{batchDraw.call(this,list);}finally{batch.uploadStream=update;}
+              },true);
+              q.image=comparePixels(this,items,batchDraw,function(list){
+                b.buffers=single;b.nextBuffer=0;try{batchDraw.call(this,list);}finally{b.buffers=streams;b.nextBuffer=0;}
+              });
+            }finally{b.distanceDetail=chooseDetail;}
+            return batchDraw.call(this,items);
           }
           const start=performance.now();
           if(n%8>=2)q.times[ring].push(start-q.last);
@@ -257,10 +264,10 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const uploads=await js(`(()=>{const q=recQA.uploadTrial,median=a=>a.sort((x,y)=>x-y)[a.length>>1];
         return {frameMs:q.times.map(median),submitMs:q.cpu.map(median),pixels:q.image,fullUpload:q.reference,bytes:q.bytes,whole:q.whole,slots:recQA.view.streetBatch.buffers.length};
       })()`);
+      console.log("PERF scenery uploads single and triple",JSON.stringify(uploads));
       assert.equal(uploads.slots,3);assert(uploads.pixels.painted>350&&uploads.pixels.silhouette===0&&uploads.pixels.recolored===0);
       assert(uploads.fullUpload.painted>350&&uploads.fullUpload.changed===0&&uploads.fullUpload.silhouette===0);
       assert(uploads.bytes[0]<=uploads.whole[0]&&uploads.bytes[1]<=uploads.whole[1]);
-      console.log("PERF scenery uploads single and triple",JSON.stringify(uploads));
       await checkCity("motel");
       assert.equal(await js("recQA.view.gl.getError()"),0);
     }
