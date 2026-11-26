@@ -12138,6 +12138,9 @@
     }
   }
   function showDesk(body){
+    if(["ride","negative","return","filed"].includes(campaign.book.stage)){
+      body.append(makeButton("The Sticking Latch","Mara’s dash close-up from the first drive out of the Marlin.","Run the film",()=>enterFilm("dashInsert")));
+    }
     if(save.houseCopies.last){
       const r=save.houseCopies.last;
       signedNote(body,"Two copies of the "+r.edition+" edition, received at the Marlin. Your route paid "+cash(r.pay)+". Best round "+save.houseCopies.best+"/200. I put the clean one in the lobby. — Bea","Bay Wire · Subscriber receipt "+save.houseCopies.runs);

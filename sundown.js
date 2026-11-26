@@ -21649,6 +21649,9 @@ window.buildBayCity = function buildBayCity(g,water) {
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    dashInsert:[
+      {dur:8,art:"glovebox",slug:"MARA’S CAMERA NOTES   /   MARLIN MOTEL",title:"The Sticking Latch",who:"Mara Vega",line:"I left the close-up long. Watch the string when the door drops. That’s how I spotted the tag."}
+    ],
     countyAlone:[
       {dur:3.8,shot:"coneStack",title:"Both Lanes Open",slug:"PALM COUNTY   /   ROADS DEPARTMENT",who:"Inez Pardo",line:"The radio said the road was open ten minutes ago. Funny. I still had three cones on the asphalt."},
       {dur:4.2,shot:"countyForeman",who:"Inez Pardo",line:"You can take the inside lane now. If you see the orange cart out here again, give me a hand with the last one."}
@@ -21881,7 +21884,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(s.id==="print")return {...b,line:"Somebody in the back row says, “Luis, you still got that thing?” His laugh carries all the way up to the booth."};
         if(s.id==="live")return {...b,line:"That’s Luis Vega on the Bay Wire cover. He packed two lunches for that crossing for twenty-three years. He’s on line one."};
       }
-      if(s.id==="boarded"&&b.art==="glovebox"&&s.tagAt!=null)return {...b,dur:Math.max(b.dur,s.tagAt+3.8),line:"Eight dollars to fix a lunch pail. Uncle Luis said a new one wouldn’t know the way to work."};
+      if(b.art==="glovebox"&&s.tagAt!=null)return {...b,dur:Math.max(b.dur,s.tagAt+3.8),line:"Eight dollars to fix a lunch pail. Uncle Luis said a new one wouldn’t know the way to work."};
       if(recorded&&s.id==="boarded"&&b.art==="timetable")return {...b,line:recorded.luis==="aboard"?
         "Dad was on the far side. The morning Dalia held the gate, Uncle Luis brought his lunch across in that blue tin.":
         "Dad worked the far side. He kept crackers in the glove box for mornings Uncle Luis missed the six."};
@@ -84768,6 +84771,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   function showDesk(body){
+    if(["ride","negative","return","filed"].includes(campaign.book.stage)){
+      body.append(makeButton("The Sticking Latch","Mara’s dash close-up from the first drive out of the Marlin.","Run the film",()=>enterFilm("dashInsert")));
+    }
     if(save.houseCopies.last){
       const r=save.houseCopies.last;
       signedNote(body,"Two copies of the "+r.edition+" edition, received at the Marlin. Your route paid "+cash(r.pay)+". Best round "+save.houseCopies.best+"/200. I put the clean one in the lobby. — Bea","Bay Wire · Subscriber receipt "+save.houseCopies.runs);
