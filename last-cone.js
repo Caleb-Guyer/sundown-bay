@@ -31,10 +31,11 @@
       const cones=b.cones.map(c=>({x:c.x,z:c.z,yaw:c.yaw,fallen:!!c.hit,by:"ground"}));
       this.book.site=this.site={rack,street,cones};this.reset();this.write();return true;
     }
-    nearest(p,limit){
+    nearest(p,limit,intercept=false){
       let index=-1;
       this.site.cones.forEach((c,i)=>{
-        if(c.by!=="ground"||i===this.assigned||i===this.hand||i===this.flight?.id)return;
+        if(c.by!=="ground"||i===this.hand||i===this.flight?.id)return;
+        if(i===this.assigned&&(!intercept||this.loaded||distance(c,this.worker)<1.12))return;
         const d=distance(c,p);if(d<limit){limit=d;index=i;}
       });
       return index;
@@ -49,12 +50,13 @@
         const miss=this.range()-d;
         return Math.abs(miss)<.85?"Release L now · on the stack":miss<0?"Hold L · short":"Release L · long";
       }
-      return this.flight?"":this.nearest(p,1.85)>=0?"Pick up the cone":"";
+      return this.flight?"":this.nearest(p,1.85,true)>=0?"Pick up the cone":"";
     }
     press(p){
       if(!this.hint(p))return "";
       if(this.hand<0){
-        this.hand=this.nearest(p,1.85);this.lastFoot={x:p.x,z:p.z};
+        this.hand=this.nearest(p,1.85,true);this.lastFoot={x:p.x,z:p.z};
+        if(this.assigned===this.hand)this.assigned=-1;
         return "take";
       }
       if(distance(p,this.site.rack)<1.85)return this.stack(this.hand,true);
@@ -64,10 +66,10 @@
     range(){return 1.1+Math.min(1,this.charge/1.12)*7.7;}
     release(p){
       if(this.charge===null||this.hand<0)return false;
-      const r=this.site.rack,d=distance(r,p),reach=this.range();
+      const r=this.site.rack,d=distance(r,p),reach=this.range(),start=BayDriving.world(p,.33,.27);
       this.charge=null;
       if(d<.01||d>8.25)return false;
-      this.flight={id:this.hand,start:{x:p.x,z:p.z},end:{x:p.x+(r.x-p.x)*reach/d,z:p.z+(r.z-p.z)*reach/d},
+      this.flight={id:this.hand,start,end:{x:p.x+(r.x-p.x)*reach/d,z:p.z+(r.z-p.z)*reach/d},
         caught:Math.abs(reach-d)<=.85,distance:d,age:0,time:.42+.038*reach};
       if(this.flight.caught)this.flight.end={x:r.x,z:r.z};
       this.hand=-1;return true;
@@ -92,7 +94,12 @@
       const f=this.flight;
       if(f&&(f.age+=dt)>=f.time){
         this.flight=null;
-        if(f.caught){this.book.best=Math.max(this.book.best,Math.round(f.distance*10)/10);return this.stack(f.id,true);}
+        if(f.caught){
+          const metres=Math.round(f.distance*10)/10,record=metres>this.book.best;
+          this.book.best=Math.max(this.book.best,metres);s.cones[f.id].toss=metres;
+          const event=this.stack(f.id,true);
+          return event==="clear"?event:record?"record":"toss";
+        }
         this.drop(f.id,f.end,clear);return "miss";
       }
       if(distance(s.rack,p)>65)return "";
@@ -101,7 +108,7 @@
       if(this.assigned<0)this.assigned=this.nearest(w,40);
       if(this.assigned<0)return "";
       const dest=this.loaded?BayDriving.world(s.rack,-.77,-.22):s.cones[this.assigned],d=distance(w,dest);
-      if(d<(this.loaded?.55:1.04)){
+      if(d<(this.loaded ? .55 : 1.04)){
         if(this.loaded)return this.stack(this.assigned,false);
         this.loaded=true;this.delay=.55;return "";
       }
@@ -153,6 +160,12 @@
     const s=crew.site;if(!s||!see(s.rack,97))return;
     const r=s.rack,w=crew.worker;model("county/rack",rack);
     list.push(["county/rack",r.x,ground(r.x,r.z),r.z,r.yaw]);
+    const throws=s.cones.filter(c=>c.toss>0).length;
+    if(throws){
+      const tag="county/chalk/"+throws;
+      model(tag,g=>{for(let i=0;i<throws;i++)g.pole([-.20+i*.071,1.12,-.651],[-.17+i*.071,1.16,-.651],.007,"#f8ebc9",4);});
+      list.push([tag,r.x,ground(r.x,r.z),r.z,r.yaw]);
+    }
     const pose=w.moving?1+Math.floor(w.phase)%8:0,token="county/inez/"+pose+"/"+Number(crew.loaded);
     model(token,g=>{buildBayPerson(g,"#9b674f","#e2874c","#485966",pose?(pose-1)*Math.PI/4:0,"dockhand",crew.loaded?4:0);
       g.box(0,1.16,0,.36,.044,.246,"#e6dbab");g.cyl(0,1.83,.02,.13,.12,.09,9,"#c29b64");});

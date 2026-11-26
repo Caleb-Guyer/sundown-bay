@@ -945,6 +945,13 @@
     }
     if(b?.art==="relayCard")BayCountyRelay.card($("chapterInsert"),campaign.scene.id==="countySigned"?save.countyRelay.cover:"");
     if(campaign.scene?.id==="countySigned"&&campaign.scene.index===0)$("chapterLine").textContent=BayCountyRelay.line(save.countyRelay.cover);
+    if(campaign.scene?.id==="lastCone"){
+      const site=countyCrew.site;
+      if(campaign.scene.index===0&&site.cones.some(c=>c.toss>=3))
+        $("chapterLine").textContent="My brother used to take chalk to that cart. Every good throw earned a mark on the handle. Give me a second. That one's going on there.";
+      if(campaign.scene.index===1&&worn()==="roadcrew")
+        $("chapterLine").textContent="There's black on the pockets already. Good. A vest that stays orange all over spends too much time on a hanger.";
+    }
     if(b?.art==="flowerTag"){
       const reply=campaign.scene.id==="flowerReply";
       BayCabArt.flowerTag($("chapterInsert"),save.cab.bunch,reply);
@@ -7736,6 +7743,11 @@
     if(event==="take"&&!s.cones.some(c=>c.by==="player"))
       speak("Inez Pardo","Black base down. Walk it over, or toss it if you trust your arm.");
     if(event==="stack")note("County Roads",s.cones.filter(c=>c.by!=="ground").length+" of 4 on the cart",2);
+    if(event==="record"||event==="toss"){
+      const best=countyCrew.book.best.toFixed(1)+" m";
+      note(event==="record"?"New longest toss · "+best:"On the stack",
+        s.cones.filter(c=>c.by!=="ground").length+" of 4 on the cart · Best "+best,3.2);
+    }
     if(event==="miss")note("Just wide","The cone landed in the street. You can pick it up again.",2);
     lastHud=lastMap=-10;
   }
@@ -12978,7 +12990,8 @@
         (chartMode==="cut"?"<span>○ Listening spot</span>":chartMode==="bay"?"<span>● Gull Light</span>"+(active?.ferry?"<span>▰ Paloma</span>":""):"<span><b>▣</b> Radio tape</span><span>🔧 Portside Tire</span><span>⚿ Room 14</span>")+
         (jobPins.length?"<span>! Job contact</span>":"");wrap.append(legend);b.append(wrap);
       const s=countyCrew.site;if(chartMode==="city"&&s)b.append(makeButton("County Roads · "+s.street,
-        BayLastCone.done(s)?"Lane reopened · "+s.cones.filter(c=>c.by==="player").length+" cones loaded by you": "Inez is clearing the last patrol roadblock.",
+        (BayLastCone.done(s)?"Lane reopened · "+s.cones.filter(c=>c.by==="player").length+" cones loaded by you":"Inez is clearing the last patrol roadblock.")+
+        (countyCrew.book.best?" · Longest toss "+countyCrew.book.best.toFixed(1)+" m":""),
         "Mark cart",()=>clockPin({...s.rack,name:"County Roads · "+s.street,kind:"county-cart"})));
       const garageBounds=paintAtlas();
       const list=document.createElement("select");list.setAttribute("aria-label","Choose a map destination");

@@ -6,7 +6,9 @@ module.exports=async({js,waitFor:wait,tap,key,send,mode,errors})=>{
       const state=await js(`(()=>{const q=window.airQA||{},a=q.air,c=q.car;
         return {heat:q.heat,car:c&&[c.kind,c.x,c.z,c.speed],blocker:q.blocker&&[q.blocker.x,q.blocker.z],
           air:a&&[a.x,a.z,a.sees,a.lit],hits:q.hits,encounter:q.encounter,samples:q.reel?.take?.samples?.length,context:document.querySelector('#context')?.textContent,
-          panel:document.querySelector('#panelBody')?.textContent?.slice(0,220)};})()`);
+          panel:document.querySelector('#panelBody')?.textContent?.slice(0,220),
+          roads:typeof roadsQA==="undefined"?null:{car:roadsQA.driver?.kind,hand:roadsQA.crew?.hand,assigned:roadsQA.crew?.assigned,
+            cones:roadsQA.crew?.site?.cones.map(c=>c.by),hero:[roadsQA.hero?.x,roadsQA.hero?.z]}};})()`);
       console.log("Playtest state",JSON.stringify(state));throw error;
     }
   }
@@ -71,14 +73,24 @@ module.exports=async({js,waitFor:wait,tap,key,send,mode,errors})=>{
     BayLastCone.Crew.prototype.step=function(){roadsQA.crew=this;return moveCrew.apply(this,arguments);};
     const paramedic=BayRescue.Service.prototype.step;
     BayRescue.Service.prototype.step=function(dt,e){roadsQA.hero=e.hero;return paramedic.apply(this,arguments);};
+    const crowdStep=BayLocals.animatePeople;
+    BayLocals.animatePeople=function(people,dt,driver){roadsQA.driver=driver;return crowdStep.apply(this,arguments);};
+    const coneHint=BayLastCone.Crew.prototype.hint;
+    BayLastCone.Crew.prototype.hint=function(p){roadsQA.onFoot=true;return coneHint.call(this,p);};
     true`);
-  await waitFor("roadsQA.hero&&roadsQA.crew",20000);
+  await waitFor("roadsQA.hero&&roadsQA.crew&&Object.hasOwn(roadsQA,'driver')",20000);
+  if(await js("!!roadsQA.driver")){
+    await js("BayDriving.settle(roadsQA.driver);true");await tap("KeyE");
+    await waitFor("!roadsQA.driver&&!document.querySelector('#context').textContent.includes('Step out')",16000);
+  }
+  await waitFor("roadsQA.onFoot",16000);
   await js(`const rc=roadsQA.crew,h=roadsQA.hero,r=rc.site.rack;
     Object.assign(h,{x:r.x,z:r.z});true`);
   await waitFor("!document.querySelector('#game').classList.contains('in-chapter')");
   for(let attempt=0;attempt<4;attempt++){
     const id=await js("rc.nearest(r,40)");if(id<0)break;
     await js("Object.assign(h,{x:rc.site.cones["+id+"].x,z:rc.site.cones["+id+"].z});true");
+    await waitFor("document.querySelector('#context').textContent.includes('Pick up the cone')");
     await tap("KeyL");await waitFor("rc.hand==="+id);
     if(attempt===0){
       await js("Object.assign(h,BayDriving.world(r,0,4.5));true");
