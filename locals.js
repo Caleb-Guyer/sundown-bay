@@ -93,9 +93,37 @@
     }
     return {x:0,z:0};
   }
+  function busyAtHorn(p){
+    return p.palmPassenger||p.palmManaged||p.onTour||p.down||p.flee||p.startle||p.sprayWait>0||p.curbAim||
+      p.neighborTalking||p.neighborPose||p.coffeePause||p.porch;
+  }
+  function hearHorn(p,car,time,kind){
+    if(busyAtHorn(p)||time<(p.nextHornLook||0))return;
+    const beat=p.reactionBeat??.5,d=Math.hypot(p.x-car.x,p.z-car.z);
+    const start=time+.09+.30*beat+d*.008,face=Math.atan2(car.x-p.x,car.z-p.z);
+    p.hornLook={start,face,kind,duration:kind?BayNeighborGestures.duration(kind):.44+.31*beat};
+    p.nextHornLook=start+6+beat*3;if(kind)p.neighborAway=false;
+  }
+  function turnAtHorn(p,time,dt){
+    const r=p.hornLook;if(!r)return false;
+    const age=time-r.start;
+    if(age<0)return false;
+    if(p.crossing){
+      if(r.kind==="wave"&&p.crossing.entered)p.crossing.wave=Math.max(p.crossing.wave,time+.35);
+      return false;
+    }
+    p.moving=false;p.gesture=0;
+    p.yaw+=wrap(r.face-p.yaw)*-Math.expm1(-(r.kind?4.9:3.4)*dt);
+    if(r.kind){
+      p.hornPose??={kind:r.kind,duration:r.duration,bearing:r.face,side:p.canopy>.12||p.fieldSource==="trawler"?-1:1};
+      p.hornPose.age=age;
+    }
+    return true;
+  }
   function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0,rail=null,player=null){
     const ease=-Math.expm1(-12*dt);
     for(const p of people){
+      if(p.hornLook&&(busyAtHorn(p)||time>p.hornLook.start+p.hornLook.duration))p.hornLook=p.hornPose=null;
       if(p.onTour)continue;
       const weight=p.walkWeight||0,goal=p.moving&&!p.down?1:0;
       p.walkWeight=Math.abs(goal-weight)<.003?goal:weight+(goal-weight)*ease;
@@ -109,7 +137,8 @@
           p.moving=false;p.yaw+=wrap(p.sprayFace-p.yaw)*-Math.expm1(-7*dt);
         }else p.sprayPose=null;
       }
-      if(BayStreetReactions.startlePerson(p,dt,driver,cars,people,valid,time))continue;
+      if(BayStreetReactions.startlePerson(p,dt,driver,cars,people,valid,time)){p.hornLook=p.hornPose=null;continue;}
+      if(turnAtHorn(p,time,dt))continue;
       if(p.sprayPose)continue;
       if(p.curbAim){p.moving=false;p.yaw+=wrap(Math.atan2(p.curbAim.x-p.x,p.curbAim.z-p.z)-p.yaw)*-Math.expm1(-12*dt);continue;}
       if(p.coffeePause){p.moving=false;p.gesture=0;continue;}
@@ -161,5 +190,5 @@
     for(const p of [shopkeeper,...people]){if(!p.name||p.palmManaged||p.down||p.flee)continue;const d=Math.hypot(hero.x-p.x,hero.z-p.z);if(d<best){best=d;found=p;}}
     return found;
   }
-  window.BayLocals={makeWalkers,animatePeople,closestSpeaker};
+  window.BayLocals={makeWalkers,animatePeople,closestSpeaker,hearHorn};
 })();

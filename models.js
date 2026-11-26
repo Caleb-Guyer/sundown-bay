@@ -594,19 +594,23 @@
 
   // Paint is shared by all eight poses. Only coordinates that move enter the clip.
   class WalkCycle {
-    constructor(colors,role,gesture=0){
+    constructor(colors,role,gesture=0,distant=false){
       const make=(phase,moving)=>{
         const mesh=new BayMesh();
-        buildBayPerson(mesh,...colors,phase,role,gesture,null,{moving});
+        buildBayPerson(mesh,...colors,phase,role,gesture,null,{moving,distant});
         return new Float32Array(mesh.vertices);
       };
-      this.rest=make(0,false);
-      const poses=Array.from({length:8},(_,i)=>make(i*Math.PI/4,true)),offsets=[];
-      for(let i=0;i<this.rest.length;i+=6)for(let k=0;k<3;k++){
-        const j=i+k;if(poses.some(p=>p[j]!==this.rest[j]))offsets.push(j);
+      const rest=make(0,false),poses=Array.from({length:8},(_,i)=>make(i*Math.PI/4,true));
+      const packed=BayMesh.indexWalk(rest,poses);
+      this.rest=packed?packed.vertices.slice():rest;this.indices=packed?.indices||null;
+      const sources=new Uint32Array(this.rest.length/6),offsets=[],sample=[];
+      if(packed)for(let i=0;i<this.indices.length;i++)sources[this.indices[i]]=i*6;
+      for(let i=0;i<sources.length;i++)for(let k=0;k<3;k++){
+        const j=(packed?sources[i]:i*6)+k;
+        if(poses.some(p=>p[j]!==rest[j])){offsets.push(i*6+k);sample.push(j);}
       }
       this.offsets=Uint32Array.from(offsets);
-      this.frames=poses.map(p=>Float32Array.from(offsets,j=>p[j]-this.rest[j]));
+      this.frames=poses.map(p=>Float32Array.from(sample,j=>p[j]-rest[j]));
     }
     pose(vertices,phase,weight){
       const at=((phase*4/Math.PI)%8+8)%8,lo=Math.floor(at),part=at-lo;

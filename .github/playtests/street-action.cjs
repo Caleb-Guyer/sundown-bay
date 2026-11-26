@@ -103,7 +103,7 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await js(`window.meterQA={};const m=meterQA;
     const svc=BayCab.Service.prototype.step;BayCab.Service.prototype.step=function(dt,e){m.service=this;m.h=e.hero;m.floor=e.ground;return svc.apply(this,arguments);};
     const crowd=BayLocals.animatePeople;BayLocals.animatePeople=function(list,dt,driver,fleet){
-      m.car=driver;m.lost=fleet.find(v=>v.garageKey===JSON.parse(localStorage.getItem('sundownBay.v1')).meterCopy.key);return crowd.apply(this,arguments);};
+      m.people=list;m.car=driver;m.lost=fleet.find(v=>v.garageKey===JSON.parse(localStorage.getItem('sundownBay.v1')).meterCopy.key);return crowd.apply(this,arguments);};
     document.querySelector('#play').click();true`);
   await waitFor("m.h&&m.lost");assert(await js("Math.hypot(m.lost.x-148.8,m.lost.z-32)<2"));
   await js("Object.assign(m.h,BayCab.stops.marlin.stand);true");await tap("KeyF");
@@ -116,4 +116,17 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await waitFor("m.car===m.lost&&JSON.parse(localStorage.getItem('sundownBay.v1')).meterCopy.found",20000);
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS Last Fare on the Meter: arrested in the coupe, read its voucher, reloaded, rode Cab 17 and took back the same plate",mode);
+  await tap("KeyH");
+  await waitFor("document.querySelector('#speech').textContent.includes('There goes my free ride')",10000);
+  assert(await js("Math.abs(m.service.vehicle.hornAt-m.lost.hornAt-.56)<.25"));
+  await snap("meter-hello");assert.equal(await js("audioStarts+cursorRequests"),0);
+  console.log("PASS Mina recognized the recovered plate on the street and answered the driver's horn",mode);
+  await js(`m.ren=m.people.find(p=>p.name==='Ren');Object.assign(m.car,{x:148.65,z:32,yaw:0});BayDriving.settle(m.car);
+    Object.assign(m.ren,{x:153.5,z:33,yaw:Math.PI,wait:90});true`);
+  await tap("KeyN");await waitFor("localStorage.getItem('sundownBay.neighbors.guest.ren.met')==='1'");
+  await js("m.car.z=64;true");await waitFor("!m.ren.neighborPose&&!m.ren.neighborTalking");
+  await js("Object.assign(m.car,{x:148.65,z:43,yaw:Math.PI,speed:14,vz:-14,vx:0});true");
+  await tap("KeyH");await waitFor("m.ren.hornPose?.kind==='wave'&&m.ren.hornPose.age>.22",10000);await snap("horn-wave");
+  assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+  console.log("PASS met Ren through the car window, drove on and received a recognition wave on the return pass",mode);
 };

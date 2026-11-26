@@ -84,7 +84,7 @@
   }
   // Share vertices only when all six Float32 words match. Painted seams and
   // layered signs keep their colours and the original triangle ordering.
-  function indexGeometry(data,largeIndices,groups=null){
+  function indexGeometry(data,largeIndices,groups=null,frames=null){
     const count=data.length/6;
     if(count<192||count>65535&&!largeIndices)return null;
     const words=new Uint32Array(data.buffer,data.byteOffset,data.length);
@@ -98,7 +98,8 @@
       while(slots[slot]){
         const q=(slots[slot]-1)*6;
         if((!groups||groups[slots[slot]-1]===groups[i])&&words[q]===words[p]&&words[q+1]===words[p+1]&&words[q+2]===words[p+2]&&
-          words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5])break;
+          words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5]&&
+          (!frames||frames.every(f=>f[p]===f[q]&&f[p+1]===f[q+1]&&f[p+2]===f[q+2])))break;
         slot=(slot+1)&(size-1);
       }
       if(slots[slot])remap[i]=remap[slots[slot]-1];
@@ -112,6 +113,12 @@
     const indices=used<=65535&&remap.BYTES_PER_ELEMENT===4?new Uint16Array(remap):remap;
     return {vertices:packed.subarray(0,used*6),indices};
   }
+  Mesh.indexWalk=function(rest,poses){
+    // Two corners can touch at rest and part when the knee bends. Compare
+    // their positions across the full stride before sharing interpolation.
+    const frames=poses.map(p=>new Uint32Array(p.buffer,p.byteOffset,p.length));
+    return indexGeometry(rest,false,null,frames);
+  };
   function indexActor(data,rig,largeIndices){
     // Coincident points on a sleeve and on the hand can separate. Share only
     // corners that the rigger bound to the very same rest point and joints.
@@ -442,7 +449,7 @@
         }
       }
       if(n>this.vertices.length/6){this.flush();view.draw(...item);return;}
-      if(indices&&!sources){
+      if(indices&&!sources&&!model.packedPose){
         sources=model.batchSources=new Uint32Array(n);
         for(let i=0;i<model.count;i++)sources[indices[i]]=i*6;
       }
@@ -781,6 +788,7 @@
       if(name==="city")tagMaterials(data,builtMaterials);
       else if(name==="cut-guides")tagMaterials(data,new Map([[0xe7e0bf,7],[0xc8965a,7]]));
       else if(name.startsWith("traffic-shell/")||/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
+      if(mesh.poseIndices)(this.poseIndices??=new Map()).set(name,mesh.poseIndices);else this.poseIndices?.delete(name);
       if(animated)this.animated.add(name);
       if(animated&&window.BayPlayerMesh&&mesh instanceof BayPlayerMesh)this.actors.set(name,mesh);
       else this.actors.delete(name);
@@ -789,9 +797,10 @@
     upload(name,data){
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
       const dynamic=this.animated.has(name),rig=this.actors.get(name);
-      const packed=rig?indexActor(data,rig,this.largeIndices):dynamic?null:indexGeometry(data,this.largeIndices);
+      const poseIndices=this.poseIndices?.get(name);
+      const packed=poseIndices?{vertices:data,indices:poseIndices}:rig?indexActor(data,rig,this.largeIndices):dynamic?null:indexGeometry(data,this.largeIndices);
       gl.bufferData(gl.ARRAY_BUFFER,packed?.vertices||data,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
-      const count=data.length/6,model={buf,count,dynamic,vertexCount:packed?packed.vertices.length/6:count};
+      const count=poseIndices?.length||data.length/6,model={buf,count,dynamic,packedPose:!!poseIndices,vertexCount:packed?packed.vertices.length/6:count};
       if(packed){
         model.indices=packed.indices;model.elementType=model.indices.BYTES_PER_ELEMENT===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT;
         model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);

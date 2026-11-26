@@ -85,7 +85,7 @@
   }
   // Share vertices only when all six Float32 words match. Painted seams and
   // layered signs keep their colours and the original triangle ordering.
-  function indexGeometry(data,largeIndices,groups=null){
+  function indexGeometry(data,largeIndices,groups=null,frames=null){
     const count=data.length/6;
     if(count<192||count>65535&&!largeIndices)return null;
     const words=new Uint32Array(data.buffer,data.byteOffset,data.length);
@@ -99,7 +99,8 @@
       while(slots[slot]){
         const q=(slots[slot]-1)*6;
         if((!groups||groups[slots[slot]-1]===groups[i])&&words[q]===words[p]&&words[q+1]===words[p+1]&&words[q+2]===words[p+2]&&
-          words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5])break;
+          words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5]&&
+          (!frames||frames.every(f=>f[p]===f[q]&&f[p+1]===f[q+1]&&f[p+2]===f[q+2])))break;
         slot=(slot+1)&(size-1);
       }
       if(slots[slot])remap[i]=remap[slots[slot]-1];
@@ -113,6 +114,12 @@
     const indices=used<=65535&&remap.BYTES_PER_ELEMENT===4?new Uint16Array(remap):remap;
     return {vertices:packed.subarray(0,used*6),indices};
   }
+  Mesh.indexWalk=function(rest,poses){
+    // Two corners can touch at rest and part when the knee bends. Compare
+    // their positions across the full stride before sharing interpolation.
+    const frames=poses.map(p=>new Uint32Array(p.buffer,p.byteOffset,p.length));
+    return indexGeometry(rest,false,null,frames);
+  };
   function indexActor(data,rig,largeIndices){
     // Coincident points on a sleeve and on the hand can separate. Share only
     // corners that the rigger bound to the very same rest point and joints.
@@ -443,7 +450,7 @@
         }
       }
       if(n>this.vertices.length/6){this.flush();view.draw(...item);return;}
-      if(indices&&!sources){
+      if(indices&&!sources&&!model.packedPose){
         sources=model.batchSources=new Uint32Array(n);
         for(let i=0;i<model.count;i++)sources[indices[i]]=i*6;
       }
@@ -782,6 +789,7 @@
       if(name==="city")tagMaterials(data,builtMaterials);
       else if(name==="cut-guides")tagMaterials(data,new Map([[0xe7e0bf,7],[0xc8965a,7]]));
       else if(name.startsWith("traffic-shell/")||/^(coupe|van|cab|hatch|cruiser|wrecker|ambulance|cayo|marea|solena|estate|stepside|caleta|pumper)#/.test(name))tagMaterials(data,carMaterials);
+      if(mesh.poseIndices)(this.poseIndices??=new Map()).set(name,mesh.poseIndices);else this.poseIndices?.delete(name);
       if(animated)this.animated.add(name);
       if(animated&&window.BayPlayerMesh&&mesh instanceof BayPlayerMesh)this.actors.set(name,mesh);
       else this.actors.delete(name);
@@ -790,9 +798,10 @@
     upload(name,data){
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
       const dynamic=this.animated.has(name),rig=this.actors.get(name);
-      const packed=rig?indexActor(data,rig,this.largeIndices):dynamic?null:indexGeometry(data,this.largeIndices);
+      const poseIndices=this.poseIndices?.get(name);
+      const packed=poseIndices?{vertices:data,indices:poseIndices}:rig?indexActor(data,rig,this.largeIndices):dynamic?null:indexGeometry(data,this.largeIndices);
       gl.bufferData(gl.ARRAY_BUFFER,packed?.vertices||data,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
-      const count=data.length/6,model={buf,count,dynamic,vertexCount:packed?packed.vertices.length/6:count};
+      const count=poseIndices?.length||data.length/6,model={buf,count,dynamic,packedPose:!!poseIndices,vertexCount:packed?packed.vertices.length/6:count};
       if(packed){
         model.indices=packed.indices;model.elementType=model.indices.BYTES_PER_ELEMENT===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT;
         model.elements=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.elements);
@@ -10918,19 +10927,23 @@ window.buildBayCity = function buildBayCity(g,water) {
 
   // Paint is shared by all eight poses. Only coordinates that move enter the clip.
   class WalkCycle {
-    constructor(colors,role,gesture=0){
+    constructor(colors,role,gesture=0,distant=false){
       const make=(phase,moving)=>{
         const mesh=new BayMesh();
-        buildBayPerson(mesh,...colors,phase,role,gesture,null,{moving});
+        buildBayPerson(mesh,...colors,phase,role,gesture,null,{moving,distant});
         return new Float32Array(mesh.vertices);
       };
-      this.rest=make(0,false);
-      const poses=Array.from({length:8},(_,i)=>make(i*Math.PI/4,true)),offsets=[];
-      for(let i=0;i<this.rest.length;i+=6)for(let k=0;k<3;k++){
-        const j=i+k;if(poses.some(p=>p[j]!==this.rest[j]))offsets.push(j);
+      const rest=make(0,false),poses=Array.from({length:8},(_,i)=>make(i*Math.PI/4,true));
+      const packed=BayMesh.indexWalk(rest,poses);
+      this.rest=packed?packed.vertices.slice():rest;this.indices=packed?.indices||null;
+      const sources=new Uint32Array(this.rest.length/6),offsets=[],sample=[];
+      if(packed)for(let i=0;i<this.indices.length;i++)sources[this.indices[i]]=i*6;
+      for(let i=0;i<sources.length;i++)for(let k=0;k<3;k++){
+        const j=(packed?sources[i]:i*6)+k;
+        if(poses.some(p=>p[j]!==rest[j])){offsets.push(i*6+k);sample.push(j);}
       }
       this.offsets=Uint32Array.from(offsets);
-      this.frames=poses.map(p=>Float32Array.from(offsets,j=>p[j]-this.rest[j]));
+      this.frames=poses.map(p=>Float32Array.from(sample,j=>p[j]-rest[j]));
     }
     pose(vertices,phase,weight){
       const at=((phase*4/Math.PI)%8+8)%8,lo=Math.floor(at),part=at-lo;
@@ -14548,9 +14561,37 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     return {x:0,z:0};
   }
+  function busyAtHorn(p){
+    return p.palmPassenger||p.palmManaged||p.onTour||p.down||p.flee||p.startle||p.sprayWait>0||p.curbAim||
+      p.neighborTalking||p.neighborPose||p.coffeePause||p.porch;
+  }
+  function hearHorn(p,car,time,kind){
+    if(busyAtHorn(p)||time<(p.nextHornLook||0))return;
+    const beat=p.reactionBeat??.5,d=Math.hypot(p.x-car.x,p.z-car.z);
+    const start=time+.09+.30*beat+d*.008,face=Math.atan2(car.x-p.x,car.z-p.z);
+    p.hornLook={start,face,kind,duration:kind?BayNeighborGestures.duration(kind):.44+.31*beat};
+    p.nextHornLook=start+6+beat*3;if(kind)p.neighborAway=false;
+  }
+  function turnAtHorn(p,time,dt){
+    const r=p.hornLook;if(!r)return false;
+    const age=time-r.start;
+    if(age<0)return false;
+    if(p.crossing){
+      if(r.kind==="wave"&&p.crossing.entered)p.crossing.wave=Math.max(p.crossing.wave,time+.35);
+      return false;
+    }
+    p.moving=false;p.gesture=0;
+    p.yaw+=wrap(r.face-p.yaw)*-Math.expm1(-(r.kind?4.9:3.4)*dt);
+    if(r.kind){
+      p.hornPose??={kind:r.kind,duration:r.duration,bearing:r.face,side:p.canopy>.12||p.fieldSource==="trawler"?-1:1};
+      p.hornPose.age=age;
+    }
+    return true;
+  }
   function animatePeople(people,dt,driver,cars,signals,time,valid,rain=0,rail=null,player=null){
     const ease=-Math.expm1(-12*dt);
     for(const p of people){
+      if(p.hornLook&&(busyAtHorn(p)||time>p.hornLook.start+p.hornLook.duration))p.hornLook=p.hornPose=null;
       if(p.onTour)continue;
       const weight=p.walkWeight||0,goal=p.moving&&!p.down?1:0;
       p.walkWeight=Math.abs(goal-weight)<.003?goal:weight+(goal-weight)*ease;
@@ -14564,7 +14605,8 @@ window.buildBayCity = function buildBayCity(g,water) {
           p.moving=false;p.yaw+=wrap(p.sprayFace-p.yaw)*-Math.expm1(-7*dt);
         }else p.sprayPose=null;
       }
-      if(BayStreetReactions.startlePerson(p,dt,driver,cars,people,valid,time))continue;
+      if(BayStreetReactions.startlePerson(p,dt,driver,cars,people,valid,time)){p.hornLook=p.hornPose=null;continue;}
+      if(turnAtHorn(p,time,dt))continue;
       if(p.sprayPose)continue;
       if(p.curbAim){p.moving=false;p.yaw+=wrap(Math.atan2(p.curbAim.x-p.x,p.curbAim.z-p.z)-p.yaw)*-Math.expm1(-12*dt);continue;}
       if(p.coffeePause){p.moving=false;p.gesture=0;continue;}
@@ -14616,7 +14658,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const p of [shopkeeper,...people]){if(!p.name||p.palmManaged||p.down||p.flee)continue;const d=Math.hypot(hero.x-p.x,hero.z-p.z);if(d<best){best=d;found=p;}}
     return found;
   }
-  window.BayLocals={makeWalkers,animatePeople,closestSpeaker};
+  window.BayLocals={makeWalkers,animatePeople,closestSpeaker,hearHorn};
 })();
 
 ;
@@ -70218,6 +70260,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const poseFor=(p)=>p.moving?1+Math.floor(mod(p.phase,tau)/tau*4):0;
   const walkClips=new Map(),walkerBounds={x:0,y:1.06,z:.10,hw:.56,hh:1.25,hd:.68,r:1.55};
   let walkModelId=0;
+  let cabHornAt=null,lastCabHello=-Infinity;
   function sidewalkModel(p,feet,gesture){
     const basis=view.basis;
     if(!basis)return personSkin(p.style,p.role,poseFor(p),gesture);
@@ -70225,22 +70268,22 @@ window.buildBayCity = function buildBayCity(g,water) {
     const eye=basis.camera,forward=(p.x-eye.x)*basis.sn+(p.z-eye.z)*basis.cs;
     const depth=forward*basis.cp+(feet+.9-eye.y)*basis.sp;
     const pixels=view.canvas.height*.9*basis.f/Math.max(.1,depth);
-    if(pixels<(p.lowWalkDetail?24:20)){
-      p.lowWalkDetail=true;
+    p.lowWalkDetail=pixels<(p.lowWalkDetail?24:20);
+    p.steppedWalk=pixels<(p.steppedWalk?14:11);
+    if(p.lowWalkDetail&&(p.steppedWalk||!(p.walkWeight>.008)||!p.moving&&(gesture===1||gesture===2))){
       const pose=p.walkWeight>.36?1+Math.round(mod(p.phase,tau)*8/tau)%8:0;
       const k="sidewalk/far/"+p.role+"/"+p.style+"/"+gesture+"/"+pose;
       model(k,g=>buildBayPerson(g,...personColors[p.style],pose?(pose-1)*tau/8:0,p.role,gesture,null,{moving:!!pose,distant:true}));
       return k;
     }
-    p.lowWalkDetail=false;
     if(!(p.walkWeight>.008)||!p.moving&&(gesture===1||gesture===2))return personSkin(p.style,p.role,0,gesture);
-    const costume=p.role+"/"+p.style+"/"+gesture;
+    const costume=p.role+"/"+p.style+"/"+gesture+(p.lowWalkDetail?"/distance":"");
     let clip=walkClips.get(costume);
-    if(!clip){clip=new BayWalkCycle(personColors[p.style],p.role,gesture);walkClips.set(costume,clip);}
+    if(!clip){clip=new BayWalkCycle(personColors[p.style],p.role,gesture,p.lowWalkDetail);walkClips.set(costume,clip);}
     p.walkModels??=new Map();
     let body=p.walkModels.get(costume);
     if(!body){
-      body={key:"sidewalk/walk/"+ ++walkModelId,vertices:clip.rest.slice(),phase:-1,weight:-1};
+      body={key:"sidewalk/walk/"+ ++walkModelId,vertices:clip.rest.slice(),poseIndices:clip.indices,phase:-1,weight:-1};
       p.walkModels.set(costume,body);view.add(body.key,body,true);
     }
     if(p.phase!==body.phase||p.walkWeight!==body.weight){
@@ -73867,6 +73910,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     return p&&neighbors.available(p)&&dist(a,p)<r&&seesNeighbor(p)?p:neighbors.closest(a,r,seesNeighbor);
   }
   function neighborStep(){
+    if(cabHornAt!==null&&streetTime>=cabHornAt){
+      cabHornAt=null;
+      if(car&&car.garageKey===save.meterCopy?.key&&!active&&!heat&&dist(car,taxi)<31&&seesNeighbor(taxi)){
+        lastCabHello=streetTime;trafficHonk(taxi);
+        speak("Mina Ortiz","Seventeen to dispatch. There goes my free ride. Looks better with somebody in it.");
+      }
+    }
     const a=car||hero,free=neighborFree(),lead=unit.lead;
     if(localVoice&&(!free||dist(a,localVoice)>11||elapsed>speechTill||elapsed>=voiceCheck&&!seesNeighbor(localVoice))){
       localVoice=null;$("neighborTag").hidden=true;$("hud").classList.toggle("neighbor-speech",false);
@@ -74128,7 +74178,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     note("Driver behind you","Two flashes · They’re slowing to let you in.",2.8);return true;
   }
   function honk(){
-    if(elapsed<hornReady)return;hornReady=elapsed+.67;sound.cue("horn");
+    if(elapsed<hornReady)return;hornReady=elapsed+.67;car.hornAt=streetTime;sound.cue("horn");
     if(!active&&askForGap())return;
     if(cupEntry())return;
     if(beat.start("check",car,beatEnv))return;
@@ -74140,7 +74190,15 @@ window.buildBayCity = function buildBayCity(g,water) {
       const w=curbWire.hail(car,wireEnv);
       if(w){note((w.curbName||w.name)+" · Camera rolling","Make your pass while the phone is up.",2.5);}
     }
-    for(const p of walkers){if(!p.palmPassenger&&dist(p,car)<16){p.alert=1.35;p.gesture=1;p.yaw=Math.atan2(car.x-p.x,car.z-p.z);}}
+    if(!active&&!heat&&save.meterCopy?.found&&save.meterCopy.key===car.garageKey&&streetTime-lastCabHello>75&&dist(car,taxi)<19&&seesNeighbor(taxi)){
+      cabHornAt=streetTime+.56;
+    }
+    for(const p of walkers){
+      const d=dist(p,car);if(d>16||!seesNeighbor(p))continue;
+      const familiar=p.neighbor&&neighbors.known(unit.lead,p,"met"),bad=p.neighbor&&neighbors.slight(p,car,unit.lead);
+      const kind=bad?"guard":familiar||p.name==="June"&&save.juneReturned?"wave":null;
+      if(kind||d<9+5*(p.reactionBeat??.5))BayLocals.hearHorn(p,car,streetTime,kind);
+    }
     for(const v of cars){if(v!==car&&v.path&&dist(v,car)<9){v.wait=Math.max(v.wait,.42);}}
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
@@ -78451,7 +78509,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(play&&modeName==="street")for(const p of [luggage.porter,...luggage.tags])peds.push({...p,shirt:personColors[p.style][1],skin:personColors[p.style][0]});
     if(modeName==="street"){
       const people=play?walkers.concat(jobContacts.filter(c=>c.style!==undefined&&c.id!==active?.job.id&&!(meet.rival&&c.id==="getaway"))):walkers;
-      for(const w of people)if(!w.down?.inCare&&(!play||w!==band.local&&!w.palmManaged)&&(!take||!BayTake.onSet(w)))peds.push({x:w.x,z:w.z,yaw:w.yaw,stride:Math.sin(w.phase||0)*(w.walkWeight||0),down:w.down,shirt:personColors[w.style][1],skin:personColors[w.style][0],startle:w.startle,sprayPose:w.sprayPose,gesture:w.gesture,neighborPose:w.neighborPose,curbAim:w.curbAim,canopy:w.canopy,canopyStyle:w.canopyStyle,iceBox:w.fieldSource==="trawler"&&w.index<=6&&w.index>0});
+      for(const w of people)if(!w.down?.inCare&&(!play||w!==band.local&&!w.palmManaged)&&(!take||!BayTake.onSet(w)))peds.push({x:w.x,z:w.z,yaw:w.yaw,stride:Math.sin(w.phase||0)*(w.walkWeight||0),down:w.down,shirt:personColors[w.style][1],skin:personColors[w.style][0],startle:w.startle,sprayPose:w.sprayPose,gesture:w.gesture,neighborPose:w.neighborPose||w.hornPose,curbAim:w.curbAim,canopy:w.canopy,canopyStyle:w.canopyStyle,iceBox:w.fieldSource==="trawler"&&w.index<=6&&w.index>0});
       if(play)for(const w of BayPlates.regulars)if(dinerIsOut(w))peds.push({x:w.x,z:w.z,yaw:w.yaw,shirt:personColors[w.style][1],skin:personColors[w.style][0]});
       if(play&&airLine.reader.stage!=="ride"){const r=airLine.reader;peds.push({x:r.x,z:r.z,yaw:r.yaw,shirt:"#d1ae74",skin:"#a37857"});}
       if(play)peds.push({...BayCut.station,yaw:-2.3,shirt:"#bea56b",skin:"#91654b"});
@@ -79365,10 +79423,11 @@ window.buildBayCity = function buildBayCity(g,water) {
         }
         p.recoilMesh.startle(recoil);view.updateAnimated(p.recoilKey);
         visible.push([p.recoilKey,p.x,feet+recoil.lift,p.z,p.yaw]);
-      }else if(p.neighborPose){
-        if(!p.neighborMesh){p.neighborMesh=new BayPlayerMesh(personColors[p.style],p.role);p.neighborMotion=new BayPlayerMotion();view.add("neighbor/"+p.neighbor.id,p.neighborMesh,true);}
-        const key="neighbor/"+p.neighbor.id;p.neighborMotion.step(dt,0,0);
-        if(BayNeighborGestures.pose(p.neighborMesh,p.neighborMotion,p,p.neighborPose))view.updateAnimated(key);
+      }else if(p.neighborPose||p.hornPose){
+        const key="neighbor/"+(p.neighbor?.id||p.name);
+        if(!p.neighborMesh){p.neighborMesh=new BayPlayerMesh(personColors[p.style],p.role);p.neighborMotion=new BayPlayerMotion();view.add(key,p.neighborMesh,true);}
+        p.neighborMotion.step(dt,0,0);
+        if(BayNeighborGestures.pose(p.neighborMesh,p.neighborMotion,p,p.neighborPose||p.hornPose))view.updateAnimated(key);
         visible.push([key,p.x,feet,p.z,p.yaw]);
       }else if(p.coffeeSip){
         if(!p.coffeeMesh){p.coffeeMesh=new BayPlayerMesh(personColors[p.style],p.role);p.coffeeMotion=new BayPlayerMotion();view.add("palm-coffee-bea",p.coffeeMesh,true);}
@@ -79537,7 +79596,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     BayStreetArt.draw(view,streetTime,cam);
     for(const v of cars){
       const pulse=BayStreetReactions.hornPulse(v,streetTime);
-      if(pulse>.10&&v.path&&see(v,47))view.draw("horn-wave",v.x,footLevel(v.x,v.z)+bayCarLayout(v.kind).glass[5]+.32+pulse*.16,v.z,eye.yaw);
+      if(pulse>.10&&(v.path||v===taxi||v===car)&&see(v,47))view.draw("horn-wave",v.x,footLevel(v.x,v.z)+bayCarLayout(v.kind).glass[5]+.32+pulse*.16,v.z,eye.yaw);
     }
     for(const v of patrol)if(see(v,110))view.draw(Math.floor(t*5.5)%2?"flash-red":"flash-blue",v.x,footLevel(v.x,v.z)+.01,v.z,v.yaw,0,v.lean);
     tapes.forEach((o,i)=>{

@@ -36,6 +36,11 @@ module.exports=async function passing({js,waitFor,key,snap,mode}){
         const result=pixels(this,items,measure(true),measure(false),true);
         if(counts[0]>2&&result.painted>8)q.shadow={counts,pixels:result};
       }
+      if(!q.stride&&q.local.walkModels){
+        const row=items.find(row=>Array.from(q.local.walkModels.values()).some(body=>body.key===row[0]));
+        if(row){const report=(${require("./walk-stream.cjs").toString()})(this,row,(${require("./street-pixels.cjs").toString()}),list);
+          if(report?.batch.painted>10)q.stride=report;}
+      }
       if(items.some(row=>row[0].startsWith("sidewalk/far/")))q.far=true;
       return list.call(this,items);
     };`);
@@ -49,7 +54,10 @@ module.exports=async function passing({js,waitFor,key,snap,mode}){
   assert(await js("q.gap>.5"),"pedestrian passes beside the player");
   const poses=await js(mode==="street"?"q.poses.size":"q.topPoses.size");assert(poses>=8,"continuous pedestrian gait");
   if(mode==="street"){
-    await waitFor("!!q.shadow&&q.far",55000);
+    await waitFor("!!q.shadow&&q.far&&q.stride",55000);
+    const stride=await js("q.stride");assert(stride.vertices<stride.corners*.8);
+    for(const draw of [stride.batch,stride.single])assert(draw.painted>10&&draw.changed===0&&draw.silhouette===0);
+    console.log("PERF sidewalk stride",JSON.stringify(stride));
     const shadow=await js("q.shadow");assert.equal(shadow.counts[1],1);
     assert(shadow.pixels.silhouette<=Math.max(3,shadow.pixels.painted*.004));
     console.log("PERF sidewalk shadows",JSON.stringify(shadow));
