@@ -7,7 +7,7 @@
   const points={exit:{x:0,z:-9.33},program:{x:-2.7,z:-5.12},aisle:{x:0,z:-2.3}};
   const rows=[-2.30,-.37,1.56,3.49,5.42],columns=[1.21,2.16,3.11,4.06,5.01];
   const chairs=rows.flatMap((z,row)=>[-1,1].flatMap(side=>columns.map((x,col)=>({x:x*side,z,row,col,side}))));
-  const audience=[chairs[12],chairs[37]];
+  const audience=[chairs[12],chairs[37]],adaChair=chairs[6];
   const blocks=[
     {x:-4.30,z:-4.12,w:5.64,d:.32},{x:4.30,z:-4.12,w:5.64,d:.32},
     {x:4.35,z:-5.98,w:4.38,d:1.02},{x:-5.85,z:-8.73,w:1.52,d:.61},
@@ -31,7 +31,7 @@
   function nearbySeat(p){
     let best=null,min=1.42;
     for(const chair of chairs){
-      if(audience.includes(chair))continue;
+      if(audience.includes(chair)||p.ada&&chair===adaChair)continue;
       const distance=Math.hypot(chair.x-p.x,chair.z-p.z);
       if(distance<min){best=chair;min=distance;}
     }
@@ -320,6 +320,14 @@
     else{g.box(x+.10,y+.75,z+.22,.16,.17,.15,"#d3b393");front(g,x+.10,y+.75,z+.142,.035,.145,"#a96559");}
   }
 
+  function adaInHouse(g){
+    const {x,z}=adaChair,y=floorAt(z);
+    moviegoer(g,adaChair,true);
+    g.cyl(x+.02,y+1.30,z-.19,.09,.105,.12,8,"#aa9e88");
+    g.pole([x-.16,y+1.02,z-.03],[x+.15,y+.93,z+.08],.038,"#ab6653",6);
+    g.box(x+.03,y+.72,z+.25,.35,.012,.22,"#d5c2a2");
+    g.pole([x-.08,y+.73,z+.19],[x+.15,y+.73,z+.29],.012,"#966548",5);
+  }
   function stage(g){
     g.box(0,3.51,10.31,14.38,7.07,.24,"#38404b");
     g.box(0,.24,9.07,14.02,.48,2.34,"#603f48");
@@ -446,7 +454,7 @@
     model("cine-luna-house",g=>{halls(g);stage(g);});
     model("cine-luna-seats",g=>seatBank(g));
     model("cine-luna-audience",g=>audience.forEach((c,i)=>moviegoer(g,c,i===1)));
-    model("cine-luna-operator",boothOperator);model("cine-luna-screen",printMesh);model("cine-luna-light",beamMesh);
+    model("cine-luna-ada",adaInHouse);model("cine-luna-operator",boothOperator);model("cine-luna-screen",printMesh);model("cine-luna-light",beamMesh);
   }
   const cityLighting=new WeakMap();
   function streetShadow(view){
@@ -466,6 +474,7 @@
       view.draw("cine-luna-foyer",0,0,0,0,0,0,.73);view.draw("cine-luna-house",0,0,0,0,0,0,.65);
       for(const z of rows)view.draw("cine-luna-seats",0,floorAt(z),z,0,0,0,.60);
       view.draw("cine-luna-audience",0,0,0,0,0,0,.57);
+      if(room.ada)view.draw("cine-luna-ada",0,0,0,0,0,0,.67);
       if(room.projectionist)view.draw("cine-luna-operator",0,0,0,0,0,0,.88);
       if(filmCanvas&&filmCanvas.width){
         view.drawPrint("cine-luna-screen",filmCanvas,revision,0,0,0,0);
@@ -634,6 +643,14 @@
       c.drawImage(streetPlate,0,0);
       c.drawImage(planPlate.canvas,ox+planSize.left*scale-1,oy+planSize.top*scale-1);
       drawStageImage(c,film,ox,oy,scale,mapTilt);
+      if(r.ada){
+        const {x,z}=adaChair;c.save();c.translate(ox+x*scale,oy-(z*mapTilt+floorAt(z))*scale);c.scale(scale,scale);
+        c.fillStyle="#666c67";c.fillRect(-.19,-1.09,.38,.41);
+        c.fillStyle="#af947a";c.beginPath();c.arc(0,-1.19,.14,0,tau);c.fill();
+        c.fillStyle="#aa9e88";c.beginPath();c.arc(0,-1.24,.13,0,tau);c.fill();
+        c.fillStyle="#b97964";c.fillRect(-.16,-1.06,.30,.054);
+        c.fillStyle="#d5c2a2";c.fillRect(-.15,-.83,.33,.086);c.restore();
+      }
       if(r.projectionist)paintProjectionist(c,ox,oy,scale);
       paintPlayer(c,r,ox,oy,scale);
     }
@@ -642,5 +659,5 @@
     }
     c.restore();
   }
-  window.BayCineRoom={install,create,clear,move,world,map,action,seat,rise,look,camera,points,screen};
+  window.BayCineRoom={install,create,clear,move,world,map,action,seat,rise,look,camera,points,screen,adaChair};
 })();

@@ -213,7 +213,9 @@
     const imageH=Math.round(picW*(pier?9/16:2/3)),railTop=body+27,lineH=24;
     const listingHead=railTop+locals.length*lineH+(locals.length?27:0);
     const footer=Math.ceil(Math.max(body+imageH+10+caption.length*20,listingHead+(listing.length?13+listing.length*lineH:0))+23);
-    canvas.width=width;canvas.height=footer+36;
+    const pair=issue.gatePair,insert=BayFeaturePrint.validPair(pair);
+    const folio=footer+(insert?(issue.adaSigned?283:241):0);
+    canvas.width=width;canvas.height=folio+36;
     stock(c,canvas.height);masthead(c);
     box(c,margin,109,full,2.8,ink);box(c,margin,114,full,.8,ink);
     label(c,"SUNDOWN BAY",margin,133,"bold 15px "+sans);
@@ -239,10 +241,25 @@
       box(c,rail,listingHead-17,railW,1.3,ink);label(c,"What's on",rail,listingHead+4,"italic bold 21px "+serif);
       column(c,listing,rail,listingHead+13,bodyFont,lineH);
     }
-    box(c,margin,footer,full,1.4,ink);
-    label(c,"BAY WIRE",margin,footer+21,"bold 14px "+serif);
-    label(c,"Sundown Bay  ·  City desk",width/2,footer+21,"14px "+sans,muted,"center");
-    label(c,"1",width-margin,footer+21,"bold 16px "+serif,ink,"right");
+    if(insert){
+      box(c,margin,footer,full,2,ink);
+      label(c,"The gate on Gantry Street",margin,footer+27,"bold 26px "+serif);
+      label(c,"SOLER FAMILY FILM",width-margin,footer+24,"bold 12px "+sans,oxblood,"right");
+      const w=(full-8)/2,h=w*9/16;
+      for(const [i,index] of [pair.start,pair.end].entries()){
+        c.drawImage(BayFeaturePrint.still(index),margin+i*(w+8),footer+34,w,h);
+      }
+      label(c,"Frames "+(183+pair.start)+" and "+(183+pair.end)+". "+BayFeaturePrint.pairCaption(pair),margin,footer+226,"italic 15px "+serif);
+      if(issue.adaSigned){
+        c.save();c.translate(margin+42,footer+265);c.rotate(-.018);
+        label(c,BayFeaturePrint.inscription(pair),0,0,"italic 24px "+serif,"#374c63");
+        c.restore();
+      }
+    }
+    box(c,margin,folio,full,1.4,ink);
+    label(c,"BAY WIRE",margin,folio+21,"bold 14px "+serif);
+    label(c,"Sundown Bay  ·  City desk",width/2,folio+21,"14px "+sans,muted,"center");
+    label(c,"1",width-margin,folio+21,"bold 16px "+serif,ink,"right");
     return true;
   }
   function inscription(issue){

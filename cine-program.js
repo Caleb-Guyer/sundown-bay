@@ -546,7 +546,7 @@
     }
   }
 
-  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver;
+  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver,listedGate;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -559,14 +559,18 @@
     const jumps=options?.pictureJumps||null;
     const house=options?.houseLights||null;
     const driver=options?.driverPrint||null;
-    if(schedule&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
-    listedDriver=driver;
+    const gate=options?.soler;
+    if(schedule&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedDriver=driver;listedGate=gate;
     listedHouse=house;
     listedJumps=jumps;
     if(listedWindows!==windows){listedWindows=windows;windowImages=null;}
     if(listedLocation!==location){listedLocation=location;locationCard=null;}
     listedRecord=saved;listedSkate=skate;listedPrint=print;listedSecond=second;listedDelivery=delivery;
     const list=[];
+    const soler=window.BayFeaturePrint?.reel;
+    const gateSlot=gate&&soler?slot(soler.id,soler.title,"Ada Soler · Gantry Street, before the fire",soler.seconds):null;
+    if(gateSlot&&gate==="first")list.push(gateSlot);
     if(driver)list.push(slot("frame-13","From the Passenger Window","Mara Vega · "+BayLotNegative.locations[driver.place].name,5));
     if(house)list.push(slot("house-lights","House Lights","Two exposures on Luna Boulevard · "+house.day.by,8));
     if(jumps)list.push(slot("picture-jumps","Four Wheels Down","Romy Vale · An animation from three measured jumps",15));
@@ -577,6 +581,7 @@
     if(print)list.push(slot("edition","Bay Wire","Mara Vega · Lot 14, Port Sol",4));
     list.push(slot("pelican","The Last Pelican","Bay Film Club · 16 mm",28));
     if(second)list.push(slot("tram","After the Last Tram","Cine Luna archive, 1954"+(delivery?" · Delivered by "+delivery:""),26));
+    if(gateSlot&&gate==="late")list.push(gateSlot);
     schedule=Object.freeze(list);programFrames=list.reduce((sum,item)=>sum+item.seconds*fps,0);
     return schedule;
   }
@@ -601,7 +606,10 @@
       context.lineCap="round";context.lineJoin="round";
     }
     const elapsed=inSlot/fps;
-    if(item.id==="frame-13"){
+    if(item.id==="soler-gate"){
+      const film=window.BayFeaturePrint;
+      context.drawImage(film.still(film.frameAt(elapsed)),0,0,width,height);
+    }else if(item.id==="frame-13"){
       const image=BayLotNegative.photo(listedDriver);
       rect(context,0,0,width,height,"#202522");
       if(image?.naturalWidth)context.drawImage(image,18,0,380,213.75);

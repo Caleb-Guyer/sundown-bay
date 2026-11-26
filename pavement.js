@@ -6,7 +6,7 @@
   // The attendant's counter is on the sidewalk side of each stand.
   const sites=[
     ["ocean","box",150.02,-10.9,-1.57,153.30,-9.8,"Luz Mena",3],
-    ["luna","board",6.75,49.1,-1.40,9.02,47.4,"Art Flores",1],
+    ["luna","board",6.75,49.1,-1.40,9.02,48.05,"Art Flores",1],
     ["mercado","crate",-45.2,-137.35,3.10,-43.8,-134.2,"Noé Parra",4],
     ["boardwalk","crate",150.6,92.1,-1.52,154.2,92.7,"Bibi Parra",5],
     ["palms","box",-77.95,-96.3,1.48,-81.5,-97.0,"Vic Ames",0],
@@ -25,7 +25,7 @@
   ];
   const archiveKey="sundownBay.pocketEditions.v1";
   const validIssue=q=>q&&Number.isSafeInteger(q.day)&&q.day>0&&["headline","deck","section","listing","local"].every(k=>typeof q[k]==="string"&&q[k].length<500)&&(!q.photo||Object.hasOwn(captions,q.photo));
-  const issueId=q=>JSON.stringify([q.day,q.headline,q.deck,q.listing,q.local,q.pierPhoto?.image]);
+  const issueId=q=>JSON.stringify([q.day,q.headline,q.deck,q.listing,q.local,q.pierPhoto?.image,q.gatePair?.start,q.gatePair?.end]);
   const pierLead=(day,stories,save,film)=>save.edition&&film?.published&&(film.day===day||!stories.length)?film.published:null;
   class Street{
     constructor(){
@@ -38,7 +38,9 @@
     }
     readArchive(){
       try{const raw=JSON.parse(localStorage.getItem(archiveKey));if(Array.isArray(raw))this.archive=raw.filter(validIssue).slice(-5).map(q=>{
-        if(q.pierPhoto)q.pierPhoto=BayLotNegative.readFrame(q.pierPhoto);return q;
+        if(q.pierPhoto)q.pierPhoto=BayLotNegative.readFrame(q.pierPhoto);
+        if(q.gatePair&&!BayFeaturePrint.validPair(q.gatePair))delete q.gatePair;
+        return q;
       });}catch{}
     }
     indexOf(q){const id=issueId(q);return this.archive.findIndex(p=>issueId(p)===id);}
@@ -47,11 +49,13 @@
       if(chosen?.pierPhoto&&!chosen.signedByLuis)return chosen;
       return this.archive.findLast(q=>q.pierPhoto&&!q.signedByLuis);
     }
-    sign(q){
+    forAda(){return this.archive.findLast(q=>q.gatePair&&!q.adaSigned);}
+    sign(q,person="luis"){
       this.readArchive();
       const i=this.indexOf(q),issue=this.archive[i];
-      if(!issue?.pierPhoto||issue.signedByLuis)return null;
-      const next=this.archive.slice();next[i]={...issue,signedByLuis:true};
+      const field=person==="ada"?"adaSigned":"signedByLuis";
+      if(!issue||issue[field]||!(person==="ada"?issue.gatePair:issue.pierPhoto))return null;
+      const next=this.archive.slice();next[i]={...issue,[field]:true};
       try{localStorage.setItem(archiveKey,JSON.stringify(next));}catch{return null;}
       this.archive=next;return next[i];
     }
@@ -74,7 +78,9 @@
       else if(stunt){headline="Romy lands it on the flatbed";deck="The car meet’s "+stunt.distance.toFixed(1)+" m jump has earned a place on the Cine Luna poster.";}
       const local=clock.rain>.3?"A shower is moving through town. Route 6 regulars are sharing the awnings along Ocean.":clock.market==="open"?"El Mercado is open for the evening. Look for the striped awnings on Mercado Street.":"El Mercado’s evening stalls open at six. Port Sol is taking deliveries down on Gantry.";
       const run=save.engineSeven?.log.at(-1),watch=run?.day===day?"Station Seven filed an all-clear for "+run.title+". "+run.crew+" signed the return slip.":local;
-      return {day,headline,deck,photo:story?.id||null,...(pierPhoto?{pierPhoto}:{}),section:pierPhoto?"Port Sol":story?"Neighborhood edition":"City edition",local:watch,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
+      const pair=save.featurePrint?.pair;
+      const supplement=BayFeaturePrint.validPair(pair)&&pair.day===day?{gatePair:{...pair}}:{};
+      return {day,...supplement,headline,deck,photo:story?.id||null,...(pierPhoto?{pierPhoto}:{}),section:pierPhoto?"Port Sol":story?"Neighborhood edition":"City edition",local:watch,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
     }
     impact(p,v,env){
       const k=kinds[p.kind],speed=Math.abs(v.speed),dir=v.speed<0?-1:1;

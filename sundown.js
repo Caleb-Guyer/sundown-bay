@@ -21255,11 +21255,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     ],
     printFirst:[
       {dur:3.5,shot:"cinema",slug:"CINE LUNA   /   FIRST SHOW",title:"Before the trailers",who:"Marisol Vale",line:"Leave the house lights down. Nobody gets up till that gate opens."},
-      {dur:5.0,art:"gatePrint",who:"Ada Soler · telephone",line:"I could hear the whole room go quiet through this little phone."}
+      {dur:5.0,art:"gatePrint",who:"Ada Soler · telephone",line:"I could hear the whole room go quiet through this little phone."},
+      {dur:3.7,shot:"cinema",who:"Marisol Vale",line:"Ada’s coming over. Ask for her at the program case. She wants a still for the paper."}
     ],
     printLate:[
       {dur:3.5,shot:"cinema",slug:"CINE LUNA   /   AFTER THE CREDITS",title:"Hold the house",who:"Marisol Vale",line:"The feature's over. I'll catch them before somebody turns on the cleaning lights."},
-      {dur:5.0,art:"gatePrint",who:"Romy Vale",line:"Six people stayed. That woman by the aisle asked if she could bring her brother tomorrow."}
+      {dur:5.0,art:"gatePrint",who:"Romy Vale",line:"Six people stayed. That woman by the aisle asked if she could bring her brother tomorrow."},
+      {dur:3.7,shot:"cinema",who:"Marisol Vale",line:"We’ll leave a lamp on for Ada. Tell the booth you’re here to make her newspaper print."}
     ],
     printArchive:[
       {dur:2.8,shot:"boothDoor",slug:"ADA SOLER'S PRINT   /   STARLITE",title:"The laundry gate",who:"Ada Soler",line:"Watch his other hand. All those keys and he knew the right one by touch."},
@@ -33410,7 +33412,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
 
-  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver;
+  let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver,listedGate;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -33423,14 +33425,18 @@ window.buildBayCity = function buildBayCity(g,water) {
     const jumps=options?.pictureJumps||null;
     const house=options?.houseLights||null;
     const driver=options?.driverPrint||null;
-    if(schedule&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
-    listedDriver=driver;
+    const gate=options?.soler;
+    if(schedule&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedDriver=driver;listedGate=gate;
     listedHouse=house;
     listedJumps=jumps;
     if(listedWindows!==windows){listedWindows=windows;windowImages=null;}
     if(listedLocation!==location){listedLocation=location;locationCard=null;}
     listedRecord=saved;listedSkate=skate;listedPrint=print;listedSecond=second;listedDelivery=delivery;
     const list=[];
+    const soler=window.BayFeaturePrint?.reel;
+    const gateSlot=gate&&soler?slot(soler.id,soler.title,"Ada Soler · Gantry Street, before the fire",soler.seconds):null;
+    if(gateSlot&&gate==="first")list.push(gateSlot);
     if(driver)list.push(slot("frame-13","From the Passenger Window","Mara Vega · "+BayLotNegative.locations[driver.place].name,5));
     if(house)list.push(slot("house-lights","House Lights","Two exposures on Luna Boulevard · "+house.day.by,8));
     if(jumps)list.push(slot("picture-jumps","Four Wheels Down","Romy Vale · An animation from three measured jumps",15));
@@ -33441,6 +33447,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(print)list.push(slot("edition","Bay Wire","Mara Vega · Lot 14, Port Sol",4));
     list.push(slot("pelican","The Last Pelican","Bay Film Club · 16 mm",28));
     if(second)list.push(slot("tram","After the Last Tram","Cine Luna archive, 1954"+(delivery?" · Delivered by "+delivery:""),26));
+    if(gateSlot&&gate==="late")list.push(gateSlot);
     schedule=Object.freeze(list);programFrames=list.reduce((sum,item)=>sum+item.seconds*fps,0);
     return schedule;
   }
@@ -33465,7 +33472,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       context.lineCap="round";context.lineJoin="round";
     }
     const elapsed=inSlot/fps;
-    if(item.id==="frame-13"){
+    if(item.id==="soler-gate"){
+      const film=window.BayFeaturePrint;
+      context.drawImage(film.still(film.frameAt(elapsed)),0,0,width,height);
+    }else if(item.id==="frame-13"){
       const image=BayLotNegative.photo(listedDriver);
       rect(context,0,0,width,height,"#202522");
       if(image?.naturalWidth)context.drawImage(image,18,0,380,213.75);
@@ -33510,7 +33520,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const points={exit:{x:0,z:-9.33},program:{x:-2.7,z:-5.12},aisle:{x:0,z:-2.3}};
   const rows=[-2.30,-.37,1.56,3.49,5.42],columns=[1.21,2.16,3.11,4.06,5.01];
   const chairs=rows.flatMap((z,row)=>[-1,1].flatMap(side=>columns.map((x,col)=>({x:x*side,z,row,col,side}))));
-  const audience=[chairs[12],chairs[37]];
+  const audience=[chairs[12],chairs[37]],adaChair=chairs[6];
   const blocks=[
     {x:-4.30,z:-4.12,w:5.64,d:.32},{x:4.30,z:-4.12,w:5.64,d:.32},
     {x:4.35,z:-5.98,w:4.38,d:1.02},{x:-5.85,z:-8.73,w:1.52,d:.61},
@@ -33534,7 +33544,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function nearbySeat(p){
     let best=null,min=1.42;
     for(const chair of chairs){
-      if(audience.includes(chair))continue;
+      if(audience.includes(chair)||p.ada&&chair===adaChair)continue;
       const distance=Math.hypot(chair.x-p.x,chair.z-p.z);
       if(distance<min){best=chair;min=distance;}
     }
@@ -33823,6 +33833,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     else{g.box(x+.10,y+.75,z+.22,.16,.17,.15,"#d3b393");front(g,x+.10,y+.75,z+.142,.035,.145,"#a96559");}
   }
 
+  function adaInHouse(g){
+    const {x,z}=adaChair,y=floorAt(z);
+    moviegoer(g,adaChair,true);
+    g.cyl(x+.02,y+1.30,z-.19,.09,.105,.12,8,"#aa9e88");
+    g.pole([x-.16,y+1.02,z-.03],[x+.15,y+.93,z+.08],.038,"#ab6653",6);
+    g.box(x+.03,y+.72,z+.25,.35,.012,.22,"#d5c2a2");
+    g.pole([x-.08,y+.73,z+.19],[x+.15,y+.73,z+.29],.012,"#966548",5);
+  }
   function stage(g){
     g.box(0,3.51,10.31,14.38,7.07,.24,"#38404b");
     g.box(0,.24,9.07,14.02,.48,2.34,"#603f48");
@@ -33949,7 +33967,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     model("cine-luna-house",g=>{halls(g);stage(g);});
     model("cine-luna-seats",g=>seatBank(g));
     model("cine-luna-audience",g=>audience.forEach((c,i)=>moviegoer(g,c,i===1)));
-    model("cine-luna-operator",boothOperator);model("cine-luna-screen",printMesh);model("cine-luna-light",beamMesh);
+    model("cine-luna-ada",adaInHouse);model("cine-luna-operator",boothOperator);model("cine-luna-screen",printMesh);model("cine-luna-light",beamMesh);
   }
   const cityLighting=new WeakMap();
   function streetShadow(view){
@@ -33969,6 +33987,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       view.draw("cine-luna-foyer",0,0,0,0,0,0,.73);view.draw("cine-luna-house",0,0,0,0,0,0,.65);
       for(const z of rows)view.draw("cine-luna-seats",0,floorAt(z),z,0,0,0,.60);
       view.draw("cine-luna-audience",0,0,0,0,0,0,.57);
+      if(room.ada)view.draw("cine-luna-ada",0,0,0,0,0,0,.67);
       if(room.projectionist)view.draw("cine-luna-operator",0,0,0,0,0,0,.88);
       if(filmCanvas&&filmCanvas.width){
         view.drawPrint("cine-luna-screen",filmCanvas,revision,0,0,0,0);
@@ -34137,6 +34156,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       c.drawImage(streetPlate,0,0);
       c.drawImage(planPlate.canvas,ox+planSize.left*scale-1,oy+planSize.top*scale-1);
       drawStageImage(c,film,ox,oy,scale,mapTilt);
+      if(r.ada){
+        const {x,z}=adaChair;c.save();c.translate(ox+x*scale,oy-(z*mapTilt+floorAt(z))*scale);c.scale(scale,scale);
+        c.fillStyle="#666c67";c.fillRect(-.19,-1.09,.38,.41);
+        c.fillStyle="#af947a";c.beginPath();c.arc(0,-1.19,.14,0,tau);c.fill();
+        c.fillStyle="#aa9e88";c.beginPath();c.arc(0,-1.24,.13,0,tau);c.fill();
+        c.fillStyle="#b97964";c.fillRect(-.16,-1.06,.30,.054);
+        c.fillStyle="#d5c2a2";c.fillRect(-.15,-.83,.33,.086);c.restore();
+      }
       if(r.projectionist)paintProjectionist(c,ox,oy,scale);
       paintPlayer(c,r,ox,oy,scale);
     }
@@ -34145,7 +34172,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     c.restore();
   }
-  window.BayCineRoom={install,create,clear,move,world,map,action,seat,rise,look,camera,points,screen};
+  window.BayCineRoom={install,create,clear,move,world,map,action,seat,rise,look,camera,points,screen,adaChair};
 })();
 
 ;
@@ -64476,7 +64503,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   // The attendant's counter is on the sidewalk side of each stand.
   const sites=[
     ["ocean","box",150.02,-10.9,-1.57,153.30,-9.8,"Luz Mena",3],
-    ["luna","board",6.75,49.1,-1.40,9.02,47.4,"Art Flores",1],
+    ["luna","board",6.75,49.1,-1.40,9.02,48.05,"Art Flores",1],
     ["mercado","crate",-45.2,-137.35,3.10,-43.8,-134.2,"Noé Parra",4],
     ["boardwalk","crate",150.6,92.1,-1.52,154.2,92.7,"Bibi Parra",5],
     ["palms","box",-77.95,-96.3,1.48,-81.5,-97.0,"Vic Ames",0],
@@ -64495,7 +64522,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   ];
   const archiveKey="sundownBay.pocketEditions.v1";
   const validIssue=q=>q&&Number.isSafeInteger(q.day)&&q.day>0&&["headline","deck","section","listing","local"].every(k=>typeof q[k]==="string"&&q[k].length<500)&&(!q.photo||Object.hasOwn(captions,q.photo));
-  const issueId=q=>JSON.stringify([q.day,q.headline,q.deck,q.listing,q.local,q.pierPhoto?.image]);
+  const issueId=q=>JSON.stringify([q.day,q.headline,q.deck,q.listing,q.local,q.pierPhoto?.image,q.gatePair?.start,q.gatePair?.end]);
   const pierLead=(day,stories,save,film)=>save.edition&&film?.published&&(film.day===day||!stories.length)?film.published:null;
   class Street{
     constructor(){
@@ -64508,7 +64535,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     readArchive(){
       try{const raw=JSON.parse(localStorage.getItem(archiveKey));if(Array.isArray(raw))this.archive=raw.filter(validIssue).slice(-5).map(q=>{
-        if(q.pierPhoto)q.pierPhoto=BayLotNegative.readFrame(q.pierPhoto);return q;
+        if(q.pierPhoto)q.pierPhoto=BayLotNegative.readFrame(q.pierPhoto);
+        if(q.gatePair&&!BayFeaturePrint.validPair(q.gatePair))delete q.gatePair;
+        return q;
       });}catch{}
     }
     indexOf(q){const id=issueId(q);return this.archive.findIndex(p=>issueId(p)===id);}
@@ -64517,11 +64546,13 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(chosen?.pierPhoto&&!chosen.signedByLuis)return chosen;
       return this.archive.findLast(q=>q.pierPhoto&&!q.signedByLuis);
     }
-    sign(q){
+    forAda(){return this.archive.findLast(q=>q.gatePair&&!q.adaSigned);}
+    sign(q,person="luis"){
       this.readArchive();
       const i=this.indexOf(q),issue=this.archive[i];
-      if(!issue?.pierPhoto||issue.signedByLuis)return null;
-      const next=this.archive.slice();next[i]={...issue,signedByLuis:true};
+      const field=person==="ada"?"adaSigned":"signedByLuis";
+      if(!issue||issue[field]||!(person==="ada"?issue.gatePair:issue.pierPhoto))return null;
+      const next=this.archive.slice();next[i]={...issue,[field]:true};
       try{localStorage.setItem(archiveKey,JSON.stringify(next));}catch{return null;}
       this.archive=next;return next[i];
     }
@@ -64544,7 +64575,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       else if(stunt){headline="Romy lands it on the flatbed";deck="The car meet’s "+stunt.distance.toFixed(1)+" m jump has earned a place on the Cine Luna poster.";}
       const local=clock.rain>.3?"A shower is moving through town. Route 6 regulars are sharing the awnings along Ocean.":clock.market==="open"?"El Mercado is open for the evening. Look for the striped awnings on Mercado Street.":"El Mercado’s evening stalls open at six. Port Sol is taking deliveries down on Gantry.";
       const run=save.engineSeven?.log.at(-1),watch=run?.day===day?"Station Seven filed an all-clear for "+run.title+". "+run.crew+" signed the return slip.":local;
-      return {day,headline,deck,photo:story?.id||null,...(pierPhoto?{pierPhoto}:{}),section:pierPhoto?"Port Sol":story?"Neighborhood edition":"City edition",local:watch,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
+      const pair=save.featurePrint?.pair;
+      const supplement=BayFeaturePrint.validPair(pair)&&pair.day===day?{gatePair:{...pair}}:{};
+      return {day,...supplement,headline,deck,photo:story?.id||null,...(pierPhoto?{pierPhoto}:{}),section:pierPhoto?"Port Sol":story?"Neighborhood edition":"City edition",local:watch,listing:bill.slice(0,3).map(f=>f.title).join("  /  ")};
     }
     impact(p,v,env){
       const k=kinds[p.kind],speed=Math.abs(v.speed),dir=v.speed<0?-1:1;
@@ -65163,7 +65196,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     const imageH=Math.round(picW*(pier?9/16:2/3)),railTop=body+27,lineH=24;
     const listingHead=railTop+locals.length*lineH+(locals.length?27:0);
     const footer=Math.ceil(Math.max(body+imageH+10+caption.length*20,listingHead+(listing.length?13+listing.length*lineH:0))+23);
-    canvas.width=width;canvas.height=footer+36;
+    const pair=issue.gatePair,insert=BayFeaturePrint.validPair(pair);
+    const folio=footer+(insert?(issue.adaSigned?283:241):0);
+    canvas.width=width;canvas.height=folio+36;
     stock(c,canvas.height);masthead(c);
     box(c,margin,109,full,2.8,ink);box(c,margin,114,full,.8,ink);
     label(c,"SUNDOWN BAY",margin,133,"bold 15px "+sans);
@@ -65189,10 +65224,25 @@ window.buildBayCity = function buildBayCity(g,water) {
       box(c,rail,listingHead-17,railW,1.3,ink);label(c,"What's on",rail,listingHead+4,"italic bold 21px "+serif);
       column(c,listing,rail,listingHead+13,bodyFont,lineH);
     }
-    box(c,margin,footer,full,1.4,ink);
-    label(c,"BAY WIRE",margin,footer+21,"bold 14px "+serif);
-    label(c,"Sundown Bay  ·  City desk",width/2,footer+21,"14px "+sans,muted,"center");
-    label(c,"1",width-margin,footer+21,"bold 16px "+serif,ink,"right");
+    if(insert){
+      box(c,margin,footer,full,2,ink);
+      label(c,"The gate on Gantry Street",margin,footer+27,"bold 26px "+serif);
+      label(c,"SOLER FAMILY FILM",width-margin,footer+24,"bold 12px "+sans,oxblood,"right");
+      const w=(full-8)/2,h=w*9/16;
+      for(const [i,index] of [pair.start,pair.end].entries()){
+        c.drawImage(BayFeaturePrint.still(index),margin+i*(w+8),footer+34,w,h);
+      }
+      label(c,"Frames "+(183+pair.start)+" and "+(183+pair.end)+". "+BayFeaturePrint.pairCaption(pair),margin,footer+226,"italic 15px "+serif);
+      if(issue.adaSigned){
+        c.save();c.translate(margin+42,footer+265);c.rotate(-.018);
+        label(c,BayFeaturePrint.inscription(pair),0,0,"italic 24px "+serif,"#374c63");
+        c.restore();
+      }
+    }
+    box(c,margin,folio,full,1.4,ink);
+    label(c,"BAY WIRE",margin,folio+21,"bold 14px "+serif);
+    label(c,"Sundown Bay  ·  City desk",width/2,folio+21,"14px "+sans,muted,"center");
+    label(c,"1",width-margin,folio+21,"bold 16px "+serif,ink,"right");
     return true;
   }
   function inscription(issue){
@@ -70388,10 +70438,37 @@ window.buildBayCity = function buildBayCity(g,water) {
   const curb={x:89,z:-66.4,yaw:Math.PI,name:"Romy at the Starlite curb"};
   const deadline=75;
   const job={id:"feature-print",name:"Before the Feature",by:"Ada Soler"};
+  const validFrame=n=>Number.isInteger(n)&&n>=0&&n<12;
+  function validPair(p){
+    return p&&validFrame(p.start)&&validFrame(p.end)&&p.end-p.start>=4&&
+      Number.isSafeInteger(p.day)&&p.day>0&&Number.isSafeInteger(p.rev)&&p.rev>0;
+  }
+  function pairCaption(p){
+    return p.end>=9?"The gate is wide enough for a worker to get through.":"The key is still in his hand as the gate begins to swing.";
+  }
+  const inscription=p=>p.end>=9?"Dad held that door for all of us. — Ada":"That crooked little key was for home. — Ada";
+  const reel={id:"soler-gate",title:"The Laundry Gate",seconds:6};
+  const frameAt=t=>Math.min(11,Math.floor(((t%6+6)%6)*2));
+  class Reader {
+    constructor(now){this.from=now;this.hold=null;this.start=null;}
+    index(now){return this.hold??frameAt(now-this.from);}
+    jog(step,now){this.hold=Math.min(11,Math.max(0,this.index(now)+step));}
+    roll(now){this.from=now-this.index(now)/2;this.hold=null;}
+    mark(now){
+      const end=this.index(now);this.hold=end;
+      if(this.start===null){this.start=end;return "start";}
+      if(end-this.start<4){
+        if(end<=this.start){this.start=end;return "start";}
+        return "closer";
+      }
+      return {start:this.start,end};
+    }
+  }
   function read(raw){
     const count=n=>Number.isSafeInteger(n)&&n>=0?n:0;
     return {first:count(raw?.first),late:count(raw?.late),rolling:Math.min(count(raw?.rolling),count(raw?.first)+count(raw?.late)),best:Number.isFinite(raw?.best)&&raw.best>0?raw.best:0,
-      last:["first","late"].includes(raw?.last)?raw.last:""};
+      last:["first","late"].includes(raw?.last)?raw.last:count(raw?.first)?"first":count(raw?.late)?"late":"",
+      pair:validPair(raw?.pair)?{start:raw.pair.start,end:raw.pair.end,rev:raw.pair.rev,day:raw.pair.day}:null};
   }
   class Run {
     constructor(){
@@ -70484,7 +70561,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.fillStyle="#e8d6af";c.font="10px monospace";c.fillText("SOLER 16   /   "+String(183+f).padStart(4,"0"),30,268);
     if(slip){c.fillStyle="#ecdbaf";c.font="italic 13px Georgia";c.fillText("Gantry Street, before the fire",260,249);}
   }
-  window.BayFeaturePrint={curb,deadline,job,read,Run,airborne,brake,frame};
+  // One decoded still per source frame, shared by both projectors and the newsprint plate.
+  const stills=[];
+  function still(index){
+    if(!stills[index]){const c=document.createElement("canvas");frame(c,index);stills[index]=c;}
+    return stills[index];
+  }
+  window.BayFeaturePrint={curb,deadline,job,read,Run,airborne,brake,frame,reel,Reader,frameAt,validPair,pairCaption,inscription,still};
 })();
 
 ;
@@ -70868,11 +70951,14 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function syncProgress(latest){
     const film=latest?.featurePrint;
+    const storedPair=film?.pair,localPair=save.featurePrint.pair;
+    const latestPair=BayFeaturePrint.validPair(storedPair)&&storedPair.rev>(localPair?.rev||0)?storedPair:localPair;
     if(film&&film.first+film.late>save.featurePrint.first+save.featurePrint.late){
       save.featurePrint=BayFeaturePrint.read(film);
       if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
       if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
     }
+    save.featurePrint.pair=latestPair;
     const incoming=latest?.rescue?.laundry;
     if(incoming&&BayClinicLaundry.stages.indexOf(incoming.stage)>BayClinicLaundry.stages.indexOf(save.rescue.laundry?.stage)){
       const order=BayClinicLaundry.read(incoming);
@@ -74733,8 +74819,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(action==="exit")leaveRoom();else if(action==="seat"){BayCineRoom.seat(room);if(room.cuedReel){
         const reel=room.cuedReel,bill=BayCineProgram.describe(filmOptions()),index=bill.findIndex(r=>r.id===reel);
         if(index>=0)projectionStart=streetTime+.48-bill.slice(0,index).reduce((sum,r)=>sum+r.seconds,0);
+        if(reel===BayFeaturePrint.reel.id&&index>=0){
+          room.reader=new BayFeaturePrint.Reader(streetTime);
+          speak("Ada Soler","My dad is easy to spot. It’s the gate I want people to see. Pick me a before and an after.");
+        }
         room.cuedReel=null;
-      }}else if(action==="rise")BayCineRoom.rise(room);
+      }}else if(action==="rise"){endGateReview();BayCineRoom.rise(room);}
       else if(action==="program")openPanel("cine-program");lastHud=-10;return;
     }
     if(action==="door")leaveRoom();
@@ -75118,8 +75208,50 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
+  const filmOptions=()=>({soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
     deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
+  function adaCopy(){
+    return room?.kind==="cinema"&&room.ada&&!room.reader&&!room.transition&&
+      dist(room,BayCineRoom.adaChair)<2.35?pavement.forAda():null;
+  }
+  function showAdaCopy(issue){
+    const signed=pavement.sign(issue,"ada");if(!signed)return;
+    paperIndex=pavement.indexOf(signed);
+    speak("Ada Soler",signed.gatePair.end>=9?"Could you hold the page flat? My hand shakes when I write his name.":"See the short key, under his thumb? Our front door stuck every summer.");
+    openPanel("pocket-papers");
+  }
+  function gateTime(t){
+    const bill=BayCineProgram.describe(filmOptions());
+    let offset=0;
+    for(const reel of bill){
+      if(reel.id===BayFeaturePrint.reel.id)return offset+room.reader.index(t)/2;
+      offset+=reel.seconds;
+    }
+    return t-projectionStart;
+  }
+  function endGateReview(){
+    if(!room?.reader)return;
+    projectionStart=streetTime-gateTime(streetTime);
+    room.reader=null;lastHud=-10;
+  }
+  function gateKey(code){
+    const reader=room?.reader;if(!reader||room.transition)return false;
+    if(code==="KeyA"||code==="ArrowLeft")reader.jog(-1,streetTime);
+    else if(code==="KeyD"||code==="ArrowRight")reader.jog(1,streetTime);
+    else if(code==="KeyG")reader.roll(streetTime);
+    else if(code==="Space"){
+      const pair=reader.mark(streetTime);
+      if(pair==="start")speak("Ada Soler","Got the first one. Wind forward till there’s daylight between those bars and the post.");
+      else if(pair==="closer")speak("Ada Soler","On newsprint those would look the same. Wind forward a little more.");
+      else{
+        syncProgress(readSave());
+        save.featurePrint.pair={...pair,day:hours.day+1,rev:(save.featurePrint.pair?.rev||0)+1};persist();
+        speak("Ada Soler",pair.end>=9?"That gap there. I could’ve walked through it with my arms full. Print them both.":"Look at his fingers. He kept hold of the keys the whole time. Print them both.");
+        endGateReview();note("Bay Wire","Today’s street edition carries your two frames. Find a news box on Ocean Drive or Palms Avenue.",6);
+      }
+    }else return false;
+    lastHud=-10;return true;
+  }
   const cabWindow=()=>cabs.booking?.stage==="ride"&&cabs.booking.window&&!isTop();
   function meterCar(){
     const copy=save.meterCopy;
@@ -75203,7 +75335,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(takeCurbFare())return true;
     if(nearFlowerChair()){enterFilm("flowerReply",true);return true;}
     if(byCinema()){
-      cabs.cancelBooking();room=Object.assign(BayCineRoom.create(),{kind:"cinema"});
+      cabs.cancelBooking();room=Object.assign(BayCineRoom.create(),{kind:"cinema",ada:!!save.featurePrint.last});
       keys.clear();resetPointer();$("targetTag").hidden=$("speech").hidden=true;lastHud=lastMap=-10;hud();return true;
     }
     if(cabRank()){openPanel("cab-rank");return true;}
@@ -75794,7 +75926,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       printAftermath=r.ride;printAftermath.empty=true;printAftermath.coverPose=printAftermath.flight=printAftermath.waiting=null;printAftermath.ending=ending;
       speak("Marisol Vale","Got it! Go!");
     }else enterFilm(ending);
-    note("Before the Feature",cash(pay)+" · "+time.toFixed(1)+" s · "+(rolling?"Marisol caught the can.":"Ada kept a print at the Starlite."),6);
+    note("Before the Feature",cash(pay)+" · "+time.toFixed(1)+" s · "+(rolling?"Marisol caught the can.":"The film is on the bill at Cine Luna."),6);
   }
   function stepPrintPassenger(dt){
     const ride=printAftermath;if(!ride)return;
@@ -75920,7 +76052,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     const copies=pavement.archive,issue=archive?copies[paperIndex]:openPaper;if(!issue)return;
     const page=document.createElement("canvas");page.className="bay-front-page";page.setAttribute("role","img");
     const photo=issue.pierPhoto?"Photograph by Mara Vega. "+BayLotNegative.captions[issue.pierPhoto.frame]:null;
-    page.setAttribute("aria-label",[issue.headline,issue.deck,photo,issue.local,issue.listing].filter(Boolean).join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
+    page.setAttribute("aria-label",[issue.headline,issue.deck,photo,issue.local,issue.listing,issue.gatePair&&("Soler family print, frames "+(183+issue.gatePair.start)+" and "+(183+issue.gatePair.end)+". "+BayFeaturePrint.pairCaption(issue.gatePair)),issue.adaSigned&&BayFeaturePrint.inscription(issue.gatePair)].filter(Boolean).join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
+    if(archive&&issue.gatePair&&!issue.adaSigned)body.append(makeButton("Ada’s copy","She’s in the back row at Cine Luna, two seats in on the right.","Mark cinema",()=>clockPin(BayCab.cinema)));
     if(archive&&issue.pierPhoto){
       if(issue.signedByLuis){
         const front=page.getAttribute("aria-label"),reverse=BayStreetEditionArt.inscription(issue).join(" ")+" — Luis Vega";
@@ -80149,7 +80282,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     $("palmGuide").hidden=true;
     if(room){
-      const cinema=room.kind==="cinema",show=cinema?BayCineProgram.frame(t-projectionStart,filmOptions()):null;
+      const cinema=room.kind==="cinema",show=cinema?BayCineProgram.frame(room.reader?gateTime(t):t-projectionStart,filmOptions()):null;
       if(cinema)room.projectionist=cabs.people.some(p=>p.phase==="booth");
       if(top){
         const ratio=Math.min(1,1120/innerWidth,740/innerHeight),w=Math.round(innerWidth*ratio),h=Math.round(innerHeight*ratio);
@@ -81422,7 +81555,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     else if(transit.engaged)transitHud();
     else if(room?.kind==="cinema"){
       const use=roomAction();$("objective").hidden=true;$("mode").textContent=room.seated?"In your seat":"Auditorium";$("speed").textContent="";
-      contextHint(use?"F":"",use==="exit"?"Step outside Cine Luna":use==="seat"?"Take this seat":use==="rise"?"Get up":use==="program"?"Read tonight’s program":room.transition?"":"Walk down the aisle to find a seat");
+      if(room.reader&&!room.transition){
+        const r=room.reader;$("speed").textContent="Frame "+(183+r.index(streetTime));
+        contextHint("Space",(r.start===null?"Mark first frame":"Print pair from "+(183+r.start))+"  ·  A/D wind  ·  G roll  ·  F get up");
+      }else if(adaCopy())contextHint("N","Show Ada the folded paper  ·  F "+(room.seated?"get up":"take a seat"));
+      else contextHint(use?"F":"",use==="exit"?"Step outside Cine Luna":use==="seat"?"Take this seat":use==="rise"?"Get up":use==="program"?"Read tonight’s program":room.transition?"":"Walk down the aisle to find a seat");
     }else if(room){
       const use=roomAction();$("objective").hidden=true;$("mode").textContent="Room 14";$("speed").textContent="";
       contextHint(use?"F":"",use==="door"?"Step out to Ocean Drive":use==="bed"?"Set the alarm":use==="desk"?"Read the note on your desk":use==="rack"?"Change clothes":"Walk to the bed, desk, clothes rail or door");
@@ -82018,6 +82155,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   function showCineProgram(body){
+    if(save.featurePrint.last)body.append(makeButton("Hold It There",
+      "Ada wants two frames of the laundry gate for the Bay Wire. She’s saving you an aisle seat.","Thread her film",()=>{
+        room.cuedReel=BayFeaturePrint.reel.id;closePanel();note("Hold It There","Walk down the center aisle and press F to sit with Ada.",5);
+      }));
     if(maraFilm.windowPrint){
       const place=BayLotNegative.locations[maraFilm.windowPrint.place];
       body.append(makeButton(maraFilm.onScreen?"Take back Frame 13":"Lend the projectionist Frame 13",
@@ -82759,6 +82900,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(ev.code==="Tab"){const controls=[...$("panel").querySelectorAll("button:not(:disabled),select:not(:disabled),[tabindex='0']")];if(!controls.length)return;
         if((ev.shiftKey&&document.activeElement===controls[0])||(!ev.shiftKey&&document.activeElement===controls.at(-1))){ev.preventDefault();controls[ev.shiftKey?controls.length-1:0].focus();}}
       return;
+    }
+    if(room?.ada&&ev.code==="KeyN"){
+      const copy=adaCopy();if(copy){ev.preventDefault();if(!ev.repeat)showAdaCopy(copy);return;}
+    }
+    if(room?.reader&&["KeyA","KeyD","ArrowLeft","ArrowRight","KeyG","Space"].includes(ev.code)){
+      ev.preventDefault();if(!ev.repeat||ev.code!=="Space")gateKey(ev.code);return;
     }
     if(car&&active?.cabFare?.ordinaryStop&&active.cabFare.phase==="ride"&&active.cabFare.ride===car&&/^(Digit|Numpad)[12]$/.test(ev.code)){
       ev.preventDefault();active.cabFare.to=BayCab.flowerStop(ev.code.endsWith("1")?"marlin":"wheel");lastMap=lastHud=-10;return;

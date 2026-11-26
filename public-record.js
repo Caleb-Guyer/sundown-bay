@@ -35,11 +35,13 @@
     ],
     printFirst:[
       {dur:3.5,shot:"cinema",slug:"CINE LUNA   /   FIRST SHOW",title:"Before the trailers",who:"Marisol Vale",line:"Leave the house lights down. Nobody gets up till that gate opens."},
-      {dur:5.0,art:"gatePrint",who:"Ada Soler · telephone",line:"I could hear the whole room go quiet through this little phone."}
+      {dur:5.0,art:"gatePrint",who:"Ada Soler · telephone",line:"I could hear the whole room go quiet through this little phone."},
+      {dur:3.7,shot:"cinema",who:"Marisol Vale",line:"Ada’s coming over. Ask for her at the program case. She wants a still for the paper."}
     ],
     printLate:[
       {dur:3.5,shot:"cinema",slug:"CINE LUNA   /   AFTER THE CREDITS",title:"Hold the house",who:"Marisol Vale",line:"The feature's over. I'll catch them before somebody turns on the cleaning lights."},
-      {dur:5.0,art:"gatePrint",who:"Romy Vale",line:"Six people stayed. That woman by the aisle asked if she could bring her brother tomorrow."}
+      {dur:5.0,art:"gatePrint",who:"Romy Vale",line:"Six people stayed. That woman by the aisle asked if she could bring her brother tomorrow."},
+      {dur:3.7,shot:"cinema",who:"Marisol Vale",line:"We’ll leave a lamp on for Ada. Tell the booth you’re here to make her newspaper print."}
     ],
     printArchive:[
       {dur:2.8,shot:"boothDoor",slug:"ADA SOLER'S PRINT   /   STARLITE",title:"The laundry gate",who:"Ada Soler",line:"Watch his other hand. All those keys and he knew the right one by touch."},

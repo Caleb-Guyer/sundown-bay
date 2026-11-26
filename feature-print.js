@@ -4,10 +4,37 @@
   const curb={x:89,z:-66.4,yaw:Math.PI,name:"Romy at the Starlite curb"};
   const deadline=75;
   const job={id:"feature-print",name:"Before the Feature",by:"Ada Soler"};
+  const validFrame=n=>Number.isInteger(n)&&n>=0&&n<12;
+  function validPair(p){
+    return p&&validFrame(p.start)&&validFrame(p.end)&&p.end-p.start>=4&&
+      Number.isSafeInteger(p.day)&&p.day>0&&Number.isSafeInteger(p.rev)&&p.rev>0;
+  }
+  function pairCaption(p){
+    return p.end>=9?"The gate is wide enough for a worker to get through.":"The key is still in his hand as the gate begins to swing.";
+  }
+  const inscription=p=>p.end>=9?"Dad held that door for all of us. — Ada":"That crooked little key was for home. — Ada";
+  const reel={id:"soler-gate",title:"The Laundry Gate",seconds:6};
+  const frameAt=t=>Math.min(11,Math.floor(((t%6+6)%6)*2));
+  class Reader {
+    constructor(now){this.from=now;this.hold=null;this.start=null;}
+    index(now){return this.hold??frameAt(now-this.from);}
+    jog(step,now){this.hold=Math.min(11,Math.max(0,this.index(now)+step));}
+    roll(now){this.from=now-this.index(now)/2;this.hold=null;}
+    mark(now){
+      const end=this.index(now);this.hold=end;
+      if(this.start===null){this.start=end;return "start";}
+      if(end-this.start<4){
+        if(end<=this.start){this.start=end;return "start";}
+        return "closer";
+      }
+      return {start:this.start,end};
+    }
+  }
   function read(raw){
     const count=n=>Number.isSafeInteger(n)&&n>=0?n:0;
     return {first:count(raw?.first),late:count(raw?.late),rolling:Math.min(count(raw?.rolling),count(raw?.first)+count(raw?.late)),best:Number.isFinite(raw?.best)&&raw.best>0?raw.best:0,
-      last:["first","late"].includes(raw?.last)?raw.last:""};
+      last:["first","late"].includes(raw?.last)?raw.last:count(raw?.first)?"first":count(raw?.late)?"late":"",
+      pair:validPair(raw?.pair)?{start:raw.pair.start,end:raw.pair.end,rev:raw.pair.rev,day:raw.pair.day}:null};
   }
   class Run {
     constructor(){
@@ -100,5 +127,11 @@
     c.fillStyle="#e8d6af";c.font="10px monospace";c.fillText("SOLER 16   /   "+String(183+f).padStart(4,"0"),30,268);
     if(slip){c.fillStyle="#ecdbaf";c.font="italic 13px Georgia";c.fillText("Gantry Street, before the fire",260,249);}
   }
-  window.BayFeaturePrint={curb,deadline,job,read,Run,airborne,brake,frame};
+  // One decoded still per source frame, shared by both projectors and the newsprint plate.
+  const stills=[];
+  function still(index){
+    if(!stills[index]){const c=document.createElement("canvas");frame(c,index);stills[index]=c;}
+    return stills[index];
+  }
+  window.BayFeaturePrint={curb,deadline,job,read,Run,airborne,brake,frame,reel,Reader,frameAt,validPair,pairCaption,inscription,still};
 })();

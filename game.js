@@ -377,11 +377,14 @@
   }
   function syncProgress(latest){
     const film=latest?.featurePrint;
+    const storedPair=film?.pair,localPair=save.featurePrint.pair;
+    const latestPair=BayFeaturePrint.validPair(storedPair)&&storedPair.rev>(localPair?.rev||0)?storedPair:localPair;
     if(film&&film.first+film.late>save.featurePrint.first+save.featurePrint.late){
       save.featurePrint=BayFeaturePrint.read(film);
       if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
       if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
     }
+    save.featurePrint.pair=latestPair;
     const incoming=latest?.rescue?.laundry;
     if(incoming&&BayClinicLaundry.stages.indexOf(incoming.stage)>BayClinicLaundry.stages.indexOf(save.rescue.laundry?.stage)){
       const order=BayClinicLaundry.read(incoming);
@@ -4242,8 +4245,12 @@
       if(action==="exit")leaveRoom();else if(action==="seat"){BayCineRoom.seat(room);if(room.cuedReel){
         const reel=room.cuedReel,bill=BayCineProgram.describe(filmOptions()),index=bill.findIndex(r=>r.id===reel);
         if(index>=0)projectionStart=streetTime+.48-bill.slice(0,index).reduce((sum,r)=>sum+r.seconds,0);
+        if(reel===BayFeaturePrint.reel.id&&index>=0){
+          room.reader=new BayFeaturePrint.Reader(streetTime);
+          speak("Ada Soler","My dad is easy to spot. It’s the gate I want people to see. Pick me a before and an after.");
+        }
         room.cuedReel=null;
-      }}else if(action==="rise")BayCineRoom.rise(room);
+      }}else if(action==="rise"){endGateReview();BayCineRoom.rise(room);}
       else if(action==="program")openPanel("cine-program");lastHud=-10;return;
     }
     if(action==="door")leaveRoom();
@@ -4627,8 +4634,50 @@
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
+  const filmOptions=()=>({soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
     deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
+  function adaCopy(){
+    return room?.kind==="cinema"&&room.ada&&!room.reader&&!room.transition&&
+      dist(room,BayCineRoom.adaChair)<2.35?pavement.forAda():null;
+  }
+  function showAdaCopy(issue){
+    const signed=pavement.sign(issue,"ada");if(!signed)return;
+    paperIndex=pavement.indexOf(signed);
+    speak("Ada Soler",signed.gatePair.end>=9?"Could you hold the page flat? My hand shakes when I write his name.":"See the short key, under his thumb? Our front door stuck every summer.");
+    openPanel("pocket-papers");
+  }
+  function gateTime(t){
+    const bill=BayCineProgram.describe(filmOptions());
+    let offset=0;
+    for(const reel of bill){
+      if(reel.id===BayFeaturePrint.reel.id)return offset+room.reader.index(t)/2;
+      offset+=reel.seconds;
+    }
+    return t-projectionStart;
+  }
+  function endGateReview(){
+    if(!room?.reader)return;
+    projectionStart=streetTime-gateTime(streetTime);
+    room.reader=null;lastHud=-10;
+  }
+  function gateKey(code){
+    const reader=room?.reader;if(!reader||room.transition)return false;
+    if(code==="KeyA"||code==="ArrowLeft")reader.jog(-1,streetTime);
+    else if(code==="KeyD"||code==="ArrowRight")reader.jog(1,streetTime);
+    else if(code==="KeyG")reader.roll(streetTime);
+    else if(code==="Space"){
+      const pair=reader.mark(streetTime);
+      if(pair==="start")speak("Ada Soler","Got the first one. Wind forward till there’s daylight between those bars and the post.");
+      else if(pair==="closer")speak("Ada Soler","On newsprint those would look the same. Wind forward a little more.");
+      else{
+        syncProgress(readSave());
+        save.featurePrint.pair={...pair,day:hours.day+1,rev:(save.featurePrint.pair?.rev||0)+1};persist();
+        speak("Ada Soler",pair.end>=9?"That gap there. I could’ve walked through it with my arms full. Print them both.":"Look at his fingers. He kept hold of the keys the whole time. Print them both.");
+        endGateReview();note("Bay Wire","Today’s street edition carries your two frames. Find a news box on Ocean Drive or Palms Avenue.",6);
+      }
+    }else return false;
+    lastHud=-10;return true;
+  }
   const cabWindow=()=>cabs.booking?.stage==="ride"&&cabs.booking.window&&!isTop();
   function meterCar(){
     const copy=save.meterCopy;
@@ -4712,7 +4761,7 @@
     if(takeCurbFare())return true;
     if(nearFlowerChair()){enterFilm("flowerReply",true);return true;}
     if(byCinema()){
-      cabs.cancelBooking();room=Object.assign(BayCineRoom.create(),{kind:"cinema"});
+      cabs.cancelBooking();room=Object.assign(BayCineRoom.create(),{kind:"cinema",ada:!!save.featurePrint.last});
       keys.clear();resetPointer();$("targetTag").hidden=$("speech").hidden=true;lastHud=lastMap=-10;hud();return true;
     }
     if(cabRank()){openPanel("cab-rank");return true;}
@@ -5303,7 +5352,7 @@
       printAftermath=r.ride;printAftermath.empty=true;printAftermath.coverPose=printAftermath.flight=printAftermath.waiting=null;printAftermath.ending=ending;
       speak("Marisol Vale","Got it! Go!");
     }else enterFilm(ending);
-    note("Before the Feature",cash(pay)+" · "+time.toFixed(1)+" s · "+(rolling?"Marisol caught the can.":"Ada kept a print at the Starlite."),6);
+    note("Before the Feature",cash(pay)+" · "+time.toFixed(1)+" s · "+(rolling?"Marisol caught the can.":"The film is on the bill at Cine Luna."),6);
   }
   function stepPrintPassenger(dt){
     const ride=printAftermath;if(!ride)return;
@@ -5429,7 +5478,8 @@
     const copies=pavement.archive,issue=archive?copies[paperIndex]:openPaper;if(!issue)return;
     const page=document.createElement("canvas");page.className="bay-front-page";page.setAttribute("role","img");
     const photo=issue.pierPhoto?"Photograph by Mara Vega. "+BayLotNegative.captions[issue.pierPhoto.frame]:null;
-    page.setAttribute("aria-label",[issue.headline,issue.deck,photo,issue.local,issue.listing].filter(Boolean).join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
+    page.setAttribute("aria-label",[issue.headline,issue.deck,photo,issue.local,issue.listing,issue.gatePair&&("Soler family print, frames "+(183+issue.gatePair.start)+" and "+(183+issue.gatePair.end)+". "+BayFeaturePrint.pairCaption(issue.gatePair)),issue.adaSigned&&BayFeaturePrint.inscription(issue.gatePair)].filter(Boolean).join(". "));BayStreetEditionArt.paint(page,issue);body.append(page);
+    if(archive&&issue.gatePair&&!issue.adaSigned)body.append(makeButton("Ada’s copy","She’s in the back row at Cine Luna, two seats in on the right.","Mark cinema",()=>clockPin(BayCab.cinema)));
     if(archive&&issue.pierPhoto){
       if(issue.signedByLuis){
         const front=page.getAttribute("aria-label"),reverse=BayStreetEditionArt.inscription(issue).join(" ")+" — Luis Vega";
@@ -9658,7 +9708,7 @@
     }
     $("palmGuide").hidden=true;
     if(room){
-      const cinema=room.kind==="cinema",show=cinema?BayCineProgram.frame(t-projectionStart,filmOptions()):null;
+      const cinema=room.kind==="cinema",show=cinema?BayCineProgram.frame(room.reader?gateTime(t):t-projectionStart,filmOptions()):null;
       if(cinema)room.projectionist=cabs.people.some(p=>p.phase==="booth");
       if(top){
         const ratio=Math.min(1,1120/innerWidth,740/innerHeight),w=Math.round(innerWidth*ratio),h=Math.round(innerHeight*ratio);
@@ -10931,7 +10981,11 @@
     else if(transit.engaged)transitHud();
     else if(room?.kind==="cinema"){
       const use=roomAction();$("objective").hidden=true;$("mode").textContent=room.seated?"In your seat":"Auditorium";$("speed").textContent="";
-      contextHint(use?"F":"",use==="exit"?"Step outside Cine Luna":use==="seat"?"Take this seat":use==="rise"?"Get up":use==="program"?"Read tonight’s program":room.transition?"":"Walk down the aisle to find a seat");
+      if(room.reader&&!room.transition){
+        const r=room.reader;$("speed").textContent="Frame "+(183+r.index(streetTime));
+        contextHint("Space",(r.start===null?"Mark first frame":"Print pair from "+(183+r.start))+"  ·  A/D wind  ·  G roll  ·  F get up");
+      }else if(adaCopy())contextHint("N","Show Ada the folded paper  ·  F "+(room.seated?"get up":"take a seat"));
+      else contextHint(use?"F":"",use==="exit"?"Step outside Cine Luna":use==="seat"?"Take this seat":use==="rise"?"Get up":use==="program"?"Read tonight’s program":room.transition?"":"Walk down the aisle to find a seat");
     }else if(room){
       const use=roomAction();$("objective").hidden=true;$("mode").textContent="Room 14";$("speed").textContent="";
       contextHint(use?"F":"",use==="door"?"Step out to Ocean Drive":use==="bed"?"Set the alarm":use==="desk"?"Read the note on your desk":use==="rack"?"Change clothes":"Walk to the bed, desk, clothes rail or door");
@@ -11527,6 +11581,10 @@
     }
   }
   function showCineProgram(body){
+    if(save.featurePrint.last)body.append(makeButton("Hold It There",
+      "Ada wants two frames of the laundry gate for the Bay Wire. She’s saving you an aisle seat.","Thread her film",()=>{
+        room.cuedReel=BayFeaturePrint.reel.id;closePanel();note("Hold It There","Walk down the center aisle and press F to sit with Ada.",5);
+      }));
     if(maraFilm.windowPrint){
       const place=BayLotNegative.locations[maraFilm.windowPrint.place];
       body.append(makeButton(maraFilm.onScreen?"Take back Frame 13":"Lend the projectionist Frame 13",
@@ -12268,6 +12326,12 @@
       if(ev.code==="Tab"){const controls=[...$("panel").querySelectorAll("button:not(:disabled),select:not(:disabled),[tabindex='0']")];if(!controls.length)return;
         if((ev.shiftKey&&document.activeElement===controls[0])||(!ev.shiftKey&&document.activeElement===controls.at(-1))){ev.preventDefault();controls[ev.shiftKey?controls.length-1:0].focus();}}
       return;
+    }
+    if(room?.ada&&ev.code==="KeyN"){
+      const copy=adaCopy();if(copy){ev.preventDefault();if(!ev.repeat)showAdaCopy(copy);return;}
+    }
+    if(room?.reader&&["KeyA","KeyD","ArrowLeft","ArrowRight","KeyG","Space"].includes(ev.code)){
+      ev.preventDefault();if(!ev.repeat||ev.code!=="Space")gateKey(ev.code);return;
     }
     if(car&&active?.cabFare?.ordinaryStop&&active.cabFare.phase==="ride"&&active.cabFare.ride===car&&/^(Digit|Numpad)[12]$/.test(ev.code)){
       ev.preventDefault();active.cabFare.to=BayCab.flowerStop(ev.code.endsWith("1")?"marlin":"wheel");lastMap=lastHud=-10;return;
