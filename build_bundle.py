@@ -15,24 +15,29 @@ def build(root):
         sources = re.findall(r'<script src="([\w-]+\.js)"></script>', html)
     if not sources or sources[-1] != "game.js" or len(set(sources)) != len(sources):
         raise ValueError("Game source order is missing or duplicated")
+    voice_banks = {
+        "room-audio.js": ("loadRoomVoices", "BayRoomSamples"),
+        "county-audio.js": ("loadCountyVoices", "BayCountySamples"),
+    }
     pieces = []
     for name in sources:
         if not re.fullmatch(r'[\w-]+\.js', name) or name == "sundown.js":
             raise ValueError(f"Invalid source file {name!r}")
         source=(root / name).read_text(encoding="utf-8")
-        if name=="room-audio.js":
+        if name in voice_banks:
+            loader,bank=voice_banks[name]
             tag=hashlib.sha256(source.encode()).hexdigest()[:16]
             source="""(() => {
   let loading=false,retryAt=0;
-  window.loadRoomVoices=()=>{
-    if(window.BayRoomSamples||loading||performance.now()<retryAt)return;
+  window.LOADER=()=>{
+    if(window.BANK||loading||performance.now()<retryAt)return;
     loading=true;const tag=document.createElement("script");
-    tag.src="room-audio.js?v=VERSION";
+    tag.src="ASSET?v=VERSION";
     tag.onload=()=>{loading=false;tag.remove();};
     tag.onerror=()=>{loading=false;retryAt=performance.now()+10000;tag.remove();};
     document.head.append(tag);
   };
-})();""".replace("VERSION",tag)
+})();""".replace("LOADER",loader).replace("BANK",bank).replace("ASSET",name).replace("VERSION",tag)
         pieces.append(f"/* {name} */\n" + source)
     data = "\n;\n".join(pieces).encode("utf-8")
     version = hashlib.sha256(data).hexdigest()[:16]

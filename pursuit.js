@@ -344,35 +344,39 @@
       this.car=car;this.until=0;this.pursuit=false;this.block=null;this.air=null;
       this.call=null;this.stage="";this.last=null;this.searching=false;this.district="";
     }
-    transmit(now,source,text){this.until=now+4.3;return this.last={source,text,until:now+4.8};}
+    transmit(now,source,text,clips){this.until=now+4.3;return this.last={source,text,clips,until:now+4.8};}
     patrol(now,heat,chase,backup,place,description,repeat){
       if(!heat){
         if(!this.pursuit)return null;
         this.pursuit=false;this.block=this.air=null;this.call=null;
-        return this.transmit(now,"Bay Dispatch","All units, close the "+(this.district||"street")+" call. Back on the board.");
+        return this.transmit(now,"Bay Dispatch","All units, close the "+(this.district||"street")+" call. Back on the board.",["clear",this.district]);
       }
       if(this.pursuit&&now<this.until&&!repeat)return null;
       const where=chase.lastSeen?place(chase.lastSeen):"",lost=!!chase.searching,block=backup.roadblock;
+      const sighting=tag=>{
+        const digits=description.match(/plate ending (\d{1,3})$/)?.[1];
+        return digits?[tag,where,"plate",...digits]:[tag,where];
+      };
       if(!this.pursuit){
         this.pursuit=true;this.district=where;this.searching=lost;this.identified=chase.sighted&&!lost;this.air=this.block=null;
         const line=lost?"Last report from "+where+". Waiting for another call.":chase.sighted?
           "Unit Two, I read "+description+" in "+where+".":"Road units, pick up the call"+(where?" in "+where:"")+".";
-        return this.transmit(now,"Bay Dispatch",line);
+        return this.transmit(now,"Bay Dispatch",line,lost?["last",where]:chase.sighted?sighting("visual"):["wait",where]);
       }
       if(lost!==this.searching){
         this.searching=lost;if(!lost)this.identified=true;if(where)this.district=where;
-        return this.transmit(now,"Unit Two",lost?"Lost it. My last sighting was "+this.district+".":"Got it again. "+description+". "+this.district+".");
+        return this.transmit(now,"Unit Two",lost?"Lost it. My last sighting was "+this.district+".":"Got it again. "+description+". "+this.district+".",lost?["lost",this.district]:sighting("again"));
       }
       if(chase.sighted&&!lost&&!this.identified){
-        this.identified=true;this.district=where;return this.transmit(now,"Unit Two","Have a visual. "+description+" in "+where+".");
+        this.identified=true;this.district=where;return this.transmit(now,"Unit Two","Have a visual. "+description+" in "+where+".",sighting("visual"));
       }
-      if(backup.air&&backup.air!==this.air){this.air=backup.air;return this.transmit(now,"Air One","Air One overhead. Ground, I have your channel.");}
+      if(backup.air&&backup.air!==this.air){this.air=backup.air;return this.transmit(now,"Air One","Air One overhead. Ground, I have your channel.",["air"]);}
       if(block&&block.clearedAt===undefined&&(block!==this.block||!!block.strip!==this.strip)){
         this.block=block;this.strip=!!block.strip;return this.transmit(now,"Road Unit",
-          (block.strip?"Strip crew is in position":"Both cruisers are in position")+" in "+place(block)+".");
+          (block.strip?"Strip crew is in position":"Both cruisers are in position")+" in "+place(block)+".",[block.strip?"strip":"block",place(block)]);
       }
-      if(chase.sighted&&where&&where!==this.district){this.district=where;return this.transmit(now,"Unit Two","Passing through "+where+". Still with "+description+".");}
-      return repeat?this.transmit(now,this.last.source,this.last.text):null;
+      if(chase.sighted&&where&&where!==this.district){this.district=where;return this.transmit(now,"Unit Two","Passing through "+where+". Still with "+description+".",["passing",where]);}
+      return repeat?this.transmit(now,this.last.source,this.last.text,this.last.clips):null;
     }
     ambulance(now,service,repeat){
       if(!repeat&&now<this.until)return null;
@@ -382,7 +386,7 @@
       this.call=call;this.stage=stage;
       const line=stage==="ready"?"Four, your next pickup is "+call.place+".":stage==="out"?"Four is rolling to "+call.place+".":
         stage==="home"?"Four at Palm County Clinic. Receiving has the call.":stage==="loaded"?"One aboard. Tell receiving we're coming in.":"Four on scene at "+call.place+". Crew is at the curb.";
-      return this.transmit(now,stage==="ready"?"Cleo Moss · Dispatch":"Rescue 4",line);
+      return this.transmit(now,stage==="ready"?"Cleo Moss · Dispatch":"Rescue 4",line,stage==="loaded"||stage==="home"?[stage]:[stage,call.place]);
     }
   }
   window.BayDispatchReceiver=DispatchReceiver;

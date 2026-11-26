@@ -17,27 +17,12 @@ const view=Object.assign(Object.create(BayView.prototype),{gl,models:new Map(),a
 const mesh=new BayMesh();buildBayCity(mesh,new BayMesh());const data=new Float32Array(mesh.vertices);
 view.upload("city",data);const model=view.models.get("city");view.prepareDistanceMesh(model,data);
 const list=new CityIndicesForTest(view,model,data),ref=new model.indices.constructor(model.count);
-let facesSeen=0,facesFiltered=0;
-// Maintain separate buffers and compare ordered index triples, including after a held view.
-view.cpu=new Map([["city",data]]);
-view.drawStreetDepth=(large)=>{
-  const words=new model.indices.constructor(large.buffer.data.buffer,0,large.count);
-  assert(words.length>0);let n=0,seen=0;
-  for(const g of large.groups){
-    const state=list.states[g.part];if(state<0)continue;
-    for(const j of g.triangles){const t=j/3;seen++;
-      if((state&64?list.farFaces:list.faces)[t]&state||(state&64)&&!model.farKeep[t])continue;
-      for(let k=0;k<3;k++)assert.equal(words[n++],model.indices[j+k]);
-    }
-  }
-  assert.equal(n,words.length);facesSeen+=n/3;facesFiltered+=seen-n/3;
-};
 let frames=0,partial=0;
 for(let step=0;step<260;step++){
   const t=Math.min(step,249),yaw=(t<120?.018*t:2.16-.033*(t-120)),old=actual;
   view.basis={camera:{x:146-.55*t,y:2.2,z:-36+.28*t},sn:Math.sin(yaw),cs:Math.cos(yaw),sp:0,cp:1,
     horizontal:1.15,vertical:.65,xMargin:Math.hypot(1,1.15),yMargin:Math.hypot(1,.65)};
-  drawn=0;list.draw(view,model,step%4!==2);
+  drawn=0;list.draw(view,model);
   let n=0;
   for(let i=0;i<list.parts.length;i++){
     const state=list.states[i];if(state<0)continue;
@@ -51,7 +36,5 @@ for(let step=0;step<260;step++){
   assert(Buffer.from(ref.buffer,0,bytes).equals(Buffer.from(list.buffer.data.buffer,0,bytes)),"GPU geometry on frame "+step);
   if(actual!==old){frames++;full+=bytes;if(actual-old<bytes)partial++;}
 }
-assert(facesSeen>10000&&facesFiltered>100);
-console.log("PASS exact depth triangles across moving and held city cameras",facesSeen,facesFiltered);
 assert(frames>100&&partial>100&&actual<full*.98);
 console.log("PASS identical city geometry over 260 moving and held views, "+partial+" partial uploads, "+actual+" bytes submitted versus "+full+" for whole lists");

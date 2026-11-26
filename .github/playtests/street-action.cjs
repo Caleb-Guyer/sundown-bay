@@ -54,6 +54,24 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await tap("Escape");await tap("Backslash");
   await waitFor("!document.querySelector('#countyReceiver').hidden&&/Rescue 4|Cleo Moss/.test(document.querySelector('#countySource').textContent)");
   await snap("county-four");
+  await tap("KeyF");await waitFor("document.querySelector('#panelBody').textContent.includes('Say Again, Four')");
+  await js(button("Say Again, Four"));await waitFor("document.querySelector('#chapterTitle').textContent==='Say Again, Four'");
+  await snap("county-loan");await tap("Enter");
+  const book="JSON.parse(localStorage.getItem('sundownBay.v1')).countyRelay";
+  async function sendTone(site,condition){
+    await js("q.stop=BayCountyRelay.sites["+JSON.stringify(site)+"];q.at(q.car,q.stop.x,q.stop.z);BayDriving.settle(q.car);true");
+    await waitFor("document.querySelector('#objectiveText').textContent.includes('Hold backslash')");
+    await key("keyDown","Backslash");try{await waitFor(condition,18000);}finally{await key("keyUp","Backslash");}
+  }
+  await sendTone("luna",book+".next==='motel'");
+  const rooftop=port?"market":"motel";await tap(port?"Digit2":"Digit1");
+  await sendTone(rooftop,book+".cover==="+JSON.stringify(rooftop));
+  assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).wallet"),balance-90+65);
+  await waitFor("document.querySelector('#chapterLine').textContent.includes('signature')");
+  await snap("county-signed");await tap("Enter");await tap("Backslash");
+  await waitFor("document.querySelector('#countyWords').textContent.includes('relay ·')");
+  assert.equal(await js("performance.getEntriesByType('resource').filter(r=>r.name.includes('county-audio.js')).length"),0);
+  console.log("PASS Cleo's in-world work order, two curb signal checks, signed "+rooftop+" relay and live range, no muted voice download",mode);
   // Reload to free roam at the motel. The test supplies encounter positions in an empty block.
   await send("Page.reload");await waitFor("!window.fightQA&&document.readyState==='complete'&&typeof BayStreetAction==='object'");
   await js("document.querySelector('#play').click()");

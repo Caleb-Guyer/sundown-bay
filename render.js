@@ -246,42 +246,6 @@
     }
     return model.exterior={mask,indices:new Uint16Array(indices),sources:new Uint32Array(sources)};
   }
-  // Large opaque faces can establish depth before we shade the much denser city.
-  // Store original triangle offsets so the prepass obeys the same near/far and
-  // camera-side decisions as the color pass, including sunken roads and interiors.
-  class StreetDepth {
-    constructor(gl,model,parts,data){
-      this.groups=[];let total=0;
-      for(let i=0;i<parts.length;i++){
-        const part=parts[i],triangles=[];
-        for(let j=part.first;j<part.end;j+=3){
-          const p=j*6,ax=data[p+6]-data[p],ay=data[p+7]-data[p+1],az=data[p+8]-data[p+2];
-          const bx=data[p+12]-data[p],by=data[p+13]-data[p+1],bz=data[p+14]-data[p+2];
-          const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
-          if(nx*nx+ny*ny+nz*nz>=72*72)triangles.push(j);
-        }
-        if(triangles.length){this.groups.push({part:i,triangles,state:-2});total+=triangles.length;}
-      }
-      this.indices=new model.indices.constructor(total*3);this.count=0;this.buffer=gl.createBuffer();
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.DYNAMIC_DRAW);
-    }
-    update(gl,list,model){
-      let changed=false;
-      for(const g of this.groups)if(g.state!==list.states[g.part]){changed=true;break;}
-      if(!changed)return;
-      let n=0;
-      for(const g of this.groups){
-        const state=g.state=list.states[g.part];if(state<0)continue;
-        const far=state&64,faces=far?list.farFaces:list.faces;
-        for(const j of g.triangles){
-          if((faces[j/3]&state)||(far&&!model.farKeep[j/3]))continue;
-          this.indices[n++]=model.indices[j];this.indices[n++]=model.indices[j+1];this.indices[n++]=model.indices[j+2];
-        }
-      }
-      this.count=n;
-      if(n){gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,0,this.indices.subarray(0,n));}
-    }
-  }
   // Keep the city in its static vertex buffer. A street camera draws one
   // ordered index list, including near and distant streets. The same list is
   // valid until a section changes visibility, detail level or camera side.
@@ -321,7 +285,7 @@
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.DYNAMIC_DRAW);
       this.count=0;
     }
-    draw(view,model,depth=false){
+    draw(view,model){
       const gl=view.gl,{camera:eye,horizontal,vertical}=view.basis;
       const near=.13*Math.hypot(1,horizontal,vertical)+.01;
       let firstChange=this.parts.length,lastChange=-1;
@@ -359,12 +323,6 @@
         }
         if(i===this.parts.length)this.count=this.offsets[i]=n;
         if(n>start)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,start*this.indices.BYTES_PER_ELEMENT,this.indices.subarray(start,n));
-      }
-      if(depth&&this.count){
-        const large=this.largeFaces??=new StreetDepth(gl,model,this.parts,view.cpu.get("city"));
-        large.update(gl,this,model);
-        if(large.count)view.drawStreetDepth(large,model);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
       }
       if(this.count)gl.drawElements(gl.TRIANGLES,this.count,model.elementType,0);
     }
@@ -791,15 +749,6 @@
         catch{return this.createStreetSurface(modelSpace,false);}
       };
       this.streetSurface=surface(false);this.modelSurface=surface(true);
-      // Use exactly the world-space city projection in both passes. Positive
-      // polygon offset leaves coplanar lettering and road paint in draw order.
-      const depthProgram=program(`attribute vec3 pos;uniform vec3 eye,rightV,upV,forwardV;uniform vec2 focal,depth;
-        void main(){vec3 rel=pos-eye;float z=dot(rel,forwardV);
-          gl_Position=vec4(dot(rel,rightV)*focal.x,dot(rel,upV)*focal.y,depth.x*z+depth.y,z);}`,
-        PRECISION+"void main(){gl_FragColor=vec4(0.);}",{pos:this.pos});
-      const depthUniforms={};for(const key of ["eye","rightV","upV","forwardV","focal","depth"])depthUniforms[key]=gl.getUniformLocation(depthProgram,key);
-      this.streetDepth={program:depthProgram,u:depthUniforms,frame:null};gl.useProgram(depthProgram);
-      gl.uniform2f(depthUniforms.depth,(f+n)/(f-n),-2*f*n/(f-n));
       gl.useProgram(p);this.streetFrame=null;this.shadowAxes=null;
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0);gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -1067,10 +1016,6 @@
       gl.uniform1f(u.dusk,p.night);gl.uniform4f(u.airState,p.rain,p.wet,p.noon,p.timed?1:0);gl.uniform3f(u.skyTone,p.skyR,p.skyG,p.skyB);
       gl.uniform3f(u.lightArea,f?f.left:0,f?f.north:0,f?1/f.span:0);
       gl.uniform4f(u.driverLamp,l?l.x:0,l?l.z:0,l?Math.sin(l.yaw):0,l?Math.cos(l.yaw):0);
-      this.setProjection(u,p);
-    }
-    setProjection(u,p){
-      const gl=this.gl;
       gl.uniform3f(u.eye,p.x,p.y,p.z);gl.uniform3f(u.rightV,p.cs,0,-p.sn);
       gl.uniform3f(u.upV,p.ux,p.cp,p.uz);gl.uniform3f(u.forwardV,p.fx,p.fy,p.fz);gl.uniform2f(u.focal,p.fxScreen,p.focal);
     }
@@ -1160,16 +1105,9 @@
         this.streetWalls=walls;
       }
     }
-    drawStreetDepth(faces,model){
-      const gl=this.gl,pass=this.streetDepth;gl.useProgram(pass.program);
-      if(pass.frame!==this.streetFrame){this.setProjection(pass.u,this.streetFrame);pass.frame=this.streetFrame;}
-      gl.colorMask(false,false,false,false);gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,2);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,faces.buffer);gl.drawElements(gl.TRIANGLES,faces.count,model.elementType,0);
-      gl.disable(gl.POLYGON_OFFSET_FILL);gl.colorMask(true,true,true,true);gl.useProgram(this.streetSurface.program);
-    }
     drawCityAndWater(t){
       this.collectStreetWalls();
-      this.primeDepth=true;this.draw("city");this.primeDepth=false;
+      this.draw("city");
       // Opaque land masks the water shader. Keep city surfaces on equal-depth shore pixels.
       const gl=this.gl;gl.depthFunc(gl.LESS);this.drawWater(t);gl.depthFunc(gl.LEQUAL);
     }
@@ -1246,7 +1184,7 @@
       }
       if(vapor){gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.uniform1f(this.u.beam,2+vapor);}
       if(city){
-        const list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model,!!(solid&&this.streetDepth&&this.primeDepth));
+        const list=model.cityList??=new CityIndexList(this,model,this.cpu.get(name));list.draw(this,model);
       }else if(model.starts&&this.multiDraw){
         this.drawSections(model,reduced,x,y,z,yaw,tiltX,tiltZ,vehicle?.damage?1.4:0);
       }else if(model.sections){

@@ -96,6 +96,36 @@
     return node;
   }
 
+  const countyBuffers=new Map(),countySources=new Set();
+  let countyReport=null,countyPending=false,countyDeadline=0,countyBus=null,countyLevels=null;
+  function mixCounty(report,now,fresh=true){
+    if(report!==countyReport){
+      for(const source of countySources){source.onended=null;source.stop();source.disconnect();}
+      countySources.clear();countyReport=report;countyPending=!!report;countyDeadline=now+2;
+    }
+    if(!countyPending)return;
+    if(!fresh||now>countyDeadline){countyPending=false;return;}
+    const samples=window.BayCountySamples;
+    if(!samples){window.loadCountyVoices?.();return;}
+    countyPending=false;
+    let at=now+.09;
+    for(const id of report.clips){
+      if(!Object.hasOwn(samples,id))continue;
+      let buffer=countyBuffers.get(id);
+      if(!buffer){
+        countyLevels??=Float32Array.from({length:256},(_,i)=>(i&128?-1:1)*(256**((i&127)/127)-1)/255);
+        const bytes=atob(samples[id]);buffer=context.createBuffer(1,bytes.length,8000);
+        const pcm=buffer.getChannelData(0);
+        for(let i=0;i<bytes.length;i++)pcm[i]=countyLevels[bytes.charCodeAt(i)];
+        countyBuffers.set(id,buffer);
+      }
+      countyBus??=gainNode(effects,.66);
+      const source=context.createBufferSource();source.buffer=buffer;source.connect(countyBus);
+      countySources.add(source);source.onended=()=>{countySources.delete(source);source.disconnect();};
+      source.start(at);at+=buffer.duration+.034;
+    }
+  }
+
   function channel(destination=music){
     const bus=gainNode(destination,0),keys=gainNode(bus,1),high=context.createBiquadFilter();
     high.type="highpass";high.frequency.value=4100;high.Q.value=.45;high.connect(bus);
@@ -632,7 +662,7 @@
     swimMix(now, swell, passing);
     const monitoring = mixField(state.field, now);
     const radioVolume = broadcast ? 0.10 : monitoring ? 0.13 : (state.radioProgram?.booth||driving) ? 0.71 : 0.47;
-    music.gain.setTargetAtTime(radioVolume * (1 - band) * (state.roomBulletin?.12:1), now, broadcast || monitoring || band ? 0.075 : 0.18);
+    music.gain.setTargetAtTime(radioVolume * (1 - band) * (state.roomBulletin?.12:1) * (countySources.size?.38:1), now, broadcast || monitoring || band ? 0.075 : 0.18);
     if (broadcast) broadcast.envelope.gain.setTargetAtTime(.91 * (1 - band), now, .065);
     const shower=unit(state.rain),canopy=unit(state.canopy);
     mixBed('shower',ambience,now,shower*(state.inCabin?.019:.058)*(1-.35*canopy),state.inCabin?1200:3200);
@@ -688,6 +718,7 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     const now = context.currentTime;
     worldTime = Number.isFinite(state.time) ? state.time : now;
+    mixCounty(state.countyCall||null,now,state.countyFresh!==false);
     if (queuedTape) startBroadcast(now);
     const band = shell ? shell.update(state.shell, now) : 0;
     if(state.radioProgram){
@@ -901,6 +932,7 @@
   }
 
   function sleep() {
+    mixCounty(null,0);
     reel(null);
     queuedTape = null;
     bladePhase = NaN; bladeAt = -1; washBearing = 2;
@@ -951,5 +983,5 @@
   }
 
   function warmReel(){if(enabled)window.loadRoomVoices?.();}
-  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField, stopField, reel, warmReel });
+  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField, stopField, reel, warmReel, stopCounty:()=>mixCounty(null,0) });
 })();

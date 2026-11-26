@@ -25,6 +25,14 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    countyLoan:[
+      {dur:5.5,art:"relayCard",slug:"PORTSIDE TIRE   /   COUNTY BAND",title:"Say Again, Four",who:"Cleo Moss",line:"Somebody sent me one spare repeater and two work orders. That's county arithmetic."},
+      {dur:5.2,shot:"cab",who:"Cleo Moss",line:"Take the receiver under the Luna sign. Key it there and listen to what comes back. The market and the Marlin both want the spare."}
+    ],
+    countySigned:[
+      {dur:5.8,shot:"pullOut",slug:"PALM COUNTY   /   SIGNAL CHECK",title:"Reading you five",who:"Cleo Moss",line:""},
+      {dur:4,art:"relayCard",who:"Cleo Moss",line:"Keep the carbon. If anybody says they got there first, that's my signature."}
+    ],
     flowersMotel:[
       {dur:4.4,shot:"flowerSeat",slug:"MARLIN MOTEL   /   FRONT WALK",title:"The Extra Chair",who:"Bea Salas",line:"She always sits out here to do the crossword. I'll turn the chair so she can have the morning light."},
       {dur:4.0,art:"flowerTag",who:"Bea Salas",line:"If she asks, the tin was a vase when I bought it."}
