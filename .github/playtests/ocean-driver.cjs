@@ -3,31 +3,38 @@
 module.exports = function oceanDriver(car, leg, endZ, traffic = [], memory = {}) {
   let heading, speed;
   if (leg === "race") {
-    const preferred = car.z < 5 ? 148.8 : 144.15;
-    let lane = preferred;
-    if (car.z > 1) {
-      let best = -Infinity;
-      for (const x of [preferred, 146.5, 148.85, 141.65]) {
-        let score = -.18 * Math.abs(x - preferred) - .14 * Math.abs(x - car.x);
-        if (memory.lane === x) score += .55;
-        for (const q of traffic) {
-          if (q === car || q.z < car.z - 8 || q.z > car.z + 44 || Math.abs(q.x - x) > 12) continue;
-          const facing = Math.cos(q.yaw), sideways = Math.sin(q.yaw), speed = q.speed || 0;
-          const body = q.footprint || bayCarLayout(q.kind);
-          const width = Math.abs(facing) * body.track + Math.abs(sideways) * body.halfLength + 1.4;
-          const length = Math.abs(facing) * body.halfLength + Math.abs(sideways) * body.track + 2.8;
-          for (const t of [.35, .7, 1.1, 1.55, 2.05]) {
-            const lateral = Math.abs(q.x + sideways * speed * t - x);
-            const front = Math.abs(q.z + facing * speed * t - (car.z + Math.max(6,car.speed) * t));
-            if (lateral < width && front < length + 1.7) score -= (width - lateral) * (length + 1.7 - front) / (.6 + t);
-          }
-        }
-        if (score > best) { best = score; lane = x; }
+    const pace = memory.raceSpeed ?? 11.5;
+    const width = bayCarLayout(car.kind).track;
+    const nose = bayCarLayout(car.kind).halfLength;
+    function clearSpeed(lane) {
+      let allowed = pace;
+      for (const other of traffic) {
+        if (other === car || other.z < car.z || other.z > car.z + 30) continue;
+        const body = other.footprint || bayCarLayout(other.kind);
+        const side = Math.abs(Math.sin(other.yaw)), facing = Math.cos(other.yaw);
+        const across = side * body.halfLength + Math.abs(facing) * body.track;
+        if (Math.abs(other.x - lane) > across + width + .32) continue;
+        const gap = other.z - car.z - nose - Math.abs(facing) * body.halfLength - side * body.track;
+        const ahead = Math.max(0, facing * (other.speed || 0));
+        allowed = Math.min(allowed, Math.sqrt(ahead * ahead + 12 * Math.max(0, gap - 2.2)));
       }
-      memory.lane = lane;
+      return allowed;
     }
-    heading = Math.max(-.50, Math.min(.50, (lane - car.x) * .23));
-    speed = memory.raceSpeed ?? 11.5;
+    // Keep one line through the junction. Only move across once a stationary queue
+    // actually closes this lane, and hold the new line until past its first car.
+    let lane = car.z < -8 ? 148.8 : 143.9;
+    if (memory.bypass && car.z >= memory.bypass.until) memory.bypass = null;
+    if (memory.bypass) lane = memory.bypass.x;
+    speed = car.z < -5 ? pace : clearSpeed(lane);
+    memory.still = speed < 1 && Math.abs(car.speed) < 1.2 ? (memory.still || 0) + 1 : 0;
+    if (memory.still > 30) {
+      for (const x of [146.8, 144, 141.3, 148.8]) {
+        const available = clearSpeed(x);
+        if (available > speed + 3) { lane = x; speed = available; }
+      }
+      if (speed > 3) { memory.bypass = { x: lane, until: car.z + 16 }; memory.still = 0; }
+    }
+    heading = Math.max(-.57, Math.min(.57, (lane - car.x) * .19));
   } else {
     const dx = 155.4 - car.x, dz = endZ - car.z;
     const distance = Math.hypot(dx, dz);
