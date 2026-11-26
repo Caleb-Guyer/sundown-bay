@@ -4,6 +4,8 @@ At six sharp, Dalia Cruz has a ferry to dispatch and a passenger running late. Y
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+**Before the Feature** starts at the Starlite projection booth on Gantry Street. Walk to Ada and press **F**. Bring a car to Romy at the curb and leave room for her passenger door. Once she boards, you have 75 seconds to reach Cine Luna for the first show. Hold **V** to look back. Press **F** to call for one of Romy’s three shots when she has a clear view of a tail car. Opening fire raises your wanted level. Lose the patrol and stop at the side door with Romy still in the car. A late arrival plays a different ending. Ada keeps the twelve-frame print and your best delivery time at the booth.
+
 After delivering Mara’s Lot 14 photograph, walk to the street display outside Cine Luna or beside the Sol FM van. Press **F** to frame **The Outside Copy**. Enlarge the print, move the crop, then hang it. Passersby stop and read it. Each venue keeps its own copy when you leave or replay the job.
 
 Open **Pause → One-minute frame check** while walking outside or driving. Resume and play for a minute. Pause shows average FPS, median and 95th-percentile frame times, frames in the slowest second, distance and resolution. Each new result includes the platform and rendering mode so you can compare the two views on your Chromebook.

@@ -38,7 +38,7 @@
     }
   }
   class Ride {
-    constructor(){this.jules=actor(pickup);this.stage="curb";this.seat=0;this.car=null;this.delay=0;this.pass=0;}
+    constructor(start=pickup){this.pickup=start;this.jules=actor(start);this.stage="curb";this.seat=0;this.car=null;this.delay=0;this.pass=0;}
     get holding(){return heldStages.has(this.stage);}
     get aboard(){return this.stage==="ride";}
     seeClerk(route,ground){
@@ -62,7 +62,7 @@
         if(this.aboard)BayCarAccess.pose(v,1,1,a,m,ground,dt,true);
         else{a.y=ground(a.x,a.z);m.step(dt,0,0);}
         if(!car||Math.abs(car.speed)>1.4||this.aboard&&(!dest||car!==v))return;
-        if(!this.aboard&&Math.hypot(car.x-pickup.x,car.z-pickup.z)>9)return;
+        if(!this.aboard&&Math.hypot(car.x-this.pickup.x,car.z-this.pickup.z)>9)return;
         if((this.delay-=dt)>0)return;
         this.delay=.35;
         const stand=this.aboard?stops[dest]:a;
@@ -114,8 +114,14 @@
   function world(view,model,list,see,run){
     const a=run.jules,r=run.receiver||run.waiting;
     if(!see(a,76)&&(!r||!see(r,76)))return;
-    const j=body(view,list,a,"payroll-jules",colors);
+    const j=run.film?body(view,list,a,"print-romy",["#ba8167","#bc694c","#485460"]):body(view,list,a,"payroll-jules",colors);
     if(r)body(view,list,r,"payroll-"+r.route,stops[r.route].colors);
+    if(run.coverPose&&run.aboard){
+      const v=run.car,yaw=run.coverPose.yaw,p=BayDriving.world(v,bayCarLayout(v.kind).track+.14,-.15);
+      const lift=.06*Math.exp(-run.coverPose.age*9),height=a.y+1.12+lift;
+      list.push(["street-prop-1",p.x,height,p.z,yaw]);
+      if(run.coverPose.age<.14)list.push(["street-flash",p.x+.23*Math.sin(yaw),height,p.z+.23*Math.cos(yaw),yaw]);
+    }
     const to=run.receiver?counterTop(run.route):j;
     const seat=a.motion.ride?.seat||0;
     if(seat){const lap=BayDriving.world(a,0,.22);j.x+=(lap.x-j.x)*seat;j.z+=(lap.z-j.z)*seat;
@@ -126,7 +132,9 @@
       list.push(["night-shift-print",p.x,j.y+.13,p.z,a.yaw,-.39]);
     }
     const t=Math.min(1,Math.max(0,(run.pass-.25)*2.5));
-    model("payroll-tin",tin);list.push(["payroll-tin",j.x+(to.x-j.x)*t,j.y+(to.y-j.y)*t,j.z+(to.z-j.z)*t,a.yaw]);
+    const prop=run.film?"starlite-reel-can":"payroll-tin";
+    model(prop,run.film?g=>{g.cyl(0,0,0,.19,.19,.105,16,"#748484");g.cyl(0,.061,0,.195,.195,.02,16,"#b2b9a6");g.box(0,.074,0,.16,.006,.055,"#e0ba77");}:tin);
+    list.push([prop,j.x+(to.x-j.x)*t,j.y+(to.y-j.y)*t,j.z+(to.z-j.z)*t,a.yaw]);
   }
   function counter(route,ground){
     const s=stops[route],r=actor(s);
@@ -155,9 +163,15 @@
         ctx.fillStyle=palette[0];ctx.beginPath();ctx.arc(px(a.x),py(a.z),Math.max(.9,.15*s),0,Math.PI*2);ctx.fill();
       }else personSprite(ctx,a,px(a.x),py(a.z),s,false);
     }
-    if(j)person(j,colors);if(r)person(r,stops[run.route||r.route].colors);
+    if(run.coverPose&&run.aboard){
+      const v=run.car,p=BayDriving.world(v,bayCarLayout(v.kind).track+.14,-.15),yaw=run.coverPose.yaw;
+      ctx.strokeStyle=run.coverPose.age<.14?"#ffe4a3":"#39474b";ctx.lineWidth=Math.max(1,.12*s);
+      ctx.beginPath();ctx.moveTo(px(p.x),py(p.z));ctx.lineTo(px(p.x+.45*Math.sin(yaw)),py(p.z+.45*Math.cos(yaw)));ctx.stroke();
+    }
+    if(j)person(j,run.film?["#ba8167"]:colors);if(r)person(r,stops[run.route||r.route].colors);
     const p=run.pass>.55?counterTop(run.route):BayDriving.world(j,.22,.18);
-    ctx.fillStyle="#c39e65";ctx.fillRect(px(p.x)-s*.13,py(p.z)-s*.08,Math.max(1,s*.26),Math.max(1,s*.16));
+    if(run.film){ctx.fillStyle="#b2b9a6";ctx.beginPath();ctx.arc(px(p.x),py(p.z),Math.max(1,s*.19),0,Math.PI*2);ctx.fill();}
+    else{ctx.fillStyle="#c39e65";ctx.fillRect(px(p.x)-s*.13,py(p.z)-s*.08,Math.max(1,s*.26),Math.max(1,s*.16));}
     if(run.photoOffered&&run.aboard&&!run.photoTaken){
       const at=BayDriving.world(j,-.12,.33);ctx.save();ctx.translate(px(at.x),py(at.z));ctx.rotate(j.yaw);
       ctx.fillStyle="#efe3ca";ctx.fillRect(-s*.09,-s*.06,s*.18,s*.12);ctx.restore();

@@ -930,7 +930,7 @@
       }
     }
     if(street)for(const site of BayPictureJumps.sites){
-      if(visible(px(site.x),py(site.z),s*(site.max+7)))BayPictureJumpArt.overhead(ctx,px,py,s,site);
+      if(visible(px(site.x),py(site.z),s*(site.max+7)))BayPictureJumpArt.overhead(ctx,px,py,s,site,opt.lowDetail);
     }
     if(street&&opt.gutters)BayGutterArt.overhead(ctx,px,py,s,opt.gutters,streetTime);
     if(opt.starlite&&visible(px(opt.starlite.x),py(opt.starlite.z),s*16)){
@@ -1359,7 +1359,11 @@
       if(e.water)BayEngineSceneArt.waterMap(ctx,px,py,s,e.water.from,e.water.to,streetTime);
     }
     if(opt.rescue)opt.rescue.map(ctx,opt,px,py,s,visible,streetTime);
-    if(opt.airLine){const l=opt.airLine;BayFloatplaneArt.map(ctx,opt,px,py,s,l.plane,streetTime,BayAirPost.flags(l,false,true));}
+    if(opt.airLine){
+      const l=opt.airLine,p=l.plane;
+      const radius=street?(12+.70*Math.min(48,Math.max(0,p.y||0)))*s:7*Math.max(1.54,s);
+      if(visible(px(p.x),py(p.z),radius))BayFloatplaneArt.map(ctx,opt,px,py,s,p,streetTime,BayAirPost.flags(l,false,true));
+    }
     if(opt.air){
       const a=opt.air,x=px(a.x),y=py(a.z);
       if(radar||visible(x,y,7*s)){

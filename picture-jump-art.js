@@ -172,13 +172,31 @@
       for(const face of surfaces)mesh.quad(...face.points.map(world),face.color);
     }
   }
-  function overhead(ctx,px,py,s,site){
-    ctx.save();ctx.translate(px(site.x),py(site.z));ctx.rotate(site.yaw);ctx.scale(s,-s);
-    for(const {points,color} of plan(site).surfaces){
+  function paintSurfaces(ctx,surfaces){
+    for(const {points,color} of surfaces){
       ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(points[0][0],points[0][2]);
       for(let i=1;i<points.length;i++)ctx.lineTo(points[i][0],points[i][2]);
       ctx.closePath();ctx.fill();
     }
+  }
+  function rampPrint(drawing){
+    const density=18,pad=2/density,points=drawing.surfaces.flatMap(face=>face.points);
+    const xs=points.map(p=>p[0]),zs=points.map(p=>p[2]);
+    const x=Math.min(...xs)-pad,z=Math.min(...zs)-pad;
+    const bitmap=document.createElement("canvas");
+    bitmap.width=Math.ceil((Math.max(...xs)+pad-x)*density);
+    bitmap.height=Math.ceil((Math.max(...zs)+pad-z)*density);
+    const brush=bitmap.getContext?.("2d");if(!brush)return null;
+    brush.setTransform(density,0,0,density,-x*density,-z*density);paintSurfaces(brush,drawing.surfaces);
+    return {bitmap,x,z,w:bitmap.width/density,h:bitmap.height/density};
+  }
+  function overhead(ctx,px,py,s,site,lowDetail=false){
+    ctx.save();ctx.translate(px(site.x),py(site.z));ctx.rotate(site.yaw);ctx.scale(s,-s);
+    const drawing=plan(site);
+    if(lowDetail&&s<=14&&drawing.print===undefined)drawing.print=rampPrint(drawing);
+    const stamp=lowDetail&&s<=14&&drawing.print;
+    if(stamp)ctx.drawImage(stamp.bitmap,stamp.x,stamp.z,stamp.w,stamp.h);
+    else paintSurfaces(ctx,drawing.surfaces);
     ctx.restore();
   }
   window.BayPictureJumpArt=Object.freeze({build,overhead});

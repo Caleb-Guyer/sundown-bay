@@ -18,7 +18,7 @@ jobs:
   five-speed:
     name: Race the five-speed in ${{ matrix.view }} view
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -27,6 +27,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --feature-print --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --on-green --manual --frames
       - uses: actions/upload-artifact@v4
         if: always()

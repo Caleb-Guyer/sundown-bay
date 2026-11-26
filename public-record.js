@@ -1,10 +1,11 @@
 /* Public Record, the Lot 14 campaign. Camera coordinates are relative to each set. */
 (() => {
   const key="sundownBay.publicRecord.v1";
-  const spots={get palmClock(){return BayOnGreen.routes[0].post;},get receiving(){return BayPalmClinic.site.desk;},port:{x:-149.5,z:-91},motel:{x:151,z:-25},mara:{x:153,z:-21.5},
+  const spots={starlite:{x:84.17,z:-60.77},get palmClock(){return BayOnGreen.routes[0].post;},get receiving(){return BayPalmClinic.site.desk;},port:{x:-149.5,z:-91},motel:{x:151,z:-25},mara:{x:153,z:-21.5},
     gate:{x:-152.55,z:-88.1},live:{x:153,z:118},print:{x:8,z:54.8},reel:BayRoomTone.mara};
   const stages=["arrival","meet","ride","negative","return","filed"];
   const camera={
+    boothDoor:["starlite",[3.3,1.70,-4.2],[2.0,1.55,-3.5],[-.6,1.38,.1],1.52,12],
     palmBeam:["palmClock",[-3.9,1.20,-3.7],[-2.4,1.12,-2.1],[0,1.34,0],1.47,15],
     clinicDoor:["receiving",[.55,1.68,3.72],[.32,1.62,2.8],[0,1.30,-.65],1.42,13],
     portWide:["port",[-12,14,-22],[2,10,-19],[-5,3,4],1.4,76],
@@ -27,6 +28,23 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    printCan:[
+      {dur:3.6,shot:"boothDoor",slug:"STARLITE MOTOR THEATRE   /   GANTRY STREET",title:"Before the Feature",who:"Ada Soler",line:"They ran the fire story for a week. Every paper said Dad locked that gate."},
+      {dur:5.4,art:"gatePrint",who:"Romy Vale",line:"There. His hand on the key. Twelve frames and you can see the gate swing out."},
+      {dur:4.6,shot:"boothDoor",who:"Ada Soler",line:"County wants their evidence can back. The Luna's got a full house. Romy, take it. I'll keep the booth light on."}
+    ],
+    printFirst:[
+      {dur:3.5,shot:"cinema",slug:"CINE LUNA   /   FIRST SHOW",title:"Before the trailers",who:"Marisol Vale",line:"Leave the house lights down. Nobody gets up till that gate opens."},
+      {dur:5.0,art:"gatePrint",who:"Ada Soler · telephone",line:"I could hear the whole room go quiet through this little phone."}
+    ],
+    printLate:[
+      {dur:3.5,shot:"cinema",slug:"CINE LUNA   /   AFTER THE CREDITS",title:"Hold the house",who:"Marisol Vale",line:"The feature's over. I'll catch them before somebody turns on the cleaning lights."},
+      {dur:5.0,art:"gatePrint",who:"Romy Vale",line:"Six people stayed. That woman by the aisle asked if she could bring her brother tomorrow."}
+    ],
+    printArchive:[
+      {dur:2.8,shot:"boothDoor",slug:"ADA SOLER'S PRINT   /   STARLITE",title:"The laundry gate",who:"Ada Soler",line:"Watch his other hand. All those keys and he knew the right one by touch."},
+      {dur:6.0,art:"gatePrint",who:"",line:"Marlin Steam Laundry · Soler family print, frames 183–194"}
+    ],
     fridgeDoor:[
       {dur:3.8,shot:"palmBeam",slug:"OCEAN DRIVE   /   THE PALM CLOCK",title:"Room on the Fridge",who:"Lena Ríos",line:"I left your original under the glass. Here, look what Nico did with the carbon."},
       {dur:4.5,art:"timingCarbon",who:"Nico Ríos",line:"I had to move the milk list. That magnet won't hold three things."},
