@@ -326,6 +326,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     async function parkAt(point){
       await js(`(()=>{const v=recQA.map.streetCar;Object.assign(v,{x:${point.x},z:${point.z},yaw:0,path:null});BayDriving.settle(v);})()`);
     }
+    if(mode==="overhead"){
+      await parkAt(start);await js("("+require("./traffic-drive.cjs").toString()+")(recQA);recQA.driving=true;requestAnimationFrame(driveLoop);");
+      await waitFor("!!recQA.trafficDrive",65000);
+      const traffic=await js("recQA.trafficDrive");console.log("PERF paired traffic drive",JSON.stringify(traffic));
+      assert(traffic.cached>0&&traffic.metres>12&&traffic.frames.every(n=>n>=40));
+    }
     await parkAt({x:-149.5,z:-91});await waitFor("document.querySelector('#context').innerText.includes('Mara’s camera')");
     await tap("KeyF");await waitFor("recQA.map.story?.field==='walk'&&recQA.map.story.progress===0");
     await js(`recQA.walkMara=(x,z)=>{

@@ -390,7 +390,10 @@
       print=mapSurface(64,128);const ink=print?.getContext("2d");
       if(!ink){carSprite(c,v,x,y,s,t);return false;}
       ink.lineJoin="round";carSprite(ink,{kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0},32,64,20,0);
-      if(trafficPrints.size>=56)trafficPrints.delete(trafficPrints.keys().next().value);
+      print=freezeSurface(print);
+      if(trafficPrints.size>=56){
+        const first=trafficPrints.keys().next().value;trafficPrints.get(first).close?.();trafficPrints.delete(first);
+      }
       trafficPrints.set(key,print);
     }
     c.save();c.translate(x,y);c.rotate(v.yaw||0);c.drawImage(print,-1.6*s,-3.2*s,3.2*s,6.4*s);c.restore();
