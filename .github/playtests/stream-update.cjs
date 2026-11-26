@@ -28,3 +28,24 @@ const draw=()=>api.window.BayView.prototype.drawStreetList.call(view,[{},{}]);
 draw();draw();assert.equal(builds,1);
 view.basis={};draw();assert.equal(builds,2);
 console.log("PASS repeated passes of one camera frame share a single mesh-detail build");
+
+// Geometry generation changes its choice on a second visit. Compare the
+// uploaded words for a single visit, including its standalone draw in order.
+const trace=[],batch={buffers:[{},{},{}],vertexWords:new Uint32Array(12),indices:new Uint16Array(6),
+  uploadStream(){},flush(){trace.push([this.vertexWords[0],this.indices[0],this.glow]);this.count=this.used=0;}};
+const frame={streetBatch:batch,draw(name){trace.push(name);}};
+let visits=0;
+function scene(){
+  visits++;
+  for(let i=0;i<2;i++){
+    batch.vertexWords[0]=visits+i;batch.indices[0]=i;batch.glow=i;batch.used=1;batch.count=3;batch.flush();
+    if(!i)this.draw("car");
+  }
+}
+function compare(v,list,a,b){
+  trace.length=0;b();const first=trace.slice();trace.length=0;a();
+  assert.deepEqual(first,[[1,0,0],"car",[2,1,1]]);assert.deepEqual(trace,first);return true;
+}
+const captured=require("./street-uploads.cjs")(frame,[],scene,compare);
+assert(captured.reference&&captured.image&&captured.batches===2&&visits===1);
+console.log("PASS both GPU upload comparisons replay the same ordered geometry from one scene traversal.");
