@@ -20,6 +20,7 @@ module.exports=async({js,tap,waitFor,snap,mode,book,loadFootAt})=>{
   await waitFor(book+".transfer?.trips===1",65000);
   const f=(await js(book)).transfer;assert.equal(f.first.held,outside);assert.equal(f.first.caught,outside);
   assert.equal(f.first.luis,morning.luis);assert.deepEqual(f.first,f.best);
+  await waitFor("crossingRun.landingAge>2.23");await snap("transfer-landing");
   await waitFor("document.querySelector('#chapterLine').textContent.includes('stapled')");await snap("transfer-stub");await tap("Enter");
   await waitFor("document.querySelector('#chapterFilm').hidden&&document.querySelector('#context').innerText.includes('Inez’s wheel')");
   await loadFootAt({x:-151.9,z:-88.85});await waitFor("document.querySelector('#context').innerText.includes('dispatch copy')");
@@ -27,5 +28,9 @@ module.exports=async({js,tap,waitFor,snap,mode,book,loadFootAt})=>{
   await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Alma Reyes'");
   await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Dalia’s departure book'");
   await tap("Escape");assert.deepEqual((await js(book)).transfer,f);assert.deepEqual((await js(book)).morning,morning);
+  const clip=await js("BayLastTransfer.clip");await loadFootAt({...clip,z:clip.z-.5});
+  await waitFor("document.querySelector('#context').innerText.includes('clinic transfer')");
+  await tap("KeyF");await waitFor("document.querySelector('#chapterLine').textContent.includes('on the clip')");
+  await tap("KeyF");await waitFor("document.querySelector('#chapterFilm').hidden");
   console.log("PASS The Last Transfer",mode,JSON.stringify(f.first),"and first transfer stub after reload.");
 };

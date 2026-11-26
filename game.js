@@ -883,7 +883,8 @@
       $("chapterInsert").hidden=false;$("chapterSkip").hidden=true;BaySixSharpArt.docket($("chapterInsert"),campaign.book.morning,campaign.book.credit,campaign.book.transfer);return;
     }
     if(table?.kind==="transferStub"){
-      $("chapterWho").textContent="Alma Reyes";$("chapterLine").textContent="My first stub for that crossing. Press F to fold it back into the book.";
+      $("chapterSlug").textContent=$("chapterTitle").textContent="";$("chapterSkip").hidden=true;$("chapterInsert").hidden=false;
+      $("chapterWho").textContent="Alma Reyes";$("chapterLine").textContent=table.pier?"I kept the first one on the clip. Press F to put it back.":"My first stub for that crossing. Press F to fold it back into the book.";
       BaySixSharpArt.stub($("chapterInsert"),campaign.book.transfer.first,campaign.book.transfer);return;
     }
     if(table?.kind==="splice"){
@@ -957,6 +958,7 @@
         hours:{minute:385,night:0,rain:0},cars:[],scene:list=>BayLotNegative.actor(list,model,footLevel,1)},true);
       BayRecordArt.tone(photo);campaign.table={kind:"filmSleeve",pull:0,photo};
     }
+    else if(id==="transfer-stub")campaign.table={kind:"transferStub",pier:true};
     else if(id==="landing-order")campaign.table={kind:"landingOrder"};
     else if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
     if(id==="firstCopy")campaign.negativeNumber=inscribedCopy.pierPhoto.frame;
@@ -1054,7 +1056,7 @@
       return true;
     }
     if(["watchBook","transferStub"].includes(campaign.table?.kind)){
-      if(ev.code==="KeyF"&&campaign.book.transfer){campaign.table.kind=campaign.table.kind==="watchBook"?"transferStub":"watchBook";setFilmPage();}
+      if(ev.code==="KeyF"&&campaign.book.transfer&&!campaign.table.pier){campaign.table.kind=campaign.table.kind==="watchBook"?"transferStub":"watchBook";setFilmPage();}
       else if(["Escape","Enter","KeyF"].includes(ev.code))endFilm("");return true;
     }
     if(campaign.table?.kind==="splice"){
@@ -1170,6 +1172,7 @@
     if(active||heat||!onStreetFeet()||unit.eye||afternoon.photo||rankPhones.lifted)return null;
     const stage=campaign.book.stage;
     if(dist(hero,BayLastTransfer.stand)<1.8)return "last-transfer";
+    if(campaign.book.transfer&&dist(hero,BayLastTransfer.clip)<1.45)return "transfer-stub";
     if(outsideSite())return "outside-copy";
     if(boothAtFeet())return "pavement-show";
     if(projectionNeighbor())return "show-neighbor";
@@ -1186,6 +1189,7 @@
     return null;
   }
   function doChapter(act){
+    if(act==="transfer-stub"){enterFilm(act);return;}
     if(act==="last-transfer"){if(campaign.book.morning)enterFilm("lastTransfer");else enterFilm("opening",true);return;}
     if(act==="outside-copy"){openPanel(act);return;}
     if(act==="pavement-show"){
@@ -10001,6 +10005,7 @@
       }
     }
     if(play&&see(BayLastTransfer.stand,56)){const s=BayLastTransfer.stand;model("transfer/telegraph",BayLastTransfer.telegraph);visible.push(["transfer/telegraph",s.x,s.y,s.z,0]);}
+    if(play&&campaign.book.transfer&&see(BayLastTransfer.clip,45)){const p=BayLastTransfer.clip;model("transfer/ticket-clip",BayLastTransfer.ticketClip);visible.push(["transfer/ticket-clip",p.x,p.y,p.z,0]);}
     if(play&&luz.book.pass)BayFirstCrossing.world(view,model,visible,see,luz,t,personSkin);
     if(play&&campaign.book.trips&&see(BayRoomTone.site,62))BayRoomTone.world(model,visible);
     if(play&&see(gateCrew,70)&&["return","filed"].includes(campaign.book.stage)){
@@ -11011,6 +11016,7 @@
       const p=projectionNeighbor();contextHint("F","Talk to "+p.v.neighbors[p.i]+" about the slide");
     }
     else if(chapter==="commuter")contextHint("F",commuterHint());
+    else if(chapter==="transfer-stub")contextHint("F","Read Alma’s clinic transfer");
     else if(chapter)contextHint("F",({"last-transfer":campaign.book.morning?"Take Inez’s wheel · The Last Transfer":"Work Dalia’s departure bell · Six Sharp",order:"Read the public landing order",firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":BayLandingOrder.charter(luz.book)==="clinic"?"Check the clinic timetable":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
     else if(offeredShiftPrint())contextHint("N","Take the night-shift photograph from Jules");
     else if(besideShiftKeeper())contextHint("F","Show Bea the night-shift photograph");
@@ -12691,7 +12697,8 @@
       const delta=Math.min(campaign.scene ? .85 : .18,Math.max(0,(now-last)/1000));last=now;
       if(campaign.scene){
         const id=campaign.scene.id,morning=campaign.beat().watch,pilot=campaign.pilot;
-        if(pilot&&campaign.beat().pilot==="helm"){
+        if(pilot&&["cast","land"].includes(campaign.beat().pilot))pilot.scene(delta,campaign.beat().pilot==="land");
+        else if(pilot&&campaign.beat().pilot==="helm"){
           const gas=held("KeyW","ArrowUp"),back=held("KeyS","ArrowDown"),rudder=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
           for(let left=delta;left>.00001;left-=1/30)pilot.move(Math.min(left,1/30),gas,back,rudder);
           const words=pilot.instruction();if($("chapterLine").textContent!==words)$("chapterLine").textContent=words;
@@ -12733,7 +12740,7 @@
       if(filmPage?.pilot){
         const p=campaign.pilot,top=isTop(),beat=filmPage.pilot;
         $("world").hidden=top;$("overhead").hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
-        if(top)BayLastTransfer.overhead($("overhead"),p);
+        if(top)BayLastTransfer.overhead($("overhead"),p,beat);
         else{
           const eye=p.eye(beat);streetResolution.sample(delta);
           view.begin(eye,p.sun.night,p.sun);skyPainter.draw(view,eye,p.age,p.sun.night,p.sun);view.drawCityAndWater(p.age);
