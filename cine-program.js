@@ -547,6 +547,7 @@
   }
 
   let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver,listedGate;
+  let listedFamily=false;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -560,7 +561,9 @@
     const house=options?.houseLights||null;
     const driver=options?.driverPrint||null;
     const gate=options?.soler;
-    if(schedule&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const family=!!options?.valeRelease;
+    if(schedule&&listedFamily===family&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedFamily=family;
     listedDriver=driver;listedGate=gate;
     listedHouse=house;
     listedJumps=jumps;
@@ -582,6 +585,7 @@
     list.push(slot("pelican","The Last Pelican","Bay Film Club · 16 mm",28));
     if(second)list.push(slot("tram","After the Last Tram","Cine Luna archive, 1954"+(delivery?" · Delivered by "+delivery:""),26));
     if(gateSlot&&gate==="late")list.push(gateSlot);
+    if(family)list.push(BayWalkHome.reel);
     schedule=Object.freeze(list);programFrames=list.reduce((sum,item)=>sum+item.seconds*fps,0);
     return schedule;
   }
@@ -615,7 +619,8 @@
       if(image?.naturalWidth)context.drawImage(image,18,0,380,213.75);
       label(context,item.credit,19,227,"italic 12px Georgia,serif","#eddfbf");
       label(context,"35 MM   /   13",397,227,"bold 9px monospace","#caa977","right");
-    }else if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
+    }else if(item.id==="rabbit")BayWalkHome.movie(context,elapsed);
+    else if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
     else if(item.id==="pelican")showPelican(context,elapsed);
     else if(item.id==="tram")showTram(context,elapsed,item.credit);
     else if(item.id==="stunt")showStunt(context,listedRecord);

@@ -70,6 +70,37 @@ module.exports=async function walkHome({js,send,waitFor,tap,key,mode,errors}){
   await tap("KeyE");await wait("q.car===q.w",22000);const z=await js("q.car.z");
   await key("keyDown","KeyW");try{await wait("Math.abs(q.car.z-("+z+"))>8",12000);}finally{await key("keyUp","KeyW");}
   await shot("wagon");assert.equal(await js("q.cars.filter(v=>v.garageKey===q.w.garageKey).length"),1);
+  async function click(name){
+    const button="[...document.querySelectorAll('#panelBody button')].find(b=>b.querySelector('strong')?.textContent==="+JSON.stringify(name)+")";
+    await wait(button);await js(button+".click()");
+  }
+  await js("BayDriving.settle(q.w);true");await tap("KeyL");
+  await wait("document.querySelector('#chapterTitle').textContent==='Rabbit Ears'");
+  await wait("!document.querySelector('#chapterInsert').hidden");await shot("sleeve");await tap("Enter");
+  assert.equal(await js("BayWalkHome.reelState()"),"sleeve");
+  await js(`const film=BayWalkHome.movie;BayWalkHome.movie=function(c,t){q.reelTime=t;return film(c,t);};
+    q.at(q.w,90,-61);q.w.yaw=0;BayDriving.settle(q.w);true`);
+  await key("keyDown","KeyW");try{await wait("q.w.z>=-59.8",12000);}finally{await key("keyUp","KeyW");}
+  await js("BayDriving.settle(q.w);true");await wait("BayStarlite.bay(q.w)===2");await tap("KeyF");
+  await wait("q.reelTime>2.5&&q.reelTime<6.5",22000);await shot("rabbit");
+  await wait("q.reelTime>=7.2",22000);await shot("hands");
+  await wait("BayWalkHome.reelState()==='screened'",38000);
+  await click(port?"Let the Luna show it":"Keep it in the family");
+  await launch();await wait("q.h");
+  assert.equal(await js("BayWalkHome.reelState()"),port?"luna":"family");
+  assert(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).starlite.tickets.some(t=>t.id==='rabbit'&&t.bay===2&&t.plate)"));
+  if(await js("!!q.car")){await tap("KeyE");await wait("!q.car&&document.querySelector('#mode').textContent==='On foot'");}
+  await js(`const moving=BayCineRoom.move;BayCineRoom.move=function(r,...a){q.room=r;return moving(r,...a);};
+    const program=BayCineProgram;window.BayCineProgram={...program,frame(...a){const f=program.frame(...a);q.show=f.id;return f;}};
+    q.at(q.h,BayCab.cinema.x,BayCab.cinema.z);true`);
+  await tap("KeyF");await wait("q.room&&!q.room.transition");await js("Object.assign(q.room,BayCineRoom.points.program);true");await tap("KeyF");
+  await wait("!document.querySelector('#panel').hidden");
+  assert.equal(await js("document.querySelector('#panelBody').innerText.includes('Rabbit Ears')"),port);
+  if(port){
+    await click("Cue Rabbit Ears");await js("Object.assign(q.room,BayCineRoom.points.aisle);true");await tap("KeyF");
+    await wait("q.room.seated&&!q.room.transition&&q.show==='rabbit'");await shot("cinema");
+  }
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS The Long Way Home",mode,route,port?"honest answer, passenger lift":"entire walk, crossing signal","laundry scene, saved owner key and drivable estate after reload");
+  console.log("PASS Rabbit Ears",mode,"visor scene, drive into bay two, projected family film, ticket and",port?"actual Cine Luna screening":"private print absent from public bill","after reload");
 };

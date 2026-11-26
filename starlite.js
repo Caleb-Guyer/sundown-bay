@@ -3,7 +3,7 @@
   "use strict";
   const site={x:90,y:.096,z:-58,yaw:0},booth={x:84.17,z:-60.77,kind:"drive-in",name:"Starlite Motor Theatre"};
   const coast={id:"coast",title:"Coast Road, 1983",credit:"Soler family print · 16 mm",seconds:16};
-  const ids=new Set(["coast","pelican","tram","windows","stunt","skate","edition","location","picture-jumps"]);
+  const ids=new Set(["coast","pelican","tram","windows","stunt","skate","edition","location","picture-jumps","rabbit"]);
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   function read(raw){
     const best={};
@@ -30,6 +30,7 @@
   class Theatre {
     constructor(){this.clock=0;this.run=null;this.visit=null;this.playFrom=0;this.variation=0;this.version=0;this.frameKey="";}
     show(program,booked){
+      if(this.visit?.family)return {reel:BayWalkHome.reel,time:Math.min(this.visit.age,BayWalkHome.reel.seconds-.1),cue:""};
       const bill=[coast,...program],r=this.run;
       if(r&&!r.done&&!r.switched){
         const reel=r.id==="coast"?program.find(f=>f.id==="pelican"):coast;
@@ -71,6 +72,7 @@
       if(!this.canvas){this.canvas=document.createElement("canvas");this.canvas.width=416;this.canvas.height=234;}
       const c=this.canvas.getContext("2d");
       if(reel.id==="coast")BayCoastRoadFilm.paint(this.canvas,tick/10);
+      else if(reel.id==="rabbit")BayWalkHome.movie(c,tick/10);
       else{
         let offset=0;for(const f of program){if(f.id===reel.id)break;offset+=f.seconds;}
         const frame=BayCineProgram.frame(offset+tick/10,options);

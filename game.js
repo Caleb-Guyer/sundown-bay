@@ -610,6 +610,8 @@
   if(view.gl)BayStreetAction.install(model,disc);
   let payrollReceipt=null,payrollCounter=null;
   let homeWalk=new BayWalkHome.Walk(save.collection),homeWagon=null,wagonCheck=0,homeTraffic=null;
+  let valeReel=BayWalkHome.reelState();
+  const familyBay={x:starliteSite.x,z:starliteSite.z,name:"Starlite · Speaker 2",kind:"vale-screen"};
   disc("shadowCar",1.15,2.27,"#454b50");disc("shadowFoot",.39,.24,"#665e60");
   const skidBuffer={vertices:new Float32Array(144*36)};
   let uploadedLast=null,uploadedFirst=null;
@@ -953,6 +955,7 @@
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
     if(b?.art==="transferStub")BaySixSharpArt.stub($("chapterInsert"),campaign.pilot.result,campaign.book.transfer);
     if(b?.art==="staffKey")BayWalkHome.keys($("chapterInsert"),homeWalk.accepts);
+    if(b?.art==="rabbitSleeve")BayWalkHome.sleeve($("chapterInsert"));
     if(["payEnvelope","payReceipt","portReceipt"].includes(b?.art))BayStreetAction.paper($("chapterInsert"),b.art);
     if(b?.art==="inscription")BayStreetEditionArt.reverse($("chapterInsert"),inscribedCopy);
     if(b?.art==="landingOrder")BayLandingOrder.docket($("chapterInsert"),campaign.book);
@@ -1005,6 +1008,9 @@
       note("Bea’s family waltz","The band put it on the set list. Ben has a stool for you.",5);
     }
     if(filmReplay){filmReplay=false;return;}
+    if(id==="visorSleeve"){
+      waypoint={...familyBay};note("Rabbit Ears","Face the screen at speaker 2. F clips the speaker to Marisol’s window.",6);return;
+    }
     if(id==="lastTransfer"){if(campaign.book.transfer)note("Back on Marlin Pier","Alma’s first stub is in Dalia’s book at Lot 14. F at the telegraph runs the crossing again.",5);return;}
     if(id==="collectionLuna"||id==="collectionPort"){
       payrollReceipt=null;note("The Long Way Home","Romy is walking home from the Cine Luna side door.",5);return;
@@ -4718,7 +4724,7 @@
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
+  const filmOptions=()=>({valeRelease:valeReel==="luna",soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
     deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   function adaCopy(){
     return room?.kind==="cinema"&&room.ada&&!room.reader&&!room.transition&&
@@ -4845,6 +4851,7 @@
     if(takeCurbFare())return true;
     if(nearFlowerChair()){enterFilm("flowerReply",true);return true;}
     if(byCinema()){
+      if(waypoint?.kind==="vale-luna")waypoint=null;
       cabs.cancelBooking();room=Object.assign(BayCineRoom.create(),{kind:"cinema",ada:!!save.featurePrint.last});
       keys.clear();resetPointer();$("targetTag").hidden=$("speech").hidden=true;lastHud=lastMap=-10;hud();return true;
     }
@@ -5527,9 +5534,13 @@
     if(atProjectionBooth()){openPanel("starlite-booth");return true;}
     const n=starliteFree()&&BayStarlite.bay(car);
     if(!n)return false;
+    if(n===2&&car===homeWagon&&valeReel==="screened"){openPanel("vale-reel");return true;}
     const companion=afternoon.vehicle===car&&afternoon.seated?BaySecondUnit.names[unit.other]:"";
     theatre.visit={v:car,bay:n,companion,age:0,id:null,kept:false};
-    if(companion)speak(companion,"That little speaker still works? My side gets the good armrest.");
+    if(n===2&&car===homeWagon&&valeReel){
+      theatre.visit.family=true;if(waypoint?.kind==="vale-screen")waypoint=null;
+      speak("Ada Soler · window speaker","I ran this once to focus the lens. Your mum made me promise to leave the end on.");
+    }else if(companion)speak(companion,"That little speaker still works? My side gets the good armrest.");
     lastHud=-10;return true;
   }
   function theatreStep(dt){
@@ -5540,12 +5551,26 @@
     if(car!==v.v||!starliteFree()||BayStarlite.bay(car)!==v.bay){theatre.visit=null;cameraSnap();lastHud=-10;return;}
     const reel=theatre.show(BayCineProgram.describe(filmOptions()),save.starlite.booked).reel;
     if(v.id!==reel.id){v.id=reel.id;v.age=0;v.kept=false;}
-    v.age+=dt;if(v.kept||v.age<3.8)return;
+    v.age+=dt;if(v.kept||v.age<(v.family?BayWalkHome.reel.seconds:3.8))return;
     v.kept=true;syncProgress(readSave());
     const book=save.starlite,record={id:reel.id,title:reel.title,plate:BayStreetCars.plateFor(car),day:hours.day+1,bay:v.bay,companion:v.companion};
-    if(book.tickets.some(t=>Object.keys(record).every(k=>t[k]===record[k])))return;
-    book.tickets.push(record);book.tickets=book.tickets.slice(-5);book.rev++;persist();
+    const filed=book.tickets.some(t=>Object.keys(record).every(k=>t[k]===record[k]));
+    if(!filed){book.tickets.push(record);book.tickets=book.tickets.slice(-5);book.rev++;persist();}
+    if(v.family){
+      theatre.visit=null;cameraSnap();lastHud=-10;
+      if(valeReel==="sleeve"||valeReel==="screened"){valeReel=BayWalkHome.keepReel("screened");openPanel("vale-reel");return;}
+    }
+    if(filed)return;
     note("Starlite · Admit "+(v.companion?"two":"one"),reel.title+" · Ticket kept in your pocket",3);
+  }
+  function decideValeReel(choice){
+    if(valeReel!=="screened")return;
+    valeReel=BayWalkHome.keepReel(choice);closePanel();
+    if(valeReel==="luna"){
+      waypoint={...BayCab.cinema,kind:"vale-luna",name:"Cine Luna · Rabbit Ears"};
+      speak("Ada Soler","I'll put their names on the can. Both of them.");
+    }else speak("Ada Soler","Bay two, whenever you like. I'll keep the can on my shelf.");
+    lastHud=lastMap=-10;
   }
   function theatrePanel(body,tickets){
     if(tickets){
@@ -6612,7 +6637,7 @@
     if(returned){save.meterCopy.found=true;save.meterCopy.rev++;persist();if(["meter-car","meter-rank"].includes(waypoint?.kind))waypoint=null;}
 
     driverSeat.center();driverSeat.mirrorAt=-Infinity;
-    if(!borrowed&&!active&&!v.seatHint){v.seatHint=true;note(formatVehicle(v),v===spider?"O  canvas roof · Starlite tonight on Gantry St.":BayDriving.roadBoxes.has(v.kind)?"Z  driver’s seat   ·   Shift + Z  five-speed":"Z  driver’s seat   ·   I  wipers",3);}
+    if(!borrowed&&!active&&!v.seatHint){v.seatHint=true;note(formatVehicle(v),v===homeWagon?"L while parked · There’s a film sleeve under the visor.":v===spider?"O  canvas roof · Starlite tonight on Gantry St.":BayDriving.roadBoxes.has(v.kind)?"Z  driver’s seat   ·   Shift + Z  five-speed":"Z  driver’s seat   ·   I  wipers",3);}
     if(returned)speak("Mina Ortiz · dispatch","Seventeen to base. Cross that plate off my sheet. Somebody’s taking it home.");
     if(borrowed){addHeat(1);note("Dispatch",a.owner?a.owner.name+" reported "+BayStreetCars.plateFor(v)+".":"A driver called in the switch.",2.3);}
   }
@@ -7495,6 +7520,10 @@
     return {x:r.jules.x,z:r.jules.z,name:r.stage==="door"?"Romy · Laundry door":"Romy Vale · Walking home"};
   }
   function homeHint(){
+    if(car&&car===homeWagon&&starliteFree()&&!theatre.visit&&!theatre.run&&Math.abs(car.speed)<.85){
+      if(BayStarlite.bay(car)===2&&valeReel)return ["F",valeReel==="screened"?"Answer Ada about the print":"Clip on speaker 2 · Rabbit Ears"];
+      if(!BayStarlite.bay(car)&&(!valeReel||valeReel==="sleeve"||dist(car,BayWalkHome.home)<40))return ["L","Read the film sleeve under the visor"];
+    }
     const r=romyOutside();if(!r||heat||transfer||room||!active?.homeWalk&&(windowRide||afternoon.active||cabs.booking))return null;
     if(r.stage==="door")return onStreetFeet()&&dist(hero,r.jules)<2.65?["F","Meet Romy at the laundry door"]:null;
     if(r.stage!=="walk")return null;
@@ -7510,8 +7539,13 @@
     waypoint=null;lastMap=lastHud=-10;
   }
   function homeKey(code){
+    if(code==="KeyL"&&car&&car===homeWagon&&homeHint()?.[0]==="L"){
+      if(!valeReel)valeReel=BayWalkHome.keepReel("sleeve");
+      enterFilm("visorSleeve");return true;
+    }
     if(code!=="KeyH"&&code!=="KeyF")return false;
     const hint=homeHint();if(!hint||code!=="Key"+hint[0])return false;
+    if(car&&car===homeWagon&&BayStarlite.bay(car)===2&&valeReel)return starliteKey(code);
     const r=homeWalk,port=r.book.route==="port";
     if(r.stage==="door"){
       r.finish();active=null;waypoint=null;staffWagon();enterFilm("walkHomeDoor");return true;
@@ -11894,6 +11928,8 @@
     }
     if(houseLights.s.release)body.append(makeButton("Cue House Lights","Your two exposures, dissolved on the house projector.","Thread print",()=>{
       room.cuedReel="house-lights";closePanel();note("Cine Luna","Take an aisle seat for House Lights.",3.5);}));
+    if(valeReel==="luna")body.append(makeButton("Cue Rabbit Ears","Marisol and Romy Vale’s kitchen test.","Thread print",()=>{
+      room.cuedReel="rabbit";closePanel();note("Cine Luna","The Vale print is threaded. Take an aisle seat.",3.5);}));
     for(const reel of BayCineProgram.describe(filmOptions())){
       const row=document.createElement("p"),title=document.createElement("strong");
       row.className="cine-listing";title.textContent=reel.title;
@@ -12084,6 +12120,11 @@
       title="Romy’s location notebook";kicker="Picture cars / "+jumpPage.area;paintJumpPage(b);
     }else if(next==="engine-house"||next==="engine-book"||next==="jobs"&&active?.engineSeven){
       title="Station Seven";kicker=next==="engine-book"?"Engine company / Signed return":"Gantry Street / Duty board";engineBoard(b,next==="engine-book");
+    }else if(next==="vale-reel"){
+      title="Rabbit Ears";kicker="Starlite / After the reel";
+      signedNote(b,"Marisol said I could strike a print for the Luna if you wanted. Or I can put it back in its little brown envelope.","Ada Soler");
+      b.append(makeButton("Let the Luna show it","Add the Vale family short to the city’s cinema program.","Make a print",()=>decideValeReel("luna")),
+        makeButton("Keep it in the family","Watch from the wagon at speaker two whenever you come back.","Keep it private",()=>decideValeReel("family")));
     }else if(next==="starlite-booth"||next==="starlite-tickets"){
       title="Starlite Motor Theatre";kicker=next==="starlite-booth"?"Gantry Street / Projection booth":"Box office / Ticket stubs";theatrePanel(b,next==="starlite-tickets");
     }else if(next==="street-paper"||next==="pocket-papers"){

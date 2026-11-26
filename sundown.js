@@ -195,6 +195,43 @@
     return d-hd>f.front&&u-hu>f.left*d+Math.abs(f.left)*hd&&u+hu<f.right*d-Math.abs(f.right)*hd&&
       v-hv>f.bottom*d+Math.abs(f.bottom)*hd&&v+hv<f.top*d-Math.abs(f.top)*hd;
   }
+  // A wall can hide an object only if it covers the ray through its centre.
+  // Bins at the image edges also contain offscreen rays: a long shop sign can
+  // still enter the picture even when its centre lies beyond the viewport.
+  const wallColumns=8,wallRows=6;
+  function wallBin(n,size){return Math.max(0,Math.min(size-1,Math.floor(n)));}
+  class WallGrid {
+    constructor(){this.cells=Array.from({length:wallColumns*wallRows},()=>[]);}
+    build(walls,basis){
+      this.walls=walls;this.basis=basis;
+      this.sx=wallColumns/(2*basis.horizontal);this.sy=wallRows/(2*basis.vertical);
+      for(const cell of this.cells)cell.length=0;
+      const {cs,sn,cp,sp}=basis;
+      for(const f of walls){
+        let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity,front=0;
+        const d=f.sign*f.front;
+        for(let i=0;i<4;i++){
+          const u=(i&1?f.right:f.left)*f.front,v=(i&2?f.top:f.bottom)*f.front;
+          const x=f.axis===0?d:u,y=f.axis===1?d:v,z=f.axis===2?d:f.axis===0?u:v;
+          const along=x*sn+z*cs,depth=along*cp+y*sp;
+          if(depth<=0)continue;
+          front++;
+          const px=(x*cs-z*sn)/depth*this.sx+wallColumns*.5,py=(y*cp-along*sp)/depth*this.sy+wallRows*.5;
+          x0=Math.min(x0,px);x1=Math.max(x1,px);y0=Math.min(y0,py);y1=Math.max(y1,py);
+        }
+        if(!front)continue;
+        // A face crossing the eye plane can project arbitrarily far along an
+        // edge. Keep it everywhere. Walls wholly in front have finite bounds.
+        const left=front===4?wallBin(x0-1e-7,wallColumns):0,right=front===4?wallBin(x1+1e-7,wallColumns):wallColumns-1;
+        const bottom=front===4?wallBin(y0-1e-7,wallRows):0,top=front===4?wallBin(y1+1e-7,wallRows):wallRows-1;
+        for(let row=bottom;row<=top;row++)for(let col=left;col<=right;col++)this.cells[row*wallColumns+col].push(f);
+      }
+    }
+    candidates(depth,side,up){
+      return this.cells[wallBin(up/depth*this.sy+wallRows*.5,wallRows)*wallColumns+
+        wallBin(side/depth*this.sx+wallColumns*.5,wallColumns)];
+    }
+  }
   // Recognize the six complete faces emitted by Mesh.box in the final vertex
   // stream. Cut-out doors, cloth, lettering and open meshes remain double-sided.
   const boxCorners=[2,3,7,2,7,6,0,1,3,0,3,2,4,6,7,4,7,5,0,2,6,0,6,4,1,5,7,1,7,3,0,4,5,0,5,1];
@@ -1069,8 +1106,9 @@
       if(this.casting){x+=this.castX*(y-.15);z+=this.castZ*(y-.15);y=.153;r*=Math.hypot(1,this.castX,this.castZ);}
       x-=v.camera.x;y-=v.camera.y;z-=v.camera.z;
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
-      if(depth+r<.13||depth-r>1100||Math.abs(x*v.cs-z*v.sn)>depth*v.horizontal+r*v.xMargin||
-        Math.abs(y*v.cp-along*v.sp)>depth*v.vertical+r*v.yMargin)return false;
+      const side=x*v.cs-z*v.sn,up=y*v.cp-along*v.sp;
+      if(depth+r<.13||depth-r>1100||Math.abs(side)>depth*v.horizontal+r*v.xMargin||
+        Math.abs(up)>depth*v.vertical+r*v.yMargin)return false;
       let hw=r,hh=r,hd=r;
       if(b.hw!==undefined&&!this.casting&&!tiltX&&!tiltZ){
         hw=b.hw+pad;hh=b.hh+pad;hd=b.hd+pad;
@@ -1081,10 +1119,12 @@
           if(nx*x+ny*y+nz*z+Math.abs(nx)*hw+Math.abs(ny)*hh+Math.abs(nz)*hd<0)return false;
         }
       }
-      return !(this.streetWalls&&depth>2&&this.streetHidden(x,y,z,hw,hh,hd,r,depth));
+      return !(this.streetWalls&&depth>2&&this.streetHidden(x,y,z,hw,hh,hd,r,depth,side,up));
     }
-    streetHidden(x,y,z,hw,hh,hd){
-      for(const f of this.streetWalls){
+    streetHidden(x,y,z,hw,hh,hd,r,depth,side,up){
+      const grid=this.wallGrid,walls=grid&&grid.walls===this.streetWalls&&grid.basis===this.basis&&depth>2
+        ?grid.candidates(depth,side,up):this.streetWalls;
+      for(const f of walls){
         if(f.axis===0?behindWall(f,x,hw,z,hd,y,hh):f.axis===2?behindWall(f,z,hd,x,hw,y,hh):behindWall(f,y,hh,x,hw,z,hd))return true;
       }
       return false;
@@ -1128,6 +1168,7 @@
         }
         walls.sort((a,b)=>a.front-b.front);
         this.streetWalls=walls;
+        if(walls.length>=12)(this.wallGrid??=new WallGrid()).build(walls,v);
       }
     }
     drawCityAndWater(t){
@@ -21463,6 +21504,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    visorSleeve:[
+      {dur:3.2,shot:"cab",slug:"MARISOL’S STAFF WAGON",title:"Rabbit Ears",who:"Romy Vale · note under the visor",line:"Careful with the flap. Mum sealed it with the last of my school glue."},
+      {dur:6.2,art:"rabbitSleeve",who:"Marisol Vale · in pencil",line:"Ada kept the little reel. Pull into our old spot at the Starlite, second speaker from the left. She’ll know the wagon."}
+    ],
     lastTransfer:[
       {dur:4.5,pilot:"cast",title:"The Last Transfer",slug:"MARLIN PIER   /   FROM INEZ’S LOG",who:"Inez · captain of Luz"},
       {dur:0,pilot:"helm",who:"Inez · at the wheel"},
@@ -33910,6 +33955,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
 
   let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver,listedGate;
+  let listedFamily=false;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -33923,7 +33969,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     const house=options?.houseLights||null;
     const driver=options?.driverPrint||null;
     const gate=options?.soler;
-    if(schedule&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const family=!!options?.valeRelease;
+    if(schedule&&listedFamily===family&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedFamily=family;
     listedDriver=driver;listedGate=gate;
     listedHouse=house;
     listedJumps=jumps;
@@ -33945,6 +33993,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     list.push(slot("pelican","The Last Pelican","Bay Film Club · 16 mm",28));
     if(second)list.push(slot("tram","After the Last Tram","Cine Luna archive, 1954"+(delivery?" · Delivered by "+delivery:""),26));
     if(gateSlot&&gate==="late")list.push(gateSlot);
+    if(family)list.push(BayWalkHome.reel);
     schedule=Object.freeze(list);programFrames=list.reduce((sum,item)=>sum+item.seconds*fps,0);
     return schedule;
   }
@@ -33978,7 +34027,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(image?.naturalWidth)context.drawImage(image,18,0,380,213.75);
       label(context,item.credit,19,227,"italic 12px Georgia,serif","#eddfbf");
       label(context,"35 MM   /   13",397,227,"bold 9px monospace","#caa977","right");
-    }else if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
+    }else if(item.id==="rabbit")BayWalkHome.movie(context,elapsed);
+    else if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
     else if(item.id==="pelican")showPelican(context,elapsed);
     else if(item.id==="tram")showTram(context,elapsed,item.credit);
     else if(item.id==="stunt")showStunt(context,listedRecord);
@@ -68683,7 +68733,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   "use strict";
   const site={x:90,y:.096,z:-58,yaw:0},booth={x:84.17,z:-60.77,kind:"drive-in",name:"Starlite Motor Theatre"};
   const coast={id:"coast",title:"Coast Road, 1983",credit:"Soler family print · 16 mm",seconds:16};
-  const ids=new Set(["coast","pelican","tram","windows","stunt","skate","edition","location","picture-jumps"]);
+  const ids=new Set(["coast","pelican","tram","windows","stunt","skate","edition","location","picture-jumps","rabbit"]);
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   function read(raw){
     const best={};
@@ -68710,6 +68760,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   class Theatre {
     constructor(){this.clock=0;this.run=null;this.visit=null;this.playFrom=0;this.variation=0;this.version=0;this.frameKey="";}
     show(program,booked){
+      if(this.visit?.family)return {reel:BayWalkHome.reel,time:Math.min(this.visit.age,BayWalkHome.reel.seconds-.1),cue:""};
       const bill=[coast,...program],r=this.run;
       if(r&&!r.done&&!r.switched){
         const reel=r.id==="coast"?program.find(f=>f.id==="pelican"):coast;
@@ -68751,6 +68802,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(!this.canvas){this.canvas=document.createElement("canvas");this.canvas.width=416;this.canvas.height=234;}
       const c=this.canvas.getContext("2d");
       if(reel.id==="coast")BayCoastRoadFilm.paint(this.canvas,tick/10);
+      else if(reel.id==="rabbit")BayWalkHome.movie(c,tick/10);
       else{
         let offset=0;for(const f of program){if(f.id===reel.id)break;offset+=f.seconds;}
         const frame=BayCineProgram.frame(offset+tick/10,options);
@@ -71404,7 +71456,73 @@ window.buildBayCity = function buildBayCity(g,water) {
     line([[328,112],[342,105],[350,104]],"#dda887",3);line([[379,136],[396,119],[409,112]],"#9d6d55",2);
     shape([[478,24],[600,0],[600,104],[526,115],[509,106]],"#a4614f");line([[509,29],[532,104]],"#d99773",3);
   }
-  window.BayWalkHome={Walk,home,route,key,read,keys};
+  const reel={id:"rabbit",title:"Rabbit Ears",credit:"Marisol Vale · Super 8, kitchen test",seconds:16};
+  const reelKey="sundownBay.valeReel.v1",stages=["","sleeve","screened","family","luna"];
+  function reelState(){
+    try{const s=localStorage.getItem(reelKey);return stages.includes(s)?s:"";}catch{return "";}
+  }
+  function keepReel(next){
+    const old=reelState();
+    if(!stages.includes(next)||stages.indexOf(old)>=3||stages.indexOf(next)<=stages.indexOf(old))return old;
+    try{localStorage.setItem(reelKey,next);}catch{}
+    return next;
+  }
+  function sleeve(canvas){
+    canvas.width=600;canvas.height=348;const c=canvas.getContext("2d");if(!c)return;
+    c.fillStyle="#465756";c.fillRect(0,0,600,348);
+    for(let i=0;i<17;i++){c.fillStyle=i%3?"#40514f":"#4b5a54";c.fillRect(0,i*22,600,2);}
+    c.save();c.translate(73,52);c.rotate(-.045);
+    c.fillStyle="#263d3c";c.fillRect(9,10,453,258);c.fillStyle="#dcc49a";c.fillRect(0,0,453,256);
+    c.strokeStyle="#ad9775";c.lineWidth=2;c.beginPath();c.moveTo(0,250);c.lineTo(220,89);c.lineTo(453,250);c.stroke();
+    c.fillStyle="#efe2b9";c.fillRect(28,25,395,147);c.fillStyle="#904a38";c.fillRect(28,25,395,6);
+    c.font="bold 15px monospace";c.fillText("STARLITE   /   CUSTOMER PRINT",47,59);
+    c.fillStyle="#34494a";c.font="italic bold 32px Georgia";c.fillText("Ada, this is the rabbit.",48,111);
+    c.font="italic 21px Georgia";c.fillText("Bay two. Bring the wagon.   M.",48,148);
+    c.font="12px monospace";c.fillStyle="#635844";c.fillText("50 FT.   •   SUPER 8   •   SILENT",48,219);
+    c.restore();
+  }
+  // Three cuts from one kitchen test. The close-up hides the hands until the
+  // wide shot reveals whose fingers make the rabbit's second ear.
+  function movie(c,t){
+    const oval=(x,y,rx,ry,color,angle=0)=>{c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,angle,0,Math.PI*2);c.fill();};
+    const stroke=(points,w,color)=>{c.strokeStyle=color;c.lineWidth=w;c.lineCap="round";c.beginPath();
+      c.moveTo(...points[0]);for(const p of points.slice(1))c.lineTo(...p);c.stroke();};
+    const shape=(points,color)=>{c.fillStyle=color;c.beginPath();c.moveTo(...points[0]);for(const p of points.slice(1))c.lineTo(...p);c.closePath();c.fill();};
+    c.save();c.fillStyle="#302d2b";c.fillRect(0,0,416,234);
+    const ending=t>=12.5,wide=t>=6.5&&!ending,ear=Math.sin(Math.max(0,t-2.1)*3.2)*.22;
+    c.translate(208+Math.sin(Math.floor(t*10)*1.9)*.55,117);c.scale(wide?.78:1.36,wide?.78:1.36);c.translate(-211,-102);
+    c.fillStyle="#956e4e";c.fillRect(-70,-75,560,390);
+    shape([[-4,-36],[398,-30],[415,213],[18,221]],"#e5c991");
+    stroke([[18,221],[160,207],[269,209],[415,213]],3,"#b59b70");
+    stroke([[59,-34],[67,43],[58,148],[70,216]],2,"#dac191");
+    for(const x of [55,327]){stroke([[x,-42],[x-3,-20]],7,"#6a4f3c");stroke([[x+2,-41],[x,-22]],2,"#b2855d");}
+    const hop=ending?Math.max(0,Math.sin((t-12.5)*5))*8:Math.sin(t*2.5)*1.3;
+    c.save();c.translate(201+(ending?(t-12.5)*18:0),105-hop);c.rotate(Math.sin(t*1.7)*.025);
+    const umbra="#514b45";
+    shape([[-94,62],[-48,25],[-27,2],[0,3],[16,21],[-42,58],[-90,81]],umbra);
+    oval(-2,6,28,20,umbra,-.28);oval(20,8,16,11,umbra,.15);oval(29,5,6,4,umbra);
+    stroke([[-7,-5],[-13,-32],[-15,-48]],12,umbra);
+    stroke([[5,-7],[9,-33],[20+ear*35,-46+Math.abs(ear)*20]],10,umbra);
+    oval(15,1,2,2,"#dec491");
+    c.restore();
+    if(wide){
+      // Marisol's sleeve, bent wrist and forefinger in the projector beam.
+      shape([[-66,217],[35,149],[64,182],[-2,259],[-66,271]],"#3a514e");
+      shape([[26,159],[48,137],[87,121],[106,100],[113,102],[105,121],[123,109],[130,113],[114,136],[90,149],[52,178]],"#b67d58");
+      stroke([[54,164],[85,143],[99,137]],2,"#895c48");
+      // The smaller hand reaches in from the other side to fold one ear.
+      const reach=Math.min(1,(t-6.5)/2.1),lift=Math.sin(t*3.2)*2;
+      c.save();c.translate((1-reach)*90,lift);
+      shape([[469,237],[414,194],[319,116],[267,92],[242,77],[224,65],[222,61],[227,59],[249,71],[238,57],[240,53],[246,54],[265,69],[286,78],[324,88],[429,173],[472,186]],"#cb966f");
+      shape([[432,167],[483,191],[482,257],[401,202]],"#964f45");c.restore();
+    }
+    c.restore();
+    if(t<2.5||ending){
+      c.fillStyle="#292b28";c.fillRect(0,201,416,33);c.textAlign="center";c.fillStyle="#f1dfb6";c.font="italic bold 16px Georgia";
+      c.fillText(ending?"“Leave that ear. That’s how you know it’s ours.”":"Vale kitchen test  /  Romy, age six",208,223);c.textAlign="start";
+    }
+  }
+  window.BayWalkHome={Walk,home,route,key,read,keys,reel,reelState,keepReel,sleeve,movie};
 })();
 
 ;
@@ -72161,6 +72279,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   if(view.gl)BayStreetAction.install(model,disc);
   let payrollReceipt=null,payrollCounter=null;
   let homeWalk=new BayWalkHome.Walk(save.collection),homeWagon=null,wagonCheck=0,homeTraffic=null;
+  let valeReel=BayWalkHome.reelState();
+  const familyBay={x:starliteSite.x,z:starliteSite.z,name:"Starlite · Speaker 2",kind:"vale-screen"};
   disc("shadowCar",1.15,2.27,"#454b50");disc("shadowFoot",.39,.24,"#665e60");
   const skidBuffer={vertices:new Float32Array(144*36)};
   let uploadedLast=null,uploadedFirst=null;
@@ -72504,6 +72624,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
     if(b?.art==="transferStub")BaySixSharpArt.stub($("chapterInsert"),campaign.pilot.result,campaign.book.transfer);
     if(b?.art==="staffKey")BayWalkHome.keys($("chapterInsert"),homeWalk.accepts);
+    if(b?.art==="rabbitSleeve")BayWalkHome.sleeve($("chapterInsert"));
     if(["payEnvelope","payReceipt","portReceipt"].includes(b?.art))BayStreetAction.paper($("chapterInsert"),b.art);
     if(b?.art==="inscription")BayStreetEditionArt.reverse($("chapterInsert"),inscribedCopy);
     if(b?.art==="landingOrder")BayLandingOrder.docket($("chapterInsert"),campaign.book);
@@ -72556,6 +72677,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       note("Bea’s family waltz","The band put it on the set list. Ben has a stool for you.",5);
     }
     if(filmReplay){filmReplay=false;return;}
+    if(id==="visorSleeve"){
+      waypoint={...familyBay};note("Rabbit Ears","Face the screen at speaker 2. F clips the speaker to Marisol’s window.",6);return;
+    }
     if(id==="lastTransfer"){if(campaign.book.transfer)note("Back on Marlin Pier","Alma’s first stub is in Dalia’s book at Lot 14. F at the telegraph runs the crossing again.",5);return;}
     if(id==="collectionLuna"||id==="collectionPort"){
       payrollReceipt=null;note("The Long Way Home","Romy is walking home from the Cine Luna side door.",5);return;
@@ -76269,7 +76393,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
+  const filmOptions=()=>({valeRelease:valeReel==="luna",soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
     deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   function adaCopy(){
     return room?.kind==="cinema"&&room.ada&&!room.reader&&!room.transition&&
@@ -76396,6 +76520,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(takeCurbFare())return true;
     if(nearFlowerChair()){enterFilm("flowerReply",true);return true;}
     if(byCinema()){
+      if(waypoint?.kind==="vale-luna")waypoint=null;
       cabs.cancelBooking();room=Object.assign(BayCineRoom.create(),{kind:"cinema",ada:!!save.featurePrint.last});
       keys.clear();resetPointer();$("targetTag").hidden=$("speech").hidden=true;lastHud=lastMap=-10;hud();return true;
     }
@@ -77078,9 +77203,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(atProjectionBooth()){openPanel("starlite-booth");return true;}
     const n=starliteFree()&&BayStarlite.bay(car);
     if(!n)return false;
+    if(n===2&&car===homeWagon&&valeReel==="screened"){openPanel("vale-reel");return true;}
     const companion=afternoon.vehicle===car&&afternoon.seated?BaySecondUnit.names[unit.other]:"";
     theatre.visit={v:car,bay:n,companion,age:0,id:null,kept:false};
-    if(companion)speak(companion,"That little speaker still works? My side gets the good armrest.");
+    if(n===2&&car===homeWagon&&valeReel){
+      theatre.visit.family=true;if(waypoint?.kind==="vale-screen")waypoint=null;
+      speak("Ada Soler · window speaker","I ran this once to focus the lens. Your mum made me promise to leave the end on.");
+    }else if(companion)speak(companion,"That little speaker still works? My side gets the good armrest.");
     lastHud=-10;return true;
   }
   function theatreStep(dt){
@@ -77091,12 +77220,26 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(car!==v.v||!starliteFree()||BayStarlite.bay(car)!==v.bay){theatre.visit=null;cameraSnap();lastHud=-10;return;}
     const reel=theatre.show(BayCineProgram.describe(filmOptions()),save.starlite.booked).reel;
     if(v.id!==reel.id){v.id=reel.id;v.age=0;v.kept=false;}
-    v.age+=dt;if(v.kept||v.age<3.8)return;
+    v.age+=dt;if(v.kept||v.age<(v.family?BayWalkHome.reel.seconds:3.8))return;
     v.kept=true;syncProgress(readSave());
     const book=save.starlite,record={id:reel.id,title:reel.title,plate:BayStreetCars.plateFor(car),day:hours.day+1,bay:v.bay,companion:v.companion};
-    if(book.tickets.some(t=>Object.keys(record).every(k=>t[k]===record[k])))return;
-    book.tickets.push(record);book.tickets=book.tickets.slice(-5);book.rev++;persist();
+    const filed=book.tickets.some(t=>Object.keys(record).every(k=>t[k]===record[k]));
+    if(!filed){book.tickets.push(record);book.tickets=book.tickets.slice(-5);book.rev++;persist();}
+    if(v.family){
+      theatre.visit=null;cameraSnap();lastHud=-10;
+      if(valeReel==="sleeve"||valeReel==="screened"){valeReel=BayWalkHome.keepReel("screened");openPanel("vale-reel");return;}
+    }
+    if(filed)return;
     note("Starlite · Admit "+(v.companion?"two":"one"),reel.title+" · Ticket kept in your pocket",3);
+  }
+  function decideValeReel(choice){
+    if(valeReel!=="screened")return;
+    valeReel=BayWalkHome.keepReel(choice);closePanel();
+    if(valeReel==="luna"){
+      waypoint={...BayCab.cinema,kind:"vale-luna",name:"Cine Luna · Rabbit Ears"};
+      speak("Ada Soler","I'll put their names on the can. Both of them.");
+    }else speak("Ada Soler","Bay two, whenever you like. I'll keep the can on my shelf.");
+    lastHud=lastMap=-10;
   }
   function theatrePanel(body,tickets){
     if(tickets){
@@ -78163,7 +78306,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(returned){save.meterCopy.found=true;save.meterCopy.rev++;persist();if(["meter-car","meter-rank"].includes(waypoint?.kind))waypoint=null;}
 
     driverSeat.center();driverSeat.mirrorAt=-Infinity;
-    if(!borrowed&&!active&&!v.seatHint){v.seatHint=true;note(formatVehicle(v),v===spider?"O  canvas roof · Starlite tonight on Gantry St.":BayDriving.roadBoxes.has(v.kind)?"Z  driver’s seat   ·   Shift + Z  five-speed":"Z  driver’s seat   ·   I  wipers",3);}
+    if(!borrowed&&!active&&!v.seatHint){v.seatHint=true;note(formatVehicle(v),v===homeWagon?"L while parked · There’s a film sleeve under the visor.":v===spider?"O  canvas roof · Starlite tonight on Gantry St.":BayDriving.roadBoxes.has(v.kind)?"Z  driver’s seat   ·   Shift + Z  five-speed":"Z  driver’s seat   ·   I  wipers",3);}
     if(returned)speak("Mina Ortiz · dispatch","Seventeen to base. Cross that plate off my sheet. Somebody’s taking it home.");
     if(borrowed){addHeat(1);note("Dispatch",a.owner?a.owner.name+" reported "+BayStreetCars.plateFor(v)+".":"A driver called in the switch.",2.3);}
   }
@@ -79046,6 +79189,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     return {x:r.jules.x,z:r.jules.z,name:r.stage==="door"?"Romy · Laundry door":"Romy Vale · Walking home"};
   }
   function homeHint(){
+    if(car&&car===homeWagon&&starliteFree()&&!theatre.visit&&!theatre.run&&Math.abs(car.speed)<.85){
+      if(BayStarlite.bay(car)===2&&valeReel)return ["F",valeReel==="screened"?"Answer Ada about the print":"Clip on speaker 2 · Rabbit Ears"];
+      if(!BayStarlite.bay(car)&&(!valeReel||valeReel==="sleeve"||dist(car,BayWalkHome.home)<40))return ["L","Read the film sleeve under the visor"];
+    }
     const r=romyOutside();if(!r||heat||transfer||room||!active?.homeWalk&&(windowRide||afternoon.active||cabs.booking))return null;
     if(r.stage==="door")return onStreetFeet()&&dist(hero,r.jules)<2.65?["F","Meet Romy at the laundry door"]:null;
     if(r.stage!=="walk")return null;
@@ -79061,8 +79208,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     waypoint=null;lastMap=lastHud=-10;
   }
   function homeKey(code){
+    if(code==="KeyL"&&car&&car===homeWagon&&homeHint()?.[0]==="L"){
+      if(!valeReel)valeReel=BayWalkHome.keepReel("sleeve");
+      enterFilm("visorSleeve");return true;
+    }
     if(code!=="KeyH"&&code!=="KeyF")return false;
     const hint=homeHint();if(!hint||code!=="Key"+hint[0])return false;
+    if(car&&car===homeWagon&&BayStarlite.bay(car)===2&&valeReel)return starliteKey(code);
     const r=homeWalk,port=r.book.route==="port";
     if(r.stage==="door"){
       r.finish();active=null;waypoint=null;staffWagon();enterFilm("walkHomeDoor");return true;
@@ -83445,6 +83597,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     if(houseLights.s.release)body.append(makeButton("Cue House Lights","Your two exposures, dissolved on the house projector.","Thread print",()=>{
       room.cuedReel="house-lights";closePanel();note("Cine Luna","Take an aisle seat for House Lights.",3.5);}));
+    if(valeReel==="luna")body.append(makeButton("Cue Rabbit Ears","Marisol and Romy Vale’s kitchen test.","Thread print",()=>{
+      room.cuedReel="rabbit";closePanel();note("Cine Luna","The Vale print is threaded. Take an aisle seat.",3.5);}));
     for(const reel of BayCineProgram.describe(filmOptions())){
       const row=document.createElement("p"),title=document.createElement("strong");
       row.className="cine-listing";title.textContent=reel.title;
@@ -83635,6 +83789,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       title="Romy’s location notebook";kicker="Picture cars / "+jumpPage.area;paintJumpPage(b);
     }else if(next==="engine-house"||next==="engine-book"||next==="jobs"&&active?.engineSeven){
       title="Station Seven";kicker=next==="engine-book"?"Engine company / Signed return":"Gantry Street / Duty board";engineBoard(b,next==="engine-book");
+    }else if(next==="vale-reel"){
+      title="Rabbit Ears";kicker="Starlite / After the reel";
+      signedNote(b,"Marisol said I could strike a print for the Luna if you wanted. Or I can put it back in its little brown envelope.","Ada Soler");
+      b.append(makeButton("Let the Luna show it","Add the Vale family short to the city’s cinema program.","Make a print",()=>decideValeReel("luna")),
+        makeButton("Keep it in the family","Watch from the wagon at speaker two whenever you come back.","Keep it private",()=>decideValeReel("family")));
     }else if(next==="starlite-booth"||next==="starlite-tickets"){
       title="Starlite Motor Theatre";kicker=next==="starlite-booth"?"Gantry Street / Projection booth":"Box office / Ticket stubs";theatrePanel(b,next==="starlite-tickets");
     }else if(next==="street-paper"||next==="pocket-papers"){

@@ -28,6 +28,10 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    visorSleeve:[
+      {dur:3.2,shot:"cab",slug:"MARISOL’S STAFF WAGON",title:"Rabbit Ears",who:"Romy Vale · note under the visor",line:"Careful with the flap. Mum sealed it with the last of my school glue."},
+      {dur:6.2,art:"rabbitSleeve",who:"Marisol Vale · in pencil",line:"Ada kept the little reel. Pull into our old spot at the Starlite, second speaker from the left. She’ll know the wagon."}
+    ],
     lastTransfer:[
       {dur:4.5,pilot:"cast",title:"The Last Transfer",slug:"MARLIN PIER   /   FROM INEZ’S LOG",who:"Inez · captain of Luz"},
       {dur:0,pilot:"helm",who:"Inez · at the wheel"},

@@ -194,6 +194,43 @@
     return d-hd>f.front&&u-hu>f.left*d+Math.abs(f.left)*hd&&u+hu<f.right*d-Math.abs(f.right)*hd&&
       v-hv>f.bottom*d+Math.abs(f.bottom)*hd&&v+hv<f.top*d-Math.abs(f.top)*hd;
   }
+  // A wall can hide an object only if it covers the ray through its centre.
+  // Bins at the image edges also contain offscreen rays: a long shop sign can
+  // still enter the picture even when its centre lies beyond the viewport.
+  const wallColumns=8,wallRows=6;
+  function wallBin(n,size){return Math.max(0,Math.min(size-1,Math.floor(n)));}
+  class WallGrid {
+    constructor(){this.cells=Array.from({length:wallColumns*wallRows},()=>[]);}
+    build(walls,basis){
+      this.walls=walls;this.basis=basis;
+      this.sx=wallColumns/(2*basis.horizontal);this.sy=wallRows/(2*basis.vertical);
+      for(const cell of this.cells)cell.length=0;
+      const {cs,sn,cp,sp}=basis;
+      for(const f of walls){
+        let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity,front=0;
+        const d=f.sign*f.front;
+        for(let i=0;i<4;i++){
+          const u=(i&1?f.right:f.left)*f.front,v=(i&2?f.top:f.bottom)*f.front;
+          const x=f.axis===0?d:u,y=f.axis===1?d:v,z=f.axis===2?d:f.axis===0?u:v;
+          const along=x*sn+z*cs,depth=along*cp+y*sp;
+          if(depth<=0)continue;
+          front++;
+          const px=(x*cs-z*sn)/depth*this.sx+wallColumns*.5,py=(y*cp-along*sp)/depth*this.sy+wallRows*.5;
+          x0=Math.min(x0,px);x1=Math.max(x1,px);y0=Math.min(y0,py);y1=Math.max(y1,py);
+        }
+        if(!front)continue;
+        // A face crossing the eye plane can project arbitrarily far along an
+        // edge. Keep it everywhere. Walls wholly in front have finite bounds.
+        const left=front===4?wallBin(x0-1e-7,wallColumns):0,right=front===4?wallBin(x1+1e-7,wallColumns):wallColumns-1;
+        const bottom=front===4?wallBin(y0-1e-7,wallRows):0,top=front===4?wallBin(y1+1e-7,wallRows):wallRows-1;
+        for(let row=bottom;row<=top;row++)for(let col=left;col<=right;col++)this.cells[row*wallColumns+col].push(f);
+      }
+    }
+    candidates(depth,side,up){
+      return this.cells[wallBin(up/depth*this.sy+wallRows*.5,wallRows)*wallColumns+
+        wallBin(side/depth*this.sx+wallColumns*.5,wallColumns)];
+    }
+  }
   // Recognize the six complete faces emitted by Mesh.box in the final vertex
   // stream. Cut-out doors, cloth, lettering and open meshes remain double-sided.
   const boxCorners=[2,3,7,2,7,6,0,1,3,0,3,2,4,6,7,4,7,5,0,2,6,0,6,4,1,5,7,1,7,3,0,4,5,0,5,1];
@@ -1068,8 +1105,9 @@
       if(this.casting){x+=this.castX*(y-.15);z+=this.castZ*(y-.15);y=.153;r*=Math.hypot(1,this.castX,this.castZ);}
       x-=v.camera.x;y-=v.camera.y;z-=v.camera.z;
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
-      if(depth+r<.13||depth-r>1100||Math.abs(x*v.cs-z*v.sn)>depth*v.horizontal+r*v.xMargin||
-        Math.abs(y*v.cp-along*v.sp)>depth*v.vertical+r*v.yMargin)return false;
+      const side=x*v.cs-z*v.sn,up=y*v.cp-along*v.sp;
+      if(depth+r<.13||depth-r>1100||Math.abs(side)>depth*v.horizontal+r*v.xMargin||
+        Math.abs(up)>depth*v.vertical+r*v.yMargin)return false;
       let hw=r,hh=r,hd=r;
       if(b.hw!==undefined&&!this.casting&&!tiltX&&!tiltZ){
         hw=b.hw+pad;hh=b.hh+pad;hd=b.hd+pad;
@@ -1080,10 +1118,12 @@
           if(nx*x+ny*y+nz*z+Math.abs(nx)*hw+Math.abs(ny)*hh+Math.abs(nz)*hd<0)return false;
         }
       }
-      return !(this.streetWalls&&depth>2&&this.streetHidden(x,y,z,hw,hh,hd,r,depth));
+      return !(this.streetWalls&&depth>2&&this.streetHidden(x,y,z,hw,hh,hd,r,depth,side,up));
     }
-    streetHidden(x,y,z,hw,hh,hd){
-      for(const f of this.streetWalls){
+    streetHidden(x,y,z,hw,hh,hd,r,depth,side,up){
+      const grid=this.wallGrid,walls=grid&&grid.walls===this.streetWalls&&grid.basis===this.basis&&depth>2
+        ?grid.candidates(depth,side,up):this.streetWalls;
+      for(const f of walls){
         if(f.axis===0?behindWall(f,x,hw,z,hd,y,hh):f.axis===2?behindWall(f,z,hd,x,hw,y,hh):behindWall(f,y,hh,x,hw,z,hd))return true;
       }
       return false;
@@ -1127,6 +1167,7 @@
         }
         walls.sort((a,b)=>a.front-b.front);
         this.streetWalls=walls;
+        if(walls.length>=12)(this.wallGrid??=new WallGrid()).build(walls,v);
       }
     }
     drawCityAndWater(t){

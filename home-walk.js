@@ -124,5 +124,71 @@
     line([[328,112],[342,105],[350,104]],"#dda887",3);line([[379,136],[396,119],[409,112]],"#9d6d55",2);
     shape([[478,24],[600,0],[600,104],[526,115],[509,106]],"#a4614f");line([[509,29],[532,104]],"#d99773",3);
   }
-  window.BayWalkHome={Walk,home,route,key,read,keys};
+  const reel={id:"rabbit",title:"Rabbit Ears",credit:"Marisol Vale · Super 8, kitchen test",seconds:16};
+  const reelKey="sundownBay.valeReel.v1",stages=["","sleeve","screened","family","luna"];
+  function reelState(){
+    try{const s=localStorage.getItem(reelKey);return stages.includes(s)?s:"";}catch{return "";}
+  }
+  function keepReel(next){
+    const old=reelState();
+    if(!stages.includes(next)||stages.indexOf(old)>=3||stages.indexOf(next)<=stages.indexOf(old))return old;
+    try{localStorage.setItem(reelKey,next);}catch{}
+    return next;
+  }
+  function sleeve(canvas){
+    canvas.width=600;canvas.height=348;const c=canvas.getContext("2d");if(!c)return;
+    c.fillStyle="#465756";c.fillRect(0,0,600,348);
+    for(let i=0;i<17;i++){c.fillStyle=i%3?"#40514f":"#4b5a54";c.fillRect(0,i*22,600,2);}
+    c.save();c.translate(73,52);c.rotate(-.045);
+    c.fillStyle="#263d3c";c.fillRect(9,10,453,258);c.fillStyle="#dcc49a";c.fillRect(0,0,453,256);
+    c.strokeStyle="#ad9775";c.lineWidth=2;c.beginPath();c.moveTo(0,250);c.lineTo(220,89);c.lineTo(453,250);c.stroke();
+    c.fillStyle="#efe2b9";c.fillRect(28,25,395,147);c.fillStyle="#904a38";c.fillRect(28,25,395,6);
+    c.font="bold 15px monospace";c.fillText("STARLITE   /   CUSTOMER PRINT",47,59);
+    c.fillStyle="#34494a";c.font="italic bold 32px Georgia";c.fillText("Ada, this is the rabbit.",48,111);
+    c.font="italic 21px Georgia";c.fillText("Bay two. Bring the wagon.   M.",48,148);
+    c.font="12px monospace";c.fillStyle="#635844";c.fillText("50 FT.   •   SUPER 8   •   SILENT",48,219);
+    c.restore();
+  }
+  // Three cuts from one kitchen test. The close-up hides the hands until the
+  // wide shot reveals whose fingers make the rabbit's second ear.
+  function movie(c,t){
+    const oval=(x,y,rx,ry,color,angle=0)=>{c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,angle,0,Math.PI*2);c.fill();};
+    const stroke=(points,w,color)=>{c.strokeStyle=color;c.lineWidth=w;c.lineCap="round";c.beginPath();
+      c.moveTo(...points[0]);for(const p of points.slice(1))c.lineTo(...p);c.stroke();};
+    const shape=(points,color)=>{c.fillStyle=color;c.beginPath();c.moveTo(...points[0]);for(const p of points.slice(1))c.lineTo(...p);c.closePath();c.fill();};
+    c.save();c.fillStyle="#302d2b";c.fillRect(0,0,416,234);
+    const ending=t>=12.5,wide=t>=6.5&&!ending,ear=Math.sin(Math.max(0,t-2.1)*3.2)*.22;
+    c.translate(208+Math.sin(Math.floor(t*10)*1.9)*.55,117);c.scale(wide?.78:1.36,wide?.78:1.36);c.translate(-211,-102);
+    c.fillStyle="#956e4e";c.fillRect(-70,-75,560,390);
+    shape([[-4,-36],[398,-30],[415,213],[18,221]],"#e5c991");
+    stroke([[18,221],[160,207],[269,209],[415,213]],3,"#b59b70");
+    stroke([[59,-34],[67,43],[58,148],[70,216]],2,"#dac191");
+    for(const x of [55,327]){stroke([[x,-42],[x-3,-20]],7,"#6a4f3c");stroke([[x+2,-41],[x,-22]],2,"#b2855d");}
+    const hop=ending?Math.max(0,Math.sin((t-12.5)*5))*8:Math.sin(t*2.5)*1.3;
+    c.save();c.translate(201+(ending?(t-12.5)*18:0),105-hop);c.rotate(Math.sin(t*1.7)*.025);
+    const umbra="#514b45";
+    shape([[-94,62],[-48,25],[-27,2],[0,3],[16,21],[-42,58],[-90,81]],umbra);
+    oval(-2,6,28,20,umbra,-.28);oval(20,8,16,11,umbra,.15);oval(29,5,6,4,umbra);
+    stroke([[-7,-5],[-13,-32],[-15,-48]],12,umbra);
+    stroke([[5,-7],[9,-33],[20+ear*35,-46+Math.abs(ear)*20]],10,umbra);
+    oval(15,1,2,2,"#dec491");
+    c.restore();
+    if(wide){
+      // Marisol's sleeve, bent wrist and forefinger in the projector beam.
+      shape([[-66,217],[35,149],[64,182],[-2,259],[-66,271]],"#3a514e");
+      shape([[26,159],[48,137],[87,121],[106,100],[113,102],[105,121],[123,109],[130,113],[114,136],[90,149],[52,178]],"#b67d58");
+      stroke([[54,164],[85,143],[99,137]],2,"#895c48");
+      // The smaller hand reaches in from the other side to fold one ear.
+      const reach=Math.min(1,(t-6.5)/2.1),lift=Math.sin(t*3.2)*2;
+      c.save();c.translate((1-reach)*90,lift);
+      shape([[469,237],[414,194],[319,116],[267,92],[242,77],[224,65],[222,61],[227,59],[249,71],[238,57],[240,53],[246,54],[265,69],[286,78],[324,88],[429,173],[472,186]],"#cb966f");
+      shape([[432,167],[483,191],[482,257],[401,202]],"#964f45");c.restore();
+    }
+    c.restore();
+    if(t<2.5||ending){
+      c.fillStyle="#292b28";c.fillRect(0,201,416,33);c.textAlign="center";c.fillStyle="#f1dfb6";c.font="italic bold 16px Georgia";
+      c.fillText(ending?"“Leave that ear. That’s how you know it’s ours.”":"Vale kitchen test  /  Romy, age six",208,223);c.textAlign="start";
+    }
+  }
+  window.BayWalkHome={Walk,home,route,key,read,keys,reel,reelState,keepReel,sleeve,movie};
 })();
