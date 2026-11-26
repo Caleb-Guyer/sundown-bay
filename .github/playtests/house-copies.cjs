@@ -22,11 +22,14 @@ module.exports=async({js,send,tap,waitFor,shot,mode} )=>{
   await tap("KeyF");await watch("!!("+button("House Copies")+")");await js(button("House Copies")+".click();true");await watch(file+".run?.mask===0");
   await watch("d.cars?.length");await js("BayDriving.settle(d.cars[0]);Object.assign(d.cars[0],{x:149,z:-22.8,yaw:-.015});Object.assign(d.h,{x:151,z:-27});true");
   await tap("KeyE");await watch("d.car===d.cars[0]");
-  await js(`BayDriving.settle(d.car);Object.assign(d.car,{x:144,z:12,yaw:0,speed:7,vz:7});
+  await js(`BayDriving.settle(d.car);Object.assign(d.car,{x:144,z:12,yaw:0,speed:5.5,vz:5.5});
     const event=(type,code)=>dispatchEvent(new KeyboardEvent(type,{code,bubbles:true}));
-    event('keydown','KeyW');requestAnimationFrame(function pace(){
+    let gas=false;requestAnimationFrame(function pace(){
       if(!d.car){event('keyup','KeyW');return;}
-      if(d.car.z+d.car.vz*.76*.76<25.65){requestAnimationFrame(pace);return;}
+      // Hold a delivery pace so even a slow rendered frame samples the rack's catch window.
+      const nextGas=d.car.speed<5.5;
+      if(nextGas!==gas){event(nextGas?'keydown':'keyup','KeyW');gas=nextGas;}
+      if(d.car.z+d.car.vz*.76*.76<25.1){requestAnimationFrame(pace);return;}
       event('keydown','KeyB');event('keyup','KeyB');event('keyup','KeyW');
     });true`);
   await watch(file+".run?.mask===1");assert((await js(file+".run.points"))>=80);
