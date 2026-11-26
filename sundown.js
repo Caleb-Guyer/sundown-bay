@@ -38692,7 +38692,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const desk={x:134.65,z:-19.9,kind:"valet-stand",name:"Marlin Motor Court"};
   const keeper={x:133.1,z:-20.1,yaw:Math.PI/2};
   const berth={x:138.85,z:-20.4,yaw:Math.PI,dir:2};
-  const stalls=["A","B","C"].map((id,i)=>({id,x:111+i*5,z:-57.4,yaw:0}));
+  const stalls=["A","B","C"].map((id,i)=>({id,x:97.5+i*5,z:-57.4,yaw:0}));
   const stand={x:133.85,z:-20.1},lot=stalls[1],tau=2*Math.PI;
   const rackZ=1.26;
   const sea="#4f8885",bottle="#355b60",midnight="#314e53",foam="#a8c4ac",linen="#eddeba";
@@ -38709,6 +38709,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     {x:stand.x+.05,z:stand.z,w:3.83,d:5.02,bottom:2.79,top:3.36},
     {x:stand.x+1.86,z:stand.z,w:.21,d:4.32,bottom:3.13,top:4.14}
   ];
+  solid(lot,0,6.12,15.84,.44,6.45);
   for(const p of stalls)solid(p,0,3.55,1.62,.22,.25);
   const front=x=>(u,y)=>[x,y,u],floor=y=>(x,z)=>[x,y,z];
   function poly(g,p,points,color){
@@ -38797,7 +38798,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function parkingFloor(g){
     const p=floor(.113),a=floor(.118),paint=floor(.125),chalk="#d7c9a3";
     poly(g,p,[[-8.00,4.32],[7.92,4.27],[8.17,3.56],[8.17,-7.14],[-7.71,-7.14],[-8.08,-6.49]],"#828681");
-    poly(g,p,[[8.17,-3.64],[18.43,-3.64],[20.47,-5.23],[20.47,-7.14],[8.17,-7.14]],"#828681");
+    poly(g,p,[[-7.71,-7.14],[8.17,-7.14],[7.81,-9.58],[-7.28,-9.58]],"#828681");
     // Resurfaced spaces, the drive aisle seam and a square catch basin at the low point.
     for(const [x,c] of [[-5,"#757e7b"],[0,"#78807e"],[5,"#75807e"]])plate(g,a,x,.08,4.88,7.09,c);
     for(const x of [-7.49,-2.50,2.50,7.48]){
@@ -38818,8 +38819,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     plate(g,paint,-7.27,-5.44,.63,1.06,"#566460");
     for(let i=0;i<6;i++)plate(g,floor(.132),-7.27,-5.84+i*.16,.49,.052,"#89918a");
     const arrow=poly.bind(null,g,paint);
-    arrow([[12.0,-5.48],[14.15,-5.48],[14.15,-5.14],[12.0,-5.14]],"#c7bda0");
-    arrow([[12.05,-4.89],[11.22,-5.31],[12.05,-5.74]],"#c7bda0");
+    arrow([[-.18,-8.98],[.18,-8.98],[.18,-7.84],[-.18,-7.84]],"#c7bda0");
+    arrow([[-.52,-7.90],[0,-7.13],[.52,-7.90]],"#c7bda0");
   }
   function wheelStop(g){
     const x=.81;
@@ -38832,8 +38833,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const side of [-1,1])g.tri([side*x,.216,3.44],[side*x,.216,3.66],[side*(x-.06),.244,3.55],bone);
   }
   function parkingWall(g){
-    // Hand-painted on the windowless south elevation. All wall paint stays inside the
-    // original footprint, leaving the individual guest bays free of poles and signs.
+    // Painted plaster along the back of the three guest bays.
+    g.box(0,3.22,6.12,15.84,6.44,.44,"#bf947f");
     const wall=(x,h)=>[x,h,5.82],details=(x,h)=>[x,h,5.812],lettering=(x,h)=>[x,h,5.806];
     const rind="#c89079",teal="#66847d",tealShadow="#596e6d",chalk="#d8c1a1",glaze="#cba092";
     const cx=-4.0,h=4.5,r=1.76;
@@ -68065,7 +68066,7 @@ window.buildBayCity = function buildBayCity(g,water) {
 (() => {
   "use strict";
   const posts=[
-    {x:137.85,z:-11.7,dir:2,yaw:Math.PI,name:"Ocean Drive",stand:{x:136.35,z:-20.8}},
+    {x:137.85,z:-11.7,dir:2,yaw:Math.PI,name:"Ocean Drive",stand:{x:136.35,z:-16.3}},
     {x:5.35,z:48,dir:0,yaw:0,name:"Cine Luna",stand:{x:7.52,z:46.4}}
   ];
   const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
@@ -75593,7 +75594,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
     }
   }
-  const motelWalks=[[135.65,-17.35],[135.65,-22.74],[133.12,-21.72],[133.1,-18.55],[131,-17.2],[132,-52.9],[135.9,-54.3],[135.9,-63.1],[128.7,-59.8],[131.9,-60.1],[123.8,-53.7],[111,-53.7],[116,-53.7],[121,-53.7],[110,-63.5],[120,-63.5]].map(([x,z])=>({x,z}));
+  const motelWalks=[[135.65,-17.35],[135.65,-22.74],[133.12,-21.72],[133.1,-18.55],[131,-17.2],[132,-52.9],[135.9,-54.3],[135.9,-63.1],[128.7,-59.8],[131.9,-60.1],[125,-68.8],[111,-68.8],[109,-61.8],[96,-61.8],...BayValetPlaces.stalls.map(b=>[b.x-1.8,b.z-1])].map(([x,z])=>({x,z}));
   function motorWalkway(a,b,v){
     const parked=cars.filter(o=>o!==v&&!o.path&&Math.abs(o.speed)<.8&&o.x>Math.min(a.x,b.x)-3&&o.x<Math.max(a.x,b.x)+3&&o.z>Math.min(a.z,b.z)-3&&o.z<Math.max(a.z,b.z)+3);
     const bus=transit.bus;
@@ -75606,9 +75607,12 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   const courtPoint=(x,z)=>({x,z});
   function valetLegs(v,b,parking){
-    const lane=-63.15,berth=BayValetPlaces.berth,leg=BayMotorCourt.lotPath;
+    const lane=-69.6,berth=BayValetPlaces.berth,leg=BayMotorCourt.lotPath;
     if(parking){
       const way=[];
+      // A guest can leave a car in the wrong lettered bay before clocking off.
+      const wrong=BayValetPlaces.stalls.find(slot=>dist(v,slot)<3.8);
+      if(wrong){const out=courtPoint(v.x,wrong.z-6.1);return [leg(v,[out],true),leg(out,[courtPoint(b.x,out.z),b])];}
       if(dist(v,berth)>12&&!(v.z<berth.z&&v.z>lane-3&&Math.abs(v.x-berth.x)<3)){
         const curb=BayCab.streetStop(v,chase.road(v));
         if(curb)way.push(...BayCab.route({...curb,x:v.x,z:v.z},{...berth,z:-24}).pts.slice(1));
@@ -75617,10 +75621,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       else way.push(courtPoint(138.4,lane));
       way.push(courtPoint(b.x,lane),b);return [leg(v,way)];
     }
-    const back=courtPoint(b.x,lane);
+    const back=courtPoint(b.x,b.z-6.1);
     if(dist(v,b)>6)return [leg(v,[courtPoint(138.6,Math.min(v.z,-27)),berth])];
     // Take the northbound lane out of the lot. Turn at Tideway and return to the southbound loading curb.
-    const loop=[courtPoint(146.6,lane),courtPoint(146.6,-.6)];
+    const exitX=BayValetPlaces.stalls[2].x+1.2;
+    const loop=[courtPoint(exitX,back.z-.7),courtPoint(exitX,-74.48),courtPoint(146.6,-74.48),courtPoint(146.6,-.6)];
     for(let i=1;i<=6;i++){
       const a=Math.PI*i/6;loop.push(courtPoint(144+2.6*Math.cos(a),-.6+2.6*Math.sin(a)));
     }

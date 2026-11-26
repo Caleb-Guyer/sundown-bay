@@ -4931,7 +4931,7 @@
       }
     }
   }
-  const motelWalks=[[135.65,-17.35],[135.65,-22.74],[133.12,-21.72],[133.1,-18.55],[131,-17.2],[132,-52.9],[135.9,-54.3],[135.9,-63.1],[128.7,-59.8],[131.9,-60.1],[123.8,-53.7],[111,-53.7],[116,-53.7],[121,-53.7],[110,-63.5],[120,-63.5]].map(([x,z])=>({x,z}));
+  const motelWalks=[[135.65,-17.35],[135.65,-22.74],[133.12,-21.72],[133.1,-18.55],[131,-17.2],[132,-52.9],[135.9,-54.3],[135.9,-63.1],[128.7,-59.8],[131.9,-60.1],[125,-68.8],[111,-68.8],[109,-61.8],[96,-61.8],...BayValetPlaces.stalls.map(b=>[b.x-1.8,b.z-1])].map(([x,z])=>({x,z}));
   function motorWalkway(a,b,v){
     const parked=cars.filter(o=>o!==v&&!o.path&&Math.abs(o.speed)<.8&&o.x>Math.min(a.x,b.x)-3&&o.x<Math.max(a.x,b.x)+3&&o.z>Math.min(a.z,b.z)-3&&o.z<Math.max(a.z,b.z)+3);
     const bus=transit.bus;
@@ -4944,9 +4944,12 @@
   }
   const courtPoint=(x,z)=>({x,z});
   function valetLegs(v,b,parking){
-    const lane=-63.15,berth=BayValetPlaces.berth,leg=BayMotorCourt.lotPath;
+    const lane=-69.6,berth=BayValetPlaces.berth,leg=BayMotorCourt.lotPath;
     if(parking){
       const way=[];
+      // A guest can leave a car in the wrong lettered bay before clocking off.
+      const wrong=BayValetPlaces.stalls.find(slot=>dist(v,slot)<3.8);
+      if(wrong){const out=courtPoint(v.x,wrong.z-6.1);return [leg(v,[out],true),leg(out,[courtPoint(b.x,out.z),b])];}
       if(dist(v,berth)>12&&!(v.z<berth.z&&v.z>lane-3&&Math.abs(v.x-berth.x)<3)){
         const curb=BayCab.streetStop(v,chase.road(v));
         if(curb)way.push(...BayCab.route({...curb,x:v.x,z:v.z},{...berth,z:-24}).pts.slice(1));
@@ -4955,10 +4958,11 @@
       else way.push(courtPoint(138.4,lane));
       way.push(courtPoint(b.x,lane),b);return [leg(v,way)];
     }
-    const back=courtPoint(b.x,lane);
+    const back=courtPoint(b.x,b.z-6.1);
     if(dist(v,b)>6)return [leg(v,[courtPoint(138.6,Math.min(v.z,-27)),berth])];
     // Take the northbound lane out of the lot. Turn at Tideway and return to the southbound loading curb.
-    const loop=[courtPoint(146.6,lane),courtPoint(146.6,-.6)];
+    const exitX=BayValetPlaces.stalls[2].x+1.2;
+    const loop=[courtPoint(exitX,back.z-.7),courtPoint(exitX,-74.48),courtPoint(146.6,-74.48),courtPoint(146.6,-.6)];
     for(let i=1;i<=6;i++){
       const a=Math.PI*i/6;loop.push(courtPoint(144+2.6*Math.cos(a),-.6+2.6*Math.sin(a)));
     }
