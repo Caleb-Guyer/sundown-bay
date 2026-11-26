@@ -224,6 +224,22 @@
   function freezeSurface(surface){
     return surface.transferToImageBitmap?surface.transferToImageBitmap():surface;
   }
+  // Paint fixed scenery in the artist's local coordinates, shared across camera poses.
+  function scenerySheet(x,y,w,h,density,paint){
+    let image=null;
+    return function draw(c){
+      if(!image){
+        const surface=mapSurface(Math.ceil(w*density),Math.ceil(h*density)),ink=surface?.getContext("2d");
+        if(!ink){paint(c);return;}
+        const sx=surface.width/w,sy=surface.height/h;
+        ink.setTransform(sx,0,0,sy,-x*sx,-y*sy);
+        ink.lineJoin="round";ink.lineCap="butt";paint(ink);
+        image=freezeSurface(surface);paint=null;
+      }
+      c.drawImage(image,x,y,w,h);
+    };
+  }
+  window.BayMapSheet=scenerySheet;
   function staticImage(solids,street,roofs=false) {
     let group=staticLayers.get(solids);
     if(!group || group.count!==solids.length) {
@@ -377,25 +393,47 @@
     c.restore();
   }
   const trafficPrints=new Map(),printKinds=new Set(["coupe","cab","hatch","van","marea","cayo","estate","stepside"]);
+  const parkedSolenas=new WeakMap();
+  function parkedSolena(c,v,x,y,s,t){
+    if(s<3.5||s>16||v.speed||v.steer||v.lean||v.pitch||!v.hydraulic?.rest||v.doorAngle||v.passengerDoor||
+      v.damage||v.flatSide||v.reversing||v.indicator)return false;
+    const yaw=v.yaw||0,lit=v.brakes>.18||v.handbrake>.48;
+    let parked=parkedSolenas.get(v);
+    if(!parked||parked.yaw!==yaw||parked.paint!==v.color||parked.lit!==lit){
+      const body={kind:v.kind,color:v.color,yaw,brakes:lit?1:0};
+      // A parked Solena's chrome and roof have a world-space projection tied to its heading.
+      const draw=scenerySheet(-3.6,-3.6,7.2,7.2,24,ink=>{
+        ink.save();ink.scale(.1,.1);carSprite(ink,body,0,0,10,0);ink.restore();
+      });
+      parked={yaw,paint:v.color,lit,draw};parkedSolenas.set(v,parked);
+    }
+    c.save();c.translate(x,y);c.scale(s,s);parked.draw(c);c.restore();
+    BayStreetCars.map(c,v,x,y,s,t);return true;
+  }
   function drawTraffic(c,v,x,y,s,t,lowDetail){
+    if(lowDetail&&v.kind==="solena"&&parkedSolena(c,v,x,y,s,t))return true;
     // The flash, damage, steer and door poses still come from this exact car.
     // At dashboard-map scale only an unchanged body can use the shared print.
     if(!lowDetail||s<2||s>16||!printKinds.has(v.kind)||v.damage||v.hydraulic||v.flatSide||
       v.doorAngle||v.passengerDoor||v.reversing||v.indicator||Math.abs(v.steer||0)>.0001||BayStreetReactions.hornPulse(v,t)){
-      carSprite(c,v,x,y,s,t);return false;
+      carSprite(c,v,x,y,s,t);BayStreetCars.map(c,v,x,y,s,t);return false;
     }
-    const simple=s<3.5&&!!window.bayCoachwork?.(v.kind);
-    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit)+"/"+Number(simple);
+    // Registry lenses appear at 2.2 px/m, coachwork changes at 3.5, and mirrors and plates at 4.
+    const bodyScale=s<3.5&&window.bayCoachwork?.(v.kind)?3:20;
+    const liveTrim=!!(v.fmSticker||v.guestId||BayBoulevardLanes.flash(v,t));
+    const trimScale=liveTrim?0:s<2.2?2:s<4?3:8;
+    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit)+"/"+bodyScale+"/"+trimScale;
     let print=trafficPrints.get(key);
     if(!print){
       // Every eligible body and its shadow fit on this 3.2 by 6.4 metre sheet.
       print=mapSurface(64,128);const ink=print?.getContext("2d");
-      if(!ink){carSprite(c,v,x,y,s,t);return false;}
+      if(!ink){carSprite(c,v,x,y,s,t);BayStreetCars.map(c,v,x,y,s,t);return false;}
       // Choose the same trim as the vector painter at this camera distance,
       // while rasterizing its small silhouette with spare source resolution.
-      const artworkScale=simple?3:20;
-      ink.lineJoin="round";ink.translate(32,64);ink.scale(20/artworkScale,20/artworkScale);
-      carSprite(ink,{kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0},0,0,artworkScale,0);
+      ink.lineJoin="round";ink.translate(32,64);ink.scale(20/bodyScale,20/bodyScale);
+      const body={kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0};
+      carSprite(ink,body,0,0,bodyScale,0);
+      if(trimScale){ink.scale(bodyScale/trimScale,bodyScale/trimScale);BayStreetCars.map(ink,body,0,0,trimScale,0);}
       print=freezeSurface(print);
       if(trafficPrints.size>=56){
         const first=trafficPrints.keys().next().value;trafficPrints.get(first).close?.();trafficPrints.delete(first);
@@ -403,6 +441,7 @@
       trafficPrints.set(key,print);
     }
     c.save();c.translate(x,y);c.rotate(v.yaw||0);c.drawImage(print,-1.6*s,-3.2*s,3.2*s,6.4*s);c.restore();
+    if(liveTrim)BayStreetCars.map(c,v,x,y,s,t);
     return true;
   }
   window.BayMapTraffic={draw:drawTraffic};
@@ -1112,7 +1151,6 @@
       if(player && player.driving && Math.hypot(car.x-player.x,car.z-player.z)<.55) playerCar=car;
       if(street){
         BayMapTraffic.draw(ctx,car,x,y,s,streetTime,opt.lowDetail);
-        BayStreetCars.map(ctx,car,x,y,s,streetTime);
         if(car.cupNumber)BayCoastCupArt.mapCar(ctx,car,x,y,s);
         if(car.beatCar)BayOceanBeatArt.carMap(ctx,car,x,y,s,streetTime,car.beatLights);
         if(car.greenId)BayOnGreenArt.carMap(ctx,px,py,s,car,car.greenGesture||0);

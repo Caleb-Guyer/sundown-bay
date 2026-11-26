@@ -548,7 +548,7 @@
     rect(c,1.98,-.35,.079,.7,deep);rect(c,2.015,-.23,.03,.46,paper);
     for(const side of [-1,1])line(c,[[side*.23,.95],[side*.39,.95],[side*.39,.69]],"#dccda7",.046);
   }
-  function officePlan(c,service,t,night){
+  function officeBuilding(c){
     // A cutaway of the roof keeps the real service window, visitors' hands and passage readable from above.
     pierBoards((l,b,r,t,col)=>rect(c,l,-t,r-l,t-b,col),
       (x,z,X,Z,w,col)=>line(c,[[x,-z],[X,-Z]],col,w));
@@ -565,6 +565,13 @@
     rect(c,.488,-1.488,.188,.133,"#66515b");
     rect(c,-.529,-1.377,.237,.198,iron);rect(c,-.489,-1.331,.159,.148,butter);
     rect(c,-.376,-1.372,.247,.105,"#dbb58d");
+  }
+  let boothPrint;
+  function officePlan(c,service,t,night,lowDetail){
+    if(lowDetail){
+      boothPrint??=BayMapSheet(-7.5,-5.15,10.5,8.35,24,officeBuilding);
+      boothPrint(c);
+    }else officeBuilding(c);
     const a=strokeAt(service?.mags,t),trayY=-(1.156+.448*a.slide);
     rect(c,-.311,trayY-.122,.244,.244,deep);rect(c,-.291,trayY-.103,.206,.206,"#ceaa7d");
     rect(c,.071,-1.376,.169,.245,iron);
@@ -663,7 +670,7 @@
     const service=opt.boardwalk;
     if(opt.mode!=="street")return;
     const t=opt.time??opt.elapsed??0,night=opt.weather?.night||0;
-    if(visible(px(booth.x),py(booth.z),9*s))planAt(c,booth,px,py,s,ctx=>officePlan(ctx,service,t,night));
+    if(visible(px(booth.x),py(booth.z),9*s))planAt(c,booth,px,py,s,ctx=>officePlan(ctx,service,t,night,opt.lowDetail&&s<=16));
     for(const [p,isPier] of [[places.marlin,false],[places.north,true]])
       if(visible(px(p.x),py(p.z),3*s))planAt(c,p,px,py,s,ctx=>rackPlan(ctx,isPier));
     function draw(p){

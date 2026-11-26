@@ -544,9 +544,32 @@
     }
     c.restore();
   }
+  let stoppedPrint;
+  function drawStopped(c,opt,px,py,s,ride){
+    if(!opt.lowDetail||s>16||!ride.stopped||(ride.gateOpen!==1&&ride.gateOpen!==0))return false;
+    // The boardwalk draws its people separately at their moving seat positions.
+    // Other riders can be painted inside a cabin, interleaved with the spokes.
+    for(const row of ride.seats||[])for(const who of row||[]){
+      if(who==null)continue;
+      const id=String(who.id??who);
+      if(id==="player"?!opt.boardwalk?.player:!opt.boardwalk?.people?.some(p=>p.id===id))return false;
+    }
+    const night=opt.weather?.night||opt.dusk||0,lamps=night>.27?3:night>.24?2:night>.18?1:0;
+    const density=s<7?8:s<10?14:22;
+    if(!stoppedPrint||stoppedPrint.angle!==ride.angle||stoppedPrint.open!==ride.gateOpen||
+      stoppedPrint.loading!==ride.loading||stoppedPrint.lamps!==lamps||stoppedPrint.density!==density){
+      const draw=BayMapSheet(-11,-15,25,32,density,ink=>{
+        streetMap(ink,opt,x=>x-centre.x,z=>centre.z-z,1,()=>true,ride);
+      });
+      stoppedPrint={angle:ride.angle,open:ride.gateOpen,loading:ride.loading,lamps,density,draw};
+    }
+    c.save();c.translate(px(centre.x),py(centre.z));c.scale(s,s);stoppedPrint.draw(c);c.restore();
+    return true;
+  }
   function map(c,opt,px,py,s,visible){
     if(opt.mode==="street"){
-      if(opt.wheel)streetMap(c,opt,px,py,s,visible,opt.wheel);
+      if(opt.wheel&&visible(px(centre.x),py(centre.z),19*s)&&!drawStopped(c,opt,px,py,s,opt.wheel))
+        streetMap(c,opt,px,py,s,visible,opt.wheel);
     }else chart(c,opt,px,py,s,visible);
   }
   window.BayCoastWheelArt={install,world,map,mapPoint,floor,blocks,centre,gate,cabin,seat,seatY};

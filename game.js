@@ -4247,6 +4247,7 @@
         if(index>=0)projectionStart=streetTime+.48-bill.slice(0,index).reduce((sum,r)=>sum+r.seconds,0);
         if(reel===BayFeaturePrint.reel.id&&index>=0){
           room.reader=new BayFeaturePrint.Reader(streetTime);
+          if($("toast").children[0].textContent==="Hold It There")$("toast").hidden=true;
           speak("Ada Soler","My dad is easy to spot. It’s the gate I want people to see. Pick me a before and an after.");
         }
         room.cuedReel=null;

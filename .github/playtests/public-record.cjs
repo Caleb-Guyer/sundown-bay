@@ -141,6 +141,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         else if(p.scale<=16){assert(p.cached.drawImage>=9&&p.original.stroke-p.cached.stroke>190);}
         else assert.deepEqual(p.cached,p.original);
       }
+      const scenery=await js("("+require("./street-scenery.cjs").toString()+")()");
+      console.log("PERF overhead scenery",JSON.stringify(scenery));
+      for(const p of scenery){
+        assert(p.ink>20&&p.overlap>.90&&p.error<17,"Street scenery ink "+p.name+" at "+p.scale+": "+JSON.stringify(p));
+        assert(p.to<p.from*.68,"Street scenery command count "+p.name);
+      }
       const roof=await js("("+require("./motel-roof.cjs").toString()+")()");
       console.log("PERF motel roof",JSON.stringify(roof));
       for(const p of roof){

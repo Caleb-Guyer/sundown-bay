@@ -15113,6 +15113,22 @@ window.buildBayCity = function buildBayCity(g,water) {
   function freezeSurface(surface){
     return surface.transferToImageBitmap?surface.transferToImageBitmap():surface;
   }
+  // Paint fixed scenery in the artist's local coordinates, shared across camera poses.
+  function scenerySheet(x,y,w,h,density,paint){
+    let image=null;
+    return function draw(c){
+      if(!image){
+        const surface=mapSurface(Math.ceil(w*density),Math.ceil(h*density)),ink=surface?.getContext("2d");
+        if(!ink){paint(c);return;}
+        const sx=surface.width/w,sy=surface.height/h;
+        ink.setTransform(sx,0,0,sy,-x*sx,-y*sy);
+        ink.lineJoin="round";ink.lineCap="butt";paint(ink);
+        image=freezeSurface(surface);paint=null;
+      }
+      c.drawImage(image,x,y,w,h);
+    };
+  }
+  window.BayMapSheet=scenerySheet;
   function staticImage(solids,street,roofs=false) {
     let group=staticLayers.get(solids);
     if(!group || group.count!==solids.length) {
@@ -15266,25 +15282,47 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.restore();
   }
   const trafficPrints=new Map(),printKinds=new Set(["coupe","cab","hatch","van","marea","cayo","estate","stepside"]);
+  const parkedSolenas=new WeakMap();
+  function parkedSolena(c,v,x,y,s,t){
+    if(s<3.5||s>16||v.speed||v.steer||v.lean||v.pitch||!v.hydraulic?.rest||v.doorAngle||v.passengerDoor||
+      v.damage||v.flatSide||v.reversing||v.indicator)return false;
+    const yaw=v.yaw||0,lit=v.brakes>.18||v.handbrake>.48;
+    let parked=parkedSolenas.get(v);
+    if(!parked||parked.yaw!==yaw||parked.paint!==v.color||parked.lit!==lit){
+      const body={kind:v.kind,color:v.color,yaw,brakes:lit?1:0};
+      // A parked Solena's chrome and roof have a world-space projection tied to its heading.
+      const draw=scenerySheet(-3.6,-3.6,7.2,7.2,24,ink=>{
+        ink.save();ink.scale(.1,.1);carSprite(ink,body,0,0,10,0);ink.restore();
+      });
+      parked={yaw,paint:v.color,lit,draw};parkedSolenas.set(v,parked);
+    }
+    c.save();c.translate(x,y);c.scale(s,s);parked.draw(c);c.restore();
+    BayStreetCars.map(c,v,x,y,s,t);return true;
+  }
   function drawTraffic(c,v,x,y,s,t,lowDetail){
+    if(lowDetail&&v.kind==="solena"&&parkedSolena(c,v,x,y,s,t))return true;
     // The flash, damage, steer and door poses still come from this exact car.
     // At dashboard-map scale only an unchanged body can use the shared print.
     if(!lowDetail||s<2||s>16||!printKinds.has(v.kind)||v.damage||v.hydraulic||v.flatSide||
       v.doorAngle||v.passengerDoor||v.reversing||v.indicator||Math.abs(v.steer||0)>.0001||BayStreetReactions.hornPulse(v,t)){
-      carSprite(c,v,x,y,s,t);return false;
+      carSprite(c,v,x,y,s,t);BayStreetCars.map(c,v,x,y,s,t);return false;
     }
-    const simple=s<3.5&&!!window.bayCoachwork?.(v.kind);
-    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit)+"/"+Number(simple);
+    // Registry lenses appear at 2.2 px/m, coachwork changes at 3.5, and mirrors and plates at 4.
+    const bodyScale=s<3.5&&window.bayCoachwork?.(v.kind)?3:20;
+    const liveTrim=!!(v.fmSticker||v.guestId||BayBoulevardLanes.flash(v,t));
+    const trimScale=liveTrim?0:s<2.2?2:s<4?3:8;
+    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit)+"/"+bodyScale+"/"+trimScale;
     let print=trafficPrints.get(key);
     if(!print){
       // Every eligible body and its shadow fit on this 3.2 by 6.4 metre sheet.
       print=mapSurface(64,128);const ink=print?.getContext("2d");
-      if(!ink){carSprite(c,v,x,y,s,t);return false;}
+      if(!ink){carSprite(c,v,x,y,s,t);BayStreetCars.map(c,v,x,y,s,t);return false;}
       // Choose the same trim as the vector painter at this camera distance,
       // while rasterizing its small silhouette with spare source resolution.
-      const artworkScale=simple?3:20;
-      ink.lineJoin="round";ink.translate(32,64);ink.scale(20/artworkScale,20/artworkScale);
-      carSprite(ink,{kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0},0,0,artworkScale,0);
+      ink.lineJoin="round";ink.translate(32,64);ink.scale(20/bodyScale,20/bodyScale);
+      const body={kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0};
+      carSprite(ink,body,0,0,bodyScale,0);
+      if(trimScale){ink.scale(bodyScale/trimScale,bodyScale/trimScale);BayStreetCars.map(ink,body,0,0,trimScale,0);}
       print=freezeSurface(print);
       if(trafficPrints.size>=56){
         const first=trafficPrints.keys().next().value;trafficPrints.get(first).close?.();trafficPrints.delete(first);
@@ -15292,6 +15330,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       trafficPrints.set(key,print);
     }
     c.save();c.translate(x,y);c.rotate(v.yaw||0);c.drawImage(print,-1.6*s,-3.2*s,3.2*s,6.4*s);c.restore();
+    if(liveTrim)BayStreetCars.map(c,v,x,y,s,t);
     return true;
   }
   window.BayMapTraffic={draw:drawTraffic};
@@ -16001,7 +16040,6 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(player && player.driving && Math.hypot(car.x-player.x,car.z-player.z)<.55) playerCar=car;
       if(street){
         BayMapTraffic.draw(ctx,car,x,y,s,streetTime,opt.lowDetail);
-        BayStreetCars.map(ctx,car,x,y,s,streetTime);
         if(car.cupNumber)BayCoastCupArt.mapCar(ctx,car,x,y,s);
         if(car.beatCar)BayOceanBeatArt.carMap(ctx,car,x,y,s,streetTime,car.beatLights);
         if(car.greenId)BayOnGreenArt.carMap(ctx,px,py,s,car,car.greenGesture||0);
@@ -36123,9 +36161,32 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     c.restore();
   }
+  let stoppedPrint;
+  function drawStopped(c,opt,px,py,s,ride){
+    if(!opt.lowDetail||s>16||!ride.stopped||(ride.gateOpen!==1&&ride.gateOpen!==0))return false;
+    // The boardwalk draws its people separately at their moving seat positions.
+    // Other riders can be painted inside a cabin, interleaved with the spokes.
+    for(const row of ride.seats||[])for(const who of row||[]){
+      if(who==null)continue;
+      const id=String(who.id??who);
+      if(id==="player"?!opt.boardwalk?.player:!opt.boardwalk?.people?.some(p=>p.id===id))return false;
+    }
+    const night=opt.weather?.night||opt.dusk||0,lamps=night>.27?3:night>.24?2:night>.18?1:0;
+    const density=s<7?8:s<10?14:22;
+    if(!stoppedPrint||stoppedPrint.angle!==ride.angle||stoppedPrint.open!==ride.gateOpen||
+      stoppedPrint.loading!==ride.loading||stoppedPrint.lamps!==lamps||stoppedPrint.density!==density){
+      const draw=BayMapSheet(-11,-15,25,32,density,ink=>{
+        streetMap(ink,opt,x=>x-centre.x,z=>centre.z-z,1,()=>true,ride);
+      });
+      stoppedPrint={angle:ride.angle,open:ride.gateOpen,loading:ride.loading,lamps,density,draw};
+    }
+    c.save();c.translate(px(centre.x),py(centre.z));c.scale(s,s);stoppedPrint.draw(c);c.restore();
+    return true;
+  }
   function map(c,opt,px,py,s,visible){
     if(opt.mode==="street"){
-      if(opt.wheel)streetMap(c,opt,px,py,s,visible,opt.wheel);
+      if(opt.wheel&&visible(px(centre.x),py(centre.z),19*s)&&!drawStopped(c,opt,px,py,s,opt.wheel))
+        streetMap(c,opt,px,py,s,visible,opt.wheel);
     }else chart(c,opt,px,py,s,visible);
   }
   window.BayCoastWheelArt={install,world,map,mapPoint,floor,blocks,centre,gate,cabin,seat,seatY};
@@ -36683,7 +36744,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     rect(c,1.98,-.35,.079,.7,deep);rect(c,2.015,-.23,.03,.46,paper);
     for(const side of [-1,1])line(c,[[side*.23,.95],[side*.39,.95],[side*.39,.69]],"#dccda7",.046);
   }
-  function officePlan(c,service,t,night){
+  function officeBuilding(c){
     // A cutaway of the roof keeps the real service window, visitors' hands and passage readable from above.
     pierBoards((l,b,r,t,col)=>rect(c,l,-t,r-l,t-b,col),
       (x,z,X,Z,w,col)=>line(c,[[x,-z],[X,-Z]],col,w));
@@ -36700,6 +36761,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     rect(c,.488,-1.488,.188,.133,"#66515b");
     rect(c,-.529,-1.377,.237,.198,iron);rect(c,-.489,-1.331,.159,.148,butter);
     rect(c,-.376,-1.372,.247,.105,"#dbb58d");
+  }
+  let boothPrint;
+  function officePlan(c,service,t,night,lowDetail){
+    if(lowDetail){
+      boothPrint??=BayMapSheet(-7.5,-5.15,10.5,8.35,24,officeBuilding);
+      boothPrint(c);
+    }else officeBuilding(c);
     const a=strokeAt(service?.mags,t),trayY=-(1.156+.448*a.slide);
     rect(c,-.311,trayY-.122,.244,.244,deep);rect(c,-.291,trayY-.103,.206,.206,"#ceaa7d");
     rect(c,.071,-1.376,.169,.245,iron);
@@ -36798,7 +36866,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const service=opt.boardwalk;
     if(opt.mode!=="street")return;
     const t=opt.time??opt.elapsed??0,night=opt.weather?.night||0;
-    if(visible(px(booth.x),py(booth.z),9*s))planAt(c,booth,px,py,s,ctx=>officePlan(ctx,service,t,night));
+    if(visible(px(booth.x),py(booth.z),9*s))planAt(c,booth,px,py,s,ctx=>officePlan(ctx,service,t,night,opt.lowDetail&&s<=16));
     for(const [p,isPier] of [[places.marlin,false],[places.north,true]])
       if(visible(px(p.x),py(p.z),3*s))planAt(c,p,px,py,s,ctx=>rackPlan(ctx,isPier));
     function draw(p){
@@ -57790,7 +57858,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const x=opt.player?.x??opt.cx,z=opt.player?.z??opt.cz;
     return Math.hypot(x-nico.x,z-nico.z)<6.65;
   }
-  function plan(ctx,detail,state,open){
+  function lotPlan(ctx,detail){
     mapShape(ctx,lotOutline,c.asphalt);mapShape(ctx,[[133.60,53.78],[138.27,54.96],[138.27,59.63],[133.70,60.9]],"#bdb4a1");
     mapShape(ctx,[[104.2,63.86],[108.63,63.85],[113.83,66.20],[110.16,66.20]],c.asphalt);
     mapRect(ctx,pad.x,pad.z,8.65,3.98,c.repair);
@@ -57821,6 +57889,13 @@ window.buildBayCity = function buildBayCity(g,water) {
       mapRect(ctx,112.52,62.73,.67,.42,c.rose);mapRect(ctx,112.52,62.73,.61,.36,c.ivory);
     }
     mapDot(ctx,gauge.x,gauge.z,.25,c.redDark);mapRect(ctx,gauge.x,gauge.z,.19,.27,c.ivory);
+  }
+  let lotPrint;
+  function plan(ctx,detail,state,open,lowDetail){
+    if(detail&&lowDetail){
+      lotPrint??=BayMapSheet(101.9,47.8,37,19,20,c=>lotPlan(c,true));
+      lotPrint(ctx);
+    }else lotPlan(ctx,detail);
     for(let i=0;i<3;i++)mapDot(ctx,gauge.x-.27+i*.18,gauge.z+.17,.061,lightOn(state.lights,i)?c.pale:c.brass);
     if(open){
       for(const x of [127.77,131.23])for(const z of [60.60,63.13])mapDot(ctx,x,z,.065,c.light);
@@ -57847,7 +57922,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function map(ctx,opt,px,py,s,visible,t=0){
     const streetView=opt.mode==="street",atlas=opt.mode==="atlas",state=opt.brisas||{};
     if(atlas&&(opt.countyChart||opt.marina?.bayChart)||!visible(px(site.center.x),py(site.center.z),21*s+10))return;
-    ctx.save();ctx.translate(px(0),py(0));ctx.scale(s,-s);plan(ctx,streetView&&s>3,state,streetView&&openTent(opt));ctx.restore();
+    ctx.save();ctx.translate(px(0),py(0));ctx.scale(s,-s);plan(ctx,streetView&&s>3,state,streetView&&openTent(opt),streetView&&opt.lowDetail&&s<=16);ctx.restore();
     if(!streetView)pin(ctx,px(desk.x),py(desk.z),atlas?1.10:.82,atlas);
   }
   function mapActors(ctx,opt,px,py,s,visible,t=0){
@@ -74821,6 +74896,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(index>=0)projectionStart=streetTime+.48-bill.slice(0,index).reduce((sum,r)=>sum+r.seconds,0);
         if(reel===BayFeaturePrint.reel.id&&index>=0){
           room.reader=new BayFeaturePrint.Reader(streetTime);
+          if($("toast").children[0].textContent==="Hold It There")$("toast").hidden=true;
           speak("Ada Soler","My dad is easy to spot. It’s the gate I want people to see. Pick me a before and an after.");
         }
         room.cuedReel=null;

@@ -522,7 +522,7 @@
     const x=opt.player?.x??opt.cx,z=opt.player?.z??opt.cz;
     return Math.hypot(x-nico.x,z-nico.z)<6.65;
   }
-  function plan(ctx,detail,state,open){
+  function lotPlan(ctx,detail){
     mapShape(ctx,lotOutline,c.asphalt);mapShape(ctx,[[133.60,53.78],[138.27,54.96],[138.27,59.63],[133.70,60.9]],"#bdb4a1");
     mapShape(ctx,[[104.2,63.86],[108.63,63.85],[113.83,66.20],[110.16,66.20]],c.asphalt);
     mapRect(ctx,pad.x,pad.z,8.65,3.98,c.repair);
@@ -553,6 +553,13 @@
       mapRect(ctx,112.52,62.73,.67,.42,c.rose);mapRect(ctx,112.52,62.73,.61,.36,c.ivory);
     }
     mapDot(ctx,gauge.x,gauge.z,.25,c.redDark);mapRect(ctx,gauge.x,gauge.z,.19,.27,c.ivory);
+  }
+  let lotPrint;
+  function plan(ctx,detail,state,open,lowDetail){
+    if(detail&&lowDetail){
+      lotPrint??=BayMapSheet(101.9,47.8,37,19,20,c=>lotPlan(c,true));
+      lotPrint(ctx);
+    }else lotPlan(ctx,detail);
     for(let i=0;i<3;i++)mapDot(ctx,gauge.x-.27+i*.18,gauge.z+.17,.061,lightOn(state.lights,i)?c.pale:c.brass);
     if(open){
       for(const x of [127.77,131.23])for(const z of [60.60,63.13])mapDot(ctx,x,z,.065,c.light);
@@ -579,7 +586,7 @@
   function map(ctx,opt,px,py,s,visible,t=0){
     const streetView=opt.mode==="street",atlas=opt.mode==="atlas",state=opt.brisas||{};
     if(atlas&&(opt.countyChart||opt.marina?.bayChart)||!visible(px(site.center.x),py(site.center.z),21*s+10))return;
-    ctx.save();ctx.translate(px(0),py(0));ctx.scale(s,-s);plan(ctx,streetView&&s>3,state,streetView&&openTent(opt));ctx.restore();
+    ctx.save();ctx.translate(px(0),py(0));ctx.scale(s,-s);plan(ctx,streetView&&s>3,state,streetView&&openTent(opt),streetView&&opt.lowDetail&&s<=16);ctx.restore();
     if(!streetView)pin(ctx,px(desk.x),py(desk.z),atlas?1.10:.82,atlas);
   }
   function mapActors(ctx,opt,px,py,s,visible,t=0){
