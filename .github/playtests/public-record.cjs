@@ -124,7 +124,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       console.log("PERF Coast Wheel",JSON.stringify(wheel));
       for(const p of wheel){
         assert(p.overlap>.96&&p.error<6,"Coast Wheel ink at scale "+p.scale);
-        if(p.scale<=16){assert(p.cached.drawImage>=9&&p.original.stroke-p.cached.stroke>130);}
+        if(p.scale<10){assert.equal(p.cached.drawImage,0);assert(p.original.stroke-p.cached.stroke>=60);}
+        else if(p.scale<=16){assert(p.cached.drawImage>=9&&p.original.stroke-p.cached.stroke>190);}
         else assert.deepEqual(p.cached,p.original);
       }
       const roof=await js("("+require("./motel-roof.cjs").toString()+")()");

@@ -1,7 +1,7 @@
 // Compare the two painters at the same wheel angle, with occupied cars and a moving gate.
 module.exports=function compareWheel(){
   const w=400,h=400,results=[];
-  for(const [scale,angle,open,night] of [[3.8,.15,0,0],[6,.86,1,.92],[13,1.3,.55,.64],[17,2.1,.2,.9]]){
+  for(const [scale,angle,open,night] of [[3.8,.15,0,0],[6,.86,1,.92],[10,.46,1,.19],[13,1.3,.55,.64],[17,2.1,.2,.9]]){
     function render(lowDetail){
       const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
       const c=canvas.getContext("2d",{willReadFrequently:true}),calls={drawImage:0,fill:0,stroke:0};

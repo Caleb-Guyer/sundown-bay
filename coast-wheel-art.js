@@ -425,39 +425,10 @@
       wheelLine(c,at(part[j-1]),at(part[j]),.038,ivory);
     }
   }
-  function streetMap(c,opt,px,py,s,visible,ride){
-    if(!visible(px(centre.x),py(centre.z),19*s))return;
-    const angle=ride.angle||0,open=clamp(ride.gateOpen||0,0,1),night=opt.weather?.night||opt.dusk||0;
-    c.save();c.translate(px(centre.x),py(centre.z));c.scale(s,-s);c.lineCap="round";c.lineJoin="round";
-    const point=(x,h,z)=>[x+.33*h,z+.13*h],volume=(x,h,z)=>h-.33*x-.13*z;
-    const line=(a,b,w,col)=>wheelLine(c,a,b,w,col),poly=(a,col)=>wheelPoly(c,a,col),dot=(p,r,col)=>wheelDot(c,p,r,col);
-    function box(x0,z0,x1,z1,h,col){poly([point(x0,h,z0),point(x1,h,z0),point(x1,h,z1),point(x0,h,z1)],col);}
-    const rim=(x,r,a)=>[x,centre.y-r*Math.cos(a),r*Math.sin(a)];
-    const shadeAt=p=>[p[0]-.21*p[1],p[2]-.17*p[1]];
-    for(const side of [-1,1])for(let i=0;i<24;i++){
-      const a=angle+i*tau/24;
-      line(shadeAt(rim(side*2.12,radius,a)),shadeAt(rim(side*2.12,radius,a+tau/24)),.28,"rgba(64,66,63,.19)");
-    }
-    for(let i=0;i<8;i++){
-      const p=cabin(ride,i),x=-.21*p.floor,z=p.z-centre.z-.17*p.floor;
-      box(x-1.67,z-.75,x+1.67,z+.75,0,"rgba(63,64,56,.19)");
-    }
-    const x0=rampStart-centre.x,x1=rampEnd-centre.x,x2=platformEnd-centre.x;
-    const h=x=>mix(.036,gate.y,clamp((x-x0)/(x1-x0),0,1));
-    for(const [a,b] of [[x0,x1],[x1,x2]]){
-      poly([point(a,h(a),-1.36),point(b,h(b),-1.36),point(b,h(b),1.36),point(a,h(a),1.36)],"#b6a083");
-      for(let x=a+.1;x<b;x+=.36)line(point(x,h(x),-1.34),point(x,h(x),1.34),.046,"#897f6b");
-      for(const side of [-1,1])line(point(a,h(a)+.91,side*1.40),point(b,h(b)+.91,side*1.40),.11,ivory);
-    }
-    for(const side of [-1,1]){
-      line(point(-3.77,1.18,side*1.65),point(-3.77,1.18,side*11.8),.12,blue);
-      line(point(-3.77,1.18,side*11.8),point(4.41,1.18,side*11.8),.12,blue);
-      const gx=gate.x-centre.x,gy=gate.y+1.06,gz=side*1.26,yaw=-side*1.47*open;
-      line(point(gx,gy,gz),point(gx-side*1.17*Math.sin(yaw),gy,gz-side*1.17*Math.cos(yaw)),.13,ivory);
-      dot(point(gx,gy,gz),.103,iron);
-    }
-    line(point(4.41,1.18,-11.8),point(4.41,1.18,11.8),.13,blue);
-    box(2.94,-3.62,4.28,-2.02,1.23,iron);box(-4.14,-1.67,-3.77,-1.34,2.50,blue);
+  let parkedRim=null;
+  function rimPieces(ride,angle,night,point,volume,rim,grouped){
+    const lamps=night>.27?2:night>.18?1:0;
+    if(grouped&&parkedRim?.angle===angle&&parkedRim.lamps===lamps)return parkedRim.pieces;
     // Sort short sections also where the rim passes in front of the A-frames and the lower cars.
     const pieces=[];
     function beam(a,b,width,col,passes=1){
@@ -469,7 +440,6 @@
     function bulb(p,r,col){pieces.push({depth:volume(...p)+.07,p:point(...p),r,col});}
     for(const side of [-1,1]){
       for(const end of [-1,1]){
-        box(side*3.81-.76,end*6.98-.87,side*3.81+.76,end*6.98+.87,.51,"#9d9d89");
         const base=[side*3.81,.53,end*6.98],top=[side*2.48,centre.y,0];
         beam(base,top,.48,blue,5);
       }
@@ -489,7 +459,59 @@
     }
     beam([-2.89,centre.y,0],[2.89,centre.y,0],.47,ink);
     for(const side of [-1,1])pieces.push({depth:volume(side*2.99,centre.y,0),crest:side});
-    const usePrints=opt.lowDetail&&s<=16;
+    pieces.sort((a,b)=>a.depth-b.depth);
+    if(grouped)parkedRim={angle,lamps,pieces};
+    return pieces;
+  }
+  function streetMap(c,opt,px,py,s,visible,ride){
+    if(!visible(px(centre.x),py(centre.z),19*s))return;
+    const angle=ride.angle||0,open=clamp(ride.gateOpen||0,0,1),night=opt.weather?.night||opt.dusk||0;
+    c.save();c.translate(px(centre.x),py(centre.z));c.scale(s,-s);c.lineCap="round";c.lineJoin="round";
+    const point=(x,h,z)=>[x+.33*h,z+.13*h],volume=(x,h,z)=>h-.33*x-.13*z;
+    const line=(a,b,w,col)=>wheelLine(c,a,b,w,col),poly=(a,col)=>wheelPoly(c,a,col),dot=(p,r,col)=>wheelDot(c,p,r,col);
+    function box(x0,z0,x1,z1,h,col){poly([point(x0,h,z0),point(x1,h,z0),point(x1,h,z1),point(x0,h,z1)],col);}
+    const rim=(x,r,a)=>[x,centre.y-r*Math.cos(a),r*Math.sin(a)];
+    const shadeAt=p=>[p[0]-.21*p[1],p[2]-.17*p[1]];
+    const grouped=opt.lowDetail&&s<=16;
+    for(const side of [-1,1]){
+      if(grouped)c.beginPath();
+      for(let i=0;i<24;i++){
+        const a=angle+i*tau/24,start=shadeAt(rim(side*2.12,radius,a)),end=shadeAt(rim(side*2.12,radius,a+tau/24));
+        if(grouped){if(i===0)c.moveTo(...start);c.lineTo(...end);}
+        else line(start,end,.28,"rgba(64,66,63,.19)");
+      }
+      if(grouped){c.closePath();c.lineWidth=.28;c.strokeStyle="rgba(64,66,63,.19)";c.stroke();}
+    }
+    for(let i=0;i<8;i++){
+      const p=cabin(ride,i),x=-.21*p.floor,z=p.z-centre.z-.17*p.floor;
+      box(x-1.67,z-.75,x+1.67,z+.75,0,"rgba(63,64,56,.19)");
+    }
+    const x0=rampStart-centre.x,x1=rampEnd-centre.x,x2=platformEnd-centre.x;
+    const h=x=>mix(.036,gate.y,clamp((x-x0)/(x1-x0),0,1));
+    for(const [a,b] of [[x0,x1],[x1,x2]]){
+      poly([point(a,h(a),-1.36),point(b,h(b),-1.36),point(b,h(b),1.36),point(a,h(a),1.36)],"#b6a083");
+      if(grouped)c.beginPath();
+      for(let x=a+.1;x<b;x+=.36){
+        const start=point(x,h(x),-1.34),end=point(x,h(x),1.34);
+        if(grouped){c.moveTo(...start);c.lineTo(...end);}else line(start,end,.046,"#897f6b");
+      }
+      if(grouped){c.lineWidth=.046;c.strokeStyle="#897f6b";c.stroke();}
+      for(const side of [-1,1])line(point(a,h(a)+.91,side*1.40),point(b,h(b)+.91,side*1.40),.11,ivory);
+    }
+    for(const side of [-1,1]){
+      line(point(-3.77,1.18,side*1.65),point(-3.77,1.18,side*11.8),.12,blue);
+      line(point(-3.77,1.18,side*11.8),point(4.41,1.18,side*11.8),.12,blue);
+      const gx=gate.x-centre.x,gy=gate.y+1.06,gz=side*1.26,yaw=-side*1.47*open;
+      line(point(gx,gy,gz),point(gx-side*1.17*Math.sin(yaw),gy,gz-side*1.17*Math.cos(yaw)),.13,ivory);
+      dot(point(gx,gy,gz),.103,iron);
+    }
+    line(point(4.41,1.18,-11.8),point(4.41,1.18,11.8),.13,blue);
+    box(2.94,-3.62,4.28,-2.02,1.23,iron);box(-4.14,-1.67,-3.77,-1.34,2.50,blue);
+    for(const side of [-1,1])for(const end of [-1,1])box(side*3.81-.76,end*6.98-.87,side*3.81+.76,end*6.98+.87,.51,"#9d9d89");
+    const pieces=rimPieces(ride,angle,night,point,volume,rim,grouped);
+    // At road zoom, the sign lettering and gate rails take up less than a pixel.
+    // Stroke them at the final resolution so they keep their coverage as the camera moves.
+    const usePrints=grouped&&s>=10;
     function drawCrest(side){
       const at=point(side*2.99,centre.y,0);c.save();c.translate(...at);
       if(usePrints)partPrint(c,"crest"+side,crestSheet,crestPrint,side,0);else crestPrint(c,side);
@@ -514,7 +536,6 @@
       }
       if(night>.24)dot(P(1.55,1.74,0),.078,"#ffdc95");
     }
-    pieces.sort((a,b)=>a.depth-b.depth);
     for(const e of pieces){
       if(e.car!==undefined)drawCar(e.car,e.z,e.y);
       else if(e.crest)drawCrest(e.crest);
