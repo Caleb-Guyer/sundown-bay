@@ -508,6 +508,8 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .chapter-caption span{font:500 clamp(13px,2.45vh,23px)/1.25 system-ui,sans-serif}
 #chapterSkip{position:absolute;right:3%;top:2%;pointer-events:auto;padding:3px 8px;border:0;color:#ddd5c5;background:#13191b;font:500 12px/1.3 system-ui,sans-serif}
 #chapterSkip kbd{margin-left:5px;color:#f4cb8c}
+#gloveLatch{position:absolute;pointer-events:auto;right:4%;bottom:17%;border:1px solid #b7a581;border-radius:3px;background:#1b2425;color:#f6e6c9;padding:.5em .8em;font:600 14px/1.2 system-ui,sans-serif}
+#gloveLatch kbd{color:#f0c17e;margin-left:.4em}
 #roadChoices{position:absolute;inset:0 12% auto;min-height:8%;display:flex;align-items:center;justify-content:center;gap:clamp(4px,1.2vw,16px);pointer-events:auto}
 #roadChoices[hidden]{display:none}
 #roadChoices button{font:600 clamp(11px,1.4vw,17px)/1.2 Georgia,serif;color:#e6dcc4;background:#182425;border:1px solid #56615a;border-radius:2px;padding:.35em .6em;cursor:pointer}

@@ -193,6 +193,7 @@
     ],
     boarded:[
       {dur:3.8,shot:"cab",who:"Mara Vega",line:"Glove box still sticks. Here, give it a knock."},
+      {dur:6.5,art:"glovebox",who:"Mara Vega",line:"There’s a sweet spot right under the catch. Dad could find it in the dark."},
       {dur:4.3,art:"timetable",who:"Mara Vega",line:"My dad pencilled in the extra crossing. Look at the bottom. That one was for the night shift."},
       {dur:4.5,shot:"pullOut",slug:"CHAPTER ONE",title:"Last Exposure",who:"Mara Vega",line:"Here, turn the timetable over. Dad drew the way to the wheel. I added the Luna. Where do you want to go?"}
     ],
@@ -222,7 +223,7 @@
   const read=(raw={})=>({stage:stages.includes(raw?.stage)?raw.stage:"arrival",route:["print","live"].includes(raw?.route)?raw.route:"",
     credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true,
     pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
-    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,
+    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,repairTag:raw?.repairTag===true,
     transfer:BayLastTransfer.read(raw?.transfer),photoRoad:Object.hasOwn(BayExposure.photoRuns,raw?.photoRoad)?raw.photoRoad:"",
     hearing:BayLandingOrder.read(raw?.hearing),airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
@@ -265,7 +266,8 @@
         if(s.id==="print")return {...b,line:"Somebody in the back row says, “Luis, you still got that thing?” His laugh carries all the way up to the booth."};
         if(s.id==="live")return {...b,line:"That’s Luis Vega on the Bay Wire cover. He packed two lunches for that crossing for twenty-three years. He’s on line one."};
       }
-      if(recorded&&s.id==="boarded"&&s.index===1)return {...b,line:recorded.luis==="aboard"?
+      if(s.id==="boarded"&&b.art==="glovebox"&&s.tagAt!=null)return {...b,dur:Math.max(b.dur,s.tagAt+3.8),line:"Eight dollars to fix a lunch pail. Uncle Luis said a new one wouldn’t know the way to work."};
+      if(recorded&&s.id==="boarded"&&b.art==="timetable")return {...b,line:recorded.luis==="aboard"?
         "Dad was on the far side. The morning Dalia held the gate, Uncle Luis brought his lunch across in that blue tin.":
         "Dad worked the far side. He kept crackers in the glove box for mornings Uncle Luis missed the six."};
       if(recorded&&(s.id==="passDalia"||s.id==="passShift")&&s.index===0)return {...b,line:recorded.luis==="aboard"?

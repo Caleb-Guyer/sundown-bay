@@ -51,9 +51,10 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
     assert(await js("road.separation>2.2&&!road.touched"));assert.equal(await js("audioStarts+cursorRequests"),0);
     // On Ocean, pull out from a real returning driver's spot using only the driving controls.
     await load(149.45,-24.6,0);await tap("KeyZ");await tap("Comma");await waitFor("road.car.indicator===-1");
-    await key("keyDown","ShiftLeft");await key("keyDown","Period");await waitFor("road.glance>.99&&road.car.indicator===-1");await snap("mirror-right");
-    await key("keyUp","Period");await key("keyDown","Comma");await waitFor("road.glance<-.99&&road.car.indicator===-1");
+    await key("keyDown","ShiftLeft");await key("keyDown","Comma");
     await waitFor("!!BayBoulevardLanes.candidate(road.car,road.map.cars,road.map.time)",45000);await tap("KeyH");await waitFor("!!road.friend&&road.litFrames>0");
+    await waitFor("road.glance<-.99&&road.car.indicator===-1");
+    if(mode==="overhead")assert(await js("road.streetMap.cz<road.car.z-8&&road.streetMap.cx<road.car.x-4"));
     await snap("mirror-left");await key("keyUp","Comma");await key("keyUp","ShiftLeft");await waitFor("road.glance===0&&road.clock-road.friendAt>1.0");
     await js(`(()=>{const held=new Set();function set(next){
         for(const k of held)if(!next.includes(k)){dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));held.delete(k);}
@@ -67,6 +68,7 @@ module.exports=async({js,send,waitFor,key,tap,errors,mode})=>{
         if(Math.abs(delta)>.028)next.push(delta<0?'KeyA':'KeyD');set(next);requestAnimationFrame(steer);}
       steer();})();`);
     await waitFor("road.parked&&road.car.indicator===0",50000);await snap("merged");
+    await key("keyDown","ShiftLeft");await key("keyDown","Period");await waitFor("road.glance>.99&&road.car.indicator===0");await snap("mirror-right");
     const result=await js("({yielded:road.issuedSpeed-road.slowest,flashed:road.flashed,litFrames:road.litFrames,touched:road.touched,x:road.car.x,heading:road.car.yaw})");
     assert(result.yielded>.35&&result.flashed&&!result.touched);assert(Math.abs(result.x-146.5)<1.1);assert.deepEqual(errors,[]);
     console.log("PASS",mode,"a regular Tideway hatch signalled out around a stopped coupe, passed beside it, and rejoined the outer lane. On Ocean Drive a motorist flashed twice, slowed for the player's signal and horn, and released the gap after the keyboard merge.",result,"Audio starts 0, cursor locks 0.");

@@ -329,21 +329,6 @@
       this.states=new Int8Array(this.parts.length).fill(-2);
       this.offsets=new Uint32Array(this.parts.length+1);
       this.indices=new model.indices.constructor(model.count);
-      if(model.city){
-        // Large pavement and facade triangles provide most of a street's screen coverage.
-        // Keep their original vertex indices so the depth and paint passes share every edge.
-        this.broad=new Uint8Array(triangles);let total=0;
-        for(let i=0,t=0;i<data.length;i+=18,t++){
-          const ax=data[i+6]-data[i],ay=data[i+7]-data[i+1],az=data[i+8]-data[i+2];
-          const bx=data[i+12]-data[i],by=data[i+13]-data[i+1],bz=data[i+14]-data[i+2];
-          const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
-          if(nx*nx+ny*ny+nz*nz>=36*36){this.broad[t]=1;total+=3;}
-        }
-        this.depthIndices=new model.indices.constructor(total);
-        this.depthOffsets=new Uint32Array(this.parts.length+1);this.depthCount=0;
-        this.depthBuffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.depthBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.depthIndices.byteLength,gl.DYNAMIC_DRAW);
-      }
       this.buffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.DYNAMIC_DRAW);
       this.count=0;
@@ -373,34 +358,20 @@
       if(lastChange>=0){
         // The prefix is already on the GPU. Keep the suffix too whenever the
         // changed range still ends at the same index in the packed city.
-        const start=this.offsets[firstChange],depthStart=this.depthOffsets?.[firstChange]||0;
-        let n=start,d=depthStart,i=firstChange;
+        const start=this.offsets[firstChange];let n=start,i=firstChange;
         for(;i<this.parts.length;i++){
-          if(i>lastChange&&this.offsets[i]===n&&(!this.broad||this.depthOffsets[i]===d))break;
+          if(i>lastChange&&this.offsets[i]===n)break;
           this.offsets[i]=n;
-          if(this.broad)this.depthOffsets[i]=d;
           const state=this.states[i];if(state<0)continue;
           const part=this.parts[i],far=(state&64)!==0,faces=far?this.farFaces:this.faces;
           for(let j=part.first,t=j/3;j<part.end;j+=3,t++){
             if((faces[t]&state)||(far&&!model.farKeep[t]))continue;
             this.indices[n++]=model.indices[j];this.indices[n++]=model.indices[j+1];this.indices[n++]=model.indices[j+2];
-            if(this.broad&&this.broad[t]){
-              this.depthIndices[d++]=model.indices[j];this.depthIndices[d++]=model.indices[j+1];this.depthIndices[d++]=model.indices[j+2];
-            }
           }
         }
         if(i===this.parts.length)this.count=this.offsets[i]=n;
         if(n>start)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,start*this.indices.BYTES_PER_ELEMENT,this.indices.subarray(start,n));
-        if(this.broad){
-          if(i===this.parts.length)this.depthCount=this.depthOffsets[i]=d;
-          if(d>depthStart){
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.depthBuffer);
-            gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,depthStart*this.depthIndices.BYTES_PER_ELEMENT,this.depthIndices.subarray(depthStart,d));
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
-          }
-        }
       }
-      if(this.depthCount&&view.paintingStreetBase)view.prepaintCity(this,model);
       if(this.count)gl.drawElements(gl.TRIANGLES,this.count,model.elementType,0);
     }
   }
@@ -861,13 +832,6 @@
         catch{return this.createStreetSurface(modelSpace,false);}
       };
       this.streetSurface=surface(false);this.modelSurface=surface(true);
-      this.depthSurface=null;
-      this.createDepthSurface=()=>{
-        const solid=program("#define STREET_SURFACE\n"+VERTEX,PRECISION+"void main(){gl_FragColor=vec4(0.);}",{pos:this.pos});
-        const u={};for(const key of ["eye","rightV","upV","forwardV","focal","depth"])u[key]=gl.getUniformLocation(solid,key);
-        gl.useProgram(solid);gl.uniform2f(u.depth,(f+n)/(f-n),-2*f*n/(f-n));
-        return {program:solid,u};
-      };
       gl.useProgram(p);this.streetFrame=null;this.shadowAxes=null;
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0);gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -1136,10 +1100,6 @@
       gl.uniform1f(u.dusk,p.night);gl.uniform4f(u.airState,p.rain,p.wet,p.noon,p.timed?1:0);gl.uniform3f(u.skyTone,p.skyR,p.skyG,p.skyB);
       gl.uniform3f(u.lightArea,f?f.left:0,f?f.north:0,f?1/f.span:0);
       gl.uniform4f(u.driverLamp,l?l.x:0,l?l.z:0,l?Math.sin(l.yaw):0,l?Math.cos(l.yaw):0);
-      this.setCameraUniforms(u,p);
-    }
-    setCameraUniforms(u,p){
-      const gl=this.gl;
       gl.uniform3f(u.eye,p.x,p.y,p.z);gl.uniform3f(u.rightV,p.cs,0,-p.sn);
       gl.uniform3f(u.upV,p.ux,p.cp,p.uz);gl.uniform3f(u.forwardV,p.fx,p.fy,p.fz);gl.uniform2f(u.focal,p.fxScreen,p.focal);
     }
@@ -1240,24 +1200,9 @@
         if(walls.length>=12)(this.wallGrid??=new WallGrid()).build(walls,v);
       }
     }
-    prepaintCity(list,model){
-      const gl=this.gl,pass=this.depthSurface??=this.createDepthSurface();
-      gl.useProgram(pass.program);this.setCameraUniforms(pass.u,this.streetFrame);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,list.depthBuffer);
-      gl.colorMask(false,false,false,false);
-      // Leave the depth slightly behind the paint, including on short 16-bit depth buffers.
-      gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);
-      gl.drawElements(gl.TRIANGLES,list.depthCount,model.elementType,0);
-      gl.disable(gl.POLYGON_OFFSET_FILL);gl.colorMask(true,true,true,true);
-      gl.useProgram(this.streetSurface.program);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,list.buffer);
-    }
-    drawStreetBase(){
-      this.paintingStreetBase=this.scale<=.65&&this.streetFrame?.timed&&!this.streetFrame.underwater&&!this.casting;
-      try{this.draw("city");}finally{this.paintingStreetBase=false;}
-    }
     drawCityAndWater(t){
       this.collectStreetWalls();
-      this.drawStreetBase();
+      this.draw("city");
       // Opaque land masks the water shader. Keep city surfaces on equal-depth shore pixels.
       const gl=this.gl;gl.depthFunc(gl.LESS);this.drawWater(t);gl.depthFunc(gl.LEQUAL);
     }

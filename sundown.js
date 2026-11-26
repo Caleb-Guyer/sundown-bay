@@ -330,21 +330,6 @@
       this.states=new Int8Array(this.parts.length).fill(-2);
       this.offsets=new Uint32Array(this.parts.length+1);
       this.indices=new model.indices.constructor(model.count);
-      if(model.city){
-        // Large pavement and facade triangles provide most of a street's screen coverage.
-        // Keep their original vertex indices so the depth and paint passes share every edge.
-        this.broad=new Uint8Array(triangles);let total=0;
-        for(let i=0,t=0;i<data.length;i+=18,t++){
-          const ax=data[i+6]-data[i],ay=data[i+7]-data[i+1],az=data[i+8]-data[i+2];
-          const bx=data[i+12]-data[i],by=data[i+13]-data[i+1],bz=data[i+14]-data[i+2];
-          const nx=ay*bz-az*by,ny=az*bx-ax*bz,nz=ax*by-ay*bx;
-          if(nx*nx+ny*ny+nz*nz>=36*36){this.broad[t]=1;total+=3;}
-        }
-        this.depthIndices=new model.indices.constructor(total);
-        this.depthOffsets=new Uint32Array(this.parts.length+1);this.depthCount=0;
-        this.depthBuffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.depthBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.depthIndices.byteLength,gl.DYNAMIC_DRAW);
-      }
       this.buffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.DYNAMIC_DRAW);
       this.count=0;
@@ -374,34 +359,20 @@
       if(lastChange>=0){
         // The prefix is already on the GPU. Keep the suffix too whenever the
         // changed range still ends at the same index in the packed city.
-        const start=this.offsets[firstChange],depthStart=this.depthOffsets?.[firstChange]||0;
-        let n=start,d=depthStart,i=firstChange;
+        const start=this.offsets[firstChange];let n=start,i=firstChange;
         for(;i<this.parts.length;i++){
-          if(i>lastChange&&this.offsets[i]===n&&(!this.broad||this.depthOffsets[i]===d))break;
+          if(i>lastChange&&this.offsets[i]===n)break;
           this.offsets[i]=n;
-          if(this.broad)this.depthOffsets[i]=d;
           const state=this.states[i];if(state<0)continue;
           const part=this.parts[i],far=(state&64)!==0,faces=far?this.farFaces:this.faces;
           for(let j=part.first,t=j/3;j<part.end;j+=3,t++){
             if((faces[t]&state)||(far&&!model.farKeep[t]))continue;
             this.indices[n++]=model.indices[j];this.indices[n++]=model.indices[j+1];this.indices[n++]=model.indices[j+2];
-            if(this.broad&&this.broad[t]){
-              this.depthIndices[d++]=model.indices[j];this.depthIndices[d++]=model.indices[j+1];this.depthIndices[d++]=model.indices[j+2];
-            }
           }
         }
         if(i===this.parts.length)this.count=this.offsets[i]=n;
         if(n>start)gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,start*this.indices.BYTES_PER_ELEMENT,this.indices.subarray(start,n));
-        if(this.broad){
-          if(i===this.parts.length)this.depthCount=this.depthOffsets[i]=d;
-          if(d>depthStart){
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.depthBuffer);
-            gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER,depthStart*this.depthIndices.BYTES_PER_ELEMENT,this.depthIndices.subarray(depthStart,d));
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,this.buffer);
-          }
-        }
       }
-      if(this.depthCount&&view.paintingStreetBase)view.prepaintCity(this,model);
       if(this.count)gl.drawElements(gl.TRIANGLES,this.count,model.elementType,0);
     }
   }
@@ -862,13 +833,6 @@
         catch{return this.createStreetSurface(modelSpace,false);}
       };
       this.streetSurface=surface(false);this.modelSurface=surface(true);
-      this.depthSurface=null;
-      this.createDepthSurface=()=>{
-        const solid=program("#define STREET_SURFACE\n"+VERTEX,PRECISION+"void main(){gl_FragColor=vec4(0.);}",{pos:this.pos});
-        const u={};for(const key of ["eye","rightV","upV","forwardV","focal","depth"])u[key]=gl.getUniformLocation(solid,key);
-        gl.useProgram(solid);gl.uniform2f(u.depth,(f+n)/(f-n),-2*f*n/(f-n));
-        return {program:solid,u};
-      };
       gl.useProgram(p);this.streetFrame=null;this.shadowAxes=null;
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0);gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -1137,10 +1101,6 @@
       gl.uniform1f(u.dusk,p.night);gl.uniform4f(u.airState,p.rain,p.wet,p.noon,p.timed?1:0);gl.uniform3f(u.skyTone,p.skyR,p.skyG,p.skyB);
       gl.uniform3f(u.lightArea,f?f.left:0,f?f.north:0,f?1/f.span:0);
       gl.uniform4f(u.driverLamp,l?l.x:0,l?l.z:0,l?Math.sin(l.yaw):0,l?Math.cos(l.yaw):0);
-      this.setCameraUniforms(u,p);
-    }
-    setCameraUniforms(u,p){
-      const gl=this.gl;
       gl.uniform3f(u.eye,p.x,p.y,p.z);gl.uniform3f(u.rightV,p.cs,0,-p.sn);
       gl.uniform3f(u.upV,p.ux,p.cp,p.uz);gl.uniform3f(u.forwardV,p.fx,p.fy,p.fz);gl.uniform2f(u.focal,p.fxScreen,p.focal);
     }
@@ -1241,24 +1201,9 @@
         if(walls.length>=12)(this.wallGrid??=new WallGrid()).build(walls,v);
       }
     }
-    prepaintCity(list,model){
-      const gl=this.gl,pass=this.depthSurface??=this.createDepthSurface();
-      gl.useProgram(pass.program);this.setCameraUniforms(pass.u,this.streetFrame);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,list.depthBuffer);
-      gl.colorMask(false,false,false,false);
-      // Leave the depth slightly behind the paint, including on short 16-bit depth buffers.
-      gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);
-      gl.drawElements(gl.TRIANGLES,list.depthCount,model.elementType,0);
-      gl.disable(gl.POLYGON_OFFSET_FILL);gl.colorMask(true,true,true,true);
-      gl.useProgram(this.streetSurface.program);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,list.buffer);
-    }
-    drawStreetBase(){
-      this.paintingStreetBase=this.scale<=.65&&this.streetFrame?.timed&&!this.streetFrame.underwater&&!this.casting;
-      try{this.draw("city");}finally{this.paintingStreetBase=false;}
-    }
     drawCityAndWater(t){
       this.collectStreetWalls();
-      this.drawStreetBase();
+      this.draw("city");
       // Opaque land masks the water shader. Keep city surfaces on equal-depth shore pixels.
       const gl=this.gl;gl.depthFunc(gl.LESS);this.drawWater(t);gl.depthFunc(gl.LEQUAL);
     }
@@ -21863,6 +21808,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     ],
     boarded:[
       {dur:3.8,shot:"cab",who:"Mara Vega",line:"Glove box still sticks. Here, give it a knock."},
+      {dur:6.5,art:"glovebox",who:"Mara Vega",line:"There’s a sweet spot right under the catch. Dad could find it in the dark."},
       {dur:4.3,art:"timetable",who:"Mara Vega",line:"My dad pencilled in the extra crossing. Look at the bottom. That one was for the night shift."},
       {dur:4.5,shot:"pullOut",slug:"CHAPTER ONE",title:"Last Exposure",who:"Mara Vega",line:"Here, turn the timetable over. Dad drew the way to the wheel. I added the Luna. Where do you want to go?"}
     ],
@@ -21892,7 +21838,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const read=(raw={})=>({stage:stages.includes(raw?.stage)?raw.stage:"arrival",route:["print","live"].includes(raw?.route)?raw.route:"",
     credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true,
     pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
-    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,
+    berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,repairTag:raw?.repairTag===true,
     transfer:BayLastTransfer.read(raw?.transfer),photoRoad:Object.hasOwn(BayExposure.photoRuns,raw?.photoRoad)?raw.photoRoad:"",
     hearing:BayLandingOrder.read(raw?.hearing),airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
@@ -21935,7 +21881,8 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(s.id==="print")return {...b,line:"Somebody in the back row says, “Luis, you still got that thing?” His laugh carries all the way up to the booth."};
         if(s.id==="live")return {...b,line:"That’s Luis Vega on the Bay Wire cover. He packed two lunches for that crossing for twenty-three years. He’s on line one."};
       }
-      if(recorded&&s.id==="boarded"&&s.index===1)return {...b,line:recorded.luis==="aboard"?
+      if(s.id==="boarded"&&b.art==="glovebox"&&s.tagAt!=null)return {...b,dur:Math.max(b.dur,s.tagAt+3.8),line:"Eight dollars to fix a lunch pail. Uncle Luis said a new one wouldn’t know the way to work."};
+      if(recorded&&s.id==="boarded"&&b.art==="timetable")return {...b,line:recorded.luis==="aboard"?
         "Dad was on the far side. The morning Dalia held the gate, Uncle Luis brought his lunch across in that blue tin.":
         "Dad worked the far side. He kept crackers in the glove box for mornings Uncle Luis missed the six."};
       if(recorded&&(s.id==="passDalia"||s.id==="passShift")&&s.index===0)return {...b,line:recorded.luis==="aboard"?
@@ -22153,7 +22100,57 @@ window.buildBayCity = function buildBayCity(g,water) {
     line(g,left,331,920,331,"#a89777");label(g,left,366,"14   /   LOT 14",16,ink,"monospace","bold");
     label(g,left,400,"Return map to glove box.",18,ink,"Georgia","italic");g.restore();
   }
-  window.BayRecordArt={show,world,sleeve,tone,roadMap};
+  // The hinge, paper tag and camera push share one clock in both rendering modes.
+  function glovebox(canvas,scene){
+    const age=scene.age,tag=scene.tagAt,open=Math.min(tag??2.8,2.8);
+    const since=Math.max(0,age-open),hinge=1-Math.exp(-5.8*since)*Math.cos(7.6*since);
+    const lift=tag==null?0:Math.min(1,Math.max(0,(age-tag-.16)/.73));
+    const pull=lift*lift*(3-2*lift),slide=Math.min(1,age/.9);
+    const frame=[Math.round(hinge*100),Math.round(pull*100),Math.round(slide*50)].join("/");
+    if(scene.latchFrame===frame)return;
+    scene.latchFrame=frame;
+    if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
+    const g=canvas.getContext("2d",{alpha:false});g.save();
+    g.setTransform(1,0,0,1,0,0);g.fillStyle="#1c2625";g.fillRect(0,0,W,H);
+    const zoom=1+slide*.035;g.translate(500,240);g.scale(zoom,zoom);g.translate(-500,-240);
+    let dash=plates.get("coupe-dash");
+    if(!dash){
+      dash=document.createElement("canvas");dash.width=W;dash.height=H;
+      const d=dash.getContext("2d"),wash=d.createLinearGradient(0,0,100,480);
+      wash.addColorStop(0,"#b1a58c");wash.addColorStop(.18,"#777568");wash.addColorStop(.68,"#5b625b");wash.addColorStop(1,"#2e3937");
+      d.fillStyle=wash;d.fillRect(0,0,W,H);
+      for(let i=0;i<920;i++){const x=(i*283)%999,y=(i*47)%497;line(d,x,y,x+2+i%5,y+1,"#716f62",.7);}
+      for(let i=0;i<5;i++)line(d,0,76+i*2,W,59+i*2,["#3d4038","#d6cbb4","#928c7d","#5d625b","#bdb7a6"][i],2);
+      d.fillStyle="#2c3431";d.fillRect(898,115,112,92);
+      for(let i=0;i<6;i++)line(d,907,124+i*14,997,121+i*14,"#919182",4);
+      d.fillStyle="#252c29";d.fillRect(122,135,737,229);d.fillStyle="#423f34";d.fillRect(140,155,701,188);
+      for(let i=0;i<6;i++)line(d,166+i*3,326-i*5,596,318-i*5,i%2?"#bfb08f":"#998e72",4);
+      d.save();d.translate(214,293);d.rotate(-.06);d.fillStyle="#ceb78c";d.fillRect(0,-53,304,74);
+      label(d,14,-21,"PORT SOL FERRY CO.",19,"#53584a","Georgia","bold");
+      line(d,15,-12,288,-12,"#91765a",1);label(d,15,7,"SATURDAY   /   WEST LANDING",12,"#74584b","monospace");d.restore();
+      plates.set("coupe-dash",dash);
+    }
+    g.drawImage(dash,0,0);
+    const top=136+216*hinge;
+    g.fillStyle="#454c45";g.fillRect(124,top,733,Math.max(3,363-top));
+    const cover=g.createLinearGradient(0,top,0,406);cover.addColorStop(0,"#a0977b");cover.addColorStop(.42,"#89856d");cover.addColorStop(1,"#656a5b");
+    g.fillStyle=cover;g.fillRect(128,top+4,725,Math.max(3,365-top));line(g,130,top+8,850,top+8,"#b7ae92",2);
+    const latchY=top+13*(1-Math.min(1,hinge));
+    g.fillStyle="#444940";g.fillRect(448,latchY,99,14);line(g,452,latchY+2,543,latchY+2,"#ddd6bc",3);
+    if(hinge>.1){
+      g.save();g.translate(663-184*pull,245+19*pull);g.rotate(-.14+.11*pull);g.scale(.48+pull*.62,.48+pull*.62);
+      if(pull<.01){g.beginPath();g.rect(-182,-66,364,Math.max(0,(top-246)/.48+66));g.clip();}
+      g.fillStyle="#252c28";g.fillRect(-162,-66,340,154);g.fillStyle="#e0c89b";g.fillRect(-166,-71,340,154);
+      g.fillStyle="#705d45";g.beginPath();g.arc(-150,-54,6,0,Math.PI*2);g.fill();
+      line(g,-151,-52,-191,-82,"#c3b98d",2);line(g,-190,-82,-205,-77,"#cdc29a",2);
+      label(g,-128,-42,"NORTH FLOAT TIN SHOP",19,"#3c4945","Georgia","bold");
+      line(g,-145,-28,152,-28,"#9c6e54",2);label(g,-142,-4,"L. VEGA    /    PAID   $8.00",15,"#685542","monospace");
+      label(g,-143,29,"New catch on lunch pail.",24,"#344d58","Georgia","italic");
+      label(g,-143,59,"Lift the left corner first.",22,"#344d58","Georgia","italic");g.restore();
+    }
+    g.restore();
+  }
+  window.BayRecordArt={show,world,sleeve,tone,roadMap,glovebox};
 })();
 
 ;
@@ -73506,6 +73503,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function setFilmPage(){
     const b=campaign.beat(),table=campaign.table;
+    $("gloveLatch").hidden=b?.art!=="glovebox"||campaign.scene.tagAt!=null;
+    if(!$("gloveLatch").hidden)$("glovePrompt").textContent=campaign.scene.age<2.8?"Knock the latch":"Read the repair tag";
     chapterSoundLabel();
     $("dispatchClock").hidden=b?.watch!=="work"&&b?.pilot!=="helm";
     $("dispatchClock").setAttribute("aria-label",b?.pilot?"North Float approach chart and bus departure":"Dalia’s dispatch clock");
@@ -73657,6 +73656,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
   function endFilm(id,playedThrough=false){
+    $("gloveLatch").hidden=true;
     if(filmCountyVoice){sound.stopCounty();filmCountyVoice=null;}
     if(campaign.table?.kind==="splice")sound.reel(null);
     campaign.scene=null;campaign.table=null;campaign.watch=null;campaign.pilot=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("roadChoices").hidden=true;$("game").classList.toggle("in-chapter",false);
@@ -73719,6 +73719,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     else if(id==="crew"||id==="signed"){if(waypoint?.kind==="chapter")waypoint=null;note("Public Record · Filed","Dalia has the first sailing ticket. Find her next to the dispatch board.",5);}
     else if(id==="passDalia"||id==="passShift"){waypoint=chapterTarget();note("First Crossing",waypoint.name+" · Walk to the green post at the end of the pier.",5);}
   }
+  function inspectLatch(){
+    const scene=campaign.scene;
+    if(campaign.beat()?.art!=="glovebox"||scene.tagAt!=null)return;
+    scene.tagAt=scene.age;
+    if(!filmReplay&&!campaign.book.repairTag){campaign.book.repairTag=true;campaign.write();}
+    sound.cue("watch-close");setFilmPage();
+  }
+  $("gloveLatch").addEventListener("click",inspectLatch);
   function filmControls(ev){
     if(!campaign.scene&&!campaign.table)return false;
     if(ev.ctrlKey||ev.altKey||ev.metaKey)return false;
@@ -73727,6 +73735,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(ev.code==="KeyR"){chapterVolume();return true;}
     if(campaign.scene){
       if(ev.code==="Enter"||ev.code==="Escape"){endFilm(campaign.scene.id);return true;}
+      if(ev.code==="Space"&&campaign.beat().art==="glovebox"){inspectLatch();return true;}
       if(campaign.beat().pilot==="helm"){
         if(["KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(ev.code))keys.add(ev.code);
         const p=campaign.pilot;
@@ -84895,7 +84904,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       status.textContent=second?"Two negatives. Which one goes out tonight?":!first?(ready?"Lot number in focus.":"Keep the whole sale notice in the frame."):
         !roll.asked?(campaign.book.sleeve?"Mara: “Luis, Dad took one of you right here. Can we match it?”":"Mara: “Uncle Luis? Can I get one with you in it?”"):roll.raise<1?
         (campaign.book.morning?.luis==="ashore"?"Luis: “Missed the boat. Kept his tin, though.”":"Luis: “This blue one was my brother’s. Get the latch in.”"):
-        ready?"Luis and the tin in focus.":"Turn right to frame Luis and the blue tin.";
+        ready?(campaign.book.repairTag?"Mara: “There’s the new catch.”  ·  Luis and the tin in focus.":"Luis and the tin in focus."):
+        campaign.book.repairTag?"Mara: “Lift the left corner, Uncle Luis.”  ·  Turn right to frame him.":"Turn right to frame Luis and the blue tin.";
     }
     function lift(start,now){
       if(!filming())return;
@@ -86196,6 +86206,10 @@ window.buildBayCity = function buildBayCity(g,water) {
           BayLastTransfer.street(p,view,model,personSkin,BaySixSharp.passengers);
         }
         if(beat==="helm")BayLastTransfer.dial($("dispatchClock"),p);
+      }else if(art==="glovebox"){
+        const s=campaign.scene,prompt=$("glovePrompt");
+        if(s.tagAt==null&&s.age>=2.8&&prompt.textContent!=="Read the repair tag")prompt.textContent="Read the repair tag";
+        BayRecordArt.glovebox($("chapterInsert"),s);
       }else if(art==="transferStub"||art==="fareCarbon")return;
       else if(filmPage?.watch){
         const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;

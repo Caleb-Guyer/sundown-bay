@@ -175,5 +175,55 @@
     line(g,left,331,920,331,"#a89777");label(g,left,366,"14   /   LOT 14",16,ink,"monospace","bold");
     label(g,left,400,"Return map to glove box.",18,ink,"Georgia","italic");g.restore();
   }
-  window.BayRecordArt={show,world,sleeve,tone,roadMap};
+  // The hinge, paper tag and camera push share one clock in both rendering modes.
+  function glovebox(canvas,scene){
+    const age=scene.age,tag=scene.tagAt,open=Math.min(tag??2.8,2.8);
+    const since=Math.max(0,age-open),hinge=1-Math.exp(-5.8*since)*Math.cos(7.6*since);
+    const lift=tag==null?0:Math.min(1,Math.max(0,(age-tag-.16)/.73));
+    const pull=lift*lift*(3-2*lift),slide=Math.min(1,age/.9);
+    const frame=[Math.round(hinge*100),Math.round(pull*100),Math.round(slide*50)].join("/");
+    if(scene.latchFrame===frame)return;
+    scene.latchFrame=frame;
+    if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
+    const g=canvas.getContext("2d",{alpha:false});g.save();
+    g.setTransform(1,0,0,1,0,0);g.fillStyle="#1c2625";g.fillRect(0,0,W,H);
+    const zoom=1+slide*.035;g.translate(500,240);g.scale(zoom,zoom);g.translate(-500,-240);
+    let dash=plates.get("coupe-dash");
+    if(!dash){
+      dash=document.createElement("canvas");dash.width=W;dash.height=H;
+      const d=dash.getContext("2d"),wash=d.createLinearGradient(0,0,100,480);
+      wash.addColorStop(0,"#b1a58c");wash.addColorStop(.18,"#777568");wash.addColorStop(.68,"#5b625b");wash.addColorStop(1,"#2e3937");
+      d.fillStyle=wash;d.fillRect(0,0,W,H);
+      for(let i=0;i<920;i++){const x=(i*283)%999,y=(i*47)%497;line(d,x,y,x+2+i%5,y+1,"#716f62",.7);}
+      for(let i=0;i<5;i++)line(d,0,76+i*2,W,59+i*2,["#3d4038","#d6cbb4","#928c7d","#5d625b","#bdb7a6"][i],2);
+      d.fillStyle="#2c3431";d.fillRect(898,115,112,92);
+      for(let i=0;i<6;i++)line(d,907,124+i*14,997,121+i*14,"#919182",4);
+      d.fillStyle="#252c29";d.fillRect(122,135,737,229);d.fillStyle="#423f34";d.fillRect(140,155,701,188);
+      for(let i=0;i<6;i++)line(d,166+i*3,326-i*5,596,318-i*5,i%2?"#bfb08f":"#998e72",4);
+      d.save();d.translate(214,293);d.rotate(-.06);d.fillStyle="#ceb78c";d.fillRect(0,-53,304,74);
+      label(d,14,-21,"PORT SOL FERRY CO.",19,"#53584a","Georgia","bold");
+      line(d,15,-12,288,-12,"#91765a",1);label(d,15,7,"SATURDAY   /   WEST LANDING",12,"#74584b","monospace");d.restore();
+      plates.set("coupe-dash",dash);
+    }
+    g.drawImage(dash,0,0);
+    const top=136+216*hinge;
+    g.fillStyle="#454c45";g.fillRect(124,top,733,Math.max(3,363-top));
+    const cover=g.createLinearGradient(0,top,0,406);cover.addColorStop(0,"#a0977b");cover.addColorStop(.42,"#89856d");cover.addColorStop(1,"#656a5b");
+    g.fillStyle=cover;g.fillRect(128,top+4,725,Math.max(3,365-top));line(g,130,top+8,850,top+8,"#b7ae92",2);
+    const latchY=top+13*(1-Math.min(1,hinge));
+    g.fillStyle="#444940";g.fillRect(448,latchY,99,14);line(g,452,latchY+2,543,latchY+2,"#ddd6bc",3);
+    if(hinge>.1){
+      g.save();g.translate(663-184*pull,245+19*pull);g.rotate(-.14+.11*pull);g.scale(.48+pull*.62,.48+pull*.62);
+      if(pull<.01){g.beginPath();g.rect(-182,-66,364,Math.max(0,(top-246)/.48+66));g.clip();}
+      g.fillStyle="#252c28";g.fillRect(-162,-66,340,154);g.fillStyle="#e0c89b";g.fillRect(-166,-71,340,154);
+      g.fillStyle="#705d45";g.beginPath();g.arc(-150,-54,6,0,Math.PI*2);g.fill();
+      line(g,-151,-52,-191,-82,"#c3b98d",2);line(g,-190,-82,-205,-77,"#cdc29a",2);
+      label(g,-128,-42,"NORTH FLOAT TIN SHOP",19,"#3c4945","Georgia","bold");
+      line(g,-145,-28,152,-28,"#9c6e54",2);label(g,-142,-4,"L. VEGA    /    PAID   $8.00",15,"#685542","monospace");
+      label(g,-143,29,"New catch on lunch pail.",24,"#344d58","Georgia","italic");
+      label(g,-143,59,"Lift the left corner first.",22,"#344d58","Georgia","italic");g.restore();
+    }
+    g.restore();
+  }
+  window.BayRecordArt={show,world,sleeve,tone,roadMap,glovebox};
 })();

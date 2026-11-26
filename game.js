@@ -873,6 +873,8 @@
   }
   function setFilmPage(){
     const b=campaign.beat(),table=campaign.table;
+    $("gloveLatch").hidden=b?.art!=="glovebox"||campaign.scene.tagAt!=null;
+    if(!$("gloveLatch").hidden)$("glovePrompt").textContent=campaign.scene.age<2.8?"Knock the latch":"Read the repair tag";
     chapterSoundLabel();
     $("dispatchClock").hidden=b?.watch!=="work"&&b?.pilot!=="helm";
     $("dispatchClock").setAttribute("aria-label",b?.pilot?"North Float approach chart and bus departure":"Dalia’s dispatch clock");
@@ -1024,6 +1026,7 @@
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
   function endFilm(id,playedThrough=false){
+    $("gloveLatch").hidden=true;
     if(filmCountyVoice){sound.stopCounty();filmCountyVoice=null;}
     if(campaign.table?.kind==="splice")sound.reel(null);
     campaign.scene=null;campaign.table=null;campaign.watch=null;campaign.pilot=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("roadChoices").hidden=true;$("game").classList.toggle("in-chapter",false);
@@ -1086,6 +1089,14 @@
     else if(id==="crew"||id==="signed"){if(waypoint?.kind==="chapter")waypoint=null;note("Public Record · Filed","Dalia has the first sailing ticket. Find her next to the dispatch board.",5);}
     else if(id==="passDalia"||id==="passShift"){waypoint=chapterTarget();note("First Crossing",waypoint.name+" · Walk to the green post at the end of the pier.",5);}
   }
+  function inspectLatch(){
+    const scene=campaign.scene;
+    if(campaign.beat()?.art!=="glovebox"||scene.tagAt!=null)return;
+    scene.tagAt=scene.age;
+    if(!filmReplay&&!campaign.book.repairTag){campaign.book.repairTag=true;campaign.write();}
+    sound.cue("watch-close");setFilmPage();
+  }
+  $("gloveLatch").addEventListener("click",inspectLatch);
   function filmControls(ev){
     if(!campaign.scene&&!campaign.table)return false;
     if(ev.ctrlKey||ev.altKey||ev.metaKey)return false;
@@ -1094,6 +1105,7 @@
     if(ev.code==="KeyR"){chapterVolume();return true;}
     if(campaign.scene){
       if(ev.code==="Enter"||ev.code==="Escape"){endFilm(campaign.scene.id);return true;}
+      if(ev.code==="Space"&&campaign.beat().art==="glovebox"){inspectLatch();return true;}
       if(campaign.beat().pilot==="helm"){
         if(["KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(ev.code))keys.add(ev.code);
         const p=campaign.pilot;
@@ -12262,7 +12274,8 @@
       status.textContent=second?"Two negatives. Which one goes out tonight?":!first?(ready?"Lot number in focus.":"Keep the whole sale notice in the frame."):
         !roll.asked?(campaign.book.sleeve?"Mara: “Luis, Dad took one of you right here. Can we match it?”":"Mara: “Uncle Luis? Can I get one with you in it?”"):roll.raise<1?
         (campaign.book.morning?.luis==="ashore"?"Luis: “Missed the boat. Kept his tin, though.”":"Luis: “This blue one was my brother’s. Get the latch in.”"):
-        ready?"Luis and the tin in focus.":"Turn right to frame Luis and the blue tin.";
+        ready?(campaign.book.repairTag?"Mara: “There’s the new catch.”  ·  Luis and the tin in focus.":"Luis and the tin in focus."):
+        campaign.book.repairTag?"Mara: “Lift the left corner, Uncle Luis.”  ·  Turn right to frame him.":"Turn right to frame Luis and the blue tin.";
     }
     function lift(start,now){
       if(!filming())return;
@@ -13563,6 +13576,10 @@
           BayLastTransfer.street(p,view,model,personSkin,BaySixSharp.passengers);
         }
         if(beat==="helm")BayLastTransfer.dial($("dispatchClock"),p);
+      }else if(art==="glovebox"){
+        const s=campaign.scene,prompt=$("glovePrompt");
+        if(s.tagAt==null&&s.age>=2.8&&prompt.textContent!=="Read the repair tag")prompt.textContent="Read the repair tag";
+        BayRecordArt.glovebox($("chapterInsert"),s);
       }else if(art==="transferStub"||art==="fareCarbon")return;
       else if(filmPage?.watch){
         const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;
