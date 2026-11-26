@@ -12,6 +12,7 @@
     motel:["motel",[4.6,2.1,-6.3],[3.3,1.7,-5.8],[1.3,1.25,3.2],1.48,20],
     mara:["mara",[2.9,1.68,-2.8],[2.2,1.59,-2.6],[0,1.37,0],1.50,12],
     cab:["ride",[3.8,1.50,4.2],[2.9,1.43,3.6],[0,.94,0],1.58,18],
+    rearPlate:["ride",[2.6,1.14,-4.7],[1.05,.89,-3.7],[0,.62,-1.55],1.54,10],
     payrollDesk:["ride",[-2.65,1.62,2.8],[-1.85,1.45,2.3],[0,1.04,.64],1.54,7.8],
     pullOut:["ride",[2.1,1.7,-3.7],[.7,3.1,-6.4],[0,.94,2.1],1.48,23],
     van:["live",[-6,2.1,2],[-4.9,1.7,1.3],[1.3,1.58,.45],1.6,22],
@@ -23,6 +24,11 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    lastMeter:[
+      {dur:3.9,shot:"rearPlate",slug:"BAY CAB   /   DRIVER'S COPY",title:"Last Fare on the Meter",who:"Mina Ortiz",line:"I was the cab behind you. You kept looking in the mirror. You never looked as far back as me."},
+      {dur:5.2,art:"meterCopy",who:"Mina Ortiz",line:"I wrote down where they left it."},
+      {dur:3.6,shot:"ocean",slug:"OCEAN DRIVE   /   MARLIN MOTOR COURT",who:"Mina Ortiz",line:"Come down to the cab stand. I owe this meter one good deed."}
+    ],
     carbonMorning:[
       {dur:3.8,shot:"laundry",slug:"MARLIN MOTEL   /   LAUNDRY ENTRANCE",title:"The Carbon Drawer",who:"Romy Vale",line:"Empty your pockets before I put that shirt in. Last time the whole wash came out yellow."},
       {dur:4.5,art:"releaseCopy",who:"Romy Vale",line:"Let me see what they wrote."}

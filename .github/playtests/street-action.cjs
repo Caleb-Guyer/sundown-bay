@@ -85,4 +85,30 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await key("keyDown","KeyW");try{await waitFor("!!impactQA.person.down",15000);}finally{await key("keyUp","KeyW");}
   await snap("bumper-impact");assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
   console.log("PASS sidearm and scattergun by keyboard and free mouse, pedestrian falls, visible blood and a moving-car impact; muted and cursor-free",mode);
+  // The existing wanted driver stays in the coupe. Start the road stop close to its responding units.
+  await js(`q.at(q.car,148.8,32);q.car.yaw=0;BayDriving.settle(q.car);
+    const move=BayPursuit.prototype.move,placed=new WeakSet();BayPursuit.prototype.move=function(v){
+      if(!placed.has(v)){placed.add(v);Object.assign(v,{x:148.8,z:26.2,yaw:0,speed:0});}
+      return move.apply(this,arguments);};true`);
+  await waitFor("document.querySelector('#chapterTitle').textContent==='Last Fare on the Meter'",42000);
+  await snap("meter-plate");await waitFor("!document.querySelector('#chapterInsert').hidden");
+  assert(await js("document.querySelector('#chapterInsert').getAttribute('aria-label').includes('Ocean Drive')"));
+  await snap("meter-slip");await tap("Enter");
+  await send("Page.reload");await waitFor("!window.impactQA&&document.readyState==='complete'&&typeof BayCab==='object'");
+  await js(`window.meterQA={};const m=meterQA;
+    const svc=BayCab.Service.prototype.step;BayCab.Service.prototype.step=function(dt,e){m.service=this;m.h=e.hero;m.floor=e.ground;return svc.apply(this,arguments);};
+    const crowd=BayLocals.animatePeople;BayLocals.animatePeople=function(list,dt,driver,fleet){
+      m.car=driver;m.lost=fleet.find(v=>v.garageKey===JSON.parse(localStorage.getItem('sundownBay.v1')).meterCopy.key);return crowd.apply(this,arguments);};
+    document.querySelector('#play').click();true`);
+  await waitFor("m.h&&m.lost");assert(await js("Math.hypot(m.lost.x-148.8,m.lost.z-32)<2"));
+  await js("Object.assign(m.h,BayCab.stops.marlin.stand);true");await tap("KeyF");
+  await waitFor("document.querySelector('#panelBody').textContent.includes('Use free ride')");
+  await js(button("Use free ride"));await waitFor("m.service.booking?.stage==='ready'",70000);await tap("KeyE");
+  await waitFor("m.service.booking?.stage==='ride'",18000);await snap("meter-ride");
+  await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).meterCopy.spent",90000);
+  assert(await js("Math.hypot(m.h.x-m.lost.x,m.h.z-m.lost.z)<20"));
+  await js("Object.assign(m.h,BayDriving.world(m.lost,-2.4,0));true");await tap("KeyE");
+  await waitFor("m.car===m.lost&&JSON.parse(localStorage.getItem('sundownBay.v1')).meterCopy.found",20000);
+  assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+  console.log("PASS Last Fare on the Meter: arrested in the coupe, read its voucher, reloaded, rode Cab 17 and took back the same plate",mode);
 };

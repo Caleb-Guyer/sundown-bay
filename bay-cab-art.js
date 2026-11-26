@@ -709,5 +709,22 @@
     });
     return key;
   }
-  window.BayCabArt={install,world,map,colors,roles,dress,pose,dashboard,rankLocation};
+  function meterSlip(canvas,plate,street,model){
+    canvas.width=760;canvas.height=420;
+    canvas.setAttribute("aria-label","Mina’s cab voucher for "+model+", plate "+plate+", "+street);
+    const c=canvas.getContext("2d");
+    c.fillStyle="#343d42";c.fillRect(0,0,760,420);c.save();c.translate(380,210);c.rotate(-.035);
+    c.fillStyle="#253031";c.fillRect(-253,-167,521,341);
+    c.fillStyle="#f0dfb5";c.fillRect(-260,-173,520,340);
+    for(let i=0;i<20;i++){c.fillStyle=i%2?"#e2ae51":"#354748";c.fillRect(-260+i*26,-173,26,11);}
+    c.fillStyle="#344547";c.font="bold 21px monospace";c.fillText("BAY CAB   /   CAR 17",-230,-122);
+    c.font="15px monospace";c.fillText("DRIVER'S DUPLICATE",-230,-94);c.fillText("ONE RIDE",140,-94);
+    c.strokeStyle="#bba87e";c.setLineDash([4,4]);c.beginPath();c.moveTo(-239,-75);c.lineTo(239,-75);c.stroke();c.setLineDash([]);
+    c.font="15px monospace";c.fillText("REGISTRATION",-228,-46);
+    c.fillStyle="#354c64";c.font="italic bold 46px Georgia";c.fillText(plate,-225,3);
+    c.font="italic 23px Georgia";c.fillText(model+"   /   "+street,-224,47,450);
+    c.font="italic 21px Georgia";c.fillText("Put this one on my sheet.",-223,99);c.fillText("M. Ortiz",100,132);
+    c.restore();
+  }
+  window.BayCabArt={meterSlip,install,world,map,colors,roles,dress,pose,dashboard,rankLocation};
 })();

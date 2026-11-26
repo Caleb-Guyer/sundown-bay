@@ -198,9 +198,9 @@
     }
     nearbyFare(v){return v&&!this.privateFare&&!this.booking&&this.people.find(p=>p.phase==="wait"&&gap(v,p)<9.3);}
     quote(from,to){return !this.memory.rides?0:Math.min(24,5+Math.ceil(route(from,to).length/35));}
-    request(from,to){
+    request(from,to,meterCopy=0){
       if(this.booking||this.privateFare||!to||from.id===to.id||gap(from,to)<10)return false;
-      this.booking={from,to,price:this.quote(from,to),stage:"waiting",seat:0,path:[],age:0};
+      this.booking={from,to,meterCopy,price:meterCopy?0:this.quote(from,to),stage:"waiting",seat:0,path:[],age:0};
       if(from.rolling){
         const stop=this.berth?this.berth(from,this.vehicle):from;
         this.trip=null;this.phase="calling";this.leg=this.newLeg(pullIn(this.vehicle,stop),stop);
@@ -341,7 +341,7 @@
           const boarding=b.stage==="in";b.seat=clamp(b.seat+(boarding?1:-1)*dt/1.50,0,1);
           BayCarAccess.pose(v,1,b.seat,env.hero,env.motion,env.ground,dt,true);
           if(boarding&&b.seat===1){b.stage="ride";this.phase="player";this.launch(b.to);emit("moving",b);}
-          if(!boarding&&!b.seat){this.booking=null;this.phase="idle";this.wait=6;env.motion.reset();this.memory.rides++;emit("arrived",b);}
+          if(!boarding&&!b.seat){this.booking=null;this.phase="idle";this.wait=6;env.motion.reset();if(!b.meterCopy)this.memory.rides++;emit("arrived",b);}
         }else if(b.stage==="ride"){
           BayCarAccess.pose(v,1,1,env.hero,env.motion,env.ground,dt,true);
           if(this.leg&&!b.early&&!b.remarked&&this.leg.at>this.leg.route.length*.42){b.remarked=true;emit("window-talk",b);}
@@ -358,5 +358,11 @@
       if(!this.trip&&!this.leg&&!this.booking){this.wait-=dt;if(this.wait<=0)this.dispatch();}
     }
   }
-  window.BayCab={stops,cinema,cast,read,route,track:streetTrack,streetStop,stopped,StreetDriver,Service};
+  function readMeter(raw){
+    if(!Number.isSafeInteger(raw?.rev)||raw.rev<1||typeof raw.key!=="string"||raw.key.length>96||
+      ![raw.x,raw.z,raw.yaw].every(Number.isFinite)||Math.abs(raw.x)>600||Math.abs(raw.z)>600)return null;
+    return {rev:raw.rev,key:raw.key,x:raw.x,z:raw.z,yaw:raw.yaw,flat:[-1,1].includes(raw.flat)?raw.flat:0,
+      axle:raw.axle==="front"?"front":"rear",spent:raw.spent===true,found:raw.found===true};
+  }
+  window.BayCab={stops,cinema,cast,read,readMeter,route,track:streetTrack,streetStop,stopped,StreetDriver,Service};
 })();
