@@ -4539,7 +4539,7 @@
   }
   function nearFlowerChair(){
     const seat=BayCab.chairs[save.cab.bunch];
-    return seat&&!freshFlowerChair&&onStreetFeet()&&!active&&!heat&&dist(hero,seat)<2.25;
+    return seat&&!freshFlowerChair&&onStreetFeet()&&!projector&&!active&&!heat&&dist(hero,seat)<1.65;
   }
   function flowerSubject(){
     if(campaign.beat()?.shot==="flowerSeat")return BayCab.chairs[save.cab.bunch];
@@ -9447,7 +9447,7 @@
         const v=projector.venue;state.cx=v.x;state.cz=(v.z+v.screen.z)*.5;state.rotation=state.cameraYaw=v.yaw;state.scale=h/15;
       }
       const directed=campaign.frame(flowerSubject());
-      if(directed){state.cx=directed.to.x;state.cz=directed.to.z;state.rotation=state.cameraYaw=directed.yaw;state.scale=h/directed.span;if(payrollReceipt)state.target=null;}
+      if(directed){state.cx=directed.to.x;state.cz=directed.to.z;state.rotation=state.cameraYaw=directed.yaw;state.scale=h/directed.span;if(payrollReceipt||campaign.beat()?.shot==="flowerSeat")state.target=null;}
       drawBayMap(map.getContext("2d"),state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
       if(projector&&!projector.showing){
         const p=projection(projector.venue);if(p)BayPavementShow.monitor(map,p.canvas);
@@ -10489,7 +10489,8 @@
       else if(r.phase==="wait")contextHint("",luz.regular?.gangway?"Waiting for the gangway to clear":"Scheduled departure in "+Math.max(0,Math.ceil(12-luz.clock))+" s");
       else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(chapter==="outside-copy"){
+    }else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card"+(phoneHint?"  ·  L  Payphone":""));
+    else if(chapter==="outside-copy"){
       const s=outsideSite();contextHint("F","Frame the outside copy · "+s.name+(outsideCases.mounted[s.route]?" · H ask about the projector":""));
     }
     else if(chapter==="pavement-show")contextHint("F","Work the slide projector · A Wall for Tonight");
@@ -10658,7 +10659,6 @@
     }
     else if(byCinema())contextHint("F","Step inside Cine Luna");
     else if(waiting)contextHint(BayCab.stopped(car)?"H":"",(waiting===cabs.florist&&!save.cab.bunch?"Pick up Bea and the anniversary flowers":"Offer "+waiting.name.split(" ")[0]+" a ride to "+waiting.to.name)+(BayCab.stopped(car)?"":" · Pull over first"));
-    else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card");
     else if(cabRank())contextHint("F",save.meterCopy&&!save.meterCopy.found?"Bay Cab · Show Mina’s driver’s copy":"Hail Bay Cab");
     else if(fare&&cabs.holds(car))contextHint("","Passenger door · "+fare.name);
     else if(!active&&atWatchBoard())contextHint("F",save.shore.carried?"Return the "+siteById(save.shore.carried).name.toLowerCase():"Read the lifeguard’s lost-and-found board");
@@ -11896,6 +11896,7 @@
       active.payroll.photoTaken=true;save.collection.print=1;persist();lastHud=-10;
       speak("Jules","Says ‘For B.’ Bea still works the Marlin desk. I'll leave it with your things in Fourteen.");return;
     }
+    if(ev.code==="KeyF"&&nearFlowerChair()){cabAction();return;}
     if(ev.code==="KeyF"&&besideShiftKeeper()){
       shiftKeeper.wait=Math.max(shiftKeeper.wait,4);shiftKeeper.yaw=Math.atan2(hero.x-shiftKeeper.x,hero.z-shiftKeeper.z);
       openPanel("shift-print");return;
@@ -11948,7 +11949,6 @@
     if(ev.code==="KeyF"&&beatAction())return;
     if(ev.code==="KeyF"){const chalk=jumpChalk();if(chalk){openJumpBook(chalk);return;}}
     if(engineKey(ev.code)||starliteKey(ev.code))return;
-    if(ev.code==="KeyF"&&nearFlowerChair()){cabAction();return;}
     if(ev.code==="KeyF"&&atThreads()){visitThreads();return;}
     if(curbsideKey(ev.code))return;
     if(bellKey(ev.code))return;

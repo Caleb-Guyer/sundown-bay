@@ -147,8 +147,13 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
     const world=BayView.prototype.draw;BayView.prototype.draw=function(id){if(id==='anniversary-chair')ga.chair=true;return world.apply(this,arguments);};
     document.querySelector('#play').click();true`);
   await waitFor("ga.h&&ga.cab");assert.equal(await js("ga.cab.memory.bunch"),bouquet);
-  await js("Object.assign(ga.h,BayCab.chairs[ga.cab.memory.bunch]);true");
-  await waitFor("document.querySelector('#context').textContent.includes('flower card')");await tap("KeyF");
+  await js("const chair=BayCab.chairs[ga.cab.memory.bunch];Object.assign(ga.h,{x:chair.x,z:chair.z-.82,yaw:0});true");
+  try{await waitFor("document.querySelector('#context').textContent.includes('flower card')");}
+  catch(e){
+    console.log("Flower visit",await js("({x:ga.h.x,z:ga.h.z,seat:ga.cab.memory.bunch,prompt:document.querySelector('#context').textContent,mode:document.querySelector('#mode').textContent,errors:"+JSON.stringify(errors)+"})"));
+    await snap("flower-prompt");throw e;
+  }
+  await tap("KeyF");
   await waitFor("document.querySelector('#chapterTitle').textContent==='The other side'");
   await waitFor("!document.querySelector('#chapterInsert').hidden");
   assert(await js("document.querySelector('#chapterInsert').getAttribute('aria-label').includes("+JSON.stringify(bouquet==="marlin"?"pillow":"Otis")+")"));

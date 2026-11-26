@@ -355,7 +355,9 @@
             const chair=chairs[p.to.id];p.yaw=Math.atan2(chair.x-p.x,chair.z-p.z);
             p.phase="arrange";p.age=0;continue;
           }
-        }else if(p.phase!=="arrange"||p.age<1.4)continue;
+        }else if(p.phase==="arrange"){
+          p.motion.step(dt,0,0);if(p.age<1.4)continue;
+        }else continue;
         if(p.cancelled){
           if(this.privateFare===p)this.privateFare=null;
           p.from=p.curb;p.phase="wait";p.cancelled=false;p.curb=null;
