@@ -105,9 +105,9 @@
     const w=canvas.width,h=canvas.height,f=at*(card.frames.length-1),i=Math.floor(f),u=f-i;
     const a=card.frames[i],b=card.frames[Math.min(i+1,card.frames.length-1)];
     const center=card.frames[Math.floor(card.frames.length*.52)][0],driver=a[0],next=b[0];
-    const cx=center[1]*.32+(driver[1]+(next[1]-driver[1])*u)*.68,cz=center[2]*.32+(driver[2]+(next[2]-driver[2])*u)*.68;
+    const cx=center[1]*.18+(driver[1]+(next[1]-driver[1])*u)*.82,cz=center[2]*.18+(driver[2]+(next[2]-driver[2])*u)*.82;
     c.fillStyle="#253833";c.fillRect(0,0,w,h);
-    const scale=5,x=n=>w*.5+(n-cx)*scale,y=n=>h*.50-(n-cz)*scale;
+    const scale=9,x=n=>w*.5+(n-cx)*scale,y=n=>h*.50-(n-cz)*scale;
     c.save();c.beginPath();c.rect(9,9,w-18,h-18);c.clip();
     c.fillStyle=cz>223?"#819489":"#b7b19b";c.fillRect(0,0,w,h);
     if(cx>100){

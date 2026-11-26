@@ -30,6 +30,7 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
   await waitFor("!!("+row+")");await js(row+".click()");await waitFor("!!document.querySelector('input[aria-label=\"Clean Through film position\"]')");
   const slider="document.querySelector('input[aria-label=\"Clean Through film position\"]')";
   await waitFor("Number("+slider+".value)>80");await js(slider+".value=525;"+slider+".dispatchEvent(new Event('input'));true");
+  assert(await js(slider+".getBoundingClientRect().bottom<=document.querySelector('#panelBody').getBoundingClientRect().bottom"));
   await shot("reel");assert.equal(await js("JSON.parse(localStorage.getItem(BayCleanThrough.key)).score"),card.score);
   await tap("Escape");
   await js(`window.railQA={};const rail=railQA,rs=BayRescue.Service.prototype.step;

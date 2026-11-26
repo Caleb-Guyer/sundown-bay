@@ -7988,9 +7988,8 @@
   }
   function passPanel(body){
     const card=passReel.best;
-    signedNote(body,"Come past a moving car close enough to get both of you in the shot. Two cars either side of you? That’s my cover. Give me five clean seconds after the last pass. — Romy","Free roam · Start above 20 mph · Contact spoils the run");
-    if(!card)return;
-    signedNote(body,card.score+" points · "+card.passes+" clean "+(card.passes===1?"pass":"passes")+" · "+card.gaps+" double "+(card.gaps===1?"gap":"gaps"),card.model+" / "+card.street);
+    const directions=()=>signedNote(body,"Come past a moving car close enough to get both of you in the shot. One car either side of you? That’s my cover. Give me five clean seconds after the last pass. — Romy","Free roam · Start above 20 mph · Contact spoils the run");
+    if(!card){directions();return;}
     const canvas=document.createElement("canvas");canvas.width=600;canvas.height=260;canvas.className="take-print";
     canvas.setAttribute("role","img");canvas.setAttribute("aria-label","Overhead replay of the best pass on "+card.street);
     const controls=document.createElement("div");controls.className="timing-film-controls";
@@ -8000,6 +7999,8 @@
     play.textContent="Pause";play.onclick=()=>{if(f.at>=1)f.at=0;f.playing=!f.playing;f.time=performance.now();play.textContent=f.playing?"Pause":"Play";};
     scrub.oninput=()=>{f.playing=false;f.at=Number(scrub.value)/1000;play.textContent="Play";BayCleanThrough.draw(canvas,card,f.at,city.opaqueBuildings);};
     controls.append(play,scrub);body.append(canvas,controls);BayCleanThrough.draw(canvas,card,0,city.opaqueBuildings);
+    signedNote(body,card.score+" points · "+card.passes+" clean "+(card.passes===1?"pass":"passes")+" · "+card.gaps+" double "+(card.gaps===1?"gap":"gaps"),card.model+" / "+card.street);
+    directions();
   }
   function rollPassFilm(now){
     const f=passFilm;if(!f?.playing||now-f.drawn<50)return;

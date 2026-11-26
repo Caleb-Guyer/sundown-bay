@@ -68625,9 +68625,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     const w=canvas.width,h=canvas.height,f=at*(card.frames.length-1),i=Math.floor(f),u=f-i;
     const a=card.frames[i],b=card.frames[Math.min(i+1,card.frames.length-1)];
     const center=card.frames[Math.floor(card.frames.length*.52)][0],driver=a[0],next=b[0];
-    const cx=center[1]*.32+(driver[1]+(next[1]-driver[1])*u)*.68,cz=center[2]*.32+(driver[2]+(next[2]-driver[2])*u)*.68;
+    const cx=center[1]*.18+(driver[1]+(next[1]-driver[1])*u)*.82,cz=center[2]*.18+(driver[2]+(next[2]-driver[2])*u)*.82;
     c.fillStyle="#253833";c.fillRect(0,0,w,h);
-    const scale=5,x=n=>w*.5+(n-cx)*scale,y=n=>h*.50-(n-cz)*scale;
+    const scale=9,x=n=>w*.5+(n-cx)*scale,y=n=>h*.50-(n-cz)*scale;
     c.save();c.beginPath();c.rect(9,9,w-18,h-18);c.clip();
     c.fillStyle=cz>223?"#819489":"#b7b19b";c.fillRect(0,0,w,h);
     if(cx>100){
@@ -79539,9 +79539,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function passPanel(body){
     const card=passReel.best;
-    signedNote(body,"Come past a moving car close enough to get both of you in the shot. Two cars either side of you? That’s my cover. Give me five clean seconds after the last pass. — Romy","Free roam · Start above 20 mph · Contact spoils the run");
-    if(!card)return;
-    signedNote(body,card.score+" points · "+card.passes+" clean "+(card.passes===1?"pass":"passes")+" · "+card.gaps+" double "+(card.gaps===1?"gap":"gaps"),card.model+" / "+card.street);
+    const directions=()=>signedNote(body,"Come past a moving car close enough to get both of you in the shot. One car either side of you? That’s my cover. Give me five clean seconds after the last pass. — Romy","Free roam · Start above 20 mph · Contact spoils the run");
+    if(!card){directions();return;}
     const canvas=document.createElement("canvas");canvas.width=600;canvas.height=260;canvas.className="take-print";
     canvas.setAttribute("role","img");canvas.setAttribute("aria-label","Overhead replay of the best pass on "+card.street);
     const controls=document.createElement("div");controls.className="timing-film-controls";
@@ -79551,6 +79550,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     play.textContent="Pause";play.onclick=()=>{if(f.at>=1)f.at=0;f.playing=!f.playing;f.time=performance.now();play.textContent=f.playing?"Pause":"Play";};
     scrub.oninput=()=>{f.playing=false;f.at=Number(scrub.value)/1000;play.textContent="Play";BayCleanThrough.draw(canvas,card,f.at,city.opaqueBuildings);};
     controls.append(play,scrub);body.append(canvas,controls);BayCleanThrough.draw(canvas,card,0,city.opaqueBuildings);
+    signedNote(body,card.score+" points · "+card.passes+" clean "+(card.passes===1?"pass":"passes")+" · "+card.gaps+" double "+(card.gaps===1?"gap":"gaps"),card.model+" / "+card.street);
+    directions();
   }
   function rollPassFilm(now){
     const f=passFilm;if(!f?.playing||now-f.drawn<50)return;
