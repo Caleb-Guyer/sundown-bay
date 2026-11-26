@@ -597,10 +597,6 @@
     uniform vec3 origin,eye,rightV,upV,forwardV; uniform vec2 turn,focal; uniform vec2 depth;
     uniform vec4 tilt,waterParams; uniform float castOnly; uniform vec2 castSlope;
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
-    #ifdef FRAME_PAINT
-    uniform vec3 paint[4];
-    varying vec3 litPaint,shadowInk;
-    #endif
     void main(){
       #if defined(STREET_SURFACE) && !defined(MODEL_SPACE)
       vec3 world=pos;
@@ -621,10 +617,6 @@
       float material=floor((col.r+.25)*.5);
       street=vec4(world.xz,world.y,material);
       vColor=vec3(col.r-2.*material,col.gb); haze=smoothstep(62.,390.,z)*.68;
-      #ifdef FRAME_PAINT
-      vec3 ink=mix(vec3(dot(vColor,vec3(.25,.58,.17))),vColor,1.08);
-      litPaint=ink*paint[0]+vColor*paint[2]+paint[3];shadowInk=ink*paint[1];
-      #endif
     }`;
   const PRECISION=`#ifdef GL_FRAGMENT_PRECISION_HIGH
     precision highp float;
@@ -635,7 +627,7 @@
   const FRAGMENT = PRECISION+`
     varying vec3 vColor,lightCoord; varying vec2 surface; varying vec4 street; varying float haze;
     #ifdef FRAME_PAINT
-    varying vec3 litPaint,shadowInk;
+    uniform vec3 paint[4];
     #endif
     uniform vec4 waterParams,airState,driverLamp; uniform vec3 eye,skyTone; uniform vec2 immersion;
     uniform vec3 seaSun;
@@ -721,7 +713,10 @@
       float wash=lowDetail>.5?0.:texture2D(paper,surface*.011).r-.5;
       #endif
       #ifdef FRAME_PAINT
-      vec3 color=litPaint+shadowInk*shade;
+      // Start both programs from the same interpolated dye. Prelighting each
+      // vertex amplifies interpolation error on thin, distant street triangles.
+      vec3 ink=mix(vec3(dot(vColor,vec3(.25,.58,.17))),vColor,1.08);
+      vec3 color=ink*(paint[0]+paint[1]*shade)+vColor*paint[2]+paint[3];
       vec3 mist=mix(vec3(.87,.691,.651),vec3(.56,.405,.465),dusk);
       #else
       vec3 ink=mix(vec3(dot(vColor,vec3(.25,.58,.17))),vColor,1.08);
