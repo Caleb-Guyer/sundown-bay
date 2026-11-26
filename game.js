@@ -4542,7 +4542,28 @@
     return seat&&!freshFlowerChair&&onStreetFeet()&&!projector&&!active&&!heat&&dist(hero,seat)<1.65;
   }
   function flowerSubject(){
-    if(campaign.beat()?.shot==="flowerSeat")return BayCab.chairs[save.cab.bunch];
+    if(campaign.beat()?.shot==="flowerSeat"){
+      const scene=campaign.scene;if(scene.seatAngle)return scene.seatAngle;
+      const chair=BayCab.chairs[save.cab.bunch],bea=cabs.people.find(p=>p.id==="bea");
+      const street=collectMap("street",chair.x,chair.z,1);
+      const extras=street.peds.concat(street.streetActors,cabs.people,car?[]:[hero])
+        .filter(p=>p!==bea&&dist(p,chair)<5)
+        .map(p=>({x:p.x,z:p.z,w:.78,d:.78,top:1.9}));
+      const cover=chase.cover.filter(o=>Math.abs(o.x-chair.x)<5+o.w*.5&&Math.abs(o.z-chair.z)<5+o.d*.5).concat(extras);
+      const florist={x:bea.x,y:1.41,z:bea.z},flowers={x:chair.x,y:1,z:chair.z};
+      const front=dist(bea,chair)<2?cover.concat([{...bea,w:.42,d:.42,top:1.7}]):cover;
+      let best=-Infinity;
+      for(const turn of [0,.75,-.75,1.5,-1.5,2.25,-2.25,Math.PI]){
+        const anchor={...chair,yaw:chair.yaw+turn},eye=campaign.frame(anchor);
+        let clear=BayCamera.safeFraction(flowers,eye,front);
+        if(dist(bea,chair)<2)clear=Math.min(clear,BayCamera.safeFraction(florist,eye,cover));
+        // An extra just outside the sightline can still fill half the picture at the lens.
+        for(const p of extras)clear=Math.min(clear,dist(p,eye)/1.35);
+        if(clear>best){best=clear;scene.seatAngle=anchor;}
+        if(clear>=.999)break;
+      }
+      return scene.seatAngle;
+    }
     return campaign.scene?.id==="lastMeter"?meterCar():payrollReceipt?.receiver||active?.story?.ride||car;
   }
   function cabAction(){
