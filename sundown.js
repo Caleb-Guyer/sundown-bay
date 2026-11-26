@@ -15002,17 +15002,22 @@ window.buildBayCity = function buildBayCity(g,water) {
   function drawTraffic(c,v,x,y,s,t,lowDetail){
     // The flash, damage, steer and door poses still come from this exact car.
     // At dashboard-map scale only an unchanged body can use the shared print.
-    if(!lowDetail||s<3.5||s>16||!printKinds.has(v.kind)||v.damage||v.hydraulic||v.flatSide||
+    if(!lowDetail||s<2||s>16||!printKinds.has(v.kind)||v.damage||v.hydraulic||v.flatSide||
       v.doorAngle||v.passengerDoor||v.reversing||v.indicator||Math.abs(v.steer||0)>.0001||BayStreetReactions.hornPulse(v,t)){
       carSprite(c,v,x,y,s,t);return false;
     }
-    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit);
+    const simple=s<3.5&&!!window.bayCoachwork?.(v.kind);
+    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit)+"/"+Number(simple);
     let print=trafficPrints.get(key);
     if(!print){
       // Every eligible body and its shadow fit on this 3.2 by 6.4 metre sheet.
       print=mapSurface(64,128);const ink=print?.getContext("2d");
       if(!ink){carSprite(c,v,x,y,s,t);return false;}
-      ink.lineJoin="round";carSprite(ink,{kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0},32,64,20,0);
+      // Choose the same trim as the vector painter at this camera distance,
+      // while rasterizing its small silhouette with spare source resolution.
+      const artworkScale=simple?3:20;
+      ink.lineJoin="round";ink.translate(32,64);ink.scale(20/artworkScale,20/artworkScale);
+      carSprite(ink,{kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0},0,0,artworkScale,0);
       print=freezeSurface(print);
       if(trafficPrints.size>=56){
         const first=trafficPrints.keys().next().value;trafficPrints.get(first).close?.();trafficPrints.delete(first);

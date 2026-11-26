@@ -10,7 +10,7 @@ module.exports=function trafficPrints(){
     let hits=0;
     for(let i=0;i<rows.length;i++){
       const v=rows[i],x=36+i%8*68,y=32+Math.floor(i/8)*60;
-      if(BayMapTraffic.draw(c,v,x,y,6+(i%4),0,cached))hits++;
+      if(BayMapTraffic.draw(c,v,x,y,[2.1,2.94,4.2,7.5,11,9][i%6],0,cached))hits++;
     }
     return hits;
   }
