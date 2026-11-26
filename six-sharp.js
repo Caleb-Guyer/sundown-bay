@@ -81,8 +81,9 @@
   const crewSeats=[[-.78,-3.18],[-.09,-3.42],[.63,-3.23],[1.04,-2.49],[-.34,-2.51],[.35,-1.97],[-.85,-1.64],
     [.97,-1.42],[.03,-1.03],[.85,-.38],[.77,.51],[.02,1.18],[-.91,1.50],[1.05,1.49],[-.90,2.40],[-.14,2.96],[.58,3.46]];
   const clothes=["#747f82","#b67c62","#5a7974","#b3a57f","#737491","#89977f"],faces=["#996c51","#be8b67","#70503e","#cc9d79"];
-  function passengers(g){
+  function passengers(g,omit=-1){
     for(const [i,[x,z]] of crewSeats.entries()){
+      if(i===omit)continue;
       const s=Math.sin(i*2.38-.9),c=Math.cos(i*2.38-.9),short=i%4===0?.90:1;
       const at=(u,h,v)=>[x+u*c+v*s,.82+h*short,z-u*s+v*c],yaw=Math.atan2(s,c);
       const box=(u,h,v,w,height,depth,col)=>g.box(...at(u,h,v),w,height*short,depth,col,yaw);

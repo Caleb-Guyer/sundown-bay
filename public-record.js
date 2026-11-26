@@ -31,7 +31,7 @@
     lastTransfer:[
       {dur:4.5,pilot:"cast",title:"The Last Transfer",slug:"MARLIN PIER   /   FROM INEZ’S LOG",who:"Inez · captain of Luz"},
       {dur:0,pilot:"helm",who:"Inez · at the wheel"},
-      {dur:3.8,pilot:"land",slug:"NORTH FLOAT",who:"Alma Reyes"},
+      {dur:14.2,pilot:"land",slug:"NORTH FLOAT",who:"Alma Reyes"},
       {dur:8,art:"transferStub",who:"Dalia Cruz"}
     ],
     printCan:[
@@ -198,7 +198,13 @@
         const p=this.pilot;
         if(b.pilot==="cast")return {...b,line:p.luis==="aboard"?"Luis, put those tins under the seat. We held for you. Now see if you can spot Alma’s bus from the bow.":"Luis missed our gate. I can still see him waving. Seventeen aboard for Alma’s clinic bus."};
         if(b.pilot==="helm")return {...b,line:p.instruction()};
-        if(b.pilot==="land")return {...b,line:p.result.caught?(p.held?"Heard you at the buoy. I told the driver, you close that door and you answer to me.":"There’s my last fare. Come on, love. Mind the step."):"I left the afternoon transfers under the clip. Make sure everybody gets one."};
+        if(b.pilot==="land"){
+          if(p.landingAge>8.5)return {...b,who:"Estela Paz",line:p.result.caught?
+            "Two copies, Alma? I’ll take the top one. Clip the spare up for the next person.":
+            "She tucked the afternoon ones under here. There’s even a spare for Marta’s bus."};
+          if(p.landingAge>3.6)return {...b,who:"Estela Paz",line:"Give me an arm’s length. If my stick finds the boards, my shoes usually follow."};
+          return {...b,line:p.result.caught?(p.held?"Heard you at the buoy. I told the driver, you close that door and you answer to me.":"There’s my last fare. Come on, love. Mind the step."):"I left the afternoon transfers under the clip. Make sure everybody gets one."};
+        }
         return {...b,line:"I stapled Alma’s stub to the engine-room copy. You can read it in my book at Lot 14."};
       }
       const delivery=s.id==="live"||s.id==="print";

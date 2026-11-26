@@ -74,6 +74,37 @@
     for(let i=0;i<3;i++)circle(c,277,-53+i*62,12,i===(r.caught?0:2)?"#304745":"#b09570");
     c.restore();
   }
+  const replies={marlin:"There’s the motel. My sister used to leave the porch lamp on till my last run.",
+    mercado:"Mercado. If Rosario asks, tell her the soup made it across upright this time.",
+    port:"Port Sol. Luis always folds his ticket twice so it fits under the latch of his tin.",
+    luna:"The Luna. There used to be a balcony seat for whoever brought the last bus in."};
+  function through(canvas,book,table){
+    canvas.width=900;canvas.height=458;const c=canvas.getContext("2d"),stops=BayTransit.stops;
+    c.fillStyle="#293d3b";c.fillRect(0,0,900,458);c.save();c.translate(450,228);c.rotate(-.018);
+    c.fillStyle="#172d2a";c.fillRect(-328,-168,679,351);
+    c.fillStyle=book.first.caught?"#ecd6a1":"#d0d4bc";c.fillRect(-337,-176,680,352);
+    for(let i=0;i<16;i++){circle(c,-337,-153+i*20,3.4,"#293d3b");circle(c,343,-153+i*20,3.4,"#293d3b");}
+    text(c,"PORT SOL FERRY CO.    /    BAY TRANSIT",-304,-138,"bold 15px monospace",ink);
+    text(c,"North Float through ticket",-306,-90,"bold 38px Georgia",ink);
+    text(c,(book.first.caught?"MORNING":"AFTERNOON")+" CONNECTION    ·    COACH 608",-303,-58,"bold 15px monospace",rust);
+    line(c,-304,-40,308,-40,ink,2);
+    for(const [i,stop] of stops.entries()){
+      const x=-301+i*154,marked=book.punches.includes(stop.id),selected=(table.onBus||table.arrival)&&i===table.index;
+      if(selected){c.fillStyle="#d4b77f";c.fillRect(x-3,-28,141,111);}
+      text(c,String(i+1).padStart(2,"0"),x+4,-3,"13px monospace",rust);
+      text(c,["Marlin","Mercado","Port Sol","Cine Luna"][i],x+4,23,"bold 22px Georgia",ink);
+      c.strokeStyle="#9d987a";c.lineWidth=1.4;c.beginPath();c.arc(x+62,56,13,0,tau);c.stroke();
+      if(marked){circle(c,x+62,56,10,"#304745");line(c,x+58,48,x+67,48,"#a38b66",1.7);}
+      if(i<3)line(c,x+144,-23,x+144,80,"#b0a17c",1);
+    }
+    line(c,-304,93,308,93,ink,1);
+    text(c,table.arrival?"Rear door   /   "+stops[table.index].short:table.onBus?"Window seat   /   "+stops[table.index].short:"Issued at North Float",-301,123,"italic 22px Georgia",ink);
+    text(c,book.punches.length+" OF 4 PUNCHED",307,149,"bold 13px monospace",rust,"right");
+    if(table.onBus){const x=-239+table.index*154;
+      c.fillStyle="#62685a";c.beginPath();c.moveTo(x-13,62);c.lineTo(x-9,49);c.lineTo(x+23,74);c.lineTo(x+56,130);c.lineTo(x+44,136);c.closePath();c.fill();
+      circle(c,x+17,80,5,"#c8b07f");}
+    c.restore();
+  }
   function overhead(canvas,w,beat){
     const width=Math.max(320,Math.round(Math.min(innerWidth,960))),h=Math.round(width*innerHeight/innerWidth);
     if(canvas.width!==width||canvas.height!==h){canvas.width=width;canvas.height=h;}
@@ -96,18 +127,7 @@
     planks(d.footX,d.z-d.walkW/2,d.x-d.footX,d.walkW);planks(d.x-d.headW/2,d.z-d.headD/2,d.headW,d.headD);
     BayFirstCrossing.map(c,v,px,py,s,()=>true,true);
     if(w.away>0&&w.away<1.25)rect(v.x-1.5-5.3*Math.cos(1.36*w.away/1.25),p.z-.38,5.3*Math.cos(1.36*w.away/1.25),.76,"#a98965");
-    function person(x,z,yaw,skin,shirt,phase,moving,tins){
-      c.save();c.translate(px(x),py(z));c.rotate(yaw);c.scale(s,s);
-      const swing=Math.sin(phase*tau)*moving;
-      for(const sign of [-1,1]){
-        c.fillStyle="#414942";c.fillRect(sign*.11-.06,-.12+sign*swing*.16,.12,.32);
-        circle(c,sign*.24,-sign*swing*.20,.084,skin);
-        if(tins){c.fillStyle=sign>0?"#426e83":"#637a60";c.fillRect(sign*.34-.084,-.12-sign*swing*.20,.168,.26);
-          line(c,sign*.34-.06,-sign*swing*.20,sign*.34+.06,-sign*swing*.20,"#d2c7a6",.028);}
-      }
-      c.fillStyle=shirt;c.beginPath();c.ellipse(0,0,.245,.14,0,0,tau);c.fill();circle(c,0,-.03,.117,skin);
-      circle(c,0,.011,.105,"#4c4238");c.restore();
-    }
+    const person=(x,z,yaw,skin,shirt,phase,moving,tins)=>personAt(c,px(x),py(z),s,yaw,skin,shirt,phase,moving,tins);
     for(const [i,[x,z]] of BaySixSharp.crewSeats.entries()){
       const q=BayDriving.world(v,x,z);person(q.x,q.z,v.yaw+i*2.38-.9,BaySixSharp.faces[i%4],BaySixSharp.clothes[i%6],0,0,false);
     }
@@ -118,5 +138,17 @@
     line(c,px(p.x),py(p.z+.69),px(p.x),py(p.z+.69-dz),"#eee0b8",.12*s);
     for(let i=0;i<3;i++)line(c,px(p.x),py(p.z+.69-dz*(i+.3)/3),px(p.x),py(p.z+.69-dz*(i+.7)/3),rust,.13*s);
   }
-  window.BaySixSharpArt={clock,docket,overhead,stub};
+  function personAt(c,x,y,s,yaw,skin,shirt,phase,moving,tins){
+      c.save();c.translate(x,y);c.rotate(yaw);c.scale(s,s);
+      const swing=Math.sin(phase*tau)*moving;
+      for(const sign of [-1,1]){
+        c.fillStyle="#414942";c.fillRect(sign*.11-.06,-.12+sign*swing*.16,.12,.32);
+        circle(c,sign*.24,-sign*swing*.20,.084,skin);
+        if(tins){c.fillStyle=sign>0?"#426e83":"#637a60";c.fillRect(sign*.34-.084,-.12-sign*swing*.20,.168,.26);
+          line(c,sign*.34-.06,-sign*swing*.20,sign*.34+.06,-sign*swing*.20,"#d2c7a6",.028);}
+      }
+      c.fillStyle=shirt;c.beginPath();c.ellipse(0,0,.245,.14,0,0,tau);c.fill();circle(c,0,-.03,.117,skin);
+      circle(c,0,.011,.105,"#4c4238");c.restore();
+    }
+  window.BaySixSharpArt={clock,docket,overhead,stub,personAt,through,replies};
 })();

@@ -15206,13 +15206,15 @@ window.buildBayCity = function buildBayCity(g,water) {
   const streetGround=new WeakMap();
   function groundPatch(opt,base,roofs,rx,rz){
     if(!base||!roofs||!opt.weather||rx>95||rz>95)return null;
-    const light=opt.weather.sun,opacity=light.strength*(1-.88*opt.weather.rain)*(1-opt.dusk);
+    let light=opt.weather.sun,opacity=light.strength*(1-.88*opt.weather.rain)*(1-opt.dusk);
     const key=opacity<.012?"unlit":Math.round(light.dx*13)+"/"+Math.round(light.dz*13)+"/"+Math.round(opacity*30);
     // The painted streets have 3.5 texels per metre. Reserve extra density for
     // close shots where the sharp edges of the cast shadows are also visible.
     const density=opt.scale>16?8:4;
+    const signals=opt.scale<=8?opt.signals:null;
     let patch=streetGround.get(opt.solids);
-    if(patch?.key===key&&patch.density===density&&patch.base===base&&patch.roofs===roofs&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
+    if(patch?.key===key){light=patch.light;opacity=patch.opacity;}
+    if(patch?.key===key&&patch.signals===signals&&patch.density===density&&patch.base===base&&patch.roofs===roofs&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
       opt.cx+rx<=patch.right&&opt.cz-rz>=patch.bottom)return patch;
     // Centre the backing sheet on a city block. Turning a corner or moving
     // a few metres keeps sampling the same sheet at the actual camera pose.
@@ -15221,14 +15223,33 @@ window.buildBayCity = function buildBayCity(g,water) {
     const left=centerX-halfX,right=centerX+halfX,top=centerZ+halfZ,bottom=centerZ-halfZ;
     const w=(right-left)*density,h=(top-bottom)*density;
     if(w*h>1400000)return null;
-    patch?.image.close?.();
     const canvas=patch?.canvas||mapSurface(w,h);
+    if(!canvas)return null;
     if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;
     const c=canvas.getContext("2d"),px=x=>(x-left)*density,py=z=>(top-z)*density;
     c.clearRect(0,0,w,h);
-    const draw=image=>drawGroundWindow(c,image,extent,left,bottom,right,top,px,py,density);
-    draw(base);castBuildings(c,opt.solids,light,px,py,density,(x,y,p)=>x>=-p&&x<=w+p&&y>=-p&&y<=h+p,opacity);draw(roofs);
-    patch={canvas,image:freezeSurface(canvas),base,roofs,key,density,left,right,top,bottom};
+    const paint=(l,b,r,t)=>{
+      if(l>=r||b>=t)return;
+      const draw=image=>drawGroundWindow(c,image,extent,l,b,r,t,px,py,density);
+      draw(base);
+      castBuildings(c,opt.solids,light,px,py,density,(x,y,p)=>x>=px(l)-p&&x<=px(r)+p&&y>=py(t)-p&&y<=py(b)+p,opacity);
+      draw(roofs);
+      if(signals)for(const sig of signals)if(sig.x+10>=l&&sig.x-10<=r&&sig.z+10>=b&&sig.z-10<=t)BayCrosswalkArt.mapPaint(c,px,py,density,sig);
+    };
+    // Copy the unchanged map when the driver crosses a block. Rasterize the
+    // new strips only. A plain canvas has no immutable snapshot to copy from.
+    const l=Math.max(left,patch?.left??right),r=Math.min(right,patch?.right??left);
+    const b=Math.max(bottom,patch?.bottom??top),t=Math.min(top,patch?.top??bottom);
+    if(l<r&&b<t&&patch.image!==canvas&&patch.key===key&&patch.signals===signals&&patch.density===density&&patch.base===base&&patch.roofs===roofs){
+      drawGroundWindow(c,patch.image,patch,l,b,r,t,px,py,density);
+      for(const [x0,z0,x1,z1] of [[left,bottom,l,top],[r,bottom,right,top],[l,bottom,r,b],[l,t,r,top]]){
+        if(x0>=x1||z0>=z1)continue;
+        c.save();c.beginPath();c.rect(px(x0),py(z1),(x1-x0)*density,(z1-z0)*density);c.clip();
+        paint(x0,z0,x1,z1);c.restore();
+      }
+    }else paint(left,bottom,right,top);
+    patch?.image.close?.();
+    patch={canvas,image:freezeSurface(canvas),base,roofs,key,density,signals,light,opacity,left,right,top,bottom};
     streetGround.set(opt.solids,patch);return patch;
   }
   function castBuildings(c,solids,light,px,py,s,visible,opacity){
@@ -15744,7 +15765,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(roofs)drawLayer(roofs);
       else{ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);paintBuildings(ctx,solids,true);oceanFrontages(ctx);ctx.restore();}
     }
-    if(street)for(const sig of opt.signals||empty)if(visible(px(sig.x),py(sig.z),12*s))BayCrosswalkArt.mapPaint(ctx,px,py,s,sig);
+    if(street&&!patch?.signals)for(const sig of opt.signals||empty)if(visible(px(sig.x),py(sig.z),12*s))BayCrosswalkArt.mapPaint(ctx,px,py,s,sig);
     if(visible(px(226),py(327),143*s)){
       const shore=[];for(let z=208;z<=478;z+=5)shore.push([px(BayCut.coast(z)-.28),py(z)]);
       shore.push([px(480),py(478)],[px(480),py(208)]);path(ctx,shore,p.ocean);
@@ -15849,7 +15870,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     BayMarinaView.map(ctx,opt,px,py,s,ui,visible);
     if(street&&opt.record){const p=BayLastTransfer.stand,x=px(p.x),y=py(p.z);
       if(visible(x,y,5)){disc(ctx,x,y,.36*s,"#556a60");rect(ctx,x-.29*s,y-.1*s,.58*s,.2*s,"#d9bc7b");}}
-    if(street&&opt.record?.transfer){const p=BayLastTransfer.clip;if(visible(px(p.x),py(p.z),4))rect(ctx,px(p.x)-.25*s,py(p.z)-.09*s,.5*s,.18*s,"#dab78b");}
+    if(street&&opt.record?.transfer){const p=BayLastTransfer.clip;if(visible(px(p.x),py(p.z),4))BayLastTransfer.mapClip(ctx,px(p.x),py(p.z),s);}
     if(opt.publicBoat)BayFirstCrossing.map(ctx,opt.publicBoat,px,py,s,visible,street);
     if(opt.brisas)BayBrisas.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.palmHouse)BayPalmRoom.furniture(ctx,opt,px,py,s,visible,streetTime);
@@ -20846,8 +20867,9 @@ window.buildBayCity = function buildBayCity(g,water) {
   const crewSeats=[[-.78,-3.18],[-.09,-3.42],[.63,-3.23],[1.04,-2.49],[-.34,-2.51],[.35,-1.97],[-.85,-1.64],
     [.97,-1.42],[.03,-1.03],[.85,-.38],[.77,.51],[.02,1.18],[-.91,1.50],[1.05,1.49],[-.90,2.40],[-.14,2.96],[.58,3.46]];
   const clothes=["#747f82","#b67c62","#5a7974","#b3a57f","#737491","#89977f"],faces=["#996c51","#be8b67","#70503e","#cc9d79"];
-  function passengers(g){
+  function passengers(g,omit=-1){
     for(const [i,[x,z]] of crewSeats.entries()){
+      if(i===omit)continue;
       const s=Math.sin(i*2.38-.9),c=Math.cos(i*2.38-.9),short=i%4===0?.90:1;
       const at=(u,h,v)=>[x+u*c+v*s,.82+h*short,z-u*s+v*c],yaw=Math.atan2(s,c);
       const box=(u,h,v,w,height,depth,col)=>g.box(...at(u,h,v),w,height*short,depth,col,yaw);
@@ -20994,6 +21016,37 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(let i=0;i<3;i++)circle(c,277,-53+i*62,12,i===(r.caught?0:2)?"#304745":"#b09570");
     c.restore();
   }
+  const replies={marlin:"There’s the motel. My sister used to leave the porch lamp on till my last run.",
+    mercado:"Mercado. If Rosario asks, tell her the soup made it across upright this time.",
+    port:"Port Sol. Luis always folds his ticket twice so it fits under the latch of his tin.",
+    luna:"The Luna. There used to be a balcony seat for whoever brought the last bus in."};
+  function through(canvas,book,table){
+    canvas.width=900;canvas.height=458;const c=canvas.getContext("2d"),stops=BayTransit.stops;
+    c.fillStyle="#293d3b";c.fillRect(0,0,900,458);c.save();c.translate(450,228);c.rotate(-.018);
+    c.fillStyle="#172d2a";c.fillRect(-328,-168,679,351);
+    c.fillStyle=book.first.caught?"#ecd6a1":"#d0d4bc";c.fillRect(-337,-176,680,352);
+    for(let i=0;i<16;i++){circle(c,-337,-153+i*20,3.4,"#293d3b");circle(c,343,-153+i*20,3.4,"#293d3b");}
+    text(c,"PORT SOL FERRY CO.    /    BAY TRANSIT",-304,-138,"bold 15px monospace",ink);
+    text(c,"North Float through ticket",-306,-90,"bold 38px Georgia",ink);
+    text(c,(book.first.caught?"MORNING":"AFTERNOON")+" CONNECTION    ·    COACH 608",-303,-58,"bold 15px monospace",rust);
+    line(c,-304,-40,308,-40,ink,2);
+    for(const [i,stop] of stops.entries()){
+      const x=-301+i*154,marked=book.punches.includes(stop.id),selected=(table.onBus||table.arrival)&&i===table.index;
+      if(selected){c.fillStyle="#d4b77f";c.fillRect(x-3,-28,141,111);}
+      text(c,String(i+1).padStart(2,"0"),x+4,-3,"13px monospace",rust);
+      text(c,["Marlin","Mercado","Port Sol","Cine Luna"][i],x+4,23,"bold 22px Georgia",ink);
+      c.strokeStyle="#9d987a";c.lineWidth=1.4;c.beginPath();c.arc(x+62,56,13,0,tau);c.stroke();
+      if(marked){circle(c,x+62,56,10,"#304745");line(c,x+58,48,x+67,48,"#a38b66",1.7);}
+      if(i<3)line(c,x+144,-23,x+144,80,"#b0a17c",1);
+    }
+    line(c,-304,93,308,93,ink,1);
+    text(c,table.arrival?"Rear door   /   "+stops[table.index].short:table.onBus?"Window seat   /   "+stops[table.index].short:"Issued at North Float",-301,123,"italic 22px Georgia",ink);
+    text(c,book.punches.length+" OF 4 PUNCHED",307,149,"bold 13px monospace",rust,"right");
+    if(table.onBus){const x=-239+table.index*154;
+      c.fillStyle="#62685a";c.beginPath();c.moveTo(x-13,62);c.lineTo(x-9,49);c.lineTo(x+23,74);c.lineTo(x+56,130);c.lineTo(x+44,136);c.closePath();c.fill();
+      circle(c,x+17,80,5,"#c8b07f");}
+    c.restore();
+  }
   function overhead(canvas,w,beat){
     const width=Math.max(320,Math.round(Math.min(innerWidth,960))),h=Math.round(width*innerHeight/innerWidth);
     if(canvas.width!==width||canvas.height!==h){canvas.width=width;canvas.height=h;}
@@ -21016,18 +21069,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     planks(d.footX,d.z-d.walkW/2,d.x-d.footX,d.walkW);planks(d.x-d.headW/2,d.z-d.headD/2,d.headW,d.headD);
     BayFirstCrossing.map(c,v,px,py,s,()=>true,true);
     if(w.away>0&&w.away<1.25)rect(v.x-1.5-5.3*Math.cos(1.36*w.away/1.25),p.z-.38,5.3*Math.cos(1.36*w.away/1.25),.76,"#a98965");
-    function person(x,z,yaw,skin,shirt,phase,moving,tins){
-      c.save();c.translate(px(x),py(z));c.rotate(yaw);c.scale(s,s);
-      const swing=Math.sin(phase*tau)*moving;
-      for(const sign of [-1,1]){
-        c.fillStyle="#414942";c.fillRect(sign*.11-.06,-.12+sign*swing*.16,.12,.32);
-        circle(c,sign*.24,-sign*swing*.20,.084,skin);
-        if(tins){c.fillStyle=sign>0?"#426e83":"#637a60";c.fillRect(sign*.34-.084,-.12-sign*swing*.20,.168,.26);
-          line(c,sign*.34-.06,-sign*swing*.20,sign*.34+.06,-sign*swing*.20,"#d2c7a6",.028);}
-      }
-      c.fillStyle=shirt;c.beginPath();c.ellipse(0,0,.245,.14,0,0,tau);c.fill();circle(c,0,-.03,.117,skin);
-      circle(c,0,.011,.105,"#4c4238");c.restore();
-    }
+    const person=(x,z,yaw,skin,shirt,phase,moving,tins)=>personAt(c,px(x),py(z),s,yaw,skin,shirt,phase,moving,tins);
     for(const [i,[x,z]] of BaySixSharp.crewSeats.entries()){
       const q=BayDriving.world(v,x,z);person(q.x,q.z,v.yaw+i*2.38-.9,BaySixSharp.faces[i%4],BaySixSharp.clothes[i%6],0,0,false);
     }
@@ -21038,7 +21080,19 @@ window.buildBayCity = function buildBayCity(g,water) {
     line(c,px(p.x),py(p.z+.69),px(p.x),py(p.z+.69-dz),"#eee0b8",.12*s);
     for(let i=0;i<3;i++)line(c,px(p.x),py(p.z+.69-dz*(i+.3)/3),px(p.x),py(p.z+.69-dz*(i+.7)/3),rust,.13*s);
   }
-  window.BaySixSharpArt={clock,docket,overhead,stub};
+  function personAt(c,x,y,s,yaw,skin,shirt,phase,moving,tins){
+      c.save();c.translate(x,y);c.rotate(yaw);c.scale(s,s);
+      const swing=Math.sin(phase*tau)*moving;
+      for(const sign of [-1,1]){
+        c.fillStyle="#414942";c.fillRect(sign*.11-.06,-.12+sign*swing*.16,.12,.32);
+        circle(c,sign*.24,-sign*swing*.20,.084,skin);
+        if(tins){c.fillStyle=sign>0?"#426e83":"#637a60";c.fillRect(sign*.34-.084,-.12-sign*swing*.20,.168,.26);
+          line(c,sign*.34-.06,-sign*swing*.20,sign*.34+.06,-sign*swing*.20,"#d2c7a6",.028);}
+      }
+      c.fillStyle=shirt;c.beginPath();c.ellipse(0,0,.245,.14,0,0,tau);c.fill();circle(c,0,-.03,.117,skin);
+      circle(c,0,.011,.105,"#4c4238");c.restore();
+    }
+  window.BaySixSharpArt={clock,docket,overhead,stub,personAt,through,replies};
 })();
 
 ;
@@ -21372,7 +21426,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     lastTransfer:[
       {dur:4.5,pilot:"cast",title:"The Last Transfer",slug:"MARLIN PIER   /   FROM INEZ’S LOG",who:"Inez · captain of Luz"},
       {dur:0,pilot:"helm",who:"Inez · at the wheel"},
-      {dur:3.8,pilot:"land",slug:"NORTH FLOAT",who:"Alma Reyes"},
+      {dur:14.2,pilot:"land",slug:"NORTH FLOAT",who:"Alma Reyes"},
       {dur:8,art:"transferStub",who:"Dalia Cruz"}
     ],
     printCan:[
@@ -21539,7 +21593,13 @@ window.buildBayCity = function buildBayCity(g,water) {
         const p=this.pilot;
         if(b.pilot==="cast")return {...b,line:p.luis==="aboard"?"Luis, put those tins under the seat. We held for you. Now see if you can spot Alma’s bus from the bow.":"Luis missed our gate. I can still see him waving. Seventeen aboard for Alma’s clinic bus."};
         if(b.pilot==="helm")return {...b,line:p.instruction()};
-        if(b.pilot==="land")return {...b,line:p.result.caught?(p.held?"Heard you at the buoy. I told the driver, you close that door and you answer to me.":"There’s my last fare. Come on, love. Mind the step."):"I left the afternoon transfers under the clip. Make sure everybody gets one."};
+        if(b.pilot==="land"){
+          if(p.landingAge>8.5)return {...b,who:"Estela Paz",line:p.result.caught?
+            "Two copies, Alma? I’ll take the top one. Clip the spare up for the next person.":
+            "She tucked the afternoon ones under here. There’s even a spare for Marta’s bus."};
+          if(p.landingAge>3.6)return {...b,who:"Estela Paz",line:"Give me an arm’s length. If my stick finds the boards, my shoes usually follow."};
+          return {...b,line:p.result.caught?(p.held?"Heard you at the buoy. I told the driver, you close that door and you answer to me.":"There’s my last fare. Come on, love. Mind the step."):"I left the afternoon transfers under the clip. Make sure everybody gets one."};
+        }
         return {...b,line:"I stapled Alma’s stub to the engine-room copy. You can read it in my book at Lot 14."};
       }
       const delivery=s.id==="live"||s.id==="print";
@@ -26374,15 +26434,18 @@ window.buildBayCity = function buildBayCity(g,water) {
   const stand={x:south.x-11,z:south.z-1.5,y:south.level};
   const clip={x:north.x-5.05,z:north.z+.82,y:north.level};
   const landing=BayFirstCrossing.track(1),barge={x:253,z:-17},signal={x:271,z:-15};
+  const estelaSeat=6,actors=new WeakMap();
   const resultValid=r=>r&&Number.isSafeInteger(r.tenths)&&r.tenths>0&&r.tenths<=864000&&
     ["aboard","ashore"].includes(r.luis)&&typeof r.held==="boolean"&&typeof r.caught==="boolean";
   function read(r){
     if(!resultValid(r?.first)||!resultValid(r.best))return null;
-    return {first:r.first,best:r.best,trips:Number.isSafeInteger(r.trips)?clamp(r.trips,1,9999):1};
+    const book={first:r.first,best:r.best,trips:Number.isSafeInteger(r.trips)?clamp(r.trips,1,9999):1};
+    if(Array.isArray(r.punches))book.punches=[...new Set(r.punches.filter(id=>BayTransit.stops.some(s=>s.id===id)))];
+    return book;
   }
   function file(old,r){
     if(!old)return {first:r,best:r,trips:1};
-    return {first:old.first,best:r.tenths<old.best.tenths?r:old.best,trips:Math.min(9999,old.trips+1)};
+    return {...old,best:r.tenths<old.best.tenths?r:old.best,trips:Math.min(9999,old.trips+1)};
   }
   function clear(x,z,yaw){
     for(const d of [-3.8,0,3.8]){
@@ -26399,6 +26462,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       this.boat.phase="sail";this.sun=new BayHours.Clock(360);this.elapsed=0;this.age=0;
       this.speed=0;this.started=false;this.held=false;this.bump=0;this.result=null;
       this.landingAge=0;this.tieFrom=null;
+      this.estelaMotion=new BayPlayerMotion();this.almaMotion=new BayPlayerMotion();
+      this.estelaMotion.handTarget={x:.29,y:.91,z:.24,weight:1};
     }
     nearSignal(){return Math.hypot(this.boat.x-signal.x,this.boat.z-signal.z)<14;}
     ring(){
@@ -26414,9 +26479,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     scene(dt,land){
       const v=this.boat;this.age+=dt;v.y=.12+.045*Math.sin(this.age*1.5+v.z*.03);
       if(!land||!this.tieFrom)return;
+      const old=this.passenger(),before=this.landingAgent;
       this.landingAge+=dt;const f=clamp(this.landingAge/2.2,0,1),u=f*f*(3-2*f),a=this.tieFrom;
       v.x=a.x+(landing.x-a.x)*u;v.z=a.z+(landing.z-a.z)*u;v.yaw=a.yaw*(1-u);
       if(f===1){v.phase="berth";v.at=1;}
+      const p=this.passenger(),after=this.landingAgent;
+      this.estelaMotion.step(dt,this.landingAge<2.2?0:Math.hypot(p.x-old.x,p.z-old.z),0);
+      this.almaMotion.handTarget=this.result.caught?{x:.27,y:1.03,z:.36,weight:clamp((this.landingAge-7.2)*1.6,0,1)}:null;
+      this.almaMotion.step(dt,Math.hypot(before.x-after.x,before.z-after.z),0);
       while(v.wake.length&&this.age-v.wake[0].t>2.8)v.wake.shift();
     }
     move(dt,gas,back,rudder){
@@ -26450,9 +26520,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     eye(beat){
       if(beat==="land"){
-        const t=clamp(this.landingAge/3.8,0,1);
-        if(!this.result.caught)return {x:clip.x+2.7-t*.5,y:2.18,z:clip.z+2.9-t*.4,yaw:-2.39,pitch:-.25,focal:1.47};
-        return {x:landing.x-11+t*1.4,y:2.9-t*.23,z:landing.z+6.5-t*.70,yaw:2.10+t*.10,pitch:-.16,focal:1.52};
+        const p=this.passenger(),close=clamp((this.landingAge-6)/3,0,1),x=p.x-3.7+close*1.3,z=p.z+4.8-close*2.5;
+        const y=2.95-close*.90,look=this.result.caught?p:{x:p.x+(clip.x-p.x)*close*.28,z:p.z+(clip.z-p.z)*close*.28};
+        return {x,y,z,yaw:Math.atan2(look.x-x,look.z-z),pitch:Math.atan2(p.y+1.0-y,Math.hypot(look.x-x,look.z-z)),focal:1.47};
       }
       if(beat==="cast"){const t=clamp(this.age/4.5,0,1);
         return {x:this.boat.x+6.6-t*1.25,y:3.55-t*.47,z:this.boat.z+6.5,yaw:-2.26-t*.13,pitch:-.19,focal:1.5};}
@@ -26461,8 +26531,21 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     get landingAgent(){
       const walk=clamp((this.elapsed-this.deadline+(this.result&&!this.result.caught?this.landingAge:0))*1.6,0,27);
-      const receive=this.result?.caught?clamp(this.landingAge/3.35,0,1):0;
-      return {x:clip.x+.38-walk+6.5*receive,z:clip.z-.40+2.68*receive,y:north.level,yaw:walk?-Math.PI/2:1.18};
+      const receive=this.result?.caught?clamp(this.landingAge/5.4,0,1):0;
+      return {x:clip.x+.38-walk+6.4*receive,z:clip.z-.40+2.3*receive,y:north.level,yaw:walk?-Math.PI/2:1.18};
+    }
+    passenger(){
+      const v=this.boat,[sx,sz]=BaySixSharp.crewSeats[estelaSeat],t=this.landingAge;
+      const onDeck=(x,z)=>({...BayDriving.world(v,x,z),y:v.y+.82});
+      let a=onDeck(sx,sz),b=a,f=0,yaw=v.yaw;
+      if(t>2.2&&t<4.15){b=onDeck(-1.51,0);f=(t-2.2)/1.95;}
+      else if(t>=4.15){
+        a=onDeck(-1.51,0);b=BayFirstCrossing.stop(1);f=clamp((t-4.15)/3.6,0,1);
+        if(t>=7.75){a=b;b=this.result.caught?{...this.landingAgent,x:this.landingAgent.x+.57}:{...clip,z:clip.z-.40};
+          f=clamp((t-7.75)/(this.result.caught?1.3:5.1),0,1);}
+      }
+      if(t>2.2)yaw=Math.atan2(b.x-a.x,b.z-a.z);
+      return {x:a.x+(b.x-a.x)*f,z:a.z+(b.z-a.z)*f,y:a.y+(b.y-a.y)*f,yaw};
     }
     porter(){const v=this.boat;if(this.luis==="aboard")return {...BayDriving.world(v,-.75,.09),y:v.y+.82,yaw:v.yaw-1.30};
       const d=BayFirstCrossing.stop(0);return {x:d.x-.57,z:d.z,y:d.y,yaw:1.32};}
@@ -26490,10 +26573,30 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(let i=0;i<3;i++)g.box(-.025,1.23-i*.065,.06,.21-i*.026,.014,.011,"#796a50");
     g.box(0,1.35,.068,.13,.081,.033,"#b6a176");
   }
+  function mapClip(c,x,y,s){
+    c.save();c.translate(x,y);c.scale(s,s);
+    c.fillStyle="#746d56";c.fillRect(-.17,.015,.47,.19);
+    c.fillStyle="#365f59";c.fillRect(-.25,-.14,.51,.28);
+    c.fillStyle="#edc996";c.fillRect(-.17,-.06,.34,.18);
+    c.fillStyle="#966951";c.fillRect(-.105,.018,.18,.018);c.fillRect(-.105,.063,.15,.014);
+    c.fillStyle="#aa996b";c.fillRect(-.065,-.085,.13,.068);c.restore();
+  }
   function street(run,view,model,person,passengers){
     const v=run.boat,list=[],see=p=>Math.abs(p.z-v.z)<165&&Math.abs(p.x-v.x)<140;
     BayFirstCrossing.world(view,model,list,see,v,run.age,person);
-    model("watch/passengers",passengers);list.push(["watch/passengers",v.x,v.y,v.z,v.yaw]);
+    model("transfer/passengers",g=>passengers(g,estelaSeat));list.push(["transfer/passengers",v.x,v.y,v.z,v.yaw]);
+    let cast=actors.get(view);if(!cast){cast={};actors.set(view,cast);}
+    function actor(id,p,colors,motion){
+      const key="transfer/"+id;if(!cast[id]){cast[id]=new BayPlayerMesh(colors,"local");view.add(key,cast[id],true);}
+      const mesh=cast[id];if(mesh.sourceMotion!==motion){mesh.sourceMotion=motion;mesh.lastRevision=-1;}
+      if(mesh.update(motion))view.updateAnimated(key);
+      list.push([key,p.x,p.y+motion.lift,p.z,p.yaw]);return mesh;
+    }
+    const rider=run.passenger(),mesh=actor("estela",rider,["#ac7b5c","#a96956","#465754"],run.estelaMotion);
+    const arm=mesh.sides[1],hand=arm.forearm.map(arm.handPivot,[]),at=BayDriving.world(rider,hand[0],hand[2]);
+    model("transfer/cane",g=>{g.pole([0,0,0],[.035,-.83,-.06],.021,"#b78752",7);
+      g.pole([0,0,0],[0,.012,-.105],.034,"#704f37",7);g.cyl(.035,-.84,-.06,.029,.037,.06,7,"#484a42");});
+    list.push(["transfer/cane",at.x,rider.y+run.estelaMotion.lift+hand[1],at.z,rider.yaw]);
     const l=run.porter();if(see(l)){
       list.push([person(4,"local",0),l.x,l.y,l.z,l.yaw]);
       model("transfer/tins",g=>{for(const s of [-1,1]){g.box(s*.31,.70,0,.21,.20,.26,s>0?"#426e83":"#637a60");
@@ -26508,8 +26611,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       list.push(["marina-gangway",215,0,north.z,0],["marina-dock",north.x,0,north.z,0]);
       for(const dz of [-4.7,4.7])list.push(["transfer/fender",landing.x-4,0,landing.z+dz]);
       model("transfer/ticket-clip",ticketClip);list.push(["transfer/ticket-clip",clip.x,clip.y,clip.z,0]);
-      const a=run.landingAgent,moving=run.elapsed>run.deadline&&a.x>clip.x-26||run.result?.caught&&run.landingAge<3.35;
-      list.push([person(2,"local",moving?Math.floor(run.age*6)%6:0,1),a.x,a.y,a.z,a.yaw]);
+      const a=run.landingAgent,agent=actor("alma",a,["#986b53","#557c91","#4c5146"],run.almaMotion);
+      if(run.result?.caught&&run.landingAge>6){
+        const limb=agent.sides[1],h=limb.forearm.map(limb.handPivot,[]),q=BayDriving.world(a,h[0],h[2]);
+        model("transfer/card",g=>{g.box(0,0,0,.19,.013,.102,"#edcd91");g.box(-.05,.010,0,.014,.008,.097,"#9a6751");});
+        list.push(["transfer/card",q.x,a.y+run.almaMotion.lift+h[1],q.z,a.yaw]);
+      }
       if(run.tieFrom&&run.landingAge<2.25){
         const bow=BayDriving.world(v,-1.28,2.92),end={x:landing.x-4,z:landing.z+4.7};
         model("transfer/heaving-line",g=>g.box(0,0,0,.041,.041,1,"#e4d3a4"));
@@ -26523,25 +26630,41 @@ window.buildBayCity = function buildBayCity(g,water) {
   function overhead(canvas,r,beat){
     const width=Math.round(Math.min(innerWidth,960)),h=Math.max(1,Math.round(width*innerHeight/innerWidth));
     if(canvas.width!==width||canvas.height!==h){canvas.width=width;canvas.height=h;}
-    const c=canvas.getContext("2d"),v=r.boat,wide=beat==="helm",s=wide?Math.min(width/94,h/68):Math.min(width/27,h/17);
-    const focus=beat==="land"&&!r.result.caught?clip:v,cx=wide?v.x:focus.x-1.9,cz=wide?v.z+13:focus.z+1;
+    const c=canvas.getContext("2d"),v=r.boat,wide=beat==="helm",landingShot=beat==="land",rider=r.passenger();
+    const s=wide?Math.min(width/94,h/68):landingShot?Math.min(width/12,h/7.2):Math.min(width/27,h/17);
+    const focus=landingShot?rider:v,cx=wide?v.x:focus.x-(landingShot?.65:1.9),cz=wide?v.z+13:focus.z+.25;
     const px=x=>width/2+(x-cx)*s,py=z=>h/2-(z-cz)*s;
     const rect=(x,z,w,d,color)=>{c.fillStyle=color;c.fillRect(px(x-w/2),py(z+d/2),w*s,d*s);};
     const grad=c.createLinearGradient(0,0,width,h);grad.addColorStop(0,"#558986");grad.addColorStop(1,"#427482");c.fillStyle=grad;c.fillRect(0,0,width,h);
     for(let i=0;i<100;i++){const x=cx-57+(i*97%113),z=Math.floor(cz/80)*80-80+(i*47%173);
       rect(x+Math.sin(i+r.age*.65)*.3,z,1.3,.11,"#82aaa5");}
-    for(const d of [south,north]){rect((d.footX+d.x)/2,d.z,d.x-d.footX,d.walkW,"#b69a76");rect(d.x,d.z,d.headW,d.headD,"#b9a17d");}
+    function decking(x,z,w,d){
+      rect(x+.11,z-.18,w,d,"#4c6f69");rect(x,z,w,d,"#bda581");
+      const left=x-w/2,right=x+w/2;
+      for(let k=Math.max(0,Math.floor((cx-width/(2*s)-left)/.46));left+k*.46<Math.min(right,cx+width/(2*s));k++){
+        const at=left+k*.46;rect(at,z,.027,d,"#93826c");
+        if(!wide)for(const edge of [-1,1])rect(at+.075,z+edge*(d/2-.15),.04,.042,"#766b58");
+      }
+    }
+    for(const d of [south,north]){if(Math.abs(d.z-cz)>(h/s+d.headD)/2)continue;
+      decking((d.footX+d.x)/2,d.z,d.x-d.footX,d.walkW);decking(d.x,d.z,d.headW,d.headD);}
     for(const [x,z,k,yaw] of BayMarina.sails){if(Math.abs(z-cz)>h/s/2+5)continue;
       c.save();c.translate(px(x),py(z));c.rotate(yaw);c.fillStyle="#efe0ba";c.beginPath();c.ellipse(0,0,k*s,2.68*k*s,0,0,2*Math.PI);c.fill();
       c.fillStyle="#b06756";c.fillRect(-.17*k*s,-1.7*k*s,.34*k*s,3.4*k*s);c.restore();}
     rect(barge.x,barge.z,16.2,8.1,"#a07856");rect(barge.x-2,barge.z-.9,3.8,2.64,"#cec09c");
     rect(signal.x,signal.z,1.3,1.3,"#f8c668");rect(landing.x-4,landing.z-4.7,.58,.65,"#f5d493");rect(landing.x-4,landing.z+4.7,.58,.65,"#f5d493");
-    const a=r.landingAgent;rect(a.x,a.z,.48,.48,"#efc188");
-    rect(clip.x,clip.z,.47,.22,"#e5bc8c");
+    mapClip(c,px(clip.x),py(clip.z),s);
+    const a=r.landingAgent;
+    BaySixSharpArt.personAt(c,px(a.x),py(a.z),s,a.yaw,"#986b53","#557c91",r.almaMotion.phase,r.almaMotion.weight,false);
+    if(r.result?.caught&&r.landingAge>6){const q=BayDriving.world(a,.24,.34);rect(q.x,q.z,.20,.11,"#f1cd89");}
     for(const w of v.wake){const t=r.age-w.t;rect(w.x-.5-t*.38,w.z,.32,1.1,"#a4c0b4");rect(w.x+.5+t*.38,w.z,.32,1.1,"#a4c0b4");}
     BayFirstCrossing.map(c,v,px,py,s,()=>true,true);
-    for(const [i,[x,z]] of BaySixSharp.crewSeats.entries()){const q=BayDriving.world(v,x,z);rect(q.x,q.z,.29,.30,BaySixSharp.clothes[i%6]);}
-    const l=r.porter();rect(l.x,l.z,.39,.31,"#aa9365");rect(l.x-.18,l.z+.21,.22,.19,"#426e83");
+    for(const [i,[x,z]] of BaySixSharp.crewSeats.entries()){if(i===estelaSeat)continue;const q=BayDriving.world(v,x,z);
+      BaySixSharpArt.personAt(c,px(q.x),py(q.z),s,v.yaw+i*2.38-.9,BaySixSharp.faces[i%4],BaySixSharp.clothes[i%6],0,0,false);}
+    const l=r.porter();BaySixSharpArt.personAt(c,px(l.x),py(l.z),s,l.yaw,"#926349","#a59569",0,0,true);
+    BaySixSharpArt.personAt(c,px(rider.x),py(rider.z),s,rider.yaw,"#ac7b5c","#a96956",r.estelaMotion.phase,r.estelaMotion.weight,false);
+    const grip=BayDriving.world(rider,.24,.12),tip=BayDriving.world(rider,.34,.49);
+    c.strokeStyle="#725439";c.lineWidth=Math.max(1,s*.047);c.beginPath();c.moveTo(px(grip.x),py(grip.z));c.lineTo(px(tip.x),py(tip.z));c.stroke();
   }
   function dial(canvas,r){
     const c=canvas.getContext("2d"),v=r.boat;
@@ -26554,7 +26677,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.fillText(r.elapsed>r.deadline?"BUS DEPARTED":"BUS   "+Math.ceil(r.deadline-r.elapsed)+" s",80,138);
     canvas._second=null;
   }
-  window.BayLastTransfer={stand,clip,landing,barge,signal,read,file,Run,telegraph,ticketClip,street,overhead,dial};
+  window.BayLastTransfer={stand,clip,landing,barge,signal,read,file,Run,telegraph,ticketClip,mapClip,street,overhead,dial};
 })();
 
 ;
@@ -46883,6 +47006,13 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       return true;
     }
+    reserveConnection(stop){
+      const p=this.player;
+      if(p?.role!=="rider"||p.stage!=="ride"||!stops.includes(stop))return false;
+      p.connection=stop.id;
+      this.requested=this.bus.request=p.ridden>0&&this.stop===stop&&["open","dwell"].includes(this.phase);
+      return true;
+    }
     wantOut(env){
       const p=this.player;if(!p||p.stage!=="ride")return false;
       if(this.phase==="dwell"&&this.bus.door>.94){
@@ -46924,7 +47054,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     arrive(env){
       this.current=this.next;this.next=(this.current+1)%stops.length;this.at=this.stop.at;this.phase="open";this.dwell=4.4;this.passUntil=this.offset=0;
       BayDriving.settle(this.bus);this.bus.signal=1;this.bus.brake=1;env.cue("bus-door");
-      if(this.player?.role==="rider")this.player.ridden++;
+      if(this.player?.role==="rider"){
+        this.player.ridden++;
+        if(this.player.connection===this.stop.id){this.requested=this.bus.request=true;env.cue("bus-bell");}
+      }
       if(this.player?.role==="rider")env.line("Marta Leal",this.stop.short+". "+(this.requested?"Your stop. Back door.":"Change here, or stay on for "+this.target.short+"."));
     }
     sendWork(p,env){
@@ -46976,7 +47109,7 @@ window.buildBayCity = function buildBayCity(g,water) {
           const punched=p.role==="rider"&&p.ridden>0;
           if(punched){this.memory.rides++;if(!this.memory.stamps.includes(this.stop.id))this.memory.stamps.push(this.stop.id);env.save();}
           if(this.shift){this.shift=null;this.driver.stage="standing";this.driver.nextSeat=driverSeat;}
-          this.player=null;this.inside=false;this.dwell=Math.max(this.dwell,1.5);env.left(punched?this.stop:null);
+          this.player=null;this.inside=false;this.dwell=Math.max(this.dwell,1.5);env.left(punched?this.stop:null,p.connection);
         }else if(stage==="alight"){
           if(this.shift){this.shift.delivered++;if(gap(env.hero,p)<12)env.line(p.name,p.thanks);}
           this.sendWork(p,env);
@@ -71844,8 +71977,18 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     if(table?.kind==="transferStub"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";$("chapterSkip").hidden=true;$("chapterInsert").hidden=false;
-      $("chapterWho").textContent="Alma Reyes";$("chapterLine").textContent=table.pier?"I kept the first one on the clip. Press F to put it back.":"My first stub for that crossing. Press F to fold it back into the book.";
+      $("chapterWho").textContent="Alma Reyes";$("chapterLine").textContent=table.pier?(campaign.book.transfer.punches?
+        "The first one stays on the clip. H turns over your through ticket. F puts this back.":
+        "I kept the first one on the clip. H takes the spare for Route 6. F puts this back."):"My first stub for that crossing. Press F to fold it back into the book.";
       BaySixSharpArt.stub($("chapterInsert"),campaign.book.transfer.first,campaign.book.transfer);return;
+    }
+    if(table?.kind==="throughTicket"){
+      $("chapterSlug").textContent=$("chapterTitle").textContent="";$("chapterSkip").hidden=true;$("chapterInsert").hidden=false;
+      $("chapterWho").textContent=table.arrival?"Marta Leal":table.onBus?"Marta Leal · Coach 608":"Alma Reyes";
+      const stop=BayTransit.stops[table.index];
+      $("chapterLine").textContent=table.arrival?BaySixSharpArt.replies[table.arrival]+"  ·  F folds the ticket.":table.onBus?"A / D slides the ticket. Space asks for "+stop.short+". Esc puts it away.":
+        "Board Route 6 as a passenger. Press L in the window seat to show Marta your ticket. F folds it.";
+      BaySixSharpArt.through($("chapterInsert"),campaign.book.transfer,table);return;
     }
     if(table?.kind==="splice"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";
@@ -71918,7 +72061,12 @@ window.buildBayCity = function buildBayCity(g,water) {
         hours:{minute:385,night:0,rain:0},cars:[],scene:list=>BayLotNegative.actor(list,model,footLevel,1)},true);
       BayRecordArt.tone(photo);campaign.table={kind:"filmSleeve",pull:0,photo};
     }
-    else if(id==="transfer-stub")campaign.table={kind:"transferStub",pier:true};
+    else if(id==="through-ticket"||id==="punched-ticket"){
+      const rider=transit.player?.role==="rider"&&transit.player.stage==="ride";
+      const chosen=BayTransit.stops.findIndex(s=>s.id===transit.player?.connection);
+      const arrived=id==="punched-ticket";
+      campaign.table={kind:"throughTicket",onBus:rider,index:arrived?transit.current:chosen>=0?chosen:transit.next,arrival:arrived?transit.stop.id:null};
+    }else if(id==="transfer-stub")campaign.table={kind:"transferStub",pier:true};
     else if(id==="landing-order")campaign.table={kind:"landingOrder"};
     else if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
     if(id==="firstCopy")campaign.negativeNumber=inscribedCopy.pierPhoto.frame;
@@ -72016,8 +72164,22 @@ window.buildBayCity = function buildBayCity(g,water) {
       return true;
     }
     if(["watchBook","transferStub"].includes(campaign.table?.kind)){
+      if(campaign.table.pier&&ev.code==="KeyH"){
+        if(!campaign.book.transfer.punches){campaign.book.transfer.punches=[];campaign.write();}
+        enterFilm("through-ticket");return true;
+      }
       if(ev.code==="KeyF"&&campaign.book.transfer&&!campaign.table.pier){campaign.table.kind=campaign.table.kind==="watchBook"?"transferStub":"watchBook";setFilmPage();}
       else if(["Escape","Enter","KeyF"].includes(ev.code))endFilm("");return true;
+    }
+    if(campaign.table?.kind==="throughTicket"){
+      const table=campaign.table;
+      if(table.onBus&&["KeyA","ArrowLeft","KeyD","ArrowRight"].includes(ev.code)){
+        table.index=(table.index+(["KeyA","ArrowLeft"].includes(ev.code)?3:1))%4;setFilmPage();
+      }else if(table.onBus&&ev.code==="Space"&&transit.player?.stage==="ride"){
+        const stop=BayTransit.stops[table.index];if(!transit.reserveConnection(stop))return true;
+        endFilm("");speak("Marta Leal",stop.short+". I’ll ring that one for you. Hang on to the ticket till you get off.");
+      }else if(["Escape","Enter","KeyF","KeyL"].includes(ev.code))endFilm("");
+      return true;
     }
     if(campaign.table?.kind==="splice"){
       const edit=campaign.table;
@@ -74734,6 +74896,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   const transitFree=()=>onStreetFeet()&&!active&&!heat&&!cabs.booking&&!watchCrew.towing;
   const routeStop=()=>transitFree()?transit.near(hero):null;
+  const atTimetable=()=>!transit.engaged&&!projector&&!unit.eye&&!afternoon.photo&&!rankPhones.lifted&&!neighbors.chat&&transitFree()&&transit.near(hero,.85);
   const busCameras=()=>transit.player?.stage==="ride"&&transit.inside;
   function chooseTransit(s,role){
     if(!transitFree()||transit.near(hero)!==s)return;
@@ -74834,12 +74997,17 @@ window.buildBayCity = function buildBayCity(g,water) {
     save(){persist();},pay(pay,score,s){save.wallet+=pay;save.paid++;persist();lastHud=-10;
       note("Route 6  ·  Trip signed",s.short+"  ·  "+score+"% smooth stop  ·  "+cash(pay),4.2);
       speak("Marta Leal","That’s your trip signed. Take us to the next stop, or I can drive from here.");sound.cue("paid");},
-    left(stamp){lastHud=lastMap=-10;cameraSnap();
-      if(stamp)note("Transfer punched",stamp.short+"  ·  "+save.transit.stamps.length+" of 4 stops",3.4);}
+    left(stamp,connection){lastHud=lastMap=-10;cameraSnap();
+      if(stamp&&stamp.id===connection&&campaign.book.transfer?.punches){
+        const punches=campaign.book.transfer.punches;
+        if(!punches.includes(stamp.id)){punches.push(stamp.id);campaign.write();}
+        enterFilm("punched-ticket");
+      }else if(stamp)note("Transfer punched",stamp.short+"  ·  "+save.transit.stamps.length+" of 4 stops",3.4);}
   };
   function transitKeys(code){
     const p=transit.player;
     if(p){
+      if(code==="KeyL"&&p.role==="rider"&&p.stage==="ride"&&campaign.book.transfer?.punches){enterFilm("through-ticket");return true;}
       if(code==="KeyE")transit.wantOut(transitEnv);
       if(code==="KeyF"&&p.stage==="ride"){if(transit.shift)transit.takeDoors(transitEnv);else transit.ring(transitEnv);}
       if((code==="KeyV"||code==="KeyZ")&&p.stage==="ride"){
@@ -81539,6 +81707,10 @@ window.buildBayCity = function buildBayCity(g,water) {
         const riders=transit.people.filter(q=>q.stage==="ride").length;
         detail=transit.requested?"Stop requested  ·  Exit through the rear door":away?moving+" m · "+riders+(riders===1?" passenger":" passengers"):"Doors "+(b.door>.94?"open":"moving");
         const open=transit.phase==="dwell";action=open?"E":"F";hint=(open?"Get off here":"Pull the stop cord")+"  ·  V change view";
+        if(campaign.book.transfer?.punches){
+          hint+="  ·  L through ticket";
+          const chosen=BayTransit.stops.find(s=>s.id===p.connection);if(chosen)detail="Alma’s transfer · "+chosen.short;
+        }
       }
     }
     $("busCall").textContent=call;$("busDetail").textContent=detail;contextHint(action,hint);
@@ -81967,7 +82139,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       else if(r.phase==="wait")contextHint("",luz.regular?.gangway?"Waiting for the gangway to clear":"Scheduled departure in "+Math.max(0,Math.ceil(12-luz.clock))+" s");
       else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card"+(phoneHint?"  ·  L  Payphone":""));
+    }else if(atTimetable())contextHint("F","Route 6 timetable"+(transit.docked(atTimetable())?"  ·  E board Coach 608":""));
+    else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card"+(phoneHint?"  ·  L  Payphone":""));
     else if(chapter==="outside-copy"){
       const s=outsideSite();contextHint("F","Frame the outside copy · "+s.name+(outsideCases.mounted[s.route]?" · H ask about the projector":""));
     }
@@ -82911,6 +83084,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       board.textContent=here?"Coach 608 · Front door open":"Coach 608 · "+Math.ceil(transit.distanceTo(s))+" m along the line";b.append(board);
       const nextStop=BayTransit.stops[(BayTransit.stops.indexOf(s)+1)%4];
       b.append(makeButton("Ride Route 6","Next stop, "+nextStop.short+". F pulls the cord. Marta will let you out through the back.","Free transfer",()=>chooseTransit(s,"rider")));
+      if(campaign.book.transfer?.punches)b.append(makeButton("Alma’s through ticket","North Float spare · "+campaign.book.transfer.punches.length+" of 4 stops punched.","Unfold",()=>enterFilm("through-ticket")));
       b.append(makeButton("Take Marta’s wheel","Drive to the next marked stop. Line the front door up with the pole, brake, and press F to let people through.","Relief shift",()=>chooseTransit(s,"driver")));
       const walk={marlin:["Vera’s sign bench","At the foot of the Marlin stairs, just down the sidewalk.",neonPin],
         mercado:["Rosario’s counter","Under the market awning. Rosario serves after dusk.",BayMercadoArt.counter],
@@ -83398,6 +83572,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyF"&&atTimetable()){openPanel("route-six");return;}
+    if(ev.code==="KeyL"&&transit.player&&transitKeys(ev.code))return;
     if(active?.laundry&&linenKey(ev.code))return;
     if(ev.code==="KeyN"&&offeredShiftPrint()){
       active.payroll.photoTaken=true;save.collection.print=1;persist();lastHud=-10;
@@ -83657,7 +83833,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       const delta=Math.min(campaign.scene ? .85 : .18,Math.max(0,(now-last)/1000));last=now;
       if(campaign.scene){
         const id=campaign.scene.id,morning=campaign.beat().watch,pilot=campaign.pilot;
-        if(pilot&&["cast","land"].includes(campaign.beat().pilot))pilot.scene(delta,campaign.beat().pilot==="land");
+        if(pilot&&["cast","land"].includes(filmPage?.pilot)){
+          pilot.scene(delta,filmPage.pilot==="land");
+          if(filmPage.pilot==="land"){
+            const b=campaign.beat();if(b.line!==filmPage.line){$("chapterWho").textContent=b.who;$("chapterLine").textContent=b.line;filmPage=b;}
+          }
+        }
         else if(pilot&&campaign.beat().pilot==="helm"){
           const gas=held("KeyW","ArrowUp"),back=held("KeyS","ArrowDown"),rudder=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
           for(let left=delta;left>.00001;left-=1/30)pilot.move(Math.min(left,1/30),gas,back,rudder);
@@ -83680,7 +83861,7 @@ window.buildBayCity = function buildBayCity(g,water) {
           else if(now-lastFilmPaint>=1000/24){BayRecordArt.sleeve($("chapterInsert"),sleeve.pull,sleeve.photo);lastFilmPaint=now;}
         }
         return;
-      }else if(["watchBook","transferStub","landingOrder","roadMap"].includes(campaign.table.kind)){return;
+      }else if(["watchBook","transferStub","throughTicket","landingOrder","roadMap"].includes(campaign.table.kind)){return;
       }else if(campaign.table.kind==="splice"){
         const edit=campaign.table,dir=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
         const old=edit.head;edit.move(delta,dir);sound.reel(edit.playing?BayRoomTone.position(BayRoomTone.tape,edit.head):null,edit.head);

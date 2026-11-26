@@ -274,13 +274,15 @@
   const streetGround=new WeakMap();
   function groundPatch(opt,base,roofs,rx,rz){
     if(!base||!roofs||!opt.weather||rx>95||rz>95)return null;
-    const light=opt.weather.sun,opacity=light.strength*(1-.88*opt.weather.rain)*(1-opt.dusk);
+    let light=opt.weather.sun,opacity=light.strength*(1-.88*opt.weather.rain)*(1-opt.dusk);
     const key=opacity<.012?"unlit":Math.round(light.dx*13)+"/"+Math.round(light.dz*13)+"/"+Math.round(opacity*30);
     // The painted streets have 3.5 texels per metre. Reserve extra density for
     // close shots where the sharp edges of the cast shadows are also visible.
     const density=opt.scale>16?8:4;
+    const signals=opt.scale<=8?opt.signals:null;
     let patch=streetGround.get(opt.solids);
-    if(patch?.key===key&&patch.density===density&&patch.base===base&&patch.roofs===roofs&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
+    if(patch?.key===key){light=patch.light;opacity=patch.opacity;}
+    if(patch?.key===key&&patch.signals===signals&&patch.density===density&&patch.base===base&&patch.roofs===roofs&&opt.cx-rx>=patch.left&&opt.cz+rz<=patch.top&&
       opt.cx+rx<=patch.right&&opt.cz-rz>=patch.bottom)return patch;
     // Centre the backing sheet on a city block. Turning a corner or moving
     // a few metres keeps sampling the same sheet at the actual camera pose.
@@ -289,14 +291,33 @@
     const left=centerX-halfX,right=centerX+halfX,top=centerZ+halfZ,bottom=centerZ-halfZ;
     const w=(right-left)*density,h=(top-bottom)*density;
     if(w*h>1400000)return null;
-    patch?.image.close?.();
     const canvas=patch?.canvas||mapSurface(w,h);
+    if(!canvas)return null;
     if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;
     const c=canvas.getContext("2d"),px=x=>(x-left)*density,py=z=>(top-z)*density;
     c.clearRect(0,0,w,h);
-    const draw=image=>drawGroundWindow(c,image,extent,left,bottom,right,top,px,py,density);
-    draw(base);castBuildings(c,opt.solids,light,px,py,density,(x,y,p)=>x>=-p&&x<=w+p&&y>=-p&&y<=h+p,opacity);draw(roofs);
-    patch={canvas,image:freezeSurface(canvas),base,roofs,key,density,left,right,top,bottom};
+    const paint=(l,b,r,t)=>{
+      if(l>=r||b>=t)return;
+      const draw=image=>drawGroundWindow(c,image,extent,l,b,r,t,px,py,density);
+      draw(base);
+      castBuildings(c,opt.solids,light,px,py,density,(x,y,p)=>x>=px(l)-p&&x<=px(r)+p&&y>=py(t)-p&&y<=py(b)+p,opacity);
+      draw(roofs);
+      if(signals)for(const sig of signals)if(sig.x+10>=l&&sig.x-10<=r&&sig.z+10>=b&&sig.z-10<=t)BayCrosswalkArt.mapPaint(c,px,py,density,sig);
+    };
+    // Copy the unchanged map when the driver crosses a block. Rasterize the
+    // new strips only. A plain canvas has no immutable snapshot to copy from.
+    const l=Math.max(left,patch?.left??right),r=Math.min(right,patch?.right??left);
+    const b=Math.max(bottom,patch?.bottom??top),t=Math.min(top,patch?.top??bottom);
+    if(l<r&&b<t&&patch.image!==canvas&&patch.key===key&&patch.signals===signals&&patch.density===density&&patch.base===base&&patch.roofs===roofs){
+      drawGroundWindow(c,patch.image,patch,l,b,r,t,px,py,density);
+      for(const [x0,z0,x1,z1] of [[left,bottom,l,top],[r,bottom,right,top],[l,bottom,r,b],[l,t,r,top]]){
+        if(x0>=x1||z0>=z1)continue;
+        c.save();c.beginPath();c.rect(px(x0),py(z1),(x1-x0)*density,(z1-z0)*density);c.clip();
+        paint(x0,z0,x1,z1);c.restore();
+      }
+    }else paint(left,bottom,right,top);
+    patch?.image.close?.();
+    patch={canvas,image:freezeSurface(canvas),base,roofs,key,density,signals,light,opacity,left,right,top,bottom};
     streetGround.set(opt.solids,patch);return patch;
   }
   function castBuildings(c,solids,light,px,py,s,visible,opacity){
@@ -812,7 +833,7 @@
       if(roofs)drawLayer(roofs);
       else{ctx.save();ctx.translate(w/2-opt.cx*s,h/2+opt.cz*s);ctx.scale(s,-s);paintBuildings(ctx,solids,true);oceanFrontages(ctx);ctx.restore();}
     }
-    if(street)for(const sig of opt.signals||empty)if(visible(px(sig.x),py(sig.z),12*s))BayCrosswalkArt.mapPaint(ctx,px,py,s,sig);
+    if(street&&!patch?.signals)for(const sig of opt.signals||empty)if(visible(px(sig.x),py(sig.z),12*s))BayCrosswalkArt.mapPaint(ctx,px,py,s,sig);
     if(visible(px(226),py(327),143*s)){
       const shore=[];for(let z=208;z<=478;z+=5)shore.push([px(BayCut.coast(z)-.28),py(z)]);
       shore.push([px(480),py(478)],[px(480),py(208)]);path(ctx,shore,p.ocean);
@@ -917,7 +938,7 @@
     BayMarinaView.map(ctx,opt,px,py,s,ui,visible);
     if(street&&opt.record){const p=BayLastTransfer.stand,x=px(p.x),y=py(p.z);
       if(visible(x,y,5)){disc(ctx,x,y,.36*s,"#556a60");rect(ctx,x-.29*s,y-.1*s,.58*s,.2*s,"#d9bc7b");}}
-    if(street&&opt.record?.transfer){const p=BayLastTransfer.clip;if(visible(px(p.x),py(p.z),4))rect(ctx,px(p.x)-.25*s,py(p.z)-.09*s,.5*s,.18*s,"#dab78b");}
+    if(street&&opt.record?.transfer){const p=BayLastTransfer.clip;if(visible(px(p.x),py(p.z),4))BayLastTransfer.mapClip(ctx,px(p.x),py(p.z),s);}
     if(opt.publicBoat)BayFirstCrossing.map(ctx,opt.publicBoat,px,py,s,visible,street);
     if(opt.brisas)BayBrisas.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.palmHouse)BayPalmRoom.furniture(ctx,opt,px,py,s,visible,streetTime);

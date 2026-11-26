@@ -6,15 +6,18 @@
   const stand={x:south.x-11,z:south.z-1.5,y:south.level};
   const clip={x:north.x-5.05,z:north.z+.82,y:north.level};
   const landing=BayFirstCrossing.track(1),barge={x:253,z:-17},signal={x:271,z:-15};
+  const estelaSeat=6,actors=new WeakMap();
   const resultValid=r=>r&&Number.isSafeInteger(r.tenths)&&r.tenths>0&&r.tenths<=864000&&
     ["aboard","ashore"].includes(r.luis)&&typeof r.held==="boolean"&&typeof r.caught==="boolean";
   function read(r){
     if(!resultValid(r?.first)||!resultValid(r.best))return null;
-    return {first:r.first,best:r.best,trips:Number.isSafeInteger(r.trips)?clamp(r.trips,1,9999):1};
+    const book={first:r.first,best:r.best,trips:Number.isSafeInteger(r.trips)?clamp(r.trips,1,9999):1};
+    if(Array.isArray(r.punches))book.punches=[...new Set(r.punches.filter(id=>BayTransit.stops.some(s=>s.id===id)))];
+    return book;
   }
   function file(old,r){
     if(!old)return {first:r,best:r,trips:1};
-    return {first:old.first,best:r.tenths<old.best.tenths?r:old.best,trips:Math.min(9999,old.trips+1)};
+    return {...old,best:r.tenths<old.best.tenths?r:old.best,trips:Math.min(9999,old.trips+1)};
   }
   function clear(x,z,yaw){
     for(const d of [-3.8,0,3.8]){
@@ -31,6 +34,8 @@
       this.boat.phase="sail";this.sun=new BayHours.Clock(360);this.elapsed=0;this.age=0;
       this.speed=0;this.started=false;this.held=false;this.bump=0;this.result=null;
       this.landingAge=0;this.tieFrom=null;
+      this.estelaMotion=new BayPlayerMotion();this.almaMotion=new BayPlayerMotion();
+      this.estelaMotion.handTarget={x:.29,y:.91,z:.24,weight:1};
     }
     nearSignal(){return Math.hypot(this.boat.x-signal.x,this.boat.z-signal.z)<14;}
     ring(){
@@ -46,9 +51,14 @@
     scene(dt,land){
       const v=this.boat;this.age+=dt;v.y=.12+.045*Math.sin(this.age*1.5+v.z*.03);
       if(!land||!this.tieFrom)return;
+      const old=this.passenger(),before=this.landingAgent;
       this.landingAge+=dt;const f=clamp(this.landingAge/2.2,0,1),u=f*f*(3-2*f),a=this.tieFrom;
       v.x=a.x+(landing.x-a.x)*u;v.z=a.z+(landing.z-a.z)*u;v.yaw=a.yaw*(1-u);
       if(f===1){v.phase="berth";v.at=1;}
+      const p=this.passenger(),after=this.landingAgent;
+      this.estelaMotion.step(dt,this.landingAge<2.2?0:Math.hypot(p.x-old.x,p.z-old.z),0);
+      this.almaMotion.handTarget=this.result.caught?{x:.27,y:1.03,z:.36,weight:clamp((this.landingAge-7.2)*1.6,0,1)}:null;
+      this.almaMotion.step(dt,Math.hypot(before.x-after.x,before.z-after.z),0);
       while(v.wake.length&&this.age-v.wake[0].t>2.8)v.wake.shift();
     }
     move(dt,gas,back,rudder){
@@ -82,9 +92,9 @@
     }
     eye(beat){
       if(beat==="land"){
-        const t=clamp(this.landingAge/3.8,0,1);
-        if(!this.result.caught)return {x:clip.x+2.7-t*.5,y:2.18,z:clip.z+2.9-t*.4,yaw:-2.39,pitch:-.25,focal:1.47};
-        return {x:landing.x-11+t*1.4,y:2.9-t*.23,z:landing.z+6.5-t*.70,yaw:2.10+t*.10,pitch:-.16,focal:1.52};
+        const p=this.passenger(),close=clamp((this.landingAge-6)/3,0,1),x=p.x-3.7+close*1.3,z=p.z+4.8-close*2.5;
+        const y=2.95-close*.90,look=this.result.caught?p:{x:p.x+(clip.x-p.x)*close*.28,z:p.z+(clip.z-p.z)*close*.28};
+        return {x,y,z,yaw:Math.atan2(look.x-x,look.z-z),pitch:Math.atan2(p.y+1.0-y,Math.hypot(look.x-x,look.z-z)),focal:1.47};
       }
       if(beat==="cast"){const t=clamp(this.age/4.5,0,1);
         return {x:this.boat.x+6.6-t*1.25,y:3.55-t*.47,z:this.boat.z+6.5,yaw:-2.26-t*.13,pitch:-.19,focal:1.5};}
@@ -93,8 +103,21 @@
     }
     get landingAgent(){
       const walk=clamp((this.elapsed-this.deadline+(this.result&&!this.result.caught?this.landingAge:0))*1.6,0,27);
-      const receive=this.result?.caught?clamp(this.landingAge/3.35,0,1):0;
-      return {x:clip.x+.38-walk+6.5*receive,z:clip.z-.40+2.68*receive,y:north.level,yaw:walk?-Math.PI/2:1.18};
+      const receive=this.result?.caught?clamp(this.landingAge/5.4,0,1):0;
+      return {x:clip.x+.38-walk+6.4*receive,z:clip.z-.40+2.3*receive,y:north.level,yaw:walk?-Math.PI/2:1.18};
+    }
+    passenger(){
+      const v=this.boat,[sx,sz]=BaySixSharp.crewSeats[estelaSeat],t=this.landingAge;
+      const onDeck=(x,z)=>({...BayDriving.world(v,x,z),y:v.y+.82});
+      let a=onDeck(sx,sz),b=a,f=0,yaw=v.yaw;
+      if(t>2.2&&t<4.15){b=onDeck(-1.51,0);f=(t-2.2)/1.95;}
+      else if(t>=4.15){
+        a=onDeck(-1.51,0);b=BayFirstCrossing.stop(1);f=clamp((t-4.15)/3.6,0,1);
+        if(t>=7.75){a=b;b=this.result.caught?{...this.landingAgent,x:this.landingAgent.x+.57}:{...clip,z:clip.z-.40};
+          f=clamp((t-7.75)/(this.result.caught?1.3:5.1),0,1);}
+      }
+      if(t>2.2)yaw=Math.atan2(b.x-a.x,b.z-a.z);
+      return {x:a.x+(b.x-a.x)*f,z:a.z+(b.z-a.z)*f,y:a.y+(b.y-a.y)*f,yaw};
     }
     porter(){const v=this.boat;if(this.luis==="aboard")return {...BayDriving.world(v,-.75,.09),y:v.y+.82,yaw:v.yaw-1.30};
       const d=BayFirstCrossing.stop(0);return {x:d.x-.57,z:d.z,y:d.y,yaw:1.32};}
@@ -122,10 +145,30 @@
     for(let i=0;i<3;i++)g.box(-.025,1.23-i*.065,.06,.21-i*.026,.014,.011,"#796a50");
     g.box(0,1.35,.068,.13,.081,.033,"#b6a176");
   }
+  function mapClip(c,x,y,s){
+    c.save();c.translate(x,y);c.scale(s,s);
+    c.fillStyle="#746d56";c.fillRect(-.17,.015,.47,.19);
+    c.fillStyle="#365f59";c.fillRect(-.25,-.14,.51,.28);
+    c.fillStyle="#edc996";c.fillRect(-.17,-.06,.34,.18);
+    c.fillStyle="#966951";c.fillRect(-.105,.018,.18,.018);c.fillRect(-.105,.063,.15,.014);
+    c.fillStyle="#aa996b";c.fillRect(-.065,-.085,.13,.068);c.restore();
+  }
   function street(run,view,model,person,passengers){
     const v=run.boat,list=[],see=p=>Math.abs(p.z-v.z)<165&&Math.abs(p.x-v.x)<140;
     BayFirstCrossing.world(view,model,list,see,v,run.age,person);
-    model("watch/passengers",passengers);list.push(["watch/passengers",v.x,v.y,v.z,v.yaw]);
+    model("transfer/passengers",g=>passengers(g,estelaSeat));list.push(["transfer/passengers",v.x,v.y,v.z,v.yaw]);
+    let cast=actors.get(view);if(!cast){cast={};actors.set(view,cast);}
+    function actor(id,p,colors,motion){
+      const key="transfer/"+id;if(!cast[id]){cast[id]=new BayPlayerMesh(colors,"local");view.add(key,cast[id],true);}
+      const mesh=cast[id];if(mesh.sourceMotion!==motion){mesh.sourceMotion=motion;mesh.lastRevision=-1;}
+      if(mesh.update(motion))view.updateAnimated(key);
+      list.push([key,p.x,p.y+motion.lift,p.z,p.yaw]);return mesh;
+    }
+    const rider=run.passenger(),mesh=actor("estela",rider,["#ac7b5c","#a96956","#465754"],run.estelaMotion);
+    const arm=mesh.sides[1],hand=arm.forearm.map(arm.handPivot,[]),at=BayDriving.world(rider,hand[0],hand[2]);
+    model("transfer/cane",g=>{g.pole([0,0,0],[.035,-.83,-.06],.021,"#b78752",7);
+      g.pole([0,0,0],[0,.012,-.105],.034,"#704f37",7);g.cyl(.035,-.84,-.06,.029,.037,.06,7,"#484a42");});
+    list.push(["transfer/cane",at.x,rider.y+run.estelaMotion.lift+hand[1],at.z,rider.yaw]);
     const l=run.porter();if(see(l)){
       list.push([person(4,"local",0),l.x,l.y,l.z,l.yaw]);
       model("transfer/tins",g=>{for(const s of [-1,1]){g.box(s*.31,.70,0,.21,.20,.26,s>0?"#426e83":"#637a60");
@@ -140,8 +183,12 @@
       list.push(["marina-gangway",215,0,north.z,0],["marina-dock",north.x,0,north.z,0]);
       for(const dz of [-4.7,4.7])list.push(["transfer/fender",landing.x-4,0,landing.z+dz]);
       model("transfer/ticket-clip",ticketClip);list.push(["transfer/ticket-clip",clip.x,clip.y,clip.z,0]);
-      const a=run.landingAgent,moving=run.elapsed>run.deadline&&a.x>clip.x-26||run.result?.caught&&run.landingAge<3.35;
-      list.push([person(2,"local",moving?Math.floor(run.age*6)%6:0,1),a.x,a.y,a.z,a.yaw]);
+      const a=run.landingAgent,agent=actor("alma",a,["#986b53","#557c91","#4c5146"],run.almaMotion);
+      if(run.result?.caught&&run.landingAge>6){
+        const limb=agent.sides[1],h=limb.forearm.map(limb.handPivot,[]),q=BayDriving.world(a,h[0],h[2]);
+        model("transfer/card",g=>{g.box(0,0,0,.19,.013,.102,"#edcd91");g.box(-.05,.010,0,.014,.008,.097,"#9a6751");});
+        list.push(["transfer/card",q.x,a.y+run.almaMotion.lift+h[1],q.z,a.yaw]);
+      }
       if(run.tieFrom&&run.landingAge<2.25){
         const bow=BayDriving.world(v,-1.28,2.92),end={x:landing.x-4,z:landing.z+4.7};
         model("transfer/heaving-line",g=>g.box(0,0,0,.041,.041,1,"#e4d3a4"));
@@ -155,25 +202,41 @@
   function overhead(canvas,r,beat){
     const width=Math.round(Math.min(innerWidth,960)),h=Math.max(1,Math.round(width*innerHeight/innerWidth));
     if(canvas.width!==width||canvas.height!==h){canvas.width=width;canvas.height=h;}
-    const c=canvas.getContext("2d"),v=r.boat,wide=beat==="helm",s=wide?Math.min(width/94,h/68):Math.min(width/27,h/17);
-    const focus=beat==="land"&&!r.result.caught?clip:v,cx=wide?v.x:focus.x-1.9,cz=wide?v.z+13:focus.z+1;
+    const c=canvas.getContext("2d"),v=r.boat,wide=beat==="helm",landingShot=beat==="land",rider=r.passenger();
+    const s=wide?Math.min(width/94,h/68):landingShot?Math.min(width/12,h/7.2):Math.min(width/27,h/17);
+    const focus=landingShot?rider:v,cx=wide?v.x:focus.x-(landingShot?.65:1.9),cz=wide?v.z+13:focus.z+.25;
     const px=x=>width/2+(x-cx)*s,py=z=>h/2-(z-cz)*s;
     const rect=(x,z,w,d,color)=>{c.fillStyle=color;c.fillRect(px(x-w/2),py(z+d/2),w*s,d*s);};
     const grad=c.createLinearGradient(0,0,width,h);grad.addColorStop(0,"#558986");grad.addColorStop(1,"#427482");c.fillStyle=grad;c.fillRect(0,0,width,h);
     for(let i=0;i<100;i++){const x=cx-57+(i*97%113),z=Math.floor(cz/80)*80-80+(i*47%173);
       rect(x+Math.sin(i+r.age*.65)*.3,z,1.3,.11,"#82aaa5");}
-    for(const d of [south,north]){rect((d.footX+d.x)/2,d.z,d.x-d.footX,d.walkW,"#b69a76");rect(d.x,d.z,d.headW,d.headD,"#b9a17d");}
+    function decking(x,z,w,d){
+      rect(x+.11,z-.18,w,d,"#4c6f69");rect(x,z,w,d,"#bda581");
+      const left=x-w/2,right=x+w/2;
+      for(let k=Math.max(0,Math.floor((cx-width/(2*s)-left)/.46));left+k*.46<Math.min(right,cx+width/(2*s));k++){
+        const at=left+k*.46;rect(at,z,.027,d,"#93826c");
+        if(!wide)for(const edge of [-1,1])rect(at+.075,z+edge*(d/2-.15),.04,.042,"#766b58");
+      }
+    }
+    for(const d of [south,north]){if(Math.abs(d.z-cz)>(h/s+d.headD)/2)continue;
+      decking((d.footX+d.x)/2,d.z,d.x-d.footX,d.walkW);decking(d.x,d.z,d.headW,d.headD);}
     for(const [x,z,k,yaw] of BayMarina.sails){if(Math.abs(z-cz)>h/s/2+5)continue;
       c.save();c.translate(px(x),py(z));c.rotate(yaw);c.fillStyle="#efe0ba";c.beginPath();c.ellipse(0,0,k*s,2.68*k*s,0,0,2*Math.PI);c.fill();
       c.fillStyle="#b06756";c.fillRect(-.17*k*s,-1.7*k*s,.34*k*s,3.4*k*s);c.restore();}
     rect(barge.x,barge.z,16.2,8.1,"#a07856");rect(barge.x-2,barge.z-.9,3.8,2.64,"#cec09c");
     rect(signal.x,signal.z,1.3,1.3,"#f8c668");rect(landing.x-4,landing.z-4.7,.58,.65,"#f5d493");rect(landing.x-4,landing.z+4.7,.58,.65,"#f5d493");
-    const a=r.landingAgent;rect(a.x,a.z,.48,.48,"#efc188");
-    rect(clip.x,clip.z,.47,.22,"#e5bc8c");
+    mapClip(c,px(clip.x),py(clip.z),s);
+    const a=r.landingAgent;
+    BaySixSharpArt.personAt(c,px(a.x),py(a.z),s,a.yaw,"#986b53","#557c91",r.almaMotion.phase,r.almaMotion.weight,false);
+    if(r.result?.caught&&r.landingAge>6){const q=BayDriving.world(a,.24,.34);rect(q.x,q.z,.20,.11,"#f1cd89");}
     for(const w of v.wake){const t=r.age-w.t;rect(w.x-.5-t*.38,w.z,.32,1.1,"#a4c0b4");rect(w.x+.5+t*.38,w.z,.32,1.1,"#a4c0b4");}
     BayFirstCrossing.map(c,v,px,py,s,()=>true,true);
-    for(const [i,[x,z]] of BaySixSharp.crewSeats.entries()){const q=BayDriving.world(v,x,z);rect(q.x,q.z,.29,.30,BaySixSharp.clothes[i%6]);}
-    const l=r.porter();rect(l.x,l.z,.39,.31,"#aa9365");rect(l.x-.18,l.z+.21,.22,.19,"#426e83");
+    for(const [i,[x,z]] of BaySixSharp.crewSeats.entries()){if(i===estelaSeat)continue;const q=BayDriving.world(v,x,z);
+      BaySixSharpArt.personAt(c,px(q.x),py(q.z),s,v.yaw+i*2.38-.9,BaySixSharp.faces[i%4],BaySixSharp.clothes[i%6],0,0,false);}
+    const l=r.porter();BaySixSharpArt.personAt(c,px(l.x),py(l.z),s,l.yaw,"#926349","#a59569",0,0,true);
+    BaySixSharpArt.personAt(c,px(rider.x),py(rider.z),s,rider.yaw,"#ac7b5c","#a96956",r.estelaMotion.phase,r.estelaMotion.weight,false);
+    const grip=BayDriving.world(rider,.24,.12),tip=BayDriving.world(rider,.34,.49);
+    c.strokeStyle="#725439";c.lineWidth=Math.max(1,s*.047);c.beginPath();c.moveTo(px(grip.x),py(grip.z));c.lineTo(px(tip.x),py(tip.z));c.stroke();
   }
   function dial(canvas,r){
     const c=canvas.getContext("2d"),v=r.boat;
@@ -186,5 +249,5 @@
     c.fillText(r.elapsed>r.deadline?"BUS DEPARTED":"BUS   "+Math.ceil(r.deadline-r.elapsed)+" s",80,138);
     canvas._second=null;
   }
-  window.BayLastTransfer={stand,clip,landing,barge,signal,read,file,Run,telegraph,ticketClip,street,overhead,dial};
+  window.BayLastTransfer={stand,clip,landing,barge,signal,read,file,Run,telegraph,ticketClip,mapClip,street,overhead,dial};
 })();

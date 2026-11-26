@@ -884,8 +884,18 @@
     }
     if(table?.kind==="transferStub"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";$("chapterSkip").hidden=true;$("chapterInsert").hidden=false;
-      $("chapterWho").textContent="Alma Reyes";$("chapterLine").textContent=table.pier?"I kept the first one on the clip. Press F to put it back.":"My first stub for that crossing. Press F to fold it back into the book.";
+      $("chapterWho").textContent="Alma Reyes";$("chapterLine").textContent=table.pier?(campaign.book.transfer.punches?
+        "The first one stays on the clip. H turns over your through ticket. F puts this back.":
+        "I kept the first one on the clip. H takes the spare for Route 6. F puts this back."):"My first stub for that crossing. Press F to fold it back into the book.";
       BaySixSharpArt.stub($("chapterInsert"),campaign.book.transfer.first,campaign.book.transfer);return;
+    }
+    if(table?.kind==="throughTicket"){
+      $("chapterSlug").textContent=$("chapterTitle").textContent="";$("chapterSkip").hidden=true;$("chapterInsert").hidden=false;
+      $("chapterWho").textContent=table.arrival?"Marta Leal":table.onBus?"Marta Leal · Coach 608":"Alma Reyes";
+      const stop=BayTransit.stops[table.index];
+      $("chapterLine").textContent=table.arrival?BaySixSharpArt.replies[table.arrival]+"  ·  F folds the ticket.":table.onBus?"A / D slides the ticket. Space asks for "+stop.short+". Esc puts it away.":
+        "Board Route 6 as a passenger. Press L in the window seat to show Marta your ticket. F folds it.";
+      BaySixSharpArt.through($("chapterInsert"),campaign.book.transfer,table);return;
     }
     if(table?.kind==="splice"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";
@@ -958,7 +968,12 @@
         hours:{minute:385,night:0,rain:0},cars:[],scene:list=>BayLotNegative.actor(list,model,footLevel,1)},true);
       BayRecordArt.tone(photo);campaign.table={kind:"filmSleeve",pull:0,photo};
     }
-    else if(id==="transfer-stub")campaign.table={kind:"transferStub",pier:true};
+    else if(id==="through-ticket"||id==="punched-ticket"){
+      const rider=transit.player?.role==="rider"&&transit.player.stage==="ride";
+      const chosen=BayTransit.stops.findIndex(s=>s.id===transit.player?.connection);
+      const arrived=id==="punched-ticket";
+      campaign.table={kind:"throughTicket",onBus:rider,index:arrived?transit.current:chosen>=0?chosen:transit.next,arrival:arrived?transit.stop.id:null};
+    }else if(id==="transfer-stub")campaign.table={kind:"transferStub",pier:true};
     else if(id==="landing-order")campaign.table={kind:"landingOrder"};
     else if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
     if(id==="firstCopy")campaign.negativeNumber=inscribedCopy.pierPhoto.frame;
@@ -1056,8 +1071,22 @@
       return true;
     }
     if(["watchBook","transferStub"].includes(campaign.table?.kind)){
+      if(campaign.table.pier&&ev.code==="KeyH"){
+        if(!campaign.book.transfer.punches){campaign.book.transfer.punches=[];campaign.write();}
+        enterFilm("through-ticket");return true;
+      }
       if(ev.code==="KeyF"&&campaign.book.transfer&&!campaign.table.pier){campaign.table.kind=campaign.table.kind==="watchBook"?"transferStub":"watchBook";setFilmPage();}
       else if(["Escape","Enter","KeyF"].includes(ev.code))endFilm("");return true;
+    }
+    if(campaign.table?.kind==="throughTicket"){
+      const table=campaign.table;
+      if(table.onBus&&["KeyA","ArrowLeft","KeyD","ArrowRight"].includes(ev.code)){
+        table.index=(table.index+(["KeyA","ArrowLeft"].includes(ev.code)?3:1))%4;setFilmPage();
+      }else if(table.onBus&&ev.code==="Space"&&transit.player?.stage==="ride"){
+        const stop=BayTransit.stops[table.index];if(!transit.reserveConnection(stop))return true;
+        endFilm("");speak("Marta Leal",stop.short+". I’ll ring that one for you. Hang on to the ticket till you get off.");
+      }else if(["Escape","Enter","KeyF","KeyL"].includes(ev.code))endFilm("");
+      return true;
     }
     if(campaign.table?.kind==="splice"){
       const edit=campaign.table;
@@ -3774,6 +3803,7 @@
   }
   const transitFree=()=>onStreetFeet()&&!active&&!heat&&!cabs.booking&&!watchCrew.towing;
   const routeStop=()=>transitFree()?transit.near(hero):null;
+  const atTimetable=()=>!transit.engaged&&!projector&&!unit.eye&&!afternoon.photo&&!rankPhones.lifted&&!neighbors.chat&&transitFree()&&transit.near(hero,.85);
   const busCameras=()=>transit.player?.stage==="ride"&&transit.inside;
   function chooseTransit(s,role){
     if(!transitFree()||transit.near(hero)!==s)return;
@@ -3874,12 +3904,17 @@
     save(){persist();},pay(pay,score,s){save.wallet+=pay;save.paid++;persist();lastHud=-10;
       note("Route 6  ·  Trip signed",s.short+"  ·  "+score+"% smooth stop  ·  "+cash(pay),4.2);
       speak("Marta Leal","That’s your trip signed. Take us to the next stop, or I can drive from here.");sound.cue("paid");},
-    left(stamp){lastHud=lastMap=-10;cameraSnap();
-      if(stamp)note("Transfer punched",stamp.short+"  ·  "+save.transit.stamps.length+" of 4 stops",3.4);}
+    left(stamp,connection){lastHud=lastMap=-10;cameraSnap();
+      if(stamp&&stamp.id===connection&&campaign.book.transfer?.punches){
+        const punches=campaign.book.transfer.punches;
+        if(!punches.includes(stamp.id)){punches.push(stamp.id);campaign.write();}
+        enterFilm("punched-ticket");
+      }else if(stamp)note("Transfer punched",stamp.short+"  ·  "+save.transit.stamps.length+" of 4 stops",3.4);}
   };
   function transitKeys(code){
     const p=transit.player;
     if(p){
+      if(code==="KeyL"&&p.role==="rider"&&p.stage==="ride"&&campaign.book.transfer?.punches){enterFilm("through-ticket");return true;}
       if(code==="KeyE")transit.wantOut(transitEnv);
       if(code==="KeyF"&&p.stage==="ride"){if(transit.shift)transit.takeDoors(transitEnv);else transit.ring(transitEnv);}
       if((code==="KeyV"||code==="KeyZ")&&p.stage==="ride"){
@@ -10579,6 +10614,10 @@
         const riders=transit.people.filter(q=>q.stage==="ride").length;
         detail=transit.requested?"Stop requested  ·  Exit through the rear door":away?moving+" m · "+riders+(riders===1?" passenger":" passengers"):"Doors "+(b.door>.94?"open":"moving");
         const open=transit.phase==="dwell";action=open?"E":"F";hint=(open?"Get off here":"Pull the stop cord")+"  ·  V change view";
+        if(campaign.book.transfer?.punches){
+          hint+="  ·  L through ticket";
+          const chosen=BayTransit.stops.find(s=>s.id===p.connection);if(chosen)detail="Alma’s transfer · "+chosen.short;
+        }
       }
     }
     $("busCall").textContent=call;$("busDetail").textContent=detail;contextHint(action,hint);
@@ -11007,7 +11046,8 @@
       else if(r.phase==="wait")contextHint("",luz.regular?.gangway?"Waiting for the gangway to clear":"Scheduled departure in "+Math.max(0,Math.ceil(12-luz.clock))+" s");
       else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card"+(phoneHint?"  ·  L  Payphone":""));
+    }else if(atTimetable())contextHint("F","Route 6 timetable"+(transit.docked(atTimetable())?"  ·  E board Coach 608":""));
+    else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card"+(phoneHint?"  ·  L  Payphone":""));
     else if(chapter==="outside-copy"){
       const s=outsideSite();contextHint("F","Frame the outside copy · "+s.name+(outsideCases.mounted[s.route]?" · H ask about the projector":""));
     }
@@ -11951,6 +11991,7 @@
       board.textContent=here?"Coach 608 · Front door open":"Coach 608 · "+Math.ceil(transit.distanceTo(s))+" m along the line";b.append(board);
       const nextStop=BayTransit.stops[(BayTransit.stops.indexOf(s)+1)%4];
       b.append(makeButton("Ride Route 6","Next stop, "+nextStop.short+". F pulls the cord. Marta will let you out through the back.","Free transfer",()=>chooseTransit(s,"rider")));
+      if(campaign.book.transfer?.punches)b.append(makeButton("Alma’s through ticket","North Float spare · "+campaign.book.transfer.punches.length+" of 4 stops punched.","Unfold",()=>enterFilm("through-ticket")));
       b.append(makeButton("Take Marta’s wheel","Drive to the next marked stop. Line the front door up with the pole, brake, and press F to let people through.","Relief shift",()=>chooseTransit(s,"driver")));
       const walk={marlin:["Vera’s sign bench","At the foot of the Marlin stairs, just down the sidewalk.",neonPin],
         mercado:["Rosario’s counter","Under the market awning. Rosario serves after dusk.",BayMercadoArt.counter],
@@ -12438,6 +12479,8 @@
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyF"&&atTimetable()){openPanel("route-six");return;}
+    if(ev.code==="KeyL"&&transit.player&&transitKeys(ev.code))return;
     if(active?.laundry&&linenKey(ev.code))return;
     if(ev.code==="KeyN"&&offeredShiftPrint()){
       active.payroll.photoTaken=true;save.collection.print=1;persist();lastHud=-10;
@@ -12697,7 +12740,12 @@
       const delta=Math.min(campaign.scene ? .85 : .18,Math.max(0,(now-last)/1000));last=now;
       if(campaign.scene){
         const id=campaign.scene.id,morning=campaign.beat().watch,pilot=campaign.pilot;
-        if(pilot&&["cast","land"].includes(campaign.beat().pilot))pilot.scene(delta,campaign.beat().pilot==="land");
+        if(pilot&&["cast","land"].includes(filmPage?.pilot)){
+          pilot.scene(delta,filmPage.pilot==="land");
+          if(filmPage.pilot==="land"){
+            const b=campaign.beat();if(b.line!==filmPage.line){$("chapterWho").textContent=b.who;$("chapterLine").textContent=b.line;filmPage=b;}
+          }
+        }
         else if(pilot&&campaign.beat().pilot==="helm"){
           const gas=held("KeyW","ArrowUp"),back=held("KeyS","ArrowDown"),rudder=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
           for(let left=delta;left>.00001;left-=1/30)pilot.move(Math.min(left,1/30),gas,back,rudder);
@@ -12720,7 +12768,7 @@
           else if(now-lastFilmPaint>=1000/24){BayRecordArt.sleeve($("chapterInsert"),sleeve.pull,sleeve.photo);lastFilmPaint=now;}
         }
         return;
-      }else if(["watchBook","transferStub","landingOrder","roadMap"].includes(campaign.table.kind)){return;
+      }else if(["watchBook","transferStub","throughTicket","landingOrder","roadMap"].includes(campaign.table.kind)){return;
       }else if(campaign.table.kind==="splice"){
         const edit=campaign.table,dir=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
         const old=edit.head;edit.move(delta,dir);sound.reel(edit.playing?BayRoomTone.position(BayRoomTone.tape,edit.head):null,edit.head);

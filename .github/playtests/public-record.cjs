@@ -133,6 +133,11 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert.equal(perf.base.sum,perf.indexed.sum);assert(perf.indexed.candidates<perf.base.candidates*.18);
     console.log("PERF",mode,JSON.stringify(perf));
     if(mode==="overhead"){
+      const atlas=fs.readFileSync(path.join(__dirname,"../../atlas.js"),"utf8");
+      const expose=atlas.replace("  function castBuildings(","  window.patch=groundPatch;\n  function castBuildings(");
+      const ground=await js("("+require("./ground-window.cjs").toString()+")((function(window){"+expose+";return window.patch;})({}))");
+      console.log("PERF overhead block pixels",JSON.stringify(ground));
+      for(const sample of ground)assert(sample.changed<sample.pixels*.001&&sample.meanError<.12,"Block transition "+JSON.stringify(sample));
       const wheel=await js("("+require("./wheel-map.cjs").toString()+")()");
       console.log("PERF Coast Wheel",JSON.stringify(wheel));
       for(const p of wheel){

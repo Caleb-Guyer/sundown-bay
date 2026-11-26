@@ -177,6 +177,13 @@
       }
       return true;
     }
+    reserveConnection(stop){
+      const p=this.player;
+      if(p?.role!=="rider"||p.stage!=="ride"||!stops.includes(stop))return false;
+      p.connection=stop.id;
+      this.requested=this.bus.request=p.ridden>0&&this.stop===stop&&["open","dwell"].includes(this.phase);
+      return true;
+    }
     wantOut(env){
       const p=this.player;if(!p||p.stage!=="ride")return false;
       if(this.phase==="dwell"&&this.bus.door>.94){
@@ -218,7 +225,10 @@
     arrive(env){
       this.current=this.next;this.next=(this.current+1)%stops.length;this.at=this.stop.at;this.phase="open";this.dwell=4.4;this.passUntil=this.offset=0;
       BayDriving.settle(this.bus);this.bus.signal=1;this.bus.brake=1;env.cue("bus-door");
-      if(this.player?.role==="rider")this.player.ridden++;
+      if(this.player?.role==="rider"){
+        this.player.ridden++;
+        if(this.player.connection===this.stop.id){this.requested=this.bus.request=true;env.cue("bus-bell");}
+      }
       if(this.player?.role==="rider")env.line("Marta Leal",this.stop.short+". "+(this.requested?"Your stop. Back door.":"Change here, or stay on for "+this.target.short+"."));
     }
     sendWork(p,env){
@@ -270,7 +280,7 @@
           const punched=p.role==="rider"&&p.ridden>0;
           if(punched){this.memory.rides++;if(!this.memory.stamps.includes(this.stop.id))this.memory.stamps.push(this.stop.id);env.save();}
           if(this.shift){this.shift=null;this.driver.stage="standing";this.driver.nextSeat=driverSeat;}
-          this.player=null;this.inside=false;this.dwell=Math.max(this.dwell,1.5);env.left(punched?this.stop:null);
+          this.player=null;this.inside=false;this.dwell=Math.max(this.dwell,1.5);env.left(punched?this.stop:null,p.connection);
         }else if(stage==="alight"){
           if(this.shift){this.shift.delivered++;if(gap(env.hero,p)<12)env.line(p.name,p.thanks);}
           this.sendWork(p,env);
