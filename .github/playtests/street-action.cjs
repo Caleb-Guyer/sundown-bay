@@ -87,12 +87,17 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   console.log("PASS sidearm and scattergun by keyboard and free mouse, pedestrian falls, visible blood and a moving-car impact; muted and cursor-free",mode);
   // The existing wanted driver stays in the coupe. Start the road stop close to its responding units.
   await js(`q.at(q.car,148.8,32);q.car.yaw=0;BayDriving.settle(q.car);
+    const slip=BayCabArt.meterSlip;BayCabArt.meterSlip=function(canvas){
+      const result=slip.apply(this,arguments);q.voucherImage=canvas.toDataURL();
+      requestAnimationFrame(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>{q.checkedSlip=canvas.toDataURL()===q.voucherImage?"match":"changed";})));return result;
+    };
     const move=BayPursuit.prototype.move,placed=new WeakSet();BayPursuit.prototype.move=function(v){
       if(!placed.has(v)){placed.add(v);Object.assign(v,{x:148.8,z:26.2,yaw:0,speed:0});}
       return move.apply(this,arguments);};true`);
   await waitFor("document.querySelector('#chapterTitle').textContent==='Last Fare on the Meter'",42000);
   await snap("meter-plate");await waitFor("!document.querySelector('#chapterInsert').hidden");
   assert(await js("document.querySelector('#chapterInsert').getAttribute('aria-label').includes('Ocean Drive')"));
+  await waitFor("q.checkedSlip");assert.equal(await js("q.checkedSlip"),"match","Mina’s actual printed voucher stays visible");
   await snap("meter-slip");await tap("Enter");
   await send("Page.reload");await waitFor("!window.impactQA&&document.readyState==='complete'&&typeof BayCab==='object'");
   await js(`window.meterQA={};const m=meterQA;

@@ -81800,7 +81800,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(beat==="work")BaySixSharpArt.clock($("dispatchClock"),w.second());
       }else if(art==="watchCopy"){
         if(!campaign.watch.printed){BaySixSharpArt.docket($("chapterInsert"),campaign.watch.departure);campaign.watch.printed=true;}
-      }else if(["inscription","landingOrder","payEnvelope","payReceipt","portReceipt","releaseCopy"].includes(art))return;
+      }else if(["inscription","landingOrder","payEnvelope","payReceipt","portReceipt","releaseCopy","meterCopy"].includes(art))return;
       else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
