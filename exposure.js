@@ -34,7 +34,7 @@
       this.photoRoad="";this.onApproach=false;
       this.field="";this.quote="";
     }
-    markRoad(id){this.photoRoad=Object.hasOwn(photoRuns,id)?id:"";this.onApproach=false;}
+    markRoad(id){this.photoRoad=Object.hasOwn(photoRuns,id)?id:"";this.onApproach=false;this.finder=null;}
     target(car){
       if(this.field)return this.phase==="delivery"?{x:this.ride.x,z:this.ride.z,name:"Mara’s passenger door"}:{...BayLotNegative.mark,name:"Lot 14 · Camera mark"};
       if(this.ride&&this.ride!==car)return {x:this.ride.x,z:this.ride.z,name:"Mara’s car"};
@@ -101,7 +101,14 @@
     walk(dt,ground){
       return BayCarAccess.walkPath(this.mara,this.motion,this.path,dt,ground);
     }
-    pose(dt,ground){BayCarAccess.pose(this.ride,1,this.progress,this.mara,this.motion,ground,dt,true);}
+    pose(dt,ground){
+      BayCarAccess.pose(this.ride,1,this.progress,this.mara,this.motion,ground,dt,true);
+      const r=this.motion.ride;
+      this.shutterHold=Math.max(0,(this.shutterHold||0)-dt);
+      const raised=this.progress===1&&(this.finder||this.onApproach||this.shutterHold>0);
+      r.windowLift=(r.windowLift||0)+((raised?1:0)-(r.windowLift||0))*-Math.expm1(-7*dt);
+      r.windowPan=this.finder?.pan||0;r.windowTilt=this.finder?.tilt||0;
+    }
     step(dt,car,transfer,doorPlan,ground){
       if(this.field)return this.fieldStep(dt,ground);
       if(this.phase==="pickup"){

@@ -4,7 +4,9 @@
   const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z), mod=(v,n)=>(v%n+n)%n;
   const angle=(a,b)=>mod(b-a+Math.PI,tau)-Math.PI;
   const ease=(value,to,rate,dt)=>value+(to-value)*(1-Math.exp(-rate*dt));
-  const axes=[-144,-72,0,72,144], nearestAxis=v=>axes.reduce((a,b)=>Math.abs(a-v)<Math.abs(b-v)?a:b);
+  const axes=[-144,-72,0,72,144];
+  // The grid is uniform. At a midpoint the next higher street wins the tie.
+  const nearestAxis=v=>axes[Math.max(0,Math.min(4,Math.round(v/72)+2))];
   const nearStreet=(x,z)=>Math.min(Math.abs(nearestAxis(x)-x),Math.abs(nearestAxis(z)-z))<9;
   const moneyFormat=new Intl.NumberFormat("en-US");
   const cash=n=>"$"+moneyFormat.format(Math.round(n));
@@ -7184,8 +7186,56 @@
     if(!story||story.phase!=="port"||!car||car!==story.ride||transfer||heat||maraFilm.latent||maraFilm.windowPending)return null;
     return BayLotNegative.passengerSubject(car);
   }
+  function windowFinderPlace(){
+    const s=active?.story;
+    if(!s||s.phase!=="port"||!car||s.ride!==car||transfer||heat||s.field||maraFilm.latent||maraFilm.windowPending)return null;
+    const id=s.finder?.place||s.photoRoad;
+    if(id&&dist(car,BayExposure.photoRuns[id].frame)<65)return BaySecondSeat.find(id);
+    return BayLotNegative.passengerSubject(car);
+  }
+  function windowFinderKeys(code){
+    const s=active?.story;if(!s)return false;
+    if(code==="KeyP"){
+      if(s.finder){s.finder=null;lastHud=-10;return true;}
+      const brief=windowFinderPlace();if(!brief)return false;
+      s.finder={place:brief.id,pan:0,tilt:0,zoom:1,last:-Infinity};
+      lastHud=-10;return true;
+    }
+    if(!s.finder||!windowFinderPlace())return false;
+    if(/^(Digit|Numpad)[1-3]$/.test(code)){
+      s.finder.zoom=[.72,1,1.55][Number(code.at(-1))-1];s.finder.last=-Infinity;return true;
+    }
+    if(code==="KeyN"){
+      const brief=maraWindowSubject();
+      if(brief?.id===s.finder.place)photographWindow(brief);
+      return true;
+    }
+    return false;
+  }
+  function paintWindowFinder(t){
+    const s=active?.story,f=s?.finder,pane=$("maraFinder");
+    if(!f){if(!pane.hidden)pane.hidden=true;return;}
+    const brief=windowFinderPlace();
+    if(brief?.id!==f.place){s.finder=null;pane.hidden=true;return;}
+    pane.hidden=!!panel||!!campaign.scene||!!campaign.table;
+    if(pane.hidden||t-f.last<.14)return;
+    f.last=t;
+    const eye=BayLotNegative.passengerEye(car,brief,footLevel,f),traffic=cars.filter(v=>v!==car&&Math.abs(v.x-car.x)<=44&&Math.abs(v.z-car.z)<=44).slice(0,48);
+    rideScenery.paint($("maraGlass"),eye,brief,t,{hours,wheel:{angle:boardwalk.wheel.angle},model,cars:traffic,cpu:view.cpu,sensorWidth:192},true);
+    $("maraMeter").textContent=maraWindowSubject()?.id===f.place?"N  ·  Take frame 13":Math.abs(car.speed)<1.3?"Roll forward":"Keep the landmark on your right";
+  }
+  function aimWindowFinder(e){
+    const f=active?.story?.finder;if(!f)return;
+    const r=$("maraGlass").getBoundingClientRect();
+    f.pan=clamp((e.clientX-r.left)/r.width-.5,-.5,.5)*.63;
+    f.tilt=clamp(.5-(e.clientY-r.top)/r.height,-.5,.5)*.37;
+  }
+  $("maraGlass").addEventListener("pointerdown",aimWindowFinder);
+  $("maraGlass").addEventListener("pointermove",e=>{if(e.buttons&1)aimWindowFinder(e);});
   function photographWindow(brief){
-    if(!maraFilm.wind(brief,car,hours,boardwalk.wheel,streetTime,cars,footLevel))return;
+    const s=active.story;
+    if(!maraFilm.wind(brief,car,hours,boardwalk.wheel,streetTime,cars,footLevel,s.finder?.place===brief.id?s.finder:null))return;
+    s.shutterHold=.5;s.finder=null;
     active.story.markRoad("");campaign.book.photoRoad="";campaign.write();
     sound.cue("record-shutter");speak("Mara Vega",BayLotNegative.locations[brief.id].reply);
     note("Frame 13","Mara winds on to the pier photograph.",3);lastHud=-10;
@@ -9692,6 +9742,7 @@
     list.push(["rosario-bag",p.x,footLevel(p.x,p.z)+.57+swing,p.z,person.yaw,.025*Math.sin(t*1.25)]);
   }
   function renderWorld(dt,t){
+    paintWindowFinder(t);
     moveCamera(dt,t);motoOverlays(t);$("scoutFinder").hidden=!unit.eye||!!panel;$("game").classList.toggle("scout-framing",!!unit.eye&&!panel);$("game").classList.toggle("at-palm-table",!!palm.match);
     const run=active?.take,replay=run?.phase==="landed"&&(run.endTime>=.32||!!run.afterPrint);
     const printing=replay&&!run.receipt,film=replay?(run.approach||run.peak):run;
@@ -10940,7 +10991,8 @@
     else if(chapter)contextHint("F",({order:"Read the public landing order",firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":BayLandingOrder.charter(luz.book)==="clinic"?"Check the clinic timetable":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
     else if(offeredShiftPrint())contextHint("N","Take the night-shift photograph from Jules");
     else if(besideShiftKeeper())contextHint("F","Show Bea the night-shift photograph");
-    else if(passengerShot)contextHint("N","Give Mara the shot · "+BayLotNegative.locations[passengerShot.id].name);
+    else if(passengerShot)contextHint("N","Give Mara the shot · "+BayLotNegative.locations[passengerShot.id].name+(active.story.finder?"":" · P to frame it"));
+    else if(windowFinderPlace())contextHint("P",active.story.finder?"Lower Mara’s finder":"Look through Mara’s finder");
     else if(active?.story?.offeredSleeve&&!campaign.book.sleeve&&!heat&&!transfer&&car===active.story.ride&&active.story.phase==="port"&&!active.story.remarked&&(active.story.sleeveStop(car)||elapsed-active.story.sleeveCall<9)){
       if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print"+(canReadRoadMap()?" · Shift + N for her street map":""));
       else contextHint("","Stop to look at Mara’s contact print");
@@ -12353,6 +12405,7 @@
       ev.preventDefault();if(!ev.repeat){streetAction.equip(Number(ev.code.at(-1)));lastHud=-10;}return;
     }
     if(ev.code==="Space"&&streetAction.slot&&actionFeet()){ev.preventDefault();if(!ev.repeat)streetFire();return;}
+    if(!ev.repeat&&!ev.shiftKey&&windowFinderKeys(ev.code)){ev.preventDefault();return;}
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;

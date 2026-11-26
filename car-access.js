@@ -58,7 +58,22 @@
     return best;
   }
   function pose(v,side,p,hero,m,ground,dt,passenger=false){
-    const s=bayCarLayout(v.kind),curb=outside(s,side);
+    const s=bayCarLayout(v.kind),bodyY=ground(v.x,v.z)+.008;
+    const r=m.ride||(m.ride={handle:[0,0,0]});
+    r.side=side;r.seatY=s.seatY;r.floor=s.floorY;r.steer=v.steer;r.passenger=passenger;
+    if(p===1){
+      // Once the door latches, the occupant moves with the chassis.
+      const x=(passenger?side:-1)*s.seatX,pt=world(v,x,s.seatZ);
+      hero.x=pt.x;hero.z=pt.z;hero.y=bodyY;hero.yaw=v.yaw;
+      if(passenger)v.passengerDoor=0;else{v.doorAngle=0;v.doorSide=side;}
+      r.seat=r.inner=r.outer=1;r.latchDip=r.duck=r.reach=r.pull=0;
+      r.handle[0]=side*s.grabX-x;r.handle[1]=s.grabY;r.handle[2]=s.grabZ-s.seatZ;
+      r.brace=passenger?smooth(.02,.09,v.pitch||0):0;
+      r.sway=passenger?Math.max(-1,Math.min(1,(v.yawRate||0)*(v.speed||0)/12)):0;
+      m.step(dt,0,0);return;
+    }
+    r.brace=r.sway=0;
+    const curb=outside(s,side);
     const open=smooth(.13,.37,p)*(1-smooth(.585,.935,p)),door=1.13*open;
     const seat=smooth(.33,.79,p),across=side>0&&!passenger?smooth(.85,1,p):0;
     const latch=smooth(0,.10,p)*(1-smooth(.205,.35,p));
@@ -74,11 +89,10 @@
     x=mix(x,insideHandle.x-side*.39,pull)-2*s.seatX*across;
     z=mix(z,insideHandle.z-.27,pull);
     const pt=world(v,x,z),twist=-side*.63*(1-smooth(.26,.75,p))+side*.64*smooth(.27,.48,p)*(1-smooth(.53,.82,p));
-    hero.x=pt.x;hero.z=pt.z;hero.y=mix(ground(pt.x,pt.z),ground(v.x,v.z)+.008,seat);
+    hero.x=pt.x;hero.z=pt.z;hero.y=mix(ground(pt.x,pt.z),bodyY,seat);
     hero.yaw=v.yaw+twist;
     if(passenger)v.passengerDoor=door;else{v.doorAngle=door;v.doorSide=side;}
-    const r=m.ride||(m.ride={handle:[0,0,0]});
-    r.side=side;r.seat=seat;r.seatY=s.seatY;r.floor=s.floorY;r.steer=v.steer;r.passenger=passenger;
+    r.seat=seat;
     r.latchDip=latch*Math.max(.06,.97-s.handleY);
     r.duck=latch*.84+
       smooth(.20,.46,p)*(1-smooth(.56,.86,p));
@@ -88,7 +102,7 @@
     const inside=p>.425,handle=inside?insideHandle:outsideHandle;
     const c=Math.cos(twist),n=Math.sin(twist);
     r.handle[0]=(handle.x-x)*c-(handle.z-z)*n;
-    r.handle[1]=ground(v.x,v.z)+.008+(inside?s.grabY:s.handleY)-hero.y;
+    r.handle[1]=bodyY+(inside?s.grabY:s.handleY)-hero.y;
     r.handle[2]=(handle.x-x)*n+(handle.z-z)*c;
     m.step(dt,0,0);
   }

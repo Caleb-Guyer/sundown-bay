@@ -125,7 +125,11 @@
           if(Math.abs(p.tilt)>=Math.PI/2){p.tilt=p.rollSide*Math.PI/2;p.spin*=-.22;}
           if(Math.hypot(p.vx,p.vz)<.16&&Math.abs(p.tilt)>1.52){p.tilt=p.rollSide*Math.PI/2;p.phase="down";p.hop=0;}
         }
-        p.y=env.ground(p.x,p.z)+k.depth*Math.abs(Math.sin(p.tilt))+(p.hop||0);
+        // The sidewalk is fixed. Resample it as soon as the stand rolls or slides.
+        if(p.x!==p.groundX||p.z!==p.groundZ){
+          p.groundHeight=env.ground(p.x,p.z);p.groundX=p.x;p.groundZ=p.z;
+        }
+        p.y=p.groundHeight+k.depth*Math.abs(Math.sin(p.tilt))+(p.hop||0);
       }
       for(const b of this.bits){
         if(b.carrier){const a=b.carrier,q=BayDriving.world(a,.27,.32);b.x=q.x;b.z=q.z;b.y=env.ground(q.x,q.z)+.98+(a.startle?.lift||0);b.yaw=a.yaw;b.tilt=-.22;continue;}

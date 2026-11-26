@@ -320,7 +320,14 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await waitFor("!!recQA.map?.streetCar");
     await parkAt(aboard?{x:146,z:103}:{x:-2,z:37});
     assert.equal(await js("BayLotNegative.passengerSubject(recQA.map.streetCar)"),null);
-    await js("recQA.sensorCalls=0;const sensor=BayRideFilm.Scenery.prototype.paint;BayRideFilm.Scenery.prototype.paint=function(...args){recQA.sensorCalls++;return sensor.apply(this,args);};");
+    await js("recQA.sensorCalls=recQA.previewCalls=0;const sensor=BayRideFilm.Scenery.prototype.paint;BayRideFilm.Scenery.prototype.paint=function(...args){if(args[0].id==='maraGlass')recQA.previewCalls++;else recQA.sensorCalls++;return sensor.apply(this,args);};");
+    await tap("KeyP");await waitFor("recQA.previewCalls>0&&!document.querySelector('#maraFinder').hidden");
+    const glass=await js("(()=>{const r=document.querySelector('#maraGlass').getBoundingClientRect();return {x:r.x+r.width*.69,y:r.y+r.height*.42};})()");
+    await send("Input.dispatchMouseEvent",{type:"mousePressed",...glass,button:"left",buttons:1,clickCount:1});
+    await send("Input.dispatchMouseEvent",{type:"mouseReleased",...glass,button:"left",clickCount:1});
+    await tap("Digit3");
+    await waitFor("recQA.map.story?.finder?.zoom===1.55&&recQA.map.story.finder.pan>.08&&recQA.map.story.motion.ride.windowLift>.9");
+    await snap("window-finder");
     await key("keyDown","KeyW");
     try{
       await waitFor("document.querySelector('#context').innerText.includes('Give Mara the shot')",25000);
@@ -329,6 +336,10 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     }finally{await key("keyUp","KeyW");}
     assert.equal(await js(book+".photoRoad"),"");
     assert.equal(await js("recQA.sensorCalls"),0,"the shutter does no scene rasterization on the moving frame");
+    const shot=await js(film+".latent"),subject=await js("BaySecondSeat.find("+JSON.stringify(place)+").subject");
+    const dx=subject.x-shot.eye.x,dz=subject.z-shot.eye.z;
+    assert(Math.abs(shot.eye.focal-1.55*Math.min(2.8,Math.hypot(dx,dz)/(place==="wheel"?15:8)))<.00001);
+    assert(shot.eye.yaw-Math.atan2(dx,dz)>.08,"the saved negative keeps the player's horizontal framing");
     await js("BayRideFilm.Scenery.prototype.paint=sensor");
     console.log("PASS Frame 13 exposed through the passenger window at",place,"without rasterizing during the drive.");
     // Start both drives in a clear northbound lane beyond the parked club cars, then use

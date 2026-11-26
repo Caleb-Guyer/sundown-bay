@@ -100,7 +100,8 @@
     paint(out,eye,c,t,env,force=false){
       if(this.source){this.prepare(this.source());this.source=null;}
       if(!this.canvas)this.canvas=document.createElement("canvas");
-      const canvas=this.canvas,w=env.curb?Math.min(env.sensorWidth||320,out.width):352,h=env.curb?Math.round(w*out.height/out.width):Math.max(136,Math.min(280,Math.round(w*out.height/out.width)));
+      const canvas=this.canvas,w=env.curb?Math.min(env.sensorWidth||320,out.width):(env.sensorWidth||352);
+      const h=Math.round(w*(env.curb?out.height/out.width:clamp(out.height/out.width,136/352,280/352)));
       if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;this.image=null;}
       const ctx=canvas.getContext("2d",{alpha:false});
       const project=basis(eye,w,h),q=[0,0,0];

@@ -57,6 +57,7 @@
     g.box(.165,.945,.181,.018,.013,.007,"#e1c48e");
     g.box(.202,1.032,.121,.046,.018,.041,"#e4d4b0");
     // Rangefinder, film advance, front glass and the small reflected catchlight.
+    markPart?.("rangefinder");
     g.box(-.036,1.18,.151,.186,.10,.063,"#333d42");
     g.box(-.036,1.222,.152,.188,.022,.068,"#c5c9b8");
     g.box(-.100,1.238,.150,.031,.012,.023,"#788989");

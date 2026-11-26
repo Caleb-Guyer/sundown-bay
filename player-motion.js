@@ -28,8 +28,10 @@
     clipRail(){this.stumble=.65;this.vx*=.48;this.vz*=.48;}
     jumpStep(dt){
       this.stumble=Math.max(0,this.stumble-dt);
-      const stumbleProgress=1-this.stumble/.65;
-      this.stumblePose=Math.sin(Math.PI*stumbleProgress)*(1-stumbleProgress);
+      if(this.stumble){
+        const remaining=this.stumble/.65;
+        this.stumblePose=Math.sin(Math.PI*(1-remaining))*remaining;
+      }else this.stumblePose=0;
       this.lift=0;this.airPose=0;this.crouch=0;
       if(this.jumpTime<0)return;
       this.jumpTime+=dt;this.jumpBuffer=Math.max(0,this.jumpBuffer-dt);
@@ -49,12 +51,17 @@
     step(dt,distance,turnRate){
       const speed=dt>0?distance/dt:0;
       this.jumpStep(dt);
+      this.time+=dt;
+      // Seated riders and standing locals still breathe, turn and reach.
+      // With both feet planted, their contact points are independent of stride.
+      if(distance===0&&this.weight===0&&this.run===0&&this.turn===0&&this.airPose===0){
+        this.poseFeet();return;
+      }
       this.weight=damp(this.weight,smooth(0,2.7,speed),16,dt);
       this.run=damp(this.run,smooth(3.65,7.1,speed),9,dt);
       this.turn=damp(this.turn,clamp(turnRate/5,-1,1)*this.weight,8,dt);
       const stride=2.38+1.42*this.run;
       this.phase=(this.phase+distance/stride*(1-this.airPose))%1;
-      this.time+=dt;
       this.poseFeet();
     }
     poseFeet(){
@@ -64,7 +71,11 @@
       this.revision++;
     }
     sampleFoot(foot,t,stride){
-      const w=this.weight,run=this.run,stance=blend(.39,.255,run);
+      const w=this.weight,run=this.run;
+      if(w===0&&this.airPose===0){
+        foot.phase=t;foot.z=foot.restZ;foot.pitch=foot.lift=0;foot.y=.016+.153;return;
+      }
+      const stance=blend(.39,.255,run);
       const reach=stride*stance*.5;
       const heel=-.20+.055*run,toe=.40+.34*run;
       let z,lift=0,pitch;
@@ -203,6 +214,7 @@
     constructor(colors,role="driver"){
       this.pelvis=new Bone(point(0,hipY,0));this.chest=new Bone(point(0,1.0,0));this.head=new Bone(point(0,1.515,0));
       this.sides=[makeSide(-1),makeSide(1)];this.pivot=point();
+      if(role==="photographer"){this.camera=new Bone(point(-.036,1.18,.151));this.eyePoint=point();}
       const mesh=new BayMesh(),parts=[];
       buildBayPerson(mesh,...colors,0,role,0,(part,side)=>parts.push({part,side,first:mesh.vertices.length/6}));
       this.rest=new Float32Array(mesh.vertices);this.vertices=this.rest.slice();this.bindings=[];this.lastRevision=-1;
@@ -213,6 +225,7 @@
       }
     }
     binding(part,limb,y){
+      if(part==="rangefinder"&&this.camera)return bind(this.camera,this.camera,0);
       if(part==="held")return bind(limb.forearm,limb.forearm,0);
       if(part==="leg"){
         if(y<.24)return bind(limb.shoe,limb.shin,smooth(.148,.213,y));
@@ -245,10 +258,20 @@
       this.pelvis.map(this.chest.pivot,at);at[1]+=.004*breath*(1-w);
       const chestYaw=-swing*w*(.085+.115*run);
       const pitch=.016+(.079+.18*run)*w+.009*breath*(1-w)+motion.crouch*.22+motion.stumblePose*.46;
-      const cabinPitch=ride?ride.duck*.61+ride.seat*.055:.78*desk;
-      this.chest.place(at,pitch+cabinPitch,chestYaw,-hipRoll*.48-motion.turn*.105+(ride?ride.side*(.18*ride.duck-.24*ride.pull):0));
+      const lift=ride?.windowLift||0,brace=ride?.brace||0,sway=ride?.sway||0;
+      const cabinPitch=ride?ride.duck*.61+ride.seat*.055+brace*.18:.78*desk;
+      this.chest.place(at,pitch+cabinPitch,chestYaw+lift*.65,-hipRoll*.48-motion.turn*.105+(ride?ride.side*(.18*ride.duck-.24*ride.pull):0)+sway*.13);
       this.chest.map(this.head.pivot,at);
-      this.head.place(at,.015+.034*w+.014*Math.sin(2*t-.55)*w+cabinPitch*.50,chestYaw*.18,-motion.turn*.036);
+      const lensYaw=1.44+(ride?.windowPan||0),lensPitch=-(ride?.windowTilt||0);
+      this.head.place(at,.015+.034*w+.014*Math.sin(2*t-.55)*w+cabinPitch*.50+lift*lensPitch,chestYaw*.18+lift*lensYaw,-motion.turn*.036+sway*.07);
+      if(this.camera){
+        this.camera.m.set(this.chest.m);
+        if(lift>.001){
+          this.chest.map(this.camera.pivot,at);this.head.map([.032,1.625,.155],this.eyePoint);
+          for(let i=0;i<3;i++)at[i]=blend(at[i],this.eyePoint[i],lift);
+          this.camera.place(at,blend(pitch+cabinPitch,lensPitch,lift),lift*lensYaw,sway*.06);
+        }
+      }
       for(let i=0;i<2;i++){
         const limb=this.sides[i],foot=motion.feet[i],side=limb.side;
         this.pelvis.map(limb.thigh.pivot,limb.hip);articulateLeg(limb,foot,w,ride);
@@ -266,6 +289,11 @@
           if(ride.passenger)reachFor(limb,side*.12,ride.seatY+.18,.19,grip);
           else reachFor(limb,side*.105*Math.cos(turn),ride.seatY+.41-side*.105*Math.sin(turn),.32,grip);
           if(hand>0)reachFor(limb,...ride.handle,hand);
+          if(ride.passenger&&brace>0)reachFor(limb,side*.21,ride.seatY+.34,.35,brace*.88);
+          if(this.camera&&lift>.001){
+            this.camera.map([-.036+side*.084,1.177,.15],this.eyePoint);
+            reachFor(limb,...this.eyePoint,lift);
+          }
           if(ride.passenger&&side===1&&ride.coverArm){
             const h=ride.coverArm;
             reachFor(limb,h.x,h.y,h.z,h.weight);
@@ -287,6 +315,7 @@
       this.pelvis.place(at,.09*bend,-.09*r.lead*guard,.046*r.lead*air);
       this.pelvis.map(this.chest.pivot,at);
       this.chest.place(at,-.24*guard+.30*bend,.14*r.lead*guard,-.085*r.lead*guard);
+      if(this.camera)this.camera.m.set(this.chest.m);
       this.chest.map(this.head.pivot,at);this.head.place(at,.08*guard,.20*r.lead*guard);
       for(const limb of this.sides){
         const lead=limb.side===r.lead,side=limb.side;

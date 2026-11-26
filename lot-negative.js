@@ -36,10 +36,12 @@
     }
     return null;
   }
-  function passengerEye(v,brief,ground){
+  function passengerEye(v,brief,ground,framing){
     const layout=bayCarLayout(v.kind),{x,z}=BayDriving.world(v,layout.seatX,layout.seatZ),y=ground(x,z)+layout.seatY+.72;
     const p=brief.subject,dx=p.x-x,dz=p.z-z,range=Math.hypot(dx,dz);
-    return {x,y,z,yaw:Math.atan2(dx,dz),pitch:Math.atan2(p.y-y,range),focal:Math.min(2.8,range/(brief.id==="wheel"?15:8))};
+    const focal=Math.min(2.8,range/(brief.id==="wheel"?15:8));
+    return {x,y,z,yaw:Math.atan2(dx,dz)+(framing?.pan||0),pitch:Math.atan2(p.y-y,range)+(framing?.tilt||0),
+      focal:focal*(framing?.zoom||1)};
   }
   function readLatent(f){
     if(!f||!Object.hasOwn(locations,f.place)||!f.eye||!["x","y","z","yaw","pitch","focal"].every(k=>Number.isFinite(f.eye[k]))||
@@ -54,7 +56,7 @@
       this.latent=this.windowPending?null:readLatent(s?.latent);
       this.onScreen=!!this.windowPrint&&s?.onScreen===true;this.inEdition=!!this.windowPrint&&s?.inEdition===true;}
     write(){try{localStorage.setItem(key,JSON.stringify({pending:this.pending,published:this.published,day:this.day,windowPending:this.windowPending,windowPrint:this.windowPrint,onScreen:this.onScreen,inEdition:this.inEdition,latent:this.latent}));}catch{}}
-    wind(brief,vehicle,hours,wheel,time,cars,ground){
+    wind(brief,vehicle,hours,wheel,time,cars,ground,framing){
       if(this.windowPending||this.latent)return false;
       const traffic=[];
       for(const v of cars){
@@ -62,7 +64,7 @@
         traffic.push({x:v.x,z:v.z,yaw:v.yaw,kind:v.kind,color:v.color,track:v.footprint?.track||.9,length:v.footprint?.halfLength||2.1});
         if(traffic.length===48)break;
       }
-      this.latent=readLatent({place:brief.id,eye:passengerEye(vehicle,brief,ground),time,night:hours.night,rain:hours.rain,angle:wheel.angle||0,traffic});
+      this.latent=readLatent({place:brief.id,eye:passengerEye(vehicle,brief,ground,framing),time,night:hours.night,rain:hours.rain,angle:wheel.angle||0,traffic});
       if(!this.latent)return false;this.write();return true;
     }
     lend(lent){this.onScreen=!!this.windowPrint&&lent===true;this.write();}

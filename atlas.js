@@ -1384,7 +1384,16 @@
     }
     if(street&&opt.story?.progress>=.65){
       const v=opt.story.ride,seat=BayDriving.world(v,bayCarLayout(v.kind).seatX,v.kind==="van"?1.24:.84);
-      if(visible(px(seat.x),py(seat.z)))disc(ctx,px(seat.x),py(seat.z),s*.126,"#ad8366");
+      if(visible(px(seat.x),py(seat.z))){
+        disc(ctx,px(seat.x),py(seat.z),s*.126,"#ad8366");
+        const lift=opt.story.motion?.ride?.windowLift||0;
+        if(lift>.025&&s>3){
+          ctx.save();ctx.translate(px(seat.x),py(seat.z));ctx.rotate(v.yaw);ctx.scale(s,s);
+          ctx.translate(.25*lift,-.05);ctx.rotate((opt.story.motion.ride.windowPan||0)*lift);
+          rect(ctx,.015,-.115,.159,.19,"#333d42");rect(ctx,.167,-.055,.066,.075,"#aeb7a8");
+          disc(ctx,.05,.103,.057,"#ad8366");ctx.restore();
+        }
+      }
     }
     if(opt.buttonwood)BayButtonwoodPots.map(ctx,px,py,s,visible,streetTime,opt.buttonwood,opt);
     if(street&&opt.brisas)BayBrisas.mapActors(ctx,opt,px,py,s,visible,streetTime);
