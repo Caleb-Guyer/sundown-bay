@@ -250,15 +250,19 @@
     for(const x of [-3.63,0,3.63])rect(x-.28,-10.68,.56,.78,"#788981");
   }
   const lots=new Map();
-  function overhead(c,px,py,scale,site,t,lit,canvas,visit,atProjector,lowDetail=false){
+  function overhead(c,px,py,scale,site,t,lit,canvas,visit,atProjector,lowDetail=false,deferScreen=false){
     c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
     if(lowDetail&&!visit&&scale<=16){
       let lot=lots.get(lit);
       if(!lot){lot=BayMapSheet(-10,-11,17,17.25,18,ink=>paintLot(ink,site,lit,null));lots.set(lit,lot);}
       lot(c);
     }else paintLot(c,site,lit,visit);
+    if(!deferScreen)screenFace(c,canvas,visit||atProjector?5.08:2.85);
+    c.restore();
+  }
+  function screenFace(c,canvas,height){
     // Tip the screen's top away from the row. The projected image stays upright from the car bays.
-    const left=-4.52,top=-10.09,height=visit||atProjector?5.08:2.85;
+    const left=-4.52,top=-10.09;
     const rect=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
     c.beginPath();c.moveTo(left-.19,top-.16);c.lineTo(-left+.19,top-.16);c.lineTo(-left+.30,top+height+.17);
     c.lineTo(left-.09,top+height+.17);c.closePath();c.fillStyle=iron;c.fill();
@@ -266,7 +270,11 @@
     if(canvas?.width)c.drawImage(canvas,left,top,9.04,height);
     else rect(left,top,9.04,height,"#b4baaa");
     rect(left-.14,top-.125,9.30,.080,turquoise);
+  }
+  function focusedScreen(c,px,py,scale,site,canvas){
+    c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
+    screenFace(c,canvas,5.08);
     c.restore();
   }
-  window.BayStarliteArt=Object.freeze({world,screen,overhead,blocks,clipped});
+  window.BayStarliteArt=Object.freeze({world,screen,overhead,focusedScreen,blocks,clipped});
 })();

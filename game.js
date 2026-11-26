@@ -10155,8 +10155,8 @@
         state.cx=(hero.x+company.call.x)*.5;state.cz=(hero.z+company.call.z)*.5;state.rotation=state.cameraYaw=company.call.yaw;state.scale=h/(17*cameraRig.zoom);
       }
       if(theatre.run||theatre.visit){
-        state.cx=starliteSite.x-(theatre.run ? .45 : 1.1);state.cz=starliteSite.z+(theatre.run ? 5 : 3);
-        state.rotation=state.cameraYaw=0;state.scale=h/((theatre.run ? 18 : 22)*cameraRig.zoom);
+        state.cx=starliteSite.x-(theatre.run ? .45 : 0);state.cz=starliteSite.z+(theatre.run ? 5 : 4.2);
+        state.rotation=state.cameraYaw=0;state.scale=h/((theatre.run ? 18 : 16)*cameraRig.zoom);
       }
       if(film)setTakeMap(state,film,w,h,replay);
       if(projector){

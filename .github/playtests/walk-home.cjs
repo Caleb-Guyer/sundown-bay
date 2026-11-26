@@ -87,10 +87,28 @@ module.exports=async function walkHome({js,send,waitFor,tap,key,mode,errors}){
   assert.equal(await js("BayWalkHome.reelState()"),"sleeve");
   await js(`const film=BayWalkHome.movie;BayWalkHome.movie=function(c,t){q.reelTime=t;return film(c,t);};
     q.at(q.w,90,-61);q.w.yaw=0;BayDriving.settle(q.w);true`);
+  if(!port)await js(`const atlas=window.drawBayMap;window.drawBayMap=function(c,o){
+    const result=atlas.apply(this,arguments);
+    if(!q.screenPixels&&c.canvas.id==='overhead'&&o.starliteVisit?.family&&q.reelTime>=7){
+      const w=c.canvas.width,h=c.canvas.height,s=o.scale,site=o.starlite,frame=o.starliteFrame();
+      const x=w/2+(site.x-o.cx-4.52)*s,y=h/2-(site.z-o.cz+10.09)*s;
+      const source=document.createElement('canvas');source.width=w;source.height=h;const ref=source.getContext('2d');
+      ref.drawImage(frame,x,y,9.04*s,5.08*s);
+      const sample=ctx=>ctx.getImageData(Math.ceil(x)+2,Math.ceil(y)+2,Math.floor(9.04*s)-5,Math.floor(5.08*s)-5).data;
+      const a=sample(c),b=sample(ref);let changed=0;
+      for(let i=0;i<a.length;i+=4)if(Math.max(Math.abs(a[i]-b[i]),Math.abs(a[i+1]-b[i+1]),Math.abs(a[i+2]-b[i+2]))>22)changed++;
+      q.screenPixels={count:a.length/4,changed};
+    }
+    return result;
+  };true`);
   await key("keyDown","KeyW");try{await wait("q.w.z>=-59.8",12000);}finally{await key("keyUp","KeyW");}
   await js("BayDriving.settle(q.w);true");await wait("BayStarlite.bay(q.w)===2");await tap("KeyF");
   await wait("q.reelTime>2.5&&q.reelTime<6.5",22000);await shot("rabbit");
   await wait("q.reelTime>=7.2",22000);await shot("hands");
+  if(!port){
+    const proof=await js("q.screenPixels");assert(proof?.count>3500&&proof.changed<proof.count*.01,JSON.stringify(proof));
+    console.log("PASS unobstructed drive-in projection",JSON.stringify(proof));
+  }
   await wait("BayWalkHome.reelState()==='screened'",38000);
   await click(port?"Let the Luna show it":"Keep it in the family");
   await launch();await wait("q.h");

@@ -16003,12 +16003,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(visible(px(site.x),py(site.z),s*(site.max+7)))BayPictureJumpArt.overhead(ctx,px,py,s,site,opt.lowDetail);
     }
     if(street&&opt.gutters)BayGutterArt.overhead(ctx,px,py,s,opt.gutters,streetTime);
+    let focusedFilm=null;
     if(opt.starlite&&visible(px(opt.starlite.x),py(opt.starlite.z),s*16)){
       const site=opt.starlite;
       if(street){
         const screen=BayDriving.world(site,0,opt.starliteVisit||opt.atProjector?7.55:8.67);
         const film=visible(px(screen.x),py(screen.z),5.4*s+1)?opt.starliteFrame():null;
-        BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,film,opt.starliteVisit,opt.atProjector,opt.lowDetail);
+        if(opt.starliteVisit||opt.atProjector)focusedFilm=film;
+        BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,film,opt.starliteVisit,opt.atProjector,opt.lowDetail,!!focusedFilm);
       }
       else if(atlas){disc(ctx,px(site.x),py(site.z),3.1*ui,"#b56247");ctx.save();ctx.textAlign="center";ctx.fillStyle="#533b31";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.fillText("STARLITE",px(site.x),py(site.z)-5*ui);ctx.restore();}
     }
@@ -16454,6 +16456,8 @@ window.buildBayCity = function buildBayCity(g,water) {
         const marker=radar?edgePoint(x,y,w,h,true,8*ui):[x,y];airSprite(ctx,a,marker[0],marker[1],s,street,ui);
       }
     }
+    // From a clipped-in speaker the raised screen is in front of the next lot's canopy.
+    if(focusedFilm)BayStarliteArt.focusedScreen(ctx,px,py,s,opt.starlite,focusedFilm);
     ctx.restore();return garageBounds;
   };
 })();
@@ -66205,15 +66209,19 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const x of [-3.63,0,3.63])rect(x-.28,-10.68,.56,.78,"#788981");
   }
   const lots=new Map();
-  function overhead(c,px,py,scale,site,t,lit,canvas,visit,atProjector,lowDetail=false){
+  function overhead(c,px,py,scale,site,t,lit,canvas,visit,atProjector,lowDetail=false,deferScreen=false){
     c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
     if(lowDetail&&!visit&&scale<=16){
       let lot=lots.get(lit);
       if(!lot){lot=BayMapSheet(-10,-11,17,17.25,18,ink=>paintLot(ink,site,lit,null));lots.set(lit,lot);}
       lot(c);
     }else paintLot(c,site,lit,visit);
+    if(!deferScreen)screenFace(c,canvas,visit||atProjector?5.08:2.85);
+    c.restore();
+  }
+  function screenFace(c,canvas,height){
     // Tip the screen's top away from the row. The projected image stays upright from the car bays.
-    const left=-4.52,top=-10.09,height=visit||atProjector?5.08:2.85;
+    const left=-4.52,top=-10.09;
     const rect=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
     c.beginPath();c.moveTo(left-.19,top-.16);c.lineTo(-left+.19,top-.16);c.lineTo(-left+.30,top+height+.17);
     c.lineTo(left-.09,top+height+.17);c.closePath();c.fillStyle=iron;c.fill();
@@ -66221,9 +66229,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(canvas?.width)c.drawImage(canvas,left,top,9.04,height);
     else rect(left,top,9.04,height,"#b4baaa");
     rect(left-.14,top-.125,9.30,.080,turquoise);
+  }
+  function focusedScreen(c,px,py,scale,site,canvas){
+    c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
+    screenFace(c,canvas,5.08);
     c.restore();
   }
-  window.BayStarliteArt=Object.freeze({world,screen,overhead,blocks,clipped});
+  window.BayStarliteArt=Object.freeze({world,screen,overhead,focusedScreen,blocks,clipped});
 })();
 
 ;
@@ -81828,8 +81840,8 @@ window.buildBayCity = function buildBayCity(g,water) {
         state.cx=(hero.x+company.call.x)*.5;state.cz=(hero.z+company.call.z)*.5;state.rotation=state.cameraYaw=company.call.yaw;state.scale=h/(17*cameraRig.zoom);
       }
       if(theatre.run||theatre.visit){
-        state.cx=starliteSite.x-(theatre.run ? .45 : 1.1);state.cz=starliteSite.z+(theatre.run ? 5 : 3);
-        state.rotation=state.cameraYaw=0;state.scale=h/((theatre.run ? 18 : 22)*cameraRig.zoom);
+        state.cx=starliteSite.x-(theatre.run ? .45 : 0);state.cz=starliteSite.z+(theatre.run ? 5 : 4.2);
+        state.rotation=state.cameraYaw=0;state.scale=h/((theatre.run ? 18 : 16)*cameraRig.zoom);
       }
       if(film)setTakeMap(state,film,w,h,replay);
       if(projector){

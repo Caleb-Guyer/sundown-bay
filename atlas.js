@@ -998,12 +998,14 @@
       if(visible(px(site.x),py(site.z),s*(site.max+7)))BayPictureJumpArt.overhead(ctx,px,py,s,site,opt.lowDetail);
     }
     if(street&&opt.gutters)BayGutterArt.overhead(ctx,px,py,s,opt.gutters,streetTime);
+    let focusedFilm=null;
     if(opt.starlite&&visible(px(opt.starlite.x),py(opt.starlite.z),s*16)){
       const site=opt.starlite;
       if(street){
         const screen=BayDriving.world(site,0,opt.starliteVisit||opt.atProjector?7.55:8.67);
         const film=visible(px(screen.x),py(screen.z),5.4*s+1)?opt.starliteFrame():null;
-        BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,film,opt.starliteVisit,opt.atProjector,opt.lowDetail);
+        if(opt.starliteVisit||opt.atProjector)focusedFilm=film;
+        BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,film,opt.starliteVisit,opt.atProjector,opt.lowDetail,!!focusedFilm);
       }
       else if(atlas){disc(ctx,px(site.x),py(site.z),3.1*ui,"#b56247");ctx.save();ctx.textAlign="center";ctx.fillStyle="#533b31";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.fillText("STARLITE",px(site.x),py(site.z)-5*ui);ctx.restore();}
     }
@@ -1449,6 +1451,8 @@
         const marker=radar?edgePoint(x,y,w,h,true,8*ui):[x,y];airSprite(ctx,a,marker[0],marker[1],s,street,ui);
       }
     }
+    // From a clipped-in speaker the raised screen is in front of the next lot's canopy.
+    if(focusedFilm)BayStarliteArt.focusedScreen(ctx,px,py,s,opt.starlite,focusedFilm);
     ctx.restore();return garageBounds;
   };
 })();
