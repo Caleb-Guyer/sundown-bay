@@ -1179,7 +1179,9 @@
     drawStreetList(list){
       if(this.scale>.75){for(const item of list)this.draw(...item);return;}
       const batch=this.streetBatch??=new StreetBatch(this);
-      batch.buildDetail=true;
+      if(batch.detailCamera!==this.basis){
+        batch.detailCamera=this.basis;batch.buildDetail=true;
+      }
       for(const item of list)batch.append(item);
       batch.flush();
     }

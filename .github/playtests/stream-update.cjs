@@ -22,3 +22,9 @@ for(const Type of [Uint16Array,Uint32Array]){
   assert(writes>10&&sent<.6*full);
   console.log("PASS",Type.name,"450 exact batches in three GPU slots,",sent,"of",full,"bytes sent");
 }
+let builds=0;
+const view={basis:{},scale:.55,streetBatch:{append(){if(this.buildDetail){builds++;this.buildDetail=false;}},flush(){}}};
+const draw=()=>api.window.BayView.prototype.drawStreetList.call(view,[{},{}]);
+draw();draw();assert.equal(builds,1);
+view.basis={};draw();assert.equal(builds,2);
+console.log("PASS repeated passes of one camera frame share a single mesh-detail build");

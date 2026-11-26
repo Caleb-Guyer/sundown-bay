@@ -39,8 +39,14 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         delete this.trafficVisible;
         const kept=items.filter(([name,x,y,z])=>!((name.startsWith("traffic-shell/")||name.startsWith("traffic-brakes/")||name.startsWith("registry/"))&&omitted.has(x+"/"+y+"/"+z)));
         const draw=list=>()=>{this.draw("city");this.drawOpaque(list);};
-        recQA.trafficProof={low:this.scale<=.65,checked,skipped:omitted.size,parts:items.length-kept.length,
-          pixels:comparePixels(this,[],draw(kept),draw(items),true)};
+        // Compare the traffic decision with the same mesh detail on both draws.
+        // A cold batch otherwise builds another distance mesh during the reference.
+        const batch=this.streetBatch,detail=batch?.distanceDetail;
+        if(batch)batch.distanceDetail=function(...args){this.buildDetail=false;return detail.apply(this,args);};
+        try{
+          recQA.trafficProof={low:this.scale<=.65,checked,skipped:omitted.size,parts:items.length-kept.length,
+            pixels:comparePixels(this,[],draw(kept),draw(items),true)};
+        }finally{if(batch)batch.distanceDetail=detail;}
         recQA.surfaceResult=(${require("./street-surface.cjs").toString()})(this,items,comparePixels);
         recQA.wallResult=(${require("./street-walls.cjs").toString()})(this,items,comparePixels,recQA);
         recQA.paintResult=(${require("./frame-paint.cjs").toString()})(this,items,comparePixels);
