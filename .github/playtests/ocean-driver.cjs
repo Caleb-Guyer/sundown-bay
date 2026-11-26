@@ -26,6 +26,15 @@ module.exports = function oceanDriver(car, leg, endZ, traffic = [], memory = {})
     if (memory.bypass && car.z >= memory.bypass.until) memory.bypass = null;
     if (memory.bypass) lane = memory.bypass.x;
     speed = car.z < -5 ? pace : clearSpeed(lane);
+    // Look ahead while accelerating for the manual run. Waiting until the
+    // bumper is stationary behind the queue uses up the second-gear straight.
+    if (pace >= 16 && car.z >= -8 && speed < pace - 1.5) {
+      for (const x of [143.9, 141.2, 139.5, 146.7]) {
+        const room = clearSpeed(x);
+        if (room > speed + 2.0) { lane = x; speed = room; }
+      }
+      if (lane !== 143.9) memory.bypass = { x: lane, until: car.z + 15 };
+    }
     memory.still = speed < 1 && Math.abs(car.speed) < 1.2 ? (memory.still || 0) + 1 : 0;
     if (memory.still > 30) {
       for (const x of [146.8, 144, 141.3, 148.8]) {
@@ -34,7 +43,9 @@ module.exports = function oceanDriver(car, leg, endZ, traffic = [], memory = {})
       }
       if (speed > 3) { memory.bypass = { x: lane, until: car.z + 16 }; memory.still = 0; }
     }
-    heading = Math.max(-.57, Math.min(.57, (lane - car.x) * .19));
+    // Ease over while the wheels keep pulling, as a driver would at the grid.
+    const limit=pace>=16?.34:.57;
+    heading = Math.max(-limit, Math.min(limit, (lane - car.x) * .19));
   } else {
     const dx = 155.4 - car.x, dz = endZ - car.z;
     const distance = Math.hypot(dx, dz);
