@@ -294,16 +294,58 @@
     model("marlin14-floor",floor);model("marlin14-walls",walls);model("marlin14-bed",bed);model("marlin14-desk",desk);
     model("marlin14-effects",personalEffects);model("marlin14-fan",rotor);model("marlin14-lamps",litLamps);
     model("marlin14-porch",porch);
+    model("marlin14-phone",phoneCase);model("marlin14-receiver",handset);
+    model("marlin14-message-light",g=>g.box(0,0,0,.056,.024,.009,"#ff9857"));
     for(const p of ["day","twilight","night","rain","night-rain"])model("marlin14-window-"+p,g=>windowScene(g,p));
   }
-  function draw(view,weather={}){
+  function draw(view,weather={},room=null,t=0){
     view.draw("marlin14-window-"+timeBand(weather),0,0,0,0,0,0,.56);
     for(const model of ["marlin14-floor","marlin14-walls","marlin14-bed","marlin14-desk","marlin14-effects"])view.draw(model,0,0,0,0,0,0,.52);
     view.draw("marlin14-fan",furniture.desk.x+.073,1.17,.39,0,performance.now()*.006,0,.52);
     if(weather.night>.38)view.draw("marlin14-lamps",0,0,0,0,0,0,.97);
+    phoneWorld(view,room,t);
   }
   function outsideWorld(list,see){
     if(see(outside,62))list.push(["marlin14-porch",129.718,0,-29.02,0,0,0,.8]);
+  }
+
+  const phone={x:-.58,y:1.32,z:3.83},atPhone={x:-.23,z:2.63,yaw:-.27};
+  const wakeKey="sundownBay.marlinCalls.v1",callTypes=["press","issue","crossing","chapter","supper"];
+  function wakeFile(){
+    let v;try{v=JSON.parse(localStorage.getItem(wakeKey));}catch{}
+    return {inside:["guest","frankie"].includes(v?.inside)?v.inside:null,ring:v?.ring===true,
+      heardIssue:typeof v?.heardIssue==="string"?v.heardIssue.slice(0,140):"",
+      by:v?.by==="frankie"?"frankie":"guest",message:callTypes.includes(v?.message)?v.message:null,
+      mark:callTypes.includes(v?.mark)?v.mark:null};
+  }
+  function saveWake(v){try{localStorage.setItem(wakeKey,JSON.stringify(v));}catch{}}
+  function phoneCase(g){
+    g.box(0,0,0,.29,.43,.092,"#525b55");g.box(0,.005,-.057,.269,.40,.047,"#d0b48a");
+    g.box(.053,.071,-.09,.137,.058,.012,"#e7dbb9");g.box(.053,.071,-.097,.092,.009,.006,"#555d54");
+    for(let j=0;j<4;j++)for(let i=0;i<3;i++)g.box(.012+i*.041,.012-j*.038,-.091,.031,.025,.016,"#52665f");
+    for(let i=0;i<11;i++){
+      const a=[-.115+(i%2)*.024,-.19-i*.018,-.04],b=[-.115+((i+1)%2)*.024,-.208-i*.018,-.04];
+      g.pole(a,b,.009,"#474e47",5);
+    }
+    g.pole([-.091,-.389,-.04],[-.042,-.185,-.043],.009,"#474e47",5);
+  }
+  function handset(g){
+    g.box(0,0,0,.055,.218,.061,"#315851");
+    for(const side of [-1,1]){
+      g.box(-.006,side*.116,-.009,.077,.071,.081,"#37635b");
+      g.box(0,side*.151,-.024,.094,.044,.089,"#264a44");
+    }
+  }
+  function receiverLift(room,t){
+    if(!room)return 0;
+    const delta=room.callStep!=null?t-room.liftAt:(room.hungAt??-10)+.35-t;
+    const f=Math.min(1,Math.max(0,delta/.35));return f*f*(3-2*f);
+  }
+  function phoneWorld(view,room,t){
+    const f=receiverLift(room,t),ring=room?.ringing&&t%3.1<.7;
+    view.draw("marlin14-phone",phone.x,phone.y,phone.z,0,0,0,.55);
+    view.draw("marlin14-receiver",phone.x-.089+.092*f,phone.y+.018+.19*f,phone.z-.117-.63*f,-f*.76,0,-f*.43,.55);
+    if(ring)view.draw("marlin14-message-light",phone.x+.053,phone.y+.158,phone.z-.093,0,0,0,.98);
   }
 
   // Paint a high-angle cutaway once on entering the room or changing the light. Only the actor moves.
@@ -411,8 +453,18 @@
       plate={width:w,height:h,period,buffer};
     }
     ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(plate.buffer,0,0);
+    const lift=receiverLift(person,t);
+    ctx.save();ctx.translate(ox+phone.x*scale,oy-(phone.z*.94+phone.y*.34)*scale);ctx.scale(scale,scale);
+    ctx.fillStyle="#c2aa83";ctx.fillRect(-.15,-.13,.3,.20);
+    ctx.fillStyle="#576a5e";ctx.fillRect(.012,-.038,.105,.079);
+    ctx.fillStyle=person.ringing&&t%3.1<.7?"#ff934e":"#94755e";ctx.fillRect(.028,-.10,.060,.027);
+    ctx.translate(-.083+lift*.092,.024+lift*.49);ctx.rotate(-lift*.53);
+    ctx.fillStyle="#284e48";ctx.fillRect(-.028,-.106,.056,.206);
+    for(const y of [-.108,.058])ctx.fillRect(-.052,y,.101,.066);
+    ctx.restore();
     if(wardrobe)BayCourtBench.roomMap(ctx,person,wardrobe,x=>ox+x*scale,z=>oy-z*.94*scale,scale,t);
-    ctx.translate(ox+person.x*scale,oy-person.z*.94*scale);ctx.scale(scale,scale);
+    const rise=person.rise||0;
+    ctx.translate(ox+(person.x-.98*rise)*scale,oy-(person.z+.18*rise)*.94*scale);ctx.scale(scale,scale);
     const shadow=ctx.createRadialGradient(.035,-.018,.008,.035,-.018,.35);shadow.addColorStop(0,"rgba(54,48,45,.48)");shadow.addColorStop(1,"rgba(54,48,45,0)");
     ctx.fillStyle=shadow;ctx.fillRect(-.33,-.38,.73,.72);
     ctx.rotate(person.yaw||0);
@@ -423,5 +475,5 @@
     ctx.fillStyle="#443e39";ctx.beginPath();ctx.ellipse(0,-.134,.125,.108,0,0,Math.PI*2);ctx.fill();
     ctx.restore();
   }
-  window.BayMarlinRoom={outside,spawn,points,clear,install,draw,map,outsideWorld};
+  window.BayMarlinRoom={outside,spawn,points,clear,install,draw,map,outsideWorld,atPhone,wakeFile,saveWake};
 })();

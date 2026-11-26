@@ -27,6 +27,7 @@
   const jumps=BayPictureJumps;
   const carbon=BayCarbonCopies,tireCloud=[];let puffAt=-10,puffId=0,copySide="left";
   const passReel=new BayCleanThrough.Reel(city.opaqueBuildings),pictureDesk=new BayCleanThrough.PictureDesk();
+  const trafficShells=new Set(["coupe","cab","hatch","van","marea","cayo","estate","stepside","solena"]);
   let passFilm=null,freshPlate=0,deskCrop="street";
   if(view.gl){BayPictureJumpArt.build(cityMesh,jumps.sites);view.add("city",cityMesh);cityMesh.vertices.length=0;
     view.add("bay-water",waterMesh);waterMesh.vertices.length=0;}
@@ -336,6 +337,7 @@
   let capReach=null;
   gutters.weather(hours);let sprayRemarkAt=-15;
   let savedAt=hours.total,room=null,recentDiner=null,roomArtReady=false,marketArtReady=false,cineArtReady=false,cabArtReady=false;
+  const wakeBook=BayMarlinRoom.wakeFile();
   let cutArtReady=false,onAir=null,ambientField=null,ambientAt=-1;
   function saveTime(){
     try{localStorage.setItem(clockKey,String(hours.total));savedAt=hours.total;}catch{}
@@ -1305,7 +1307,7 @@
     if(save.buttonwood.working&&!active){active={buttonwood:true,job:potJob};resumeButtonwood();cameraSnap();}
     if(save.campana.shift&&!active){active={campana:true,job:iceJob};Object.assign(hero,{x:campana.station.stand.x,z:campana.station.z-2.6});resetFeet();cameraSnap();}
     else if(active&&save.campana.shift){campana.abandon();commitPaletas();}
-    if(unit.met)restoreCrew();
+    if(unit.met||unit.solo&&campaign.book.intro)restoreCrew();
     restoreBaggageCars();markClaim();restoreMeterCar();
     if(save.shore.carried&&!active)waypoint={...BaySurfPatrol.tower};
     try{if(localStorage.getItem("sundownBay.audio")==="on"){radio=sound.setEnabled(true);$("audioKey").querySelector("span").textContent=radio?"Sound on":"Sound off";}}catch{}
@@ -1318,10 +1320,15 @@
     if(!active&&!waypoint&&meterCar())waypoint=save.meterCopy.spent?meterPin(meterCar()):{...BayCab.stops.marlin.stand,kind:"meter-rank",name:"Marlin cab stand · Mina's slip"};
     if(!active&&!waypoint&&campaign.book.pass&&!campaign.book.trips)waypoint=chapterTarget();
     if(!active&&!waypoint&&["ride","negative","return"].includes(campaign.book.stage))waypoint=chapterTarget();
+    if(!active&&wakeBook.mark&&wakeBook.by===unit.lead)waypoint={...wakeLead(wakeBook.mark).pin,wakeCall:wakeBook.mark};
+    if(!active&&wakeBook.inside===unit.lead){
+      startMorning(false);return;
+    }
     if(waypoint?.kind==="meter-rank"||waypoint?.kind==="meter-car"){
       note("Mina’s driver’s copy",save.meterCopy.spent?"Your car is marked on the map.":"Take your slip to the Marlin cab stand. Mina saved you a ride.",4.3);return;
     }
     if(unit.met){note(BaySecondUnit.names[unit.lead],district(pos())+" · Y switch characters"+(unit.lead==="frankie"?" · P location camera":""),3.8);return;}
+    if(unit.solo){note(car?formatVehicle(car):district(hero),car?"Parked on "+(BayStreetNames.through(car,car.yaw)||district(car)):"Back on foot · "+(BayStreetNames.through(hero,hero.yaw)||"Sundown Bay"),3);return;}
     note("Marlin Motel","Room 14 is yours. "+(personalCar?"Your "+formatVehicle(personalCar)+" is marked on the map.":cars[0].color===paints[0]?"Coral coupe out front. On foot, 1 or 2 draws a weapon.":"Your "+formatVehicle(cars[0])+" is out front."),4.3);
   }
   const freeFeet=()=>play&&!spur.aboard&&!spur.transfer&&!windowRide?.held&&!palm.match&&!palm.playerSeat&&!gull?.exchange&&!motos.player&&!motos.job?.swapping&&!rescue.holding&&!airLine.aboard&&!room&&!transit.aboard&&!cabs.playerHeld&&!cycles.riding&&!skate.rider&&!boardwalk.player&&!pickup&&!band.take&&!car&&!skiff&&!swim&&!transfer&&!deckStep;
@@ -1333,7 +1340,9 @@
     return play&&!active&&!heat&&!room&&!transfer&&!deckStep&&!cabs.booking&&!transit.engaged&&!watchCrew.towing&&!rainWalk.trip&&!valet.onDuty&&!serviceVehicle&&!neon.testing&&!wash.hasWand()&&!gull.engaged&&!save.airmail.bag&&(car?unitRoadCar(car):onStreetFeet());
   }
   function saveCrewPlace(){
-    if(unit.met&&crewFree()){
+    if(crewFree()&&(unit.met||campaign.book.intro&&!campaign.scene&&!campaign.table)){
+      if(!unit.met)unit.solo=true;
+      if(wakeBook.by===unit.lead&&wakeBook.mark&&waypoint?.wakeCall!==wakeBook.mark){wakeBook.mark=null;BayMarlinRoom.saveWake(wakeBook);}
       unit.remember(car||hero,car);if(afternoon.active&&afternoon.phase==="foot")unit.remember(otherBody,null,unit.other);unit.save();
     }
   }
@@ -1631,7 +1640,7 @@
       const dx=Number(held("ArrowRight","KeyC"))-Number(held("ArrowLeft","KeyQ"))+pointer.edgeX*.75;
       scoutLook(dx*dt*1.55,(Number(held("ArrowUp"))-Number(held("ArrowDown")))*dt*1.12);
       motion.step(dt,0,0);unit.eye.flash=Math.max(0,unit.eye.flash-dt*4.5);
-    }else if(unit.met){unit.nextSave-=dt;if(unit.nextSave<=0){unit.nextSave=3;saveCrewPlace();}}
+    }else if(unit.met||campaign.book.intro){unit.nextSave-=dt;if(unit.nextSave<=0){unit.nextSave=3;saveCrewPlace();}}
   }
   function crewKeys(code){
     if(windowRide)return windowInput(code);
@@ -4292,6 +4301,7 @@
   }
   function roomAction(){
     if(room?.kind==="cinema")return BayCineRoom.action(room);
+    if(room.callStep!=null||room.ringing&&dist(room,BayMarlinRoom.atPhone)<1.22)return "phone";
     let nearest=null,best=1.35;
     for(const [name,point] of Object.entries(BayMarlinRoom.points)){
       const gap=dist(room,point);if(gap<best){nearest=name;best=gap;}
@@ -4306,13 +4316,54 @@
     note("Marlin Motel · 14","Your key sticks. Give it a little lift on the way out.",3.4);
     lastHud=lastMap=-10;hud();
   }
+  function wakeLead(id){
+    if(id==="press")return {pin:wirePin,line:"Meli called twice. That flat envelope from Portside? She’s still holding the space for it.",reply:"Bay Wire, by the beach. I wrote ‘do not fold’ on both sides."};
+    if(id==="issue")return {pin:wirePin,line:"Meli put your picture on the little television outside Bay Wire. Even the paperboy stopped to watch.",reply:"Her desk is by the beach. Tell her I want two copies for the lobby."};
+    if(id==="supper")return {pin:BayMercadoArt.counter,line:"Rosario put a saucer over a plate for somebody on the late shift. She needs a driver before it goes cold.",reply:"South side of El Mercado. Look for the striped awnings."};
+    const pin=chapterTarget();
+    if(id==="crossing")return {pin,line:"The landing called. Somebody left the motel number in the margin of the ferry book.",reply:"I’ve circled "+pin.name+" on your street map."};
+    return {pin,line:"There’s a note in your pigeonhole about Lot Fourteen. Whoever wrote it used our last good pencil.",reply:"It says ‘"+pin.name+"’. I can mark it for you."};
+  }
+  function startMorning(fresh,minute=0){
+    if(fresh){
+      const issue=pictureDesk.issue,edition=issue?[issue.street,issue.score,issue.crop,issue.cover.length].join("/"):"";
+      wakeBook.message=pictureDesk.packet?"press":edition&&edition!==wakeBook.heardIssue?"issue":minute===1090?"supper":campaign.book.pass?"crossing":"chapter";
+      if(wakeBook.message==="issue")wakeBook.heardIssue=edition;
+      Object.assign(wakeBook,{inside:unit.lead,by:unit.lead,ring:true,mark:null});
+      BayMarlinRoom.saveWake(wakeBook);
+    }
+    car=null;Object.assign(hero,BayMarlinRoom.outside);resetFeet();
+    room={...BayMarlinRoom.atPhone,pitch:-.10,stride:0,bob:0,rise:1,ringing:wakeBook.ring&&!!wakeBook.message,ringIn:.95};
+    keys.clear();resetPointer();lastMap=lastHud=-10;
+    note("Marlin Motel · Room 14",BayHours.time(hours.minute)+(room.ringing?" · Wake-up call":" · Back in your room"),3.3);
+  }
+  function phoneLine(take=true){
+    if(room.callStep==null){
+      room.ringing=false;room.callStep=0;room.liftAt=streetTime;room.rise=0;
+      Object.assign(room,BayMarlinRoom.atPhone,{pitch:-.12});
+      speak("Bea · front desk",wakeLead(wakeBook.message).line);
+    }else{
+      const lead=wakeLead(wakeBook.message);
+      if(take){waypoint={...lead.pin,wakeCall:wakeBook.message};wakeBook.mark=wakeBook.message;wakeBook.message=null;}
+      room.callStep=null;room.hungAt=streetTime;room.ringing=false;wakeBook.ring=false;
+      BayMarlinRoom.saveWake(wakeBook);
+      speak("Bea · front desk",take?lead.reply:"I’ll leave it under the blotter on your desk. Get some rest.");
+    }
+    keys.clear();lastHud=lastMap=-10;
+  }
   function leaveRoom(){
     if(!room)return;
     const cinema=room.kind==="cinema";
+    if(!cinema&&wakeBook.inside===unit.lead){wakeBook.inside=null;wakeBook.ring=false;BayMarlinRoom.saveWake(wakeBook);}
     room=null;Object.assign(hero,cinema?{x:BayCab.cinema.x-.32,z:BayCab.cinema.z,yaw:-Math.PI/2}:{x:BayMarlinRoom.outside.x+.36,z:BayMarlinRoom.outside.z,yaw:Math.PI/2});
     resetFeet();cameraSnap();resetPointer();keys.clear();lastHud=lastMap=-10;hud();
   }
   function walkRoom(dt){
+    if(room.kind!=="cinema"){
+      if(room.rise>0)room.rise=Math.max(0,room.rise-dt*.84);
+      if(room.ringing){room.ringIn-=dt;if(room.ringIn<=0){sound.cue("rank-ring",{distance:dist(room,BayMarlinRoom.atPhone)});room.ringIn=3.1;}}
+      if(room.callStep!=null)return;
+    }
     const f=Number(held("KeyW","ArrowUp"))-Number(held("KeyS","ArrowDown"));
     const s=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
     const across=Number(held("KeyC"))-Number(held("KeyQ"));
@@ -4344,6 +4395,7 @@
       }}else if(action==="rise"){endGateReview();BayCineRoom.rise(room);}
       else if(action==="program")openPanel("cine-program");lastHud=-10;return;
     }
+    if(action==="phone"){phoneLine();return;}
     if(action==="door")leaveRoom();
     else if(action==="bed"||action==="desk"||action==="rack")openPanel("room-"+action);
   }
@@ -6631,7 +6683,7 @@
     if(a.passenger)v.passengerDoor=0;else v.doorAngle=0;
     transfer=null;lastHud=-10;lastMap=-10;skidLast=null;
     if(a.exiting)rememberCargoCar(v);
-    if(a.exiting){if(unit.met&&unitRoadCar(v))unit.remember(v,v);car=null;works.rearView=false;resetFeet();BayDriving.settle(v);if(v===workTruck||v===works.trailer.hitched)writeButtonwood();valet.leftCar(v,motorEnv);if(gull.record(v)||gull.saved.loan?.kind===v.stockId&&v.stockId){gull.remember(v);persist();}if(v===personalCar)BayMotelParking.write(v);if(v===spider)parkSpider();flushRoadDirt();return;}
+    if(a.exiting){if((unit.met||!active&&campaign.book.intro)&&unitRoadCar(v))unit.remember(v,v);car=null;works.rearView=false;resetFeet();BayDriving.settle(v);if(v===workTruck||v===works.trailer.hitched)writeButtonwood();valet.leftCar(v,motorEnv);if(gull.record(v)||gull.saved.loan?.kind===v.stockId&&v.stockId){gull.remember(v);persist();}if(v===personalCar)BayMotelParking.write(v);if(v===spider)parkSpider();flushRoadDirt();return;}
     const borrowed=!!(a.owner||v.path);v.path=null;v.roadside=v.wantsCurb=false;v.pullOver=null;v.used=true;car=v;
     if(a.passenger){beginMeet("photo");return;}
     v.manualKnown=false;loadSelector(v);
@@ -7686,6 +7738,7 @@
       if(waypoint?.kind==="neighbor-place"&&onStreetFeet()&&dist(hero,waypoint)<2.55&&neighbors.known(unit.lead,neighbors.byId(waypoint.id),"visited"))waypoint=null;
       if(waypoint&&!["dive-site","neighbor","neighbor-place","street-response","shift-print","meter-car","flower-call","unit-four"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
         if(waypoint.kind!=="garage"||!car?.flatSide)note("City map","Waypoint reached.",1.7);
+        if(waypoint.wakeCall===wakeBook.mark&&wakeBook.mark){wakeBook.mark=null;BayMarlinRoom.saveWake(wakeBook);}
         waypoint=null;
       }
       return;
@@ -9429,7 +9482,8 @@
     }
     if(room){
       if(room.kind==="cinema"){Object.assign(cam,BayCineRoom.camera(room,innerWidth/innerHeight));return;}
-      cam.x=room.x;cam.z=room.z;cam.y=1.53+Math.sin(room.stride)*room.bob;
+      const r=room.rise||0,lift=r*r*(3-2*r);
+      cam.x=room.x-.98*lift;cam.z=room.z+.18*lift;cam.y=1.53-.58*lift+Math.sin(room.stride)*room.bob;
       cam.yaw=room.yaw;cam.pitch=room.pitch;cam.focal=1.31;return;
     }
     if(car===wrecker&&!transfer&&held("KeyV")){
@@ -10073,7 +10127,7 @@
         if(cinema){
           if(!cineArtReady){BayCineRoom.install(model);cineArtReady=true;}
           view.begin(cam,0);BayCineRoom.world(view,room,t,hours,show.canvas,show.revision);
-        }else{marlinArt();view.begin(cam,0);BayMarlinRoom.draw(view,hours);BayCourtBench.roomWorld(view,{...save.courts,equipped:worn(),owned:save.threads.owned},model,t);}
+        }else{marlinArt();view.begin(cam,0);BayMarlinRoom.draw(view,hours,room,t);BayCourtBench.roomWorld(view,{...save.courts,equipped:worn(),owned:save.threads.owned},model,t);}
       }
       $("targetTag").hidden=true;return;
     }
@@ -10437,10 +10491,13 @@
     }
     if(play&&see(beat.v,110))BayOceanBeatArt.car(visible,model,beat.v,footLevel(beat.v.x,beat.v.z)+.008,t,beat.v.beatLights);
     for(const v of cars)if(see(v,160)&&!(film&&BayTake.onSet(v))&&!(v===windowRide?.vehicle&&unit.eye?.window)&&!(v===car&&!transfer&&(hideActor||insideSeat()))){
-      const ground=footLevel(v.x,v.z)+.008+serviceLift(v)+(v.towLift||0),body=roadBody(v);
-      if(view.scale<=.65&&v!==owned&&v!==story?.ride&&!v.damage&&!v.doorAngle&&!v.passengerDoor&&
-        !v.hydraulic&&!v.serviceCar&&!v.cupNumber&&!v.greenId&&v!==surfWagon&&v!==iceVan&&["coupe","cab","hatch","van","marea","cayo","estate","stepside","solena"].includes(v.kind)&&
-        Math.hypot(eye.x-v.x,eye.z-v.z)>25){
+      const ground=footLevel(v.x,v.z)+.008+serviceLift(v)+(v.towLift||0);
+      const shell=view.scale<=.65&&v!==owned&&v!==story?.ride&&!v.damage&&!v.doorAngle&&!v.passengerDoor&&
+        !v.hydraulic&&!v.serviceCar&&!v.cupNumber&&!v.greenId&&v!==surfWagon&&v!==iceVan&&trafficShells.has(v.kind)&&
+        Math.hypot(eye.x-v.x,eye.z-v.z)>25;
+      if(shell&&!view.trafficVisible(v.x,ground,v.z))continue;
+      const body=roadBody(v);
+      if(shell){
         const name="traffic-shell/"+v.kind+"/"+v.color;
         model(name,g=>buildBayTrafficShell(g,v.kind,v.color));visible.push([name,v.x,ground,v.z,v.yaw,body.pitch,body.lean]);
         BayStreetCars.world(visible,model,body,ground,t,dist(eye,v));
@@ -11371,7 +11428,7 @@
       else contextHint(use?"F":"",use==="exit"?"Step outside Cine Luna":use==="seat"?"Take this seat":use==="rise"?"Get up":use==="program"?"Read tonight’s program":room.transition?"":"Walk down the aisle to find a seat");
     }else if(room){
       const use=roomAction();$("objective").hidden=true;$("mode").textContent="Room 14";$("speed").textContent="";
-      contextHint(use?"F":"",use==="door"?"Step out to Ocean Drive":use==="bed"?"Set the alarm":use==="desk"?"Read the note on your desk":use==="rack"?"Change clothes":"Walk to the bed, desk, clothes rail or door");
+      contextHint(use?"F":"",use==="phone"?(room.callStep!=null?"Mark the address · E to leave a note":"Answer the wake-up call"):use==="door"?"Step out to Ocean Drive":use==="bed"?"Set the alarm":use==="desk"?"Read the note on your desk":use==="rack"?"Change clothes":"Walk to the bed, desk, clothes rail or door");
     }else if(band.take){
       const take=band.take;$("mode").textContent="Sol Sound Shell";$("speed").textContent="";
       contextHint(take.phase==="result"?"T":"",take.phase==="result"?"Play another take  ·  E stand up":take.phase==="leave"?"":"A kick   S snare   D hi-hat   ·   V camera   E stand up");
@@ -11698,6 +11755,13 @@
     }
   }
   function showDesk(body){
+    if(wakeBook.message&&wakeBook.by===unit.lead){
+      const id=wakeBook.message,lead=wakeLead(id);
+      body.append(makeButton("Bea’s telephone slip",lead.line,"Mark address",()=>{
+        if(!room||roomAction()!=="desk"||wakeBook.message!==id)return;
+        wakeBook.mark=id;wakeBook.message=null;wakeBook.ring=false;room.ringing=false;BayMarlinRoom.saveWake(wakeBook);clockPin({...lead.pin,wakeCall:id});
+      }));
+    }
     signedNote(body,"If you're headed across town tonight, stop by the counter. Somebody on late shift always needs a plate. South side of El Mercado, under the striped awnings. I start serving at six.","Rosario");
     body.append(makeButton("Rosario’s night counter","Pin the counter on your city map.","Set waypoint",()=>clockPin(BayMercadoArt.counter)));
     const pin=carPin();
@@ -11715,7 +11779,7 @@
     for(const [m,label,detail] of [[420,"Breakfast","Morning light on Ocean Drive."],[720,"Noon","The sun is high over the bay."],[1090,"Dinner shift","Rosario’s griddle is hot."],[15,"After midnight","Catch the last of the night shift."]]){
       body.append(makeButton(label,detail,BayHours.time(m),()=>{
         if(!room||roomAction()!=="bed")return;
-        hours.wake(m);saveTime();closePanel();note("Marlin Motel",BayHours.time(hours.minute)+"  ·  The alarm clicks off.",3.2);hud();
+        hours.wake(m);saveTime();closePanel();startMorning(true,m);hud();
       }));
     }
   }
@@ -12747,6 +12811,10 @@
     if(!ev.repeat&&!ev.shiftKey&&windowFinderKeys(ev.code)){ev.preventDefault();return;}
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
+    if(ev.code==="KeyF"&&(room&&room.kind!=="cinema"||byRoomDoor()&&dist(hero,BayMarlinRoom.outside)<.92)){
+      ev.preventDefault();if(!ev.repeat){if(room)useRoom();else enterRoom();}return;
+    }
+    if(ev.code==="KeyE"&&room?.callStep!=null){ev.preventDefault();if(!ev.repeat)phoneLine(false);return;}
     if(ev.code==="KeyC"&&(ev.shiftKey||held("ShiftLeft","ShiftRight"))&&(roadside.vehicle||roadsideReady())){
       ev.preventDefault();if(ev.repeat)return;
       if(roadside.vehicle)roadside.stop();else roadside.start(car);

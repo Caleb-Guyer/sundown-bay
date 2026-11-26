@@ -62,6 +62,7 @@
       for(let i=0;i<sides;i++) this.quad(rim(a,i),rim(a,i+1),rim(b,i+1),rim(b,i),color,.88+.1*Math.cos(i));
     }
   }
+  const trafficBounds={x:0,y:0,z:0,r:5.8};
   function meshBounds(vertices,start,end){
     let x0=Infinity,y0=Infinity,z0=Infinity,x1=-Infinity,y1=-Infinity,z1=-Infinity;
     for(let i=start*6;i<end*6;i+=6){
@@ -1121,6 +1122,11 @@
         gl.uniform1f(u.glow,glow);surface.glow=glow;
       }
       return true;
+    }
+    trafficVisible(x,y,z){
+      // A closed road car, lamps, mirrors and plate rotate about the same origin.
+      // The loose sphere covers the longest van in any pitch or roll.
+      return this.inFrame(trafficBounds,x,y,z,0,0,0);
     }
     inFrame(b,x,y,z,yaw,tiltX,tiltZ,pad=0){
       const v=this.basis;if(!v||!b)return true;

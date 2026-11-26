@@ -57,10 +57,13 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
   await tap("Escape");
   await js(`window.railQA={};const rail=railQA,rs=BayRescue.Service.prototype.step;
     BayRescue.Service.prototype.step=function(dt,e){rail.hero=e.hero;return rs.apply(this,arguments);};
+    const traffic=BayLocals.animatePeople;BayLocals.animatePeople=function(w,dt,v){rail.car=v;return traffic.apply(this,arguments);};
     const cam=BayCamera.prototype.update;BayCamera.prototype.update=function(){rail.cam=this;return cam.apply(this,arguments);};
     const draw=BayCleanThrough.Reel.prototype.print;BayCleanThrough.Reel.prototype.print=function(t,near){
       const p=draw.apply(this,arguments);if(p&&near)rail.rev=p.rev;return p;};true`);
   await waitFor("rail.hero&&rail.cam");
+  await waitFor("rail.car?.kind==='coupe'");await tap("KeyE");await waitFor("!rail.car");
+  await waitFor("document.querySelector('#context').textContent.includes('Enter')||!document.querySelector('#context').textContent.includes('Step out')");
   await js("Object.assign(rail.hero,{x:BayCarbonCopies.rail.x,z:BayCarbonCopies.rail.z+2.7,y:BayCarbonCopies.apronY,yaw:Math.PI});rail.cam.reset(rail.hero);true");
   await waitFor("document.querySelector('#context').textContent.includes('Watch Clean Through')");
   if(mode==="street"){await waitFor("rail.rev>=2");await shot("screen");}
@@ -92,6 +95,8 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
   await waitFor(proof+"?.getContext('2d').getImageData(20,20,1,1).data[3]===255");
   assert.equal(await js(record+".packet"),null);
   console.log("PASS Late Plate",mode,"physical Portside envelope and desk handoff, proof chosen and published, archived photograph reopened after reload");
+  await tap("Escape");
+  await require("./room-call.cjs")({js,send,tap,key,waitFor,shot,mode});
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS Roadside camera",mode,"driver-controlled cuts, printed traffic photograph, saved cover after reload, camera released");
   console.log("PASS Clean Through",mode,card.score,"points, double gap under driver input, five clear seconds, saved moving traffic reel and scrub after reload");

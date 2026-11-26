@@ -23,13 +23,13 @@
   }
   class Unit {
     constructor(){
-      const raw=get(key);this.met=raw?.met===true;this.lead=this.met&&raw.lead==="frankie"?"frankie":"guest";
+      const raw=get(key);this.met=raw?.met===true;this.solo=raw?.solo===true;this.lead=this.met&&raw.lead==="frankie"?"frankie":"guest";
       this.places={guest:place(raw?.guest,"guest"),frankie:place(raw?.frankie,"frankie")};
       this.motors={};for(const id of ["guest","frankie"]){const p=raw?.motors?.[id];if(p?.ride)this.motors[id]=place(p,id);}
       this.film=loadFilm();this.eye=null;this.transition=null;this.nextSave=0;this.lastSave="";
     }
     get other(){return this.lead==="guest"?"frankie":"guest";}
-    save(){const s={met:this.met,lead:this.lead,motors:this.motors,...this.places},signature=JSON.stringify(s);if(signature!==this.lastSave&&put(key,s))this.lastSave=signature;}
+    save(){const s={met:this.met,solo:this.solo,lead:this.lead,motors:this.motors,...this.places},signature=JSON.stringify(s);if(signature!==this.lastSave&&put(key,s))this.lastSave=signature;}
     remember(p,v,id=this.lead){
       const where=place({x:p.x,z:p.z,yaw:p.yaw,ride:v?.garageKey,flat:v?.flatSide,axle:v?.flatAxle},id);
       const other=id==="guest"?"frankie":"guest";this.places[id]=where;
