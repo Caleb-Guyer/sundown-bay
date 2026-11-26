@@ -5,7 +5,7 @@ module.exports=async({js,waitFor:wait,tap,key,send,mode,errors})=>{
     catch(error){
       const state=await js(`(()=>{const q=window.airQA||{},a=q.air,c=q.car;
         return {heat:q.heat,car:c&&[c.kind,c.x,c.z,c.speed],blocker:q.blocker&&[q.blocker.x,q.blocker.z],
-          air:a&&[a.x,a.z,a.sees,a.lit],samples:q.reel?.take?.samples?.length,context:document.querySelector('#context')?.textContent,
+          air:a&&[a.x,a.z,a.sees,a.lit],hits:q.hits,encounter:q.encounter,samples:q.reel?.take?.samples?.length,context:document.querySelector('#context')?.textContent,
           panel:document.querySelector('#panelBody')?.textContent?.slice(0,220)};})()`);
       console.log("Playtest state",JSON.stringify(state));throw error;
     }
@@ -26,26 +26,28 @@ module.exports=async({js,waitFor:wait,tap,key,send,mode,errors})=>{
   await waitFor("q.h&&q.cars?.length");await js("Object.assign(q.h,{x:151,z:-27});true");await tap("KeyE");
   await waitFor("q.car?.kind==='coupe'",22000);
   await js("q.parked=q.cars.filter(v=>v!==q.car&&!v.path&&!v.serviceCar&&!v.meetCar&&!v.guestId&&['coupe','hatch','cab','van'].includes(v.kind));q.home=q.parked.map(v=>({x:v.x,z:v.z,yaw:v.yaw}));true");
-  // Repeated contacts must be distinct. Stationing every fixture at one parked
-  // car also leaves the driver motionless in the same police cordon between samples.
-  const blocks=[[144,74],[72,-55],[0,65],[-72,-40],[72,95],[144,-65],[0,-105],[-72,50]];
-  for(let i=0;i<8&&(await js("q.heat||0"))<5;i++){
-    const [x,z]=blocks[i],before=await js("q.hits");
-    await js("q.blocker=q.parked["+i+"%q.parked.length];q.place(q.blocker,"+x+","+z+");q.place(q.car,"+x+","+(z-13)+");q.car.vz=q.car.speed=15;true");
-    await key("keyDown","KeyW");
-    try{
-      await waitFor("q.hits>"+before,12000);
-    }finally{await key("keyUp","KeyW");}
+  // Keep the last three impacts on a single stretch of the coastal road. After
+  // dispatch the coupe drives on from the sighting the helicopter actually got.
+  await js(`const blocks=[[72,74],[0,-55],[-72,65],[144,32],[144,52],[144,74],[144,95],[144,110]];
+    q.encounter=0;q.cruising=true;let before=-1,dispatched=false;
+    function throttle(on){if(on===!!q.throttle)return;q.throttle=on;dispatchEvent(new KeyboardEvent(on?'keydown':'keyup',{code:'KeyW',key:'w'}));}
+    requestAnimationFrame(function driveRoute(){
+      if(!q.cruising||!q.car){throttle(false);return;}
+      if(dispatched){throttle(q.car.speed<8);}
+      else if(q.heat===5){
+        q.parked.forEach((v,i)=>{BayDriving.settle(v);Object.assign(v,q.home[i]);});
+        q.place(q.car,q.car.x,q.car.z);q.car.speed=q.car.vz=8;dispatched=true;throttle(false);
+      }else if(q.hits!==before&&q.encounter<blocks.length){
+        before=q.hits;
+        const i=q.encounter++,[x,z]=blocks[i];q.blocker=q.parked[i%q.parked.length];
+        q.place(q.blocker,x,z);q.place(q.car,x,z-13);q.car.vz=q.car.speed=15;throttle(true);
+      }
+      requestAnimationFrame(driveRoute);
+    });true`);
+  try{
+    await waitFor("q.heat===5",30000);
+    await waitFor("q.reel?.take?.samples.length>=9",30000);
   }
-  assert.equal(await js("q.heat"),5,"Five distinct vehicle impacts escalate to Air One");
-  await js("q.parked.forEach((v,i)=>{BayDriving.settle(v);Object.assign(v,q.home[i]);});q.place(q.car,144,77);q.car.speed=q.car.vz=8;true");
-  await js(`q.cruising=true;requestAnimationFrame(function cruise(){
-    if(!q.cruising||!q.car)return;
-    const throttle=q.car.speed<8;
-    if(throttle!==!!q.throttle){q.throttle=throttle;dispatchEvent(new KeyboardEvent(throttle?'keydown':'keyup',{code:'KeyW',key:'w'}));}
-    requestAnimationFrame(cruise);
-  });true`);
-  try{await waitFor("q.reel?.take?.samples.length>=9",24000);}
   finally{await js("q.cruising=false");await key("keyUp","KeyW");}
   assert.equal(await js(book+".air||null"),null);await snap("air-contact");
   await js("q.place(q.car,-144,-110);true");
