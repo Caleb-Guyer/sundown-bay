@@ -46,7 +46,7 @@ module.exports=async function walkHome({js,send,waitFor,tap,key,mode,errors}){
     await js("q.at(q.h,151,-27);true");await tap("KeyE");await wait("q.car?.kind==='coupe'",22000);
     await js("q.at(q.car,18,68.8);q.car.yaw=Math.PI/2;BayDriving.settle(q.car);true");await tap("KeyH");
     await wait("document.querySelector('#speech').textContent.includes('How much')");assert.equal(await js("q.r.stage"),"walk");
-    await tap("KeyE");await wait("!q.car",20000);
+    await tap("KeyE");await wait("!q.car&&document.querySelector('#mode').textContent==='On foot'",20000);
   }
   await js("q.at(q.h,q.r.jules.x-.55,q.r.jules.z+1);q.rig.reset(q.h);true");
   await wait("document.querySelector('#context').textContent.includes('Walk with Romy')");await tap("KeyF");
@@ -56,9 +56,9 @@ module.exports=async function walkHome({js,send,waitFor,tap,key,mode,errors}){
     await js("q.at(q.car,q.r.jules.x+1,68.7);q.car.yaw=Math.PI/2;BayDriving.settle(q.car);true");
     await wait("document.querySelector('#context').textContent.includes('Offer Romy')");await tap("KeyH");await wait("q.r.stage==='ride'&&q.door",25000);await shot("lift");
     await js("q.at(q.car,149,-28);q.car.yaw=0;BayDriving.settle(q.car);true");await wait("q.r.stage==='door'",25000);
-    await tap("KeyE");await wait("!q.car",22000);await js("q.at(q.h,153.05,-29.5);true");
+    await tap("KeyE");await wait("!q.car&&document.querySelector('#mode').textContent==='On foot'",22000);await js("q.at(q.h,153.05,-29.5);true");
   }else{
-    await js("q.follow=true");await wait("q.waited",85000);await shot("crossing");await wait("q.r.stage==='door'",190000);
+    await js("q.follow=true");await wait("q.waited",85000);await shot("crossing");await wait("q.r.stage==='door'",240000);
     await js("q.follow=false");assert(await js("q.crossed"));
   }
   await wait("document.querySelector('#context').textContent.includes('Meet Romy at the laundry door')");await tap("KeyF");

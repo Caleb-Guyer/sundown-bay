@@ -71106,14 +71106,14 @@ window.buildBayCity = function buildBayCity(g,water) {
   "use strict";
   const key="sundownBay.walkHome.v1";
   const route=[[12.35,64.15],[24.3,64.15],[55,64.15],[63.85,64.15],[80.3,64.15],[120.5,64.15],
-    [135.8,64.15],[152.85,64.15],[152.85,8.25],[152.85,-8.35],[152.85,-27.8],[153.7,-30.6]];
+    [135.8,64.15],[135.8,8.25],[135.8,-8.35],[152.1,-8.35],[152.1,-27.8],[153.7,-30.6]];
   const curb=i=>({x:route[i][0],z:route[i][1]});
   const home={...curb(route.length-1),name:"Marlin laundry door"};
   const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   function read(){
     let s;try{s=JSON.parse(localStorage.getItem(key));}catch{}
     if(!s||!["luna","port"].includes(s.route)||!Number.isSafeInteger(s.trip)||s.trip<0)return null;
-    return {route:s.route,trip:s.trip,at:Number.isInteger(s.at)?Math.max(0,Math.min(route.length-1,s.at)):0,
+    return {route:s.route,trip:s.trip,layout:s.layout===2?2:1,at:Number.isInteger(s.at)?Math.max(0,Math.min(route.length-1,s.at)):0,
       joined:s.joined===true,told:s.told===true,spare:s.spare===true,arrived:s.arrived==="ride"?"ride":"",
       ending:["walk","ride"].includes(s.ending)?s.ending:""};
   }
@@ -71124,8 +71124,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       this.book=saved&&(saved.trip>trip||saved.trip===trip&&saved.route===collection.last)?saved:
         {route:collection.last,trip,at:0,joined:false,told:false,spare:!!saved?.spare,ending:""};
       const at=this.book.ending?route.length-1:this.book.at;
-      this.jules={...curb(at),y:0,yaw:at===route.length-1?-1.48:Math.PI/2,style:1,role:"local",skin:"#ba8167",shirt:"#bc694c",phase:.42,offset:0,
-        path:route,index:at+1,motion:new BayPlayerMotion()};
+      const oldCorner=(at===7||at===8)&&this.book.layout===1;
+      if(!oldCorner)this.book.layout=2;
+      const path=oldCorner?route.map((point,i)=>i===7?[152.85,64.15]:i===8?[152.85,8.25]:point):route;
+      this.jules={x:path[at][0],z:path[at][1],y:0,yaw:at===route.length-1?-1.48:Math.PI/2,style:1,role:"local",skin:"#ba8167",shirt:"#bc694c",phase:.42,offset:0,
+        path,index:at+1,motion:new BayPlayerMotion()};
       // The payroll and print rides use the same passenger skeleton and both camera views.
       this.film=true;this.empty=true;this.stage=this.book.ending?"done":at===route.length-1?"door":"walk";this.seat=0;
       this.method=this.book.arrived||"walk";
@@ -71181,14 +71184,13 @@ window.buildBayCity = function buildBayCity(g,water) {
         return;
       }
       if(b.at>=route.length-1){this.arrive("walk");return "door";}
-      const distance=gap(a,e.player),crossing=a.crossing?.entered||b.at===6&&a.x>137;
+      const distance=gap(a,e.player),crossing=a.crossing?.entered;
       if(!crossing&&(b.at>=1&&!b.joined||e.heat||distance>(b.joined?12:38))){
         if(this.moving||distance<20)m.step(dt,0,0);this.moving=false;return;
       }
       a.index=b.at+1;
       if(!BayCrosswalk.ready(a,e.time,e.signals,e.traffic,e.driver,dt)){m.step(dt,0,0);return;}
-      if(b.at===6&&!crossing&&e.traffic.some(v=>gap(a,v)<19&&Math.abs(v.x-144)<6&&Math.abs(v.speed)>.7))return;
-      if(!this.path?.length)this.path=[curb(a.index)];
+      if(!this.path?.length)this.path=[{x:a.path[a.index][0],z:a.path[a.index][1]}];
       this.moving=true;
       const reached=BayCarAccess.walkPath(a,m,this.path,dt,e.ground,distance>5&&!crossing?1.45:2.12);
       a.stride=Math.cos(m.phase*Math.PI*2)*m.weight;
