@@ -33,7 +33,7 @@
     }
     circle(c,79,79,3.3,"#866b40");
   }
-  function docket(canvas,r,credit){
+  function docket(canvas,r,credit,transfer){
     const w=900,h=458;if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
     const c=canvas.getContext("2d",{alpha:false}),bed=c.createLinearGradient(0,0,w,h);
     bed.addColorStop(0,"#253d39");bed.addColorStop(1,"#645846");c.fillStyle=bed;c.fillRect(0,0,w,h);
@@ -54,6 +54,24 @@
     line(c,-276,100,302,100,"#a99e7d",1);text(c,"DISPATCHER", -274,132,"12px monospace",rust);
     text(c,"D. Cruz",-154,137,"italic 28px Georgia",ink);
     if(credit)text(c,credit==="signed"?"Filed under Dalia Cruz":"Filed under Port Sol night shift",301,133,"italic 16px Georgia",ink,"right");
+    if(transfer){const f=transfer.first;text(c,"Alma’s first stub   ·   "+(f.caught?"Connection made":"Afternoon transfer")+"   ·   "+(f.tenths/10).toFixed(1)+" s",-275,162,"italic 15px Georgia",ink);}
+    c.restore();
+  }
+  function stub(canvas,r,book){
+    canvas.width=900;canvas.height=458;const c=canvas.getContext("2d");
+    c.fillStyle="#304745";c.fillRect(0,0,900,458);c.save();c.translate(449,226);c.rotate(-.033);
+    c.fillStyle="#203533";c.fillRect(-326,-157,660,332);c.fillStyle=r.caught?"#e5bb83":"#c5c6ad";c.fillRect(-333,-164,660,332);
+    for(let y=-144;y<162;y+=20){circle(c,229,y,2.5,"#786f58");}
+    text(c,"BAY TRANSIT    /    CLINIC CONNECTION",-302,-121,"bold 15px monospace",ink);
+    text(c,r.caught?"Good for one transfer":"Good on the afternoon bus",-302,-65,"bold 34px Georgia",ink);
+    line(c,-302,-39,203,-39,ink,2);
+    text(c,"NORTH FLOAT   ·   M/V LUZ",-302,-7,"bold 18px monospace",ink);
+    text(c,(r.luis==="aboard"?"18 passengers":"17 passengers")+"    /    "+(r.tenths/10).toFixed(1)+" seconds",-302,27,"19px monospace",ink);
+    text(c,r.held?"Two bells at the amber buoy.":"No hold called from the water.",-302,65,"italic 21px Georgia",ink);
+    text(c,"Alma Reyes",-300,130,"italic 30px Georgia",rust);
+    text(c,"Best crossing   "+(book.best.tenths/10).toFixed(1)+" s",198,130,"15px monospace",ink,"right");
+    text(c,"STUB",277,-107,"bold 15px monospace",ink,"center");
+    for(let i=0;i<3;i++)circle(c,277,-53+i*62,12,i===(r.caught?0:2)?"#304745":"#b09570");
     c.restore();
   }
   function overhead(canvas,w,beat){
@@ -100,5 +118,5 @@
     line(c,px(p.x),py(p.z+.69),px(p.x),py(p.z+.69-dz),"#eee0b8",.12*s);
     for(let i=0;i<3;i++)line(c,px(p.x),py(p.z+.69-dz*(i+.3)/3),px(p.x),py(p.z+.69-dz*(i+.7)/3),rust,.13*s);
   }
-  window.BaySixSharpArt={clock,docket,overhead};
+  window.BaySixSharpArt={clock,docket,overhead,stub};
 })();

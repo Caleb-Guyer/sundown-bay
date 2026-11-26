@@ -148,5 +148,5 @@
     }
     for(const a of list)view.draw(...a);
   }
-  window.BaySixSharp={Watch,read,time,street,crewSeats,clothes,faces};
+  window.BaySixSharp={Watch,read,time,street,passengers,crewSeats,clothes,faces};
 })();

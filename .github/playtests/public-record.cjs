@@ -341,7 +341,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert(Math.abs(shot.eye.focal-1.55*Math.min(2.8,Math.hypot(dx,dz)/(place==="wheel"?15:8)))<.00001);
     assert(shot.eye.yaw-Math.atan2(dx,dz)>.08,"the saved negative keeps the player's horizontal framing");
     await js("BayRideFilm.Scenery.prototype.paint=sensor");
-    console.log("PASS Frame 13 exposed through the passenger window at",place,"without rasterizing during the drive.");
+    console.log("PASS Frame 13 exposed through the passenger window at",place,"with the chosen framing and deferred print development.");
     // Start both drives in a clear northbound lane beyond the parked club cars, then use
     // the keyboard for the whole recorded minute.
     await waitFor("!!recQA.map?.streetCar");
@@ -506,6 +506,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await loadFootAt({x:-151.9,z:-88.85});await waitFor("document.querySelector('#context').innerText.includes('dispatch copy')");
     await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Dalia’s departure book'");
     assert.equal((await js(book)).morning.luis,aboard?"aboard":"ashore");await tap("Escape");
+    await require("./last-transfer.cjs")({js,tap,waitFor,snap,mode,book,loadFootAt});
     await loadFootAt({x:-151.1,z:-86.6});await waitFor("document.querySelector('#context').innerText.includes('Dalia Cruz')");
     await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').innerText==='First Crossing'",30000);
     await waitFor("!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterWho').textContent==='Dalia Cruz'");await snap("ticket");await tap("Enter");

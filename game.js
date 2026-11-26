@@ -851,7 +851,8 @@
   function setFilmPage(){
     const b=campaign.beat(),table=campaign.table;
     chapterSoundLabel();
-    $("dispatchClock").hidden=b?.watch!=="work";
+    $("dispatchClock").hidden=b?.watch!=="work"&&b?.pilot!=="helm";
+    $("dispatchClock").setAttribute("aria-label",b?.pilot?"North Float approach chart and bus departure":"Dalia’s dispatch clock");
     $("roadChoices").hidden=table?.kind!=="roadMap";
     if(table?.kind==="roadMap"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";
@@ -878,8 +879,12 @@
     }
     if(table?.kind==="watchBook"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";$("chapterWho").textContent="Dalia’s departure book";
-      $("chapterLine").textContent="Marlin Pier · Last sailing before the closure. Press Esc to put the book back.";
-      $("chapterInsert").hidden=false;$("chapterSkip").hidden=true;BaySixSharpArt.docket($("chapterInsert"),campaign.book.morning,campaign.book.credit);return;
+      $("chapterLine").textContent=campaign.book.transfer?"Alma’s first transfer is stapled inside. Press F to unfold it, or Esc to close the book.":"Inez kept the brass engine telegraph on Marlin Pier. Press Esc to put the book back.";
+      $("chapterInsert").hidden=false;$("chapterSkip").hidden=true;BaySixSharpArt.docket($("chapterInsert"),campaign.book.morning,campaign.book.credit,campaign.book.transfer);return;
+    }
+    if(table?.kind==="transferStub"){
+      $("chapterWho").textContent="Alma Reyes";$("chapterLine").textContent="My first stub for that crossing. Press F to fold it back into the book.";
+      BaySixSharpArt.stub($("chapterInsert"),campaign.book.transfer.first,campaign.book.transfer);return;
     }
     if(table?.kind==="splice"){
       $("chapterSlug").textContent=$("chapterTitle").textContent="";
@@ -921,6 +926,7 @@
     }
     if(b?.watch==="work")$("chapterLine").textContent=campaign.watch.caption();
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
+    if(b?.art==="transferStub")BaySixSharpArt.stub($("chapterInsert"),campaign.pilot.result,campaign.book.transfer);
     if(["payEnvelope","payReceipt","portReceipt"].includes(b?.art))BayStreetAction.paper($("chapterInsert"),b.art);
     if(b?.art==="inscription")BayStreetEditionArt.reverse($("chapterInsert"),inscribedCopy);
     if(b?.art==="landingOrder")BayLandingOrder.docket($("chapterInsert"),campaign.book);
@@ -959,7 +965,7 @@
   function endFilm(id,playedThrough=false){
     if(filmCountyVoice){sound.stopCounty();filmCountyVoice=null;}
     if(campaign.table?.kind==="splice")sound.reel(null);
-    campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("roadChoices").hidden=true;$("game").classList.toggle("in-chapter",false);
+    campaign.scene=null;campaign.table=null;campaign.watch=null;campaign.pilot=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("roadChoices").hidden=true;$("game").classList.toggle("in-chapter",false);
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
     if(id==="flowerReply"&&save.cab.bunch&&!save.cab.waltz){
       save.cab.waltz=true;persist();
@@ -967,6 +973,7 @@
       note("Bea’s family waltz","The band put it on the set list. Ben has a stool for you.",5);
     }
     if(filmReplay){filmReplay=false;return;}
+    if(id==="lastTransfer"){if(campaign.book.transfer)note("Back on Marlin Pier","Alma’s first stub is in Dalia’s book at Lot 14. F at the telegraph runs the crossing again.",5);return;}
     if(id==="collectionLuna"||id==="collectionPort"){payrollReceipt=null;return;}
     if(id==="laundryOrder"){note("Ora Bell","Hold L at the Marlin cab phone. Let it ring twice, then release.",5);return;}
     if(id==="countyLoan"){note("Cleo Moss","Stop by the Luna marquee. Hold backslash to send a test tone.",5);return;}
@@ -1006,6 +1013,15 @@
     if(ev.code==="KeyR"){chapterVolume();return true;}
     if(campaign.scene){
       if(ev.code==="Enter"||ev.code==="Escape"){endFilm(campaign.scene.id);return true;}
+      if(campaign.beat().pilot==="helm"){
+        if(["KeyW","KeyS","KeyA","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(ev.code))keys.add(ev.code);
+        const p=campaign.pilot;
+        if(ev.code==="KeyH"&&p.ring())sound.cue("luz-bell");
+        if(ev.code==="KeyF"&&p.tie()){
+          campaign.book.transfer=BayLastTransfer.file(campaign.book.transfer,p.result);campaign.write();sound.cue("watch-close");
+        }
+        return true;
+      }
       if(campaign.beat().watch==="work"){
         if(ev.code==="Space")keys.add(ev.code);
         if(ev.code==="KeyH"&&campaign.watch.ring()){
@@ -1037,7 +1053,10 @@
       else if(["Escape","Enter","KeyN"].includes(ev.code))endFilm("");
       return true;
     }
-    if(campaign.table?.kind==="watchBook"){if(["Escape","Enter","KeyF"].includes(ev.code))endFilm("");return true;}
+    if(["watchBook","transferStub"].includes(campaign.table?.kind)){
+      if(ev.code==="KeyF"&&campaign.book.transfer){campaign.table.kind=campaign.table.kind==="watchBook"?"transferStub":"watchBook";setFilmPage();}
+      else if(["Escape","Enter","KeyF"].includes(ev.code))endFilm("");return true;
+    }
     if(campaign.table?.kind==="splice"){
       const edit=campaign.table;
       if(ev.code==="Escape"){endFilm("");return true;}
@@ -1150,6 +1169,7 @@
   function chapterAction(){
     if(active||heat||!onStreetFeet()||unit.eye||afternoon.photo||rankPhones.lifted)return null;
     const stage=campaign.book.stage;
+    if(dist(hero,BayLastTransfer.stand)<1.8)return "last-transfer";
     if(outsideSite())return "outside-copy";
     if(boothAtFeet())return "pavement-show";
     if(projectionNeighbor())return "show-neighbor";
@@ -1166,6 +1186,7 @@
     return null;
   }
   function doChapter(act){
+    if(act==="last-transfer"){if(campaign.book.morning)enterFilm("lastTransfer");else enterFilm("opening",true);return;}
     if(act==="outside-copy"){openPanel(act);return;}
     if(act==="pavement-show"){
       const v=boothAtFeet();if(!v)return;
@@ -6002,6 +6023,7 @@
     motion.step(dt,moving,0);
     if(event==="wait")speak("Inez · captain of Luz",luz.regular?.gangway?"Hold the line till the gangway’s clear.":"We’ve got a minute. They can see the awning from Alma’s bus.");
     if(event==="cast"){sound.cue("luz-cast");speak(luz.hearing()?"Nora Abreu":"Luz · deckhand",luz.hearing()?"I’ve seen the print and heard the tape. Let’s hear the people who need the boat.":
+      luz.book.transfer?(luz.book.transfer.first.caught?"Alma still makes the driver look down this pier before he closes his doors.":"Alma leaves afternoon stubs on the sill now. Started the morning Luz missed the bus."):
       luz.book.credit==="crew"?"That’s my brother’s L on your pass. He takes the early shift.":"Dalia’s my sister. First ticket she’s written in nine months.");}
     if(event==="channel"&&!luz.hearing())speak("Luz · deckhand","There’s the red channel bell. Give them a ring as we pass.");
     if(event==="hearing")speak("Nora Abreu","We can finish at the pier. If you need to get off, I’ll keep the statements for our next crossing.");
@@ -9978,6 +10000,7 @@
         const j=jobContacts.find(c=>c.id==="collection");visible.push([personSkin(1,"local",0,1),j.x,footLevel(j.x,j.z),j.z,j.yaw]);
       }
     }
+    if(play&&see(BayLastTransfer.stand,56)){const s=BayLastTransfer.stand;model("transfer/telegraph",BayLastTransfer.telegraph);visible.push(["transfer/telegraph",s.x,s.y,s.z,0]);}
     if(play&&luz.book.pass)BayFirstCrossing.world(view,model,visible,see,luz,t,personSkin);
     if(play&&campaign.book.trips&&see(BayRoomTone.site,62))BayRoomTone.world(model,visible);
     if(play&&see(gateCrew,70)&&["return","filed"].includes(campaign.book.stage)){
@@ -10988,7 +11011,7 @@
       const p=projectionNeighbor();contextHint("F","Talk to "+p.v.neighbors[p.i]+" about the slide");
     }
     else if(chapter==="commuter")contextHint("F",commuterHint());
-    else if(chapter)contextHint("F",({order:"Read the public landing order",firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":BayLandingOrder.charter(luz.book)==="clinic"?"Check the clinic timetable":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
+    else if(chapter)contextHint("F",({"last-transfer":campaign.book.morning?"Take Inez’s wheel · The Last Transfer":"Work Dalia’s departure bell · Six Sharp",order:"Read the public landing order",firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":BayLandingOrder.charter(luz.book)==="clinic"?"Check the clinic timetable":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
     else if(offeredShiftPrint())contextHint("N","Take the night-shift photograph from Jules");
     else if(besideShiftKeeper())contextHint("F","Show Bea the night-shift photograph");
     else if(passengerShot)contextHint("N","Give Mara the shot · "+BayLotNegative.locations[passengerShot.id].name+(active.story.finder?"":" · P to frame it"));
@@ -12667,7 +12690,12 @@
     if(campaign.scene||campaign.table){
       const delta=Math.min(campaign.scene ? .85 : .18,Math.max(0,(now-last)/1000));last=now;
       if(campaign.scene){
-        const id=campaign.scene.id,morning=campaign.beat().watch;
+        const id=campaign.scene.id,morning=campaign.beat().watch,pilot=campaign.pilot;
+        if(pilot&&campaign.beat().pilot==="helm"){
+          const gas=held("KeyW","ArrowUp"),back=held("KeyS","ArrowDown"),rudder=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
+          for(let left=delta;left>.00001;left-=1/30)pilot.move(Math.min(left,1/30),gas,back,rudder);
+          const words=pilot.instruction();if($("chapterLine").textContent!==words)$("chapterLine").textContent=words;
+        }
         if(campaign.step(delta,held("Space"))){if(!campaign.scene){endFilm(id,true);return;}setFilmPage();}
         if(filmCountyVoice&&radio)sound.countyScene(filmCountyVoice,campaign.scene.age);
         if(morning&&radio){
@@ -12685,7 +12713,7 @@
           else if(now-lastFilmPaint>=1000/24){BayRecordArt.sleeve($("chapterInsert"),sleeve.pull,sleeve.photo);lastFilmPaint=now;}
         }
         return;
-      }else if(campaign.table.kind==="watchBook"||campaign.table.kind==="landingOrder"||campaign.table.kind==="roadMap"){return;
+      }else if(["watchBook","transferStub","landingOrder","roadMap"].includes(campaign.table.kind)){return;
       }else if(campaign.table.kind==="splice"){
         const edit=campaign.table,dir=Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"));
         const old=edit.head;edit.move(delta,dir);sound.reel(edit.playing?BayRoomTone.position(BayRoomTone.tape,edit.head):null,edit.head);
@@ -12702,7 +12730,18 @@
       if(now-lastFilmPaint<1000/30-1)return;
       const d=Math.min(.12,Math.max(0,(now-lastFilmPaint)/1000));lastFilmPaint=now;
       const art=campaign.table?"rubbing":filmPage?.art;
-      if(filmPage?.watch){
+      if(filmPage?.pilot){
+        const p=campaign.pilot,top=isTop(),beat=filmPage.pilot;
+        $("world").hidden=top;$("overhead").hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
+        if(top)BayLastTransfer.overhead($("overhead"),p);
+        else{
+          const eye=p.eye(beat);streetResolution.sample(delta);
+          view.begin(eye,p.sun.night,p.sun);skyPainter.draw(view,eye,p.age,p.sun.night,p.sun);view.drawCityAndWater(p.age);
+          BayLastTransfer.street(p,view,model,personSkin,BaySixSharp.passengers);
+        }
+        if(beat==="helm")BayLastTransfer.dial($("dispatchClock"),p);
+      }else if(art==="transferStub")return;
+      else if(filmPage?.watch){
         const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;
         scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
         if(top)BaySixSharpArt.overhead(map,w,beat);

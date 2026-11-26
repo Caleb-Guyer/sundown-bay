@@ -1,0 +1,31 @@
+const assert=require("node:assert/strict");
+module.exports=async({js,tap,waitFor,snap,mode,book,loadFootAt})=>{
+  const outside=mode==="street",morning=(await js(book)).morning;
+  const wheel=await js("BayLastTransfer.stand");
+  await loadFootAt({...wheel,z:wheel.z+.70});
+  await waitFor("document.querySelector('#context').innerText.includes('Inez’s wheel')");
+  await js(`window.transferKeys=new Set();const helmKeys=${require("./transfer-helm.cjs").toString()};
+    const move=BayLastTransfer.Run.prototype.move;
+    BayLastTransfer.Run.prototype.move=function(...args){window.crossingRun=this;return move.apply(this,args);};
+    window.helmFrame=function(){
+      const p=window.crossingRun;
+      const want=new Set(!p||p.result?[]:(!${outside}&&p.elapsed>.3&&p.elapsed<19)?[]:helmKeys(p,${outside}));
+      for(const code of transferKeys)if(!want.has(code))dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));
+      for(const code of want)if(!transferKeys.has(code))dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true}));
+      transferKeys=want;if(!p?.result)requestAnimationFrame(helmFrame);
+    };`);
+  await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').textContent==='The Last Transfer'");
+  await waitFor("!!window.crossingRun");await js("requestAnimationFrame(helmFrame)");
+  await waitFor("crossingRun.boat.z>-49&&crossingRun.boat.z<40",80000);await snap("transfer-helm");
+  await waitFor(book+".transfer?.trips===1",65000);
+  const f=(await js(book)).transfer;assert.equal(f.first.held,outside);assert.equal(f.first.caught,outside);
+  assert.equal(f.first.luis,morning.luis);assert.deepEqual(f.first,f.best);
+  await waitFor("document.querySelector('#chapterLine').textContent.includes('stapled')");await snap("transfer-stub");await tap("Enter");
+  await waitFor("document.querySelector('#chapterFilm').hidden&&document.querySelector('#context').innerText.includes('Inez’s wheel')");
+  await loadFootAt({x:-151.9,z:-88.85});await waitFor("document.querySelector('#context').innerText.includes('dispatch copy')");
+  await tap("KeyF");await waitFor("document.querySelector('#chapterLine').textContent.includes('unfold')");
+  await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Alma Reyes'");
+  await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Dalia’s departure book'");
+  await tap("Escape");assert.deepEqual((await js(book)).transfer,f);assert.deepEqual((await js(book)).morning,morning);
+  console.log("PASS The Last Transfer",mode,JSON.stringify(f.first),"and first transfer stub after reload.");
+};

@@ -915,6 +915,8 @@
       }
     }
     BayMarinaView.map(ctx,opt,px,py,s,ui,visible);
+    if(street&&opt.record){const p=BayLastTransfer.stand,x=px(p.x),y=py(p.z);
+      if(visible(x,y,5)){disc(ctx,x,y,.36*s,"#556a60");rect(ctx,x-.29*s,y-.1*s,.58*s,.2*s,"#d9bc7b");}}
     if(opt.publicBoat)BayFirstCrossing.map(ctx,opt.publicBoat,px,py,s,visible,street);
     if(opt.brisas)BayBrisas.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.palmHouse)BayPalmRoom.furniture(ctx,opt,px,py,s,visible,streetTime);

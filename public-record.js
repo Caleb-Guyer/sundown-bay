@@ -28,6 +28,12 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    lastTransfer:[
+      {dur:4.5,pilot:"cast",title:"The Last Transfer",slug:"MARLIN PIER   /   FROM INEZ’S LOG",who:"Inez · captain of Luz"},
+      {dur:0,pilot:"helm",who:"Inez · at the wheel"},
+      {dur:3.8,pilot:"land",slug:"NORTH FLOAT",who:"Alma Reyes"},
+      {dur:8,art:"transferStub",who:"Dalia Cruz"}
+    ],
     printCan:[
       {dur:3.6,shot:"boothDoor",slug:"STARLITE MOTOR THEATRE   /   GANTRY STREET",title:"Before the Feature",who:"Ada Soler",line:"They ran the fire story for a week. Every paper said Dad locked that gate."},
       {dur:5.4,art:"gatePrint",who:"Romy Vale",line:"There. His hand on the key. Twelve frames and you can see the gate swing out."},
@@ -173,19 +179,28 @@
     credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true,
     pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
     berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,
-    photoRoad:Object.hasOwn(BayExposure.photoRuns,raw?.photoRoad)?raw.photoRoad:"",
+    transfer:BayLastTransfer.read(raw?.transfer),photoRoad:Object.hasOwn(BayExposure.photoRuns,raw?.photoRoad)?raw.photoRoad:"",
     hearing:BayLandingOrder.read(raw?.hearing),airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
     constructor(){try{this.book=read(JSON.parse(localStorage.getItem(key)));}catch{this.book=read();}this.scene=null;this.table=null;}
     write(){try{localStorage.setItem(key,JSON.stringify(this.book));}catch{}}
     advance(stage){if(stages.indexOf(stage)>stages.indexOf(this.book.stage)){this.book.stage=stage;this.write();}}
     start(id,replay=false){
-      if(!scenes[id])return;this.watch=id==="opening"?new BaySixSharp.Watch():null;this.scene={id,index:0,age:0};
+      if(!scenes[id])return;this.watch=id==="opening"?new BaySixSharp.Watch():null;
+      this.pilot=id==="lastTransfer"?new BayLastTransfer.Run(this.book.morning):null;this.scene={id,index:0,age:0};
       if(this.watch&&!replay&&this.book.morning){this.watch.departure={...this.book.morning};this.scene.index=scenes.opening.findIndex(b=>b.art==="watchCopy");}
       return this.beat();
     }
     beat(){
       const s=this.scene;if(!s)return null;
+      if(s.id==="lastTransfer"){
+        const b=scenes.lastTransfer[s.index];if(!b)return null;
+        const p=this.pilot;
+        if(b.pilot==="cast")return {...b,line:p.luis==="aboard"?"Luis, put those tins under the seat. We held for you. Now see if you can spot Alma’s bus from the bow.":"Luis missed our gate. I can still see him waving. Seventeen aboard for Alma’s clinic bus."};
+        if(b.pilot==="helm")return {...b,line:p.instruction()};
+        if(b.pilot==="land")return {...b,line:p.result.caught?(p.held?"Heard you at the buoy. I told the driver, you close that door and you answer to me.":"There’s my last fare. Come on, love. Mind the step."):"I left the afternoon transfers under the clip. Make sure everybody gets one."};
+        return {...b,line:"I stapled Alma’s stub to the engine-room copy. You can read it in my book at Lot 14."};
+      }
       const delivery=s.id==="live"||s.id==="print";
       if(delivery&&this.windowPrint&&s.index===1){
         const place=BayLotNegative.locations[this.windowPrint.place];
@@ -209,6 +224,7 @@
       return b;
     }
     step(dt,hold=false){if(!this.scene)return false;const b=this.beat();
+      if(b.pilot==="helm"&&!this.pilot.result)return false;
       if(b.watch)this.watch.tick(dt,hold&&b.watch==="work");
       if(b.watch==="work"){
         if(!this.watch.departure)return false;
