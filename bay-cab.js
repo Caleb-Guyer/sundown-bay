@@ -12,6 +12,12 @@
     ["flowers","Old Palms Flowers",-77.10,-109,2,-80.45,-109.5,-81.8,-105],
     ["wheel","North Boardwalk",149,123,0,152.5,125.1,154,130.5]
   ])stops[id]={id,name,x,z,dir,yaw:dir*Math.PI/2,stand:point(sx,sz),work:point(wx,wz),kind:"cab-rank"};
+  // The florist leaves the car at the rank and carries the bunch the last few paces.
+  const chairs={
+    marlin:{x:152.85,z:-46.1,yaw:-Math.PI/2,inscription:"For Mum, before you unpack.",reply:"I put them where I can see them from the pillow. Mum"},
+    wheel:{x:153.15,z:128.25,yaw:-Math.PI/2,inscription:"Dad, we saved your seat.",reply:"Played your waltz at half speed. Nobody hurried me. Otis"}
+  };
+  const flowerStop=id=>({...stops[id],work:point(chairs[id].x-.64,chairs[id].z+.27)});
   const cinema={x:10.15,z:38,name:"Cine Luna · Theater entrance",kind:"theater"};
   const cast=[
     {id:"walt",name:"Walt Dunn",home:"marlin",job:"luna",pay:110,ask:"Could you run me over to Cine Luna? Last copy of the tram short is in this tin.",
@@ -27,10 +33,10 @@
   function read(raw){
     const at={},fares={};
     for(const c of cast){
-      at[c.id]=[c.home,c.job].includes(raw?.at?.[c.id])?raw.at[c.id]:"";
+      at[c.id]=([c.home,c.job].includes(raw?.at?.[c.id])||c.id==="bea"&&Object.hasOwn(chairs,raw?.bunch)&&raw.at?.bea===raw.bunch)?raw.at[c.id]:"";
       fares[c.id]=Number.isSafeInteger(raw?.fares?.[c.id])?clamp(raw.fares[c.id],0,99999):0;
     }
-    return {at,fares,reel:["player","mina"].includes(raw?.reel)?raw.reel:"",rides:Number.isSafeInteger(raw?.rides)?clamp(raw.rides,0,99999):0};
+    return {at,fares,bunch:Object.hasOwn(chairs,raw?.bunch)?raw.bunch:"",reel:["player","mina"].includes(raw?.reel)?raw.reel:"",rides:Number.isSafeInteger(raw?.rides)?clamp(raw.rides,0,99999):0};
   }
   function intersection(p,forward){
     const [dx,dz]=directions[p.dir],along=dx?p.x:p.z,sign=(dx||dz)*(forward?1:-1);
@@ -176,11 +182,29 @@
     constructor(vehicle,memory){
       super(vehicle);this.memory=memory;this.location=stops.marlin;this.phase="idle";this.wait=27;this.trip=null;this.booking=null;this.leg=null;this.cursor=0;this.privateFare=null;
       this.people=cast.map((c,i)=>{
-        const at=memory.at[c.id]||c.home,from=stops[at],settled=!!memory.at[c.id],away=at===c.job;
+        const at=memory.at[c.id]||c.home,from=c.id==="bea"&&Object.hasOwn(chairs,at)?flowerStop(at):stops[at],settled=!!memory.at[c.id],away=at===c.job;
         const booth=settled&&c.id==="walt"&&at==="luna";
         return {...c,...(booth?point(cinema.x,cinema.z):settled?from.work:from.stand),from,to:settled?from:stops[away?c.home:c.job],y:.08,yaw:settled?from.yaw+Math.PI*.42:from.yaw-Math.PI/2,phase:booth?"booth":settled?"work":"wait",
           wait:42+8*i,age:0,seat:0,motion:new BayPlayerMotion(),path:[],ride:null,personal:false,waved:false};
       });
+    }
+    flowerPickup(){
+      const p=this.florist;
+      if(!p||this.memory.bunch)return null;
+      const waiting=["wait","return","offduty"].includes(p.phase);
+      const curb=p.phase==="offduty"?stops[this.memory.at.bea]||stops[p.home]:waiting?p.from:p.to;
+      if(!curb?.stand)return null;
+      if(this.flowerRank!==curb){
+        this.flowerRank=curb;this.flowerPin={...curb.stand,kind:"flower-call",name:"Bea Salas · "+curb.name};
+      }
+      return this.flowerPin;
+    }
+    holdFlowers(){
+      if(this.memory.bunch||this.privateFare)return null;
+      this.florist=this.people.find(p=>p.id==="bea");
+      if(this.trip===this.florist&&this.trip.phase==="wait")this.trip=null;
+      if(this.florist.phase==="work")this.florist.wait=Math.min(this.florist.wait,1);
+      return this.flowerPickup();
     }
     get playerHeld(){return !!this.booking&&["approach","in","ride","out"].includes(this.booking.stage);}
     get playerTripping(){return this.playerHeld;}
@@ -196,7 +220,11 @@
       if(Math.abs(d)>145||Math.abs(d-Math.round(d/72)*72)<10||Math.hypot(p.x-x,p.z-z)>23)return null;
       return {...curb,x,z,stand:point(curb.stand.x+dx*advance,curb.stand.z+dz*advance),rolling:true};
     }
-    nearbyFare(v){return v&&!this.privateFare&&!this.booking&&this.people.find(p=>p.phase==="wait"&&gap(v,p)<9.3);}
+    nearbyFare(v){
+      if(!v||this.privateFare||this.booking)return null;
+      if(this.florist?.phase==="wait"&&!this.memory.bunch&&gap(v,this.florist)<9.3)return this.florist;
+      return this.people.find(p=>p.phase==="wait"&&gap(v,p)<9.3);
+    }
     quote(from,to){return !this.memory.rides?0:Math.min(24,5+Math.ceil(route(from,to).length/35));}
     request(from,to,meterCopy=0){
       if(this.booking||this.privateFare||!to||from.id===to.id||gap(from,to)<10)return false;
@@ -222,7 +250,7 @@
       }
       for(let i=0;i<this.people.length;i++){
         const n=(this.cursor+i)%this.people.length,p=this.people[n];
-        if(p.phase!=="wait"||p.personal)continue;
+        if(p.phase!=="wait"||p.personal||p===this.florist&&!this.memory.bunch)continue;
         this.trip=p;this.cursor=(n+1)%this.people.length;this.phase="pickup";this.launch(p.from);return;
       }
       this.phase="idle";this.wait=2;
@@ -230,6 +258,9 @@
     accept(p,v,plan){
       if(!p||p.phase!=="wait"||!plan||!stopped(v)||gap(v,p)>9.5)return false;
       if(v!==this.vehicle){if(this.privateFare||this.booking)return false;if(this.trip===p)this.trip=null;this.privateFare=p;p.personal=true;}
+      if(p===this.florist&&p.personal&&!this.memory.bunch){
+        p.ordinaryStop=p.to;p.to=flowerStop("marlin");
+      }
       p.ride=v;p.path=plan.points;p.phase="approach";p.seat=0;p.age=0;p.remarked=false;p.splashWarned=false;p.jolt=0;p.cancelled=false;return true;
     }
     holds(v){return !!v&&this.people.some(p=>p.ride===v&&["approach","in","out"].includes(p.phase));}
@@ -257,12 +288,16 @@
     }
     leaveFare(){
       const p=this.privateFare;if(!p)return;
-      p.personal=false;
+      const leavingAt=p.to;p.personal=false;
+      if(p.ordinaryStop){p.to=p.ordinaryStop;p.ordinaryStop=null;}
       if(p.phase==="approach"){
         this.privateFare=null;p.ride=null;p.phase="return";p.path=[p.from.stand];return;
       }
       p.cancelled=true;
-      if(p.phase==="out"||p.phase==="walk"){p.curb=p.to;p.path=[p.to.stand];}
+      if(["out","walk","arrange"].includes(p.phase)){
+        if(p.phase==="arrange")p.phase="walk";
+        p.curb=leavingAt;p.path=[leavingAt.stand];
+      }
     }
     stepPeople(dt,env,emit){
       for(const p of this.people){
@@ -308,6 +343,7 @@
         if(p.phase==="ride"){
           BayCarAccess.pose(v,1,1,p,p.motion,env.ground,dt,true);
           if(p.personal&&!p.remarked&&p.age>6.5){p.remarked=true;emit("remark",p);}
+          if(p.ordinaryStop&&stopped(v))for(const id of Object.keys(chairs))if(p.to.id!==id&&gap(v,stops[id])<=8)p.to=flowerStop(id);
           if(!stopped(v)||!p.cancelled&&(gap(v,p.to)>(v===this.vehicle?10:8)||v===this.vehicle&&this.leg))continue;
           const curb=p.cancelled?env.nearCurb(v):p.to;
           if(!curb)continue;
@@ -315,18 +351,24 @@
           p.path=plan.points.slice(0,-1).reverse().concat([stand]);p.phase="out";if(p.cancelled)p.curb=curb;continue;
         }
         if(p.phase==="walk"&&BayCarAccess.walkPath(p,p.motion,p.path,dt,env.ground,1.88)){
-          if(p.cancelled){
-            if(this.privateFare===p)this.privateFare=null;
-            p.from=p.curb;p.phase="wait";p.cancelled=false;p.curb=null;
-            if(p.from.id==="roadside"){p.phase="offduty";continue;}
-            if(p.from.id===p.to.id)p.to=stops[p.from.id===p.job?p.home:p.job];
-          }else{
-            p.phase="work";p.wait=p.id==="walt"&&p.to.id==="luna"?16:64;p.yaw=p.to.yaw+Math.PI*.42;this.memory.at[p.id]=p.to.id;
-            if(p.id==="walt"&&p.to.id==="luna"&&(p.personal||!this.memory.reel))this.memory.reel=p.personal?"player":"mina";
-            if(p.personal){this.memory.fares[p.id]++;this.privateFare=null;}
-            emit("delivered",p);p.personal=false;
+          if(p.ordinaryStop){
+            const chair=chairs[p.to.id];p.yaw=Math.atan2(chair.x-p.x,chair.z-p.z);
+            p.phase="arrange";p.age=0;continue;
           }
+        }else if(p.phase!=="arrange"||p.age<1.4)continue;
+        if(p.cancelled){
+          if(this.privateFare===p)this.privateFare=null;
+          p.from=p.curb;p.phase="wait";p.cancelled=false;p.curb=null;
+          if(p.from.id==="roadside"){p.phase="offduty";continue;}
+          if(p.from.id===p.to.id)p.to=stops[p.from.id===p.job?p.home:p.job];
+          continue;
         }
+        p.phase="work";p.wait=p.id==="walt"&&p.to.id==="luna"?16:64;
+        if(p===this.florist&&!p.ordinaryStop&&!this.memory.bunch)p.wait=1;
+        p.yaw=p.to.yaw+Math.PI*.42;this.memory.at[p.id]=p.to.id;
+        if(p.id==="walt"&&p.to.id==="luna"&&(p.personal||!this.memory.reel))this.memory.reel=p.personal?"player":"mina";
+        if(p.personal){this.memory.fares[p.id]++;this.privateFare=null;}
+        emit("delivered",p);p.ordinaryStop=null;p.personal=false;
       }
     }
     step(dt,env,emit){
@@ -364,5 +406,5 @@
     return {rev:raw.rev,key:raw.key,x:raw.x,z:raw.z,yaw:raw.yaw,flat:[-1,1].includes(raw.flat)?raw.flat:0,
       axle:raw.axle==="front"?"front":"rear",spent:raw.spent===true,found:raw.found===true};
   }
-  window.BayCab={stops,cinema,cast,read,readMeter,route,track:streetTrack,streetStop,stopped,StreetDriver,Service};
+  window.BayCab={stops,chairs,flowerStop,cinema,cast,read,readMeter,route,track:streetTrack,streetStop,stopped,StreetDriver,Service};
 })();

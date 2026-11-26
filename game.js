@@ -369,6 +369,12 @@
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    if(Object.hasOwn(BayCab.chairs,latest?.cab?.bunch)&&!save.cab.bunch){
+      save.cab.bunch=latest.cab.bunch;
+      if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
+      if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
+      save.cab.fares.bea=Math.max(save.cab.fares.bea,BayCab.read(latest.cab).fares.bea);
+    }
     if(latest?.meterCopy?.rev>(save.meterCopy?.rev||0)){
       const copy=BayCab.readMeter(latest.meterCopy);if(copy)save.meterCopy=copy;
     }
@@ -533,7 +539,7 @@
   const poseFor=(p)=>p.moving?1+Math.floor(mod(p.phase,tau)/tau*4):0;
   const walkClips=new Map(),walkerBounds={x:0,y:1.06,z:.10,hw:.56,hh:1.25,hd:.68,r:1.55};
   let walkModelId=0;
-  let cabHornAt=null,lastCabHello=-Infinity;
+  let cabHornAt=null,lastCabHello=-Infinity,freshFlowerChair=null;
   function sidewalkModel(p,feet,gesture){
     const basis=view.basis;
     if(!basis)return personSkin(p.style,p.role,poseFor(p),gesture);
@@ -858,6 +864,7 @@
     if(campaign.scene?.id==="collectionOpen"&&campaign.scene.index===0&&save.collection.last){
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
     }
+    if(b?.art==="flowerTag")BayCabArt.flowerTag($("chapterInsert"),save.cab.bunch,campaign.scene.id==="flowerReply");
     if(b?.art==="meterCopy"&&meterCar()){
       const v=meterCar();BayCabArt.meterSlip($("chapterInsert"),BayStreetCars.plateFor(v),district(v),formatVehicle(v));
       $("chapterLine").textContent="Read me those letters. "+BayStreetCars.plateFor(v)+". Good. I put the street underneath in case I got the number wrong.";
@@ -4183,11 +4190,14 @@
     return p&&neighbors.available(p)&&dist(a,p)<r&&seesNeighbor(p)?p:neighbors.closest(a,r,seesNeighbor);
   }
   function neighborStep(){
+    if(freshFlowerChair&&dist(pos(),freshFlowerChair)>24)freshFlowerChair=null;
     if(cabHornAt!==null&&streetTime>=cabHornAt){
       cabHornAt=null;
       if(car&&car.garageKey===save.meterCopy?.key&&!active&&!heat&&dist(car,taxi)<31&&seesNeighbor(taxi)){
         lastCabHello=streetTime;trafficHonk(taxi);
-        speak("Mina Ortiz","Seventeen to dispatch. There goes my free ride. Looks better with somebody in it.");
+        const lead=!save.cab.bunch&&cabs.holdFlowers();
+        if(lead){if(!waypoint)waypoint=lead;lastHud=lastMap=-10;}
+        speak("Mina Ortiz",lead?"There goes my free ride. Bea’s got flowers on her lap and I’ve got a full cab. Could you take her?":"Seventeen to dispatch. There goes my free ride. Looks better with somebody in it.");
       }
     }
     const a=car||hero,free=neighborFree(),lead=unit.lead;
@@ -4524,12 +4534,21 @@
     if(!car||transfer||active||heat||car.meetCar||car===wrecker&&(tow.target||recovery.held(car)))return false;
     const p=cabs.nearbyFare(car);
     if(!p||!cabs.accept(p,car,doorPlan(car,false,p,1)))return false;
-    active={job:{id:"curb-fare",name:"A lift for "+p.name.split(" ")[0],by:p.name},cabFare:p};
-    waypoint=null;lastHud=lastMap=-10;speak(p.name,p.to.id===p.job?p.ask:p.back);return true;
+    active={job:{id:"curb-fare",name:p.ordinaryStop?"The Extra Chair":"A lift for "+p.name.split(" ")[0],by:p.name},cabFare:p};
+    waypoint=null;lastHud=lastMap=-10;speak(p.name,p.ordinaryStop?"Mind the wet paper. It’s my parents’ anniversary. First one Mom’s spending on her own.":p.to.id===p.job?p.ask:p.back);return true;
+  }
+  function nearFlowerChair(){
+    const seat=BayCab.chairs[save.cab.bunch];
+    return seat&&!freshFlowerChair&&onStreetFeet()&&!active&&!heat&&dist(hero,seat)<2.25;
+  }
+  function flowerSubject(){
+    if(campaign.beat()?.shot==="flowerSeat")return BayCab.chairs[save.cab.bunch];
+    return campaign.scene?.id==="lastMeter"?meterCar():payrollReceipt?.receiver||active?.story?.ride||car;
   }
   function cabAction(){
     if(cabs.playerHeld)return true;
     if(takeCurbFare())return true;
+    if(nearFlowerChair()){enterFilm("flowerReply",true);return true;}
     if(byCinema()){
       cabs.cancelBooking();room=Object.assign(BayCineRoom.create(),{kind:"cinema"});
       keys.clear();resetPointer();$("targetTag").hidden=$("speech").hidden=true;lastHud=lastMap=-10;hud();return true;
@@ -4590,14 +4609,25 @@
         projectionStart=streetTime-mod(streetTime-projectionStart,earlier);lateReelListed=true;
       }
       if(p.personal){
+        if(p.ordinaryStop){
+          if(save.cab.bunch){
+            cabs.florist=null;active=null;return;
+          }
+          save.cab.bunch=p.to.id;freshFlowerChair=BayCab.chairs[p.to.id];save.wallet+=p.pay;save.paid++;sound.cue("paid");
+          note("The Extra Chair",cash(p.pay)+" fare from Bea",4);
+          cabs.florist=null;active=null;persist();
+          if(!heat&&!room&&dist(pos(),p)<22)enterFilm(p.to.id==="marlin"?"flowersMotel":"flowersWheel",true);
+          return;
+        }
         const tip=Math.max(0,30-10*p.jolt),pay=p.pay+tip;
         save.wallet+=pay;save.paid++;active=null;sound.cue("paid");
         note("Fare paid",cash(p.pay)+(tip?"  ·  "+cash(tip)+" smooth-ride tip":""),4);speak(p.name,p.to.id===p.job?p.thanks:"Right here is perfect. I owe you one.");
       }else if(!active&&!room&&dist(pos(),p)<22)speak(p.name,p.to.id===p.job?p.thanks:"Thanks, Mina. See you on the next one.");
       persist();
-    }else if(event==="hail")speak(p.name,p.to.id===p.job?p.ask:p.back);
+    }else if(event==="hail")speak(p.name,p===cabs.florist&&!save.cab.bunch?"Mina sent you? Let me get this paper round the stems.":p.to.id===p.job?p.ask:p.back);
+    else if(event==="boarded"&&p.ordinaryStop)speak(p.name,"Mom’s at the Marlin. Or there’s Dad’s old spot by the wheel. I can never pick. You drive.");
     else if(event==="boarded")note(p.name,p.to.name+"  ·  Stop beside the curb",3);
-    else if(event==="remark")speak(p.name,p.road);
+    else if(event==="remark")speak(p.name,p.ordinaryStop?"He used to drum with the brushes so you could hear the wheel squeak between beats. Drove Mom up the wall.":p.road);
     else if(event==="ready")speak("Mina Ortiz","Seventeen, right here. Hop in on the passenger side.");
     else if(event==="moving"&&p.meterCopy){
       speak("Mina Ortiz","Fold that slip under the ashtray. Dispatch sees a blank fare, I get a phone call.");
@@ -7054,12 +7084,13 @@
     if(!active){
       if(green.run?.accepted)return;
       if(waypoint?.kind==="meter-car"){const v=meterCar();if(v){waypoint.x=v.x;waypoint.z=v.z;}else waypoint=null;}
+      if(waypoint?.kind==="flower-call")waypoint=cabs.flowerPickup();
       if(waypoint?.kind==="shift-print"){waypoint.x=shiftKeeper.x;waypoint.z=shiftKeeper.z;}
       if(waypoint?.id==="bell-run"){waypoint.x=cycles.javi.x;waypoint.z=cycles.javi.z;}
       if(waypoint?.kind==="june"){waypoint.x=band.june.x;waypoint.z=band.june.z;}
       if(waypoint?.kind==="neighbor"){const who=neighbors.byId(waypoint.id);if(who){waypoint.x=who.x;waypoint.z=who.z;}}
       if(waypoint?.kind==="neighbor-place"&&onStreetFeet()&&dist(hero,waypoint)<2.55&&neighbors.known(unit.lead,neighbors.byId(waypoint.id),"visited"))waypoint=null;
-      if(waypoint&&!["dive-site","neighbor","neighbor-place","street-response","shift-print","meter-car"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
+      if(waypoint&&!["dive-site","neighbor","neighbor-place","street-response","shift-print","meter-car","flower-call"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
         if(waypoint.kind!=="garage"||!car?.flatSide)note("City map","Waypoint reached.",1.7);
         waypoint=null;
       }
@@ -8510,7 +8541,7 @@
   const trunkFrame={mix:0,v:null,yaw:0,tilt:0,side:1,near:[]};
   const coffeeObstacles=solids.filter(o=>o!==BayPalmCoffee.block&&Math.abs(o.x-BayPalmCoffee.site.x)<o.w*.5+7&&Math.abs(o.z-BayPalmCoffee.site.z)<o.d*.5+7);
   function moveCamera(dt,t){
-    const directed=campaign.frame(campaign.scene?.id==="lastMeter"?meterCar():payrollReceipt?.receiver||active?.story?.ride||car);
+    const directed=campaign.frame(flowerSubject());
     if(directed){Object.assign(cam,directed);return;}
     if(projector){
       const v=projector.venue,reveal=projector.showing?clamp(projector.age/3,0,1):0;
@@ -9415,7 +9446,7 @@
       if(projector){
         const v=projector.venue;state.cx=v.x;state.cz=(v.z+v.screen.z)*.5;state.rotation=state.cameraYaw=v.yaw;state.scale=h/15;
       }
-      const directed=campaign.frame(campaign.scene?.id==="lastMeter"?meterCar():payrollReceipt?.receiver||active?.story?.ride||car);
+      const directed=campaign.frame(flowerSubject());
       if(directed){state.cx=directed.to.x;state.cz=directed.to.z;state.rotation=state.cameraYaw=directed.yaw;state.scale=h/directed.span;if(payrollReceipt)state.target=null;}
       drawBayMap(map.getContext("2d"),state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
       if(projector&&!projector.showing){
@@ -10318,6 +10349,11 @@
       }else if(fare){
         $("objectiveTag").textContent=fare.name+"  /  "+(fare.to.id===fare.job?"Going to work":"Heading back");
         $("objectiveText").textContent=fare.phase==="out"?"Leave room at the passenger door":fare.phase==="walk"?fare.name.split(" ")[0]+" is walking in":fare.phase!=="ride"?"Wait for "+fare.name.split(" ")[0]+" to board":fare.ride!==car?"Return to the car you picked them up in":"Stop at "+fare.to.name+"  ·  "+meters+" m";
+        if(fare.ordinaryStop){
+          $("objectiveTag").textContent="The Extra Chair  /  Bea Salas";
+          if(fare.phase==="arrange")$("objectiveText").textContent="Bea is setting out the flowers";
+          if(fare.phase==="ride"&&fare.ride===car)$("objectiveText").textContent="1  Mom at the Marlin   ·   2  Dad’s seat at the wheel";
+        }
         if(fare.phase!=="ride")$("roadTurn").textContent="";
       }else if(watchCrew.towing){
         $("objectiveTag").textContent="Sol Beach patrol";$("objectiveText").textContent="Bring "+swimmer+" back to the shallows · "+meters+" m";
@@ -10621,7 +10657,8 @@
       else contextHint("Space","Hold to dive  ·  Shift to swim faster");
     }
     else if(byCinema())contextHint("F","Step inside Cine Luna");
-    else if(waiting)contextHint(BayCab.stopped(car)?"H":"","Offer "+waiting.name.split(" ")[0]+" a ride to "+waiting.to.name+(BayCab.stopped(car)?"":" · Pull over first"));
+    else if(waiting)contextHint(BayCab.stopped(car)?"H":"",(waiting===cabs.florist&&!save.cab.bunch?"Pick up Bea and the anniversary flowers":"Offer "+waiting.name.split(" ")[0]+" a ride to "+waiting.to.name)+(BayCab.stopped(car)?"":" · Pull over first"));
+    else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card");
     else if(cabRank())contextHint("F",save.meterCopy&&!save.meterCopy.found?"Bay Cab · Show Mina’s driver’s copy":"Hail Bay Cab");
     else if(fare&&cabs.holds(car))contextHint("","Passenger door · "+fare.name);
     else if(!active&&atWatchBoard())contextHint("F",save.shore.carried?"Return the "+siteById(save.shore.carried).name.toLowerCase():"Read the lifeguard’s lost-and-found board");
@@ -11082,6 +11119,11 @@
           }else clockPin(meterPin(lost));
         }));
       if(book)body.append(makeButton("Find it yourself",pin.name,"Mark my car",()=>clockPin(meterPin(lost))));
+    }
+    if(!save.cab.bunch&&(save.cab.rides||save.meterCopy?.found)){
+      body.append(makeButton("The Extra Chair","Mina has a passenger with an anniversary bouquet. Bring a car with a free seat.","Find Bea",()=>{
+        const pickup=cabs.holdFlowers();if(pickup)clockPin(pickup);
+      }));
     }
     for(const to of Object.values(BayCab.stops)){
       if(from.id===to.id||dist(from,to)<10)continue;
@@ -11837,6 +11879,9 @@
         if((ev.shiftKey&&document.activeElement===controls[0])||(!ev.shiftKey&&document.activeElement===controls.at(-1))){ev.preventDefault();controls[ev.shiftKey?controls.length-1:0].focus();}}
       return;
     }
+    if(car&&active?.cabFare?.ordinaryStop&&active.cabFare.phase==="ride"&&active.cabFare.ride===car&&/^(Digit|Numpad)[12]$/.test(ev.code)){
+      ev.preventDefault();active.cabFare.to=BayCab.flowerStop(ev.code.endsWith("1")?"marlin":"wheel");lastMap=lastHud=-10;return;
+    }
     if(car&&active?.payroll?.aboard&&active.vehicle===car&&/^(Digit|Numpad)[12]$/.test(ev.code)){
       ev.preventDefault();if(!ev.repeat)collectionRoute(ev.code.endsWith("1")?"luna":"port");return;
     }
@@ -11903,6 +11948,7 @@
     if(ev.code==="KeyF"&&beatAction())return;
     if(ev.code==="KeyF"){const chalk=jumpChalk();if(chalk){openJumpBook(chalk);return;}}
     if(engineKey(ev.code)||starliteKey(ev.code))return;
+    if(ev.code==="KeyF"&&nearFlowerChair()){cabAction();return;}
     if(ev.code==="KeyF"&&atThreads()){visitThreads();return;}
     if(curbsideKey(ev.code))return;
     if(bellKey(ev.code))return;
@@ -12135,7 +12181,7 @@
         if(beat==="work")BaySixSharpArt.clock($("dispatchClock"),w.second());
       }else if(art==="watchCopy"){
         if(!campaign.watch.printed){BaySixSharpArt.docket($("chapterInsert"),campaign.watch.departure);campaign.watch.printed=true;}
-      }else if(["inscription","landingOrder","payEnvelope","payReceipt","portReceipt","releaseCopy","meterCopy"].includes(art))return;
+      }else if(["inscription","landingOrder","payEnvelope","payReceipt","portReceipt","releaseCopy","meterCopy","flowerTag"].includes(art))return;
       else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}

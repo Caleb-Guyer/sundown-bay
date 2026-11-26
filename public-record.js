@@ -12,6 +12,7 @@
     motel:["motel",[4.6,2.1,-6.3],[3.3,1.7,-5.8],[1.3,1.25,3.2],1.48,20],
     mara:["mara",[2.9,1.68,-2.8],[2.2,1.59,-2.6],[0,1.37,0],1.50,12],
     cab:["ride",[3.8,1.50,4.2],[2.9,1.43,3.6],[0,.94,0],1.58,18],
+    flowerSeat:["ride",[1.95,1.58,2.15],[1.34,1.31,1.71],[0,.82,.10],1.38,5.8],
     rearPlate:["ride",[2.6,1.14,-4.7],[1.05,.89,-3.7],[0,.62,-1.55],1.54,10],
     payrollDesk:["ride",[-2.65,1.62,2.8],[-1.85,1.45,2.3],[0,1.04,.64],1.54,7.8],
     pullOut:["ride",[2.1,1.7,-3.7],[.7,3.1,-6.4],[0,.94,2.1],1.48,23],
@@ -24,6 +25,18 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    flowersMotel:[
+      {dur:4.4,shot:"flowerSeat",slug:"MARLIN MOTEL   /   FRONT WALK",title:"The Extra Chair",who:"Bea Salas",line:"She always sits out here to do the crossword. I'll turn the chair so she can have the morning light."},
+      {dur:4.0,art:"flowerTag",who:"Bea Salas",line:"If she asks, the tin was a vase when I bought it."}
+    ],
+    flowersWheel:[
+      {dur:4.4,shot:"flowerSeat",slug:"NORTH BOARDWALK   /   BANDSTAND",title:"The Extra Chair",who:"Bea Salas",line:"Dad always sat this close. Said from the back you could hear people asking when the music stopped."},
+      {dur:4.0,art:"flowerTag",who:"Bea Salas",line:"There. Otis will know whose chair it is."}
+    ],
+    flowerReply:[
+      {dur:2.6,shot:"flowerSeat",slug:"OLD PALMS FLOWERS",title:"The other side",who:"",line:"Somebody has turned the card over."},
+      {dur:6.3,art:"flowerTag",who:"",line:""}
+    ],
     lastMeter:[
       {dur:3.9,shot:"rearPlate",slug:"BAY CAB   /   DRIVER'S COPY",title:"Last Fare on the Meter",who:"Mina Ortiz",line:"I was the cab behind you. You kept looking in the mirror. You never looked as far back as me."},
       {dur:5.2,art:"meterCopy",who:"Mina Ortiz",line:"I wrote down where they left it."},

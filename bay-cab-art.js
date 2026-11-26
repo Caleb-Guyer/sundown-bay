@@ -245,6 +245,22 @@
       g.cyl(x+u*k,y+(h+.021)*k,z+v*k,.013*k,.010*k,.011*k,5,"#d2a45c");
     }
   }
+  function anniversaryChair(g,filled){
+    // A webbed beach chair with the dented coffee tin from Bea's shop on its seat.
+    for(const x of [-.32,.32]){
+      g.pole([x,.06,-.31],[x,.54,.29],.026,steel,6);
+      g.pole([x,.06,.32],[x,.55,-.28],.026,steel,6);
+      g.pole([x,.49,-.23],[x,.99,-.36],.025,steel,6);
+    }
+    for(let n=0;n<7;n++){
+      const x=(n-3)*.086,col=n%3===1?"#dba34f":n%3===0?"#e6d8ae":"#62877c";
+      g.box(x,.515,0,.080,.026,.56,col);
+      g.quad([x-.04,.51,-.26],[x+.04,.51,-.26],[x+.04,.96,-.35],[x-.04,.96,-.35],col);
+    }
+    if(!filled)return;
+    g.cyl(0,.62,.04,.126,.112,.19,10,"#a8433c");g.cyl(0,.705,.04,.13,.124,.023,10,brass);
+    bunch(g,0,.666,.04,1.38);g.box(.18,.542,.13,.17,.013,.11,ivory,-.21);
+  }
   function snareCase(g){
     g.pole([-.018,-.01,-.068],[-.018,-.084,-.089],.016,"#a77952",5);
     g.pole([-.018,-.01,.068],[-.018,-.084,.089],.016,"#a77952",5);
@@ -390,7 +406,10 @@
   }
   function pose(p,t){
     const rig=p.mesh;if(!rig)return false;
-    if(atJob(p)){
+    if(p.phase==="arrange"){
+      const amount=Math.sin(Math.PI*Math.min(1,p.age/1.4)),limb=rig.sides[0];
+      reach(limb,-.19+.12*amount,.94-.24*amount,.10+.40*amount);
+    }else if(atJob(p)){
       for(const limb of rig.sides){
         const side=limb.side;
         if(p.id==="otis"){
@@ -451,11 +470,12 @@
     return local(p,a[0]+side*.018,a[1]-.041,a[2]+.018);
   }
   function holding(p){
-    return !atJob(p)&&p.phase!=="booth"&&p.phase!=="ride"&&(!["in","out"].includes(p.phase)||(p.seat||0)<.56);
+    return !(p.phase==="arrange"&&p.age>=.8)&&!(p.phase==="work"&&p.id==="bea"&&Object.hasOwn(BayCab.chairs,p.to?.id))&&!atJob(p)&&p.phase!=="booth"&&p.phase!=="ride"&&(!["in","out"].includes(p.phase)||(p.seat||0)<.56);
   }
   function forHire(city){return city.phase==="idle"&&!city.trip&&!city.booking;}
   function standPosition(p){return local(p,0,0,p.id==="walt"?.417:p.id==="bea"?.497:.490);}
   function install(model){
+    model("anniversary-chair",g=>anniversaryChair(g,true));model("cab-folding-chair",g=>anniversaryChair(g,false));
     model("cab-phone",phone);model("cab-roof-lettering",cabRoof);
     model("rank-off-hook",g=>phone(g,true));model("rank-handset",handset);
     for(const lit of [false,true])model(lit?"rank-bell-lit":"rank-bell",g=>{
@@ -473,8 +493,14 @@
     model("cab-work-reel",reel);
     model("cab-stick",g=>{g.pole([0,0,-.055],[0,-.015,.363],.0095,"#d9bc82",5);g.box(0,-.015,.36,.022,.018,.034,ivory);});
   }
+  const chairSites=Object.values(BayCab.chairs);
+  function chairWithFlowers(city){
+    const p=city?.privateFare;
+    return BayCab.chairs[p?.phase==="arrange"&&p.age>=.8?p.to.id:city?.memory.bunch];
+  }
   function world(view,list,see,t,clock,city,openSecond,phones){
-    const night=clock?.night||0;
+    const night=clock?.night||0,filled=chairWithFlowers(city);
+    for(const seat of chairSites)if(see(seat,52))list.push([seat===filled?"anniversary-chair":"cab-folding-chair",seat.x,.08,seat.z,seat.yaw]);
     if(see(stageDoor,110)){
       list.push(["cab-lobby",stageDoor.x,.077,stageDoor.z,stageDoor.yaw],
         [openSecond?"cab-tram-card":"cab-pelican-card",stageDoor.x,.077,stageDoor.z,stageDoor.yaw,0,0,.13+.55*night]);
@@ -670,6 +696,15 @@
       else serviceIcon(c,px(v.x),py(v.z),ui*(radar?5.8:6.0),v.yaw);
     }
     if(!street)return;
+    const filled=chairWithFlowers(city);
+    for(const chair of chairSites)if(visible(px(chair.x),py(chair.z),2*s))atMap(c,chair,px,py,s,ctx=>{
+      drawRect(ctx,-.36,-.25,.72,.57,"#446559");
+      for(let n=0;n<7;n++)drawRect(ctx,-.31+n*.09,-.24,.075,.54,n%2?ivory:"#bc925b");
+      if(chair!==filled)return;
+      disc(ctx,0,-.04,.17,"#a8433c");
+      for(const [u,h,v,col] of flowers)disc(ctx,u*1.45,v*1.45-.04,.066,col);
+      drawRect(ctx,.16,-.18,.13,.074,ivory);
+    });
     for(const p of city?.people||[]){
       if(!destination[p.id]||!visible(px(p.x),py(p.z),3*s))continue;
       const working=atJob(p);
@@ -709,6 +744,30 @@
     });
     return key;
   }
+  function flowerTag(canvas,id,reply){
+    const seat=BayCab.chairs[id];if(!seat)return;
+    canvas.width=760;canvas.height=420;
+    canvas.setAttribute("aria-label",(reply?"On the back of Bea’s card. ":"Bea’s anniversary flowers. ")+(reply?seat.reply:seat.inscription));
+    const c=canvas.getContext("2d");
+    c.fillStyle="#324e4a";c.fillRect(0,0,760,420);
+    c.save();c.translate(380,210);c.rotate(reply?.025:-.04);
+    c.fillStyle="#243c39";c.fillRect(-280,-143,576,310);
+    c.fillStyle=reply?"#e8d7b5":"#f6e7c5";c.fillRect(-287,-150,575,310);
+    c.strokeStyle="#b88b6d";c.lineWidth=1.6;c.strokeRect(-271,-134,542,276);
+    c.fillStyle="#815246";c.font="bold 15px monospace";c.fillText(reply?"FOUND WITH THE FLOWERS":"OLD PALMS FLOWERS",-231,-97);
+    c.fillStyle="#685844";c.font="15px Georgia";c.fillText(reply?(id==="marlin"?"Marlin Motel · front walk":"North Boardwalk · bandstand"):"Hand tied  /  B. Salas",-231,-70);
+    for(let i=0;i<3;i++){
+      const x=155+i*23,y=-77-Math.sin(i*1.8)*17;
+      c.strokeStyle="#748467";c.beginPath();c.moveTo(171,-40);c.quadraticCurveTo(x,-55,x,y);c.stroke();
+      for(let j=0;j<5;j++){const a=j*Math.PI*.4;disc(c,x+Math.sin(a)*6,y+Math.cos(a)*6,4.6,["#c1736b","#d3a45e","#c68f80"][i]);}
+      disc(c,x,y,3,"#947451");
+    }
+    const lines=reply?(id==="marlin"?["I put them where I can see them","from the pillow."]:["Played your waltz at half speed.","Nobody hurried me."]):[seat.inscription];
+    c.fillStyle=reply?"#345369":"#354b40";c.font="italic 31px Georgia";
+    lines.forEach((line,i)=>c.fillText(line,-225,8+i*39,452));
+    c.font="italic 26px Georgia";c.fillText(reply?(id==="marlin"?"Mum":"Otis"):"Bea",150,103);
+    c.restore();
+  }
   function meterSlip(canvas,plate,street,model){
     canvas.width=760;canvas.height=420;
     canvas.setAttribute("aria-label","Mina’s cab voucher for "+model+", plate "+plate+", "+street);
@@ -726,5 +785,5 @@
     c.font="italic 21px Georgia";c.fillText("Put this one on my sheet.",-223,99);c.fillText("M. Ortiz",100,132);
     c.restore();
   }
-  window.BayCabArt={meterSlip,install,world,map,colors,roles,dress,pose,dashboard,rankLocation};
+  window.BayCabArt={meterSlip,flowerTag,install,world,map,colors,roles,dress,pose,dashboard,rankLocation};
 })();
