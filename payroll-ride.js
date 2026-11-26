@@ -46,6 +46,15 @@
       if(this.waiting?.route===route)return;
       const p=actor(stops[route]);p.route=route;p.y=ground(p.x,p.z);this.waiting=p;
     }
+    offerPrint(dt,driver){
+      if(this.photoOffered)return false;
+      if(!this.aboard||driver!==this.car){this.photoX=undefined;return false;}
+      const distance=Number.isFinite(this.photoX)?Math.hypot(driver.x-this.photoX,driver.z-this.photoZ):0;
+      this.photoX=driver.x;this.photoZ=driver.z;
+      if(distance<50*dt+.04)this.photoDistance=(this.photoDistance||0)+distance;
+      if(!(this.photoDistance>=16))return false;
+      this.photoOffered=true;return true;
+    }
     stop(){if(this.car)this.car.passengerDoor=0;}
     step(dt,car,dest,plan,ground){
       const a=this.jules,m=a.motion,v=this.car;
@@ -111,6 +120,11 @@
     const seat=a.motion.ride?.seat||0;
     if(seat){const lap=BayDriving.world(a,0,.22);j.x+=(lap.x-j.x)*seat;j.z+=(lap.z-j.z)*seat;
       j.y+=(a.y+a.motion.ride.seatY+.23-j.y)*seat;}
+    if(run.photoOffered&&run.aboard&&!run.photoTaken){
+      const p=BayDriving.world(a,-.12,.33);
+      model("night-shift-print",g=>{g.box(0,0,0,.158,.006,.118,"#efe3ca");g.box(0,.0035,-.004,.142,.004,.091,"#886955");});
+      list.push(["night-shift-print",p.x,j.y+.13,p.z,a.yaw,-.39]);
+    }
     const t=Math.min(1,Math.max(0,(run.pass-.25)*2.5));
     model("payroll-tin",tin);list.push(["payroll-tin",j.x+(to.x-j.x)*t,j.y+(to.y-j.y)*t,j.z+(to.z-j.z)*t,a.yaw]);
   }
@@ -144,6 +158,74 @@
     if(j)person(j,colors);if(r)person(r,stops[run.route||r.route].colors);
     const p=run.pass>.55?counterTop(run.route):BayDriving.world(j,.22,.18);
     ctx.fillStyle="#c39e65";ctx.fillRect(px(p.x)-s*.13,py(p.z)-s*.08,Math.max(1,s*.26),Math.max(1,s*.16));
+    if(run.photoOffered&&run.aboard&&!run.photoTaken){
+      const at=BayDriving.world(j,-.12,.33);ctx.save();ctx.translate(px(at.x),py(at.z));ctx.rotate(j.yaw);
+      ctx.fillStyle="#efe3ca";ctx.fillRect(-s*.09,-s*.06,s*.18,s*.12);ctx.restore();
+    }
   }
-  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops};
+  let shiftPortrait=null;
+  function nightShiftPhoto(canvas,reverse,signed){
+    canvas.width=600;canvas.height=360;
+    const c=canvas.getContext("2d");if(!c)return;
+    c.fillStyle=reverse?"#daceaf":"#e9dec3";c.fillRect(0,0,600,360);
+    c.fillStyle="#776951";c.font="14px monospace";
+    if(reverse){
+      c.fillText("MARLIN  /  NIGHT LAUNDRY",30,45);c.fillText("09  •  98",467,45);
+      c.strokeStyle="#b7ac95";c.lineWidth=1;
+      for(let y=104;y<=251;y+=49){c.beginPath();c.moveTo(34,y);c.lineTo(562,y);c.stroke();}
+      c.save();c.translate(42,94);c.rotate(-.024);c.fillStyle="#46596a";c.font="italic 24px Georgia";
+      c.fillText("For B.  One for your locker.",0,0);
+      if(signed){
+        c.fillText("Left to right: Tino, Marisol, Neve.",2,54);
+        c.fillText("I was behind the lens, standing on",3,102);
+        c.fillText("the soap box to get us all level.",3,149);
+        c.font="italic 27px Georgia";c.fillText("Bea Serrano",333,205);
+      }
+      c.restore();return;
+    }
+    if(!shiftPortrait){
+      // Photograph the same character meshes the player meets in the street.
+      // A single exposure is kept for subsequent flips and visits to Room 14.
+      const film=document.createElement("canvas");film.width=552;film.height=281;
+      const g=film.getContext("2d");
+      const rect=(x,y,w,h,color)=>{g.fillStyle=color;g.fillRect(x,y,w,h);};
+      rect(0,0,552,281,"#9d9c81");rect(0,204,552,77,"#826f5d");
+      rect(0,0,113,210,"#a28676");rect(273,10,167,197,"#626e69");
+      for(let y=15;y<201;y+=8){rect(278,y,156,3,"#838577");}
+      rect(0,17,244,3,"#a99d85");rect(18,40,172,46,"#c8b79a");
+      g.fillStyle="#775b50";g.font="bold 17px Georgia";g.fillText("MARLIN MOTOR INN",22,62);
+      g.font="10px monospace";g.fillText("HOUSE LAUNDRY   •   REAR",31,77);
+      for(const x of [15,464]){
+        rect(x,125,66,82,"#b4afa0");rect(x+3,129,60,13,"#847e71");
+        for(const r of [22,18,13]){g.beginPath();g.arc(x+33,170,r,0,7);g.fillStyle=r===22?"#918779":r===18?"#bfb2a0":"#5b635c";g.fill();}
+      }
+      const faces=[];
+      for(const [x,z,yaw,skin,shirt,pants,role,gesture] of [
+        [-1.05,.10,.18,"#966a50","#668581","#555859","dockhand",0],
+        [0,0,-.12,"#b58366","#bd7962","#53505a","local",0],
+        [1.05,.03,-.22,"#865e4c","#dfcc9d","#566e72","local",1]
+      ]){
+        const mesh=new BayMesh();buildBayPerson(mesh,skin,shirt,pants,0,role,gesture);
+        const v=mesh.vertices,sn=Math.sin(yaw),cs=Math.cos(yaw);
+        const shadowX=276+x*110;g.fillStyle="#706554";g.beginPath();g.ellipse(shadowX+5,243,25,5,-.05,0,7);g.fill();
+        for(let i=0;i<v.length;i+=18){
+          const points=[];let depth=0;
+          for(let j=i;j<i+18;j+=6){
+            const u=x+v[j]*cs+v[j+2]*sn,w=z-v[j]*sn+v[j+2]*cs;
+            const size=465/(4.24-w);points.push([276+u*size,117+(1.14-v[j+1])*size]);depth+=w;
+          }
+          const rgb=[0,1,2].map(k=>Math.min(255,Math.round(32+v[i+3+k]*[191,178,154][k])));
+          faces.push({depth,points,ink:"rgb("+rgb.join(",")+")"});
+        }
+      }
+      faces.sort((a,b)=>a.depth-b.depth);
+      for(const f of faces){g.fillStyle=f.ink;g.beginPath();g.moveTo(...f.points[0]);g.lineTo(...f.points[1]);g.lineTo(...f.points[2]);g.closePath();g.fill();}
+      const edge=g.createRadialGradient(268,138,75,268,138,325);edge.addColorStop(0,"rgba(91,59,40,0)");edge.addColorStop(1,"rgba(82,45,38,.27)");g.fillStyle=edge;g.fillRect(0,0,552,281);
+      shiftPortrait=film;
+    }
+    c.drawImage(shiftPortrait,24,20);
+    c.fillStyle="#624e43";c.font="italic 22px Georgia";c.fillText("Last load before breakfast",29,337);
+    c.font="13px monospace";c.fillText("SEP  1998",497,335);
+  }
+  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto};
 })();

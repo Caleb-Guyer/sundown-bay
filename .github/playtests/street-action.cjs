@@ -31,6 +31,11 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await waitFor("document.querySelector('#chapterLine').textContent.includes('cake')",25000);assert(await js("q.boardDoor&&q.ride.seat===1"));await snap("collection-passenger");await tap("Enter");
   const port=mode==="street",route=port?"port":"luna",name=port?"Vic at the scales":"Marisol Vale";
   await tap(port?"Digit2":"Digit1");await waitFor("document.querySelector('#objectiveText').textContent.includes("+JSON.stringify(port?"Port Sol":"Cine Luna")+")");
+  await js("q.at(q.car,-143,96);q.car.yaw=0;BayDriving.settle(q.car)");
+  await key("keyDown","KeyW");
+  try{await waitFor("q.ride.photoOffered&&document.querySelector('#context').textContent.includes('photograph')",24000);
+    await tap("KeyN");await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.print===1");
+  }finally{await key("keyUp","KeyW");}
   await js("q.at(q.car,-143,126);BayDriving.settle(q.car)");
   await waitFor("document.querySelector('#stars').getAttribute('aria-label')==='No heat'",75000);
   await js("q.at(q.car,"+(port?"-138,-73":"6,66")+");q.car.yaw=0;BayDriving.settle(q.car)");
@@ -55,6 +60,14 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await waitFor("document.querySelector('#panel').dataset.screen==='payroll-receipt'&&!document.querySelector('#panel').hidden");
   await snap("collection-copy");await tap("Escape");
   console.log("PASS visited "+name+" and read the signed receipt after reloading",mode);
+  await js("q.bea=q.people.find(p=>p.coffeeRegular);q.at(q.h,q.bea.x+.55,q.bea.z);q.rig.reset(q.h)");
+  await waitFor("document.querySelector('#context').textContent.includes('Show Bea')");await tap("KeyF");
+  await waitFor("document.querySelector('#panel').dataset.screen==='shift-print'");await snap("night-shift-front");
+  const button=text=>"Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.textContent.includes("+JSON.stringify(text)+")).click()";
+  await js(button("Turn the photograph"));await waitFor("document.querySelector('#panelBody canvas').getAttribute('aria-label').includes('dedication')");
+  await js(button("Ask Bea"));await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.print===2&&document.querySelector('#panelBody canvas').getAttribute('aria-label').includes('Tino')");
+  await snap("night-shift-caption");await tap("Escape");
+  console.log("PASS took the night shift photograph from Jules while driving, brought it to Bea after reload and kept her signed caption",mode);
   await js(`q.at(q.h,72,40);q.h.yaw=0;q.rig.reset(q.h);q.p=q.people.find(p=>!p.name&&!p.palmManaged);q.at(q.p,72,46);q.p.wait=55;`);
   await tap("Digit1");await waitFor("!document.querySelector('#streetWeapon').hidden");
   await tap("Space");await waitFor("!!impactQA.p.down&&impactQA.marksDrawn");

@@ -375,6 +375,28 @@
     }
     c.restore();
   }
+  const trafficPrints=new Map(),printKinds=new Set(["coupe","cab","hatch","van","marea","cayo","estate","stepside"]);
+  function drawTraffic(c,v,x,y,s,t,lowDetail){
+    // The flash, damage, steer and door poses still come from this exact car.
+    // At dashboard-map scale only an unchanged body can use the shared print.
+    if(!lowDetail||s<3.5||s>16||!printKinds.has(v.kind)||v.damage||v.hydraulic||v.flatSide||
+      v.doorAngle||v.passengerDoor||v.reversing||v.indicator||Math.abs(v.steer||0)>.0001||BayStreetReactions.hornPulse(v,t)){
+      carSprite(c,v,x,y,s,t);return false;
+    }
+    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit);
+    let print=trafficPrints.get(key);
+    if(!print){
+      // Every eligible body and its shadow fit on this 3.2 by 6.4 metre sheet.
+      print=mapSurface(64,128);const ink=print?.getContext("2d");
+      if(!ink){carSprite(c,v,x,y,s,t);return false;}
+      ink.lineJoin="round";carSprite(ink,{kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0},32,64,20,0);
+      if(trafficPrints.size>=56)trafficPrints.delete(trafficPrints.keys().next().value);
+      trafficPrints.set(key,print);
+    }
+    c.save();c.translate(x,y);c.rotate(v.yaw||0);c.drawImage(print,-1.6*s,-3.2*s,3.2*s,6.4*s);c.restore();
+    return true;
+  }
+  window.BayMapTraffic={draw:drawTraffic};
   window.drawBayPaintSample=function(canvas,kind,color){
     const c=canvas.getContext("2d"),w=canvas.width,h=canvas.height;
     c.clearRect(0,0,w,h);
@@ -1079,7 +1101,7 @@
       if(!visible(x,y,4*s+10)) continue;
       if(player && player.driving && Math.hypot(car.x-player.x,car.z-player.z)<.55) playerCar=car;
       if(street){
-        carSprite(ctx,car,x,y,s,streetTime);
+        BayMapTraffic.draw(ctx,car,x,y,s,streetTime,opt.lowDetail);
         BayStreetCars.map(ctx,car,x,y,s,streetTime);
         if(car.cupNumber)BayCoastCupArt.mapCar(ctx,car,x,y,s);
         if(car.beatCar)BayOceanBeatArt.carMap(ctx,car,x,y,s,streetTime,car.beatLights);

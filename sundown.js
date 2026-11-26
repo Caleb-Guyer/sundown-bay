@@ -14998,6 +14998,28 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     c.restore();
   }
+  const trafficPrints=new Map(),printKinds=new Set(["coupe","cab","hatch","van","marea","cayo","estate","stepside"]);
+  function drawTraffic(c,v,x,y,s,t,lowDetail){
+    // The flash, damage, steer and door poses still come from this exact car.
+    // At dashboard-map scale only an unchanged body can use the shared print.
+    if(!lowDetail||s<3.5||s>16||!printKinds.has(v.kind)||v.damage||v.hydraulic||v.flatSide||
+      v.doorAngle||v.passengerDoor||v.reversing||v.indicator||Math.abs(v.steer||0)>.0001||BayStreetReactions.hornPulse(v,t)){
+      carSprite(c,v,x,y,s,t);return false;
+    }
+    const lit=v.brakes>.18||v.handbrake>.48,key=v.kind+"/"+v.color+"/"+Number(lit);
+    let print=trafficPrints.get(key);
+    if(!print){
+      // Every eligible body and its shadow fit on this 3.2 by 6.4 metre sheet.
+      print=mapSurface(64,128);const ink=print?.getContext("2d");
+      if(!ink){carSprite(c,v,x,y,s,t);return false;}
+      ink.lineJoin="round";carSprite(ink,{kind:v.kind,color:v.color,brakes:lit?1:0,yaw:0},32,64,20,0);
+      if(trafficPrints.size>=56)trafficPrints.delete(trafficPrints.keys().next().value);
+      trafficPrints.set(key,print);
+    }
+    c.save();c.translate(x,y);c.rotate(v.yaw||0);c.drawImage(print,-1.6*s,-3.2*s,3.2*s,6.4*s);c.restore();
+    return true;
+  }
+  window.BayMapTraffic={draw:drawTraffic};
   window.drawBayPaintSample=function(canvas,kind,color){
     const c=canvas.getContext("2d"),w=canvas.width,h=canvas.height;
     c.clearRect(0,0,w,h);
@@ -15702,7 +15724,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(!visible(x,y,4*s+10)) continue;
       if(player && player.driving && Math.hypot(car.x-player.x,car.z-player.z)<.55) playerCar=car;
       if(street){
-        carSprite(ctx,car,x,y,s,streetTime);
+        BayMapTraffic.draw(ctx,car,x,y,s,streetTime,opt.lowDetail);
         BayStreetCars.map(ctx,car,x,y,s,streetTime);
         if(car.cupNumber)BayCoastCupArt.mapCar(ctx,car,x,y,s);
         if(car.beatCar)BayOceanBeatArt.carMap(ctx,car,x,y,s,streetTime,car.beatLights);
@@ -69438,6 +69460,15 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(this.waiting?.route===route)return;
       const p=actor(stops[route]);p.route=route;p.y=ground(p.x,p.z);this.waiting=p;
     }
+    offerPrint(dt,driver){
+      if(this.photoOffered)return false;
+      if(!this.aboard||driver!==this.car){this.photoX=undefined;return false;}
+      const distance=Number.isFinite(this.photoX)?Math.hypot(driver.x-this.photoX,driver.z-this.photoZ):0;
+      this.photoX=driver.x;this.photoZ=driver.z;
+      if(distance<50*dt+.04)this.photoDistance=(this.photoDistance||0)+distance;
+      if(!(this.photoDistance>=16))return false;
+      this.photoOffered=true;return true;
+    }
     stop(){if(this.car)this.car.passengerDoor=0;}
     step(dt,car,dest,plan,ground){
       const a=this.jules,m=a.motion,v=this.car;
@@ -69503,6 +69534,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     const seat=a.motion.ride?.seat||0;
     if(seat){const lap=BayDriving.world(a,0,.22);j.x+=(lap.x-j.x)*seat;j.z+=(lap.z-j.z)*seat;
       j.y+=(a.y+a.motion.ride.seatY+.23-j.y)*seat;}
+    if(run.photoOffered&&run.aboard&&!run.photoTaken){
+      const p=BayDriving.world(a,-.12,.33);
+      model("night-shift-print",g=>{g.box(0,0,0,.158,.006,.118,"#efe3ca");g.box(0,.0035,-.004,.142,.004,.091,"#886955");});
+      list.push(["night-shift-print",p.x,j.y+.13,p.z,a.yaw,-.39]);
+    }
     const t=Math.min(1,Math.max(0,(run.pass-.25)*2.5));
     model("payroll-tin",tin);list.push(["payroll-tin",j.x+(to.x-j.x)*t,j.y+(to.y-j.y)*t,j.z+(to.z-j.z)*t,a.yaw]);
   }
@@ -69536,8 +69572,76 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(j)person(j,colors);if(r)person(r,stops[run.route||r.route].colors);
     const p=run.pass>.55?counterTop(run.route):BayDriving.world(j,.22,.18);
     ctx.fillStyle="#c39e65";ctx.fillRect(px(p.x)-s*.13,py(p.z)-s*.08,Math.max(1,s*.26),Math.max(1,s*.16));
+    if(run.photoOffered&&run.aboard&&!run.photoTaken){
+      const at=BayDriving.world(j,-.12,.33);ctx.save();ctx.translate(px(at.x),py(at.z));ctx.rotate(j.yaw);
+      ctx.fillStyle="#efe3ca";ctx.fillRect(-s*.09,-s*.06,s*.18,s*.12);ctx.restore();
+    }
   }
-  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops};
+  let shiftPortrait=null;
+  function nightShiftPhoto(canvas,reverse,signed){
+    canvas.width=600;canvas.height=360;
+    const c=canvas.getContext("2d");if(!c)return;
+    c.fillStyle=reverse?"#daceaf":"#e9dec3";c.fillRect(0,0,600,360);
+    c.fillStyle="#776951";c.font="14px monospace";
+    if(reverse){
+      c.fillText("MARLIN  /  NIGHT LAUNDRY",30,45);c.fillText("09  •  98",467,45);
+      c.strokeStyle="#b7ac95";c.lineWidth=1;
+      for(let y=104;y<=251;y+=49){c.beginPath();c.moveTo(34,y);c.lineTo(562,y);c.stroke();}
+      c.save();c.translate(42,94);c.rotate(-.024);c.fillStyle="#46596a";c.font="italic 24px Georgia";
+      c.fillText("For B.  One for your locker.",0,0);
+      if(signed){
+        c.fillText("Left to right: Tino, Marisol, Neve.",2,54);
+        c.fillText("I was behind the lens, standing on",3,102);
+        c.fillText("the soap box to get us all level.",3,149);
+        c.font="italic 27px Georgia";c.fillText("Bea Serrano",333,205);
+      }
+      c.restore();return;
+    }
+    if(!shiftPortrait){
+      // Photograph the same character meshes the player meets in the street.
+      // A single exposure is kept for subsequent flips and visits to Room 14.
+      const film=document.createElement("canvas");film.width=552;film.height=281;
+      const g=film.getContext("2d");
+      const rect=(x,y,w,h,color)=>{g.fillStyle=color;g.fillRect(x,y,w,h);};
+      rect(0,0,552,281,"#9d9c81");rect(0,204,552,77,"#826f5d");
+      rect(0,0,113,210,"#a28676");rect(273,10,167,197,"#626e69");
+      for(let y=15;y<201;y+=8){rect(278,y,156,3,"#838577");}
+      rect(0,17,244,3,"#a99d85");rect(18,40,172,46,"#c8b79a");
+      g.fillStyle="#775b50";g.font="bold 17px Georgia";g.fillText("MARLIN MOTOR INN",22,62);
+      g.font="10px monospace";g.fillText("HOUSE LAUNDRY   •   REAR",31,77);
+      for(const x of [15,464]){
+        rect(x,125,66,82,"#b4afa0");rect(x+3,129,60,13,"#847e71");
+        for(const r of [22,18,13]){g.beginPath();g.arc(x+33,170,r,0,7);g.fillStyle=r===22?"#918779":r===18?"#bfb2a0":"#5b635c";g.fill();}
+      }
+      const faces=[];
+      for(const [x,z,yaw,skin,shirt,pants,role,gesture] of [
+        [-1.05,.10,.18,"#966a50","#668581","#555859","dockhand",0],
+        [0,0,-.12,"#b58366","#bd7962","#53505a","local",0],
+        [1.05,.03,-.22,"#865e4c","#dfcc9d","#566e72","local",1]
+      ]){
+        const mesh=new BayMesh();buildBayPerson(mesh,skin,shirt,pants,0,role,gesture);
+        const v=mesh.vertices,sn=Math.sin(yaw),cs=Math.cos(yaw);
+        const shadowX=276+x*110;g.fillStyle="#706554";g.beginPath();g.ellipse(shadowX+5,243,25,5,-.05,0,7);g.fill();
+        for(let i=0;i<v.length;i+=18){
+          const points=[];let depth=0;
+          for(let j=i;j<i+18;j+=6){
+            const u=x+v[j]*cs+v[j+2]*sn,w=z-v[j]*sn+v[j+2]*cs;
+            const size=465/(4.24-w);points.push([276+u*size,117+(1.14-v[j+1])*size]);depth+=w;
+          }
+          const rgb=[0,1,2].map(k=>Math.min(255,Math.round(32+v[i+3+k]*[191,178,154][k])));
+          faces.push({depth,points,ink:"rgb("+rgb.join(",")+")"});
+        }
+      }
+      faces.sort((a,b)=>a.depth-b.depth);
+      for(const f of faces){g.fillStyle=f.ink;g.beginPath();g.moveTo(...f.points[0]);g.lineTo(...f.points[1]);g.lineTo(...f.points[2]);g.closePath();g.fill();}
+      const edge=g.createRadialGradient(268,138,75,268,138,325);edge.addColorStop(0,"rgba(91,59,40,0)");edge.addColorStop(1,"rgba(82,45,38,.27)");g.fillStyle=edge;g.fillRect(0,0,552,281);
+      shiftPortrait=film;
+    }
+    c.drawImage(shiftPortrait,24,20);
+    c.fillStyle="#624e43";c.font="italic 22px Georgia";c.fillText("Last load before breakfast",29,337);
+    c.font="13px monospace";c.fillText("SEP  1998",497,335);
+  }
+  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto};
 })();
 
 ;
@@ -69710,13 +69814,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     result.buttonwood=BayButtonwood.read(null);result.brisas=BayBrisasClub.read(null);result.palm=BayPalmLeague.read(null);result.gull=BayGullSales.read(null);result.moto=BaySecondSeat.read(null);result.rescue=BayRescue.read(null);result.skate=BaySkate.read(null);result.airmail=BayPelicanAir.read(null);
     result.luggage=luggage.read(null);result.green=BayOnGreen.read(null);result.threads=threads.read(null,result.courts);
     result.clubCup=BayCoastCup.read(null);result.catchBook=BayRedCork.read(null);
-    result.collection={last:"",luna:0,port:0,best:0};
+    result.collection={last:"",luna:0,port:0,best:0,print:0};
     result.freight=BayPortSpur.saved(null);
     result.oceanBeat=BayOceanBeat.read(null);result.releaseCopy=null;
     result.pictureJumps=jumps.read(null);result.copies=carbon.read(null);
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
       if(raw.collection){
         for(const id of ["luna","port","best"])if(Number.isFinite(raw.collection[id])&&raw.collection[id]>=0)result.collection[id]=raw.collection[id];
+        if([1,2].includes(raw.collection.print))result.collection.print=raw.collection.print;
         if(["luna","port"].includes(raw.collection.last))result.collection.last=raw.collection.last;
       }
       result.houseFee=raw.houseFee===true;
@@ -69936,6 +70041,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(other.best&&(!book.best||other.best<book.best)){book.best=other.best;book.splits=other.splits;}
       if(other.lap&&(!book.lap||other.lap<book.lap))book.lap=other.lap;
     }
+    if([1,2].includes(latest?.collection?.print))save.collection.print=Math.max(save.collection.print,latest.collection.print);
     if(latest?.releaseCopy?.number>(save.releaseCopy?.number||0)){
       const copy=BayOceanBeat.readRelease(latest.releaseCopy);
       if(copy){save.releaseCopy=copy;if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;}
@@ -76446,6 +76552,33 @@ window.buildBayCity = function buildBayCity(g,water) {
     const sheet=document.createElement("canvas");sheet.style.width="100%";sheet.style.height="auto";sheet.setAttribute("role","img");
     sheet.setAttribute("aria-label",luna?"Signed wage receipt":"Scale house receipt");BayStreetAction.paper(sheet,luna?"payReceipt":"portReceipt");b.append(sheet);
   }
+  const shiftKeeper=walkers.find(p=>p.coffeeRegular);
+  function besideShiftKeeper(){
+    return save.collection.print===1&&onStreetFeet()&&!heat&&!active&&!shiftKeeper.down&&!shiftKeeper.flee&&
+      !shiftKeeper.onTour&&dist(hero,shiftKeeper)<2.7;
+  }
+  function offeredShiftPrint(){
+    const r=active?.payroll;return !save.collection.print&&r?.photoOffered&&r.aboard&&car===r.car&&!transfer;
+  }
+  function showShiftPrint(body){
+    const photo=document.createElement("canvas"),signed=save.collection.print===2;
+    photo.style.cssText="display:block;width:100%;height:auto";photo.setAttribute("role","img");body.append(photo);
+    let back=signed;
+    function paint(){
+      BayPayroll.nightShiftPhoto(photo,back,signed);
+      photo.setAttribute("aria-label",back?(signed?"Bea’s caption names Tino, Marisol and Neve and identifies Bea as the photographer":"Pencilled dedication to B on the back"):
+        "Faded photograph of three night-shift workers outside the Marlin laundry in September 1998");
+    }
+    paint();body.append(makeButton("Turn the photograph over","Marlin Motor Inn · September 1998","Flip",()=>{back=!back;paint();}));
+    if(!signed&&besideShiftKeeper()){
+      body.append(makeButton("Ask Bea who took it","She takes a pencil from behind her ear.","Hand it over",()=>{
+        if(!besideShiftKeeper())return;
+        save.collection.print=2;persist();if(waypoint?.kind==="shift-print")waypoint=null;
+        openPanel("shift-print",true);
+      }));
+    }else if(!signed&&!active)body.append(makeButton("Find Bea Serrano","Marlin desk clerk · takes her breaks at the Palm","Mark map",
+      ()=>clockPin({x:shiftKeeper.x,z:shiftKeeper.z,name:"Bea Serrano · night shift print",kind:"shift-print"})));
+  }
   function collectionRoute(route){
     active.route=route;active.stops[1]={...(route==="port"?venues.port:venues.cinema),name:route==="port"?"Sell the tin at Port Sol":"Return the payroll at Cine Luna"};
     lastHud=lastMap=-10;
@@ -76458,6 +76591,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       const v=ride.car,near=dist(v,venues.cinema)<53?"luna":dist(v,venues.port)<53?"port":null;
       ride.seeClerk(near,footLevel);
       if(near&&v===car&&!heat&&dist(v,near==="luna"?venues.cinema:venues.port)<7.7)dest=near;
+    }
+    if(!save.collection.print&&ride.offerPrint(dt,car)){
+      speak("Jules","Wait. That's Romy's mum in the middle. There's pencil on the back. Want to keep it?");
+      lastHud=-10;
     }
     const cue=ride.step(dt,car,dest,doorPlan,footLevel);
     if(cue==="approaching"){toastTill=elapsed;$("toast").hidden=true;speak("Jules","Hang on. This lid only stays shut if I keep my thumb on it.");}
@@ -76491,11 +76628,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(transfer){if(active?.running)active.clock+=dt;return;}
     if(!active){
       if(green.run?.accepted)return;
+      if(waypoint?.kind==="shift-print"){waypoint.x=shiftKeeper.x;waypoint.z=shiftKeeper.z;}
       if(waypoint?.id==="bell-run"){waypoint.x=cycles.javi.x;waypoint.z=cycles.javi.z;}
       if(waypoint?.kind==="june"){waypoint.x=band.june.x;waypoint.z=band.june.z;}
       if(waypoint?.kind==="neighbor"){const who=neighbors.byId(waypoint.id);if(who){waypoint.x=who.x;waypoint.z=who.z;}}
       if(waypoint?.kind==="neighbor-place"&&onStreetFeet()&&dist(hero,waypoint)<2.55&&neighbors.known(unit.lead,neighbors.byId(waypoint.id),"visited"))waypoint=null;
-      if(waypoint&&!["dive-site","neighbor","neighbor-place","street-response"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
+      if(waypoint&&!["dive-site","neighbor","neighbor-place","street-response","shift-print"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
         if(waypoint.kind!=="garage"||!car?.flatSide)note("City map","Waypoint reached.",1.7);
         waypoint=null;
       }
@@ -79891,6 +80029,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     else if(chapter==="commuter")contextHint("F",commuterHint());
     else if(chapter)contextHint("F",({order:"Read the public landing order",firstCopy:"Show Luis the folded paper",watchBook:"Read Dalia’s departure book",reel:"Mara Vega · Room Tone",mara:"Mara Vega · Last Exposure",rub:"Lift the tape on the ferry timetable",pass:"Dalia Cruz · First Crossing",service:"Talk to Dalia Cruz",luz:luz.phase==="berth"&&luz.at===luz.near(hero)?"Board Luz · Public crossing":BayLandingOrder.charter(luz.book)==="clinic"?"Check the clinic timetable":"Ring for the public crossing"})[chapter]||"Read the dispatch copy");
+    else if(offeredShiftPrint())contextHint("N","Take the night-shift photograph from Jules");
+    else if(besideShiftKeeper())contextHint("F","Show Bea the night-shift photograph");
     else if(passengerShot)contextHint("N","Give Mara the shot · "+BayLotNegative.locations[passengerShot.id].name);
     else if(active?.story?.offeredSleeve&&!campaign.book.sleeve&&!heat&&!transfer&&car===active.story.ride&&active.story.phase==="port"&&!active.story.remarked&&(active.story.sleeveStop(car)||elapsed-active.story.sleeveCall<9)){
       if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print"+(canReadRoadMap()?" · Shift + N for her street map":""));
@@ -80604,7 +80744,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if((next==="viewfinder"||next==="contact")&&active?.story?.interaction(car)!==next)return;
     if(next==="edition"&&!save.edition)return;
     if(next==="outside-copy"&&!outsideSite())return;
-    if(next==="payroll-receipt"&&!atPayrollCounter())return;
+    if(next==="payroll-receipt"&&!atPayrollCounter()||next==="shift-print"&&!save.collection.print)return;
     if(shop){
       if(!readyForShop(car))return;
       BayDriving.settle(car);
@@ -80626,6 +80766,8 @@ window.buildBayCity = function buildBayCity(g,water) {
         button.onclick=()=>{if(panel!==button.value){openPanel(button.value);$("panelBody").querySelector(".shop-nav [aria-pressed='true']").focus();}};
       }
       if(next==="respray")showPaintTicket(b,car);else showPartsTicket(b,car);
+    }else if(next==="shift-print"){
+      title="Last Load Before Breakfast";kicker="Marlin Motor Inn  /  Night shift";showShiftPrint(b);
     }else if(next==="payroll-receipt"){
       const c=lastPayroll();title=c.route==="luna"?"The night shift’s copy":"The scale ticket";
       kicker=c.route==="luna"?"Cine Luna · Side door":"Port Sol · Loading bay";readPayroll(c);
@@ -80910,7 +81052,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }else if(next==="room-bed"){
       title="Set the alarm";kicker="Marlin Motel  /  Room 14";showAlarm(b);
     }else if(next==="room-desk"){
-      title="A note from Rosario";kicker="Marlin Motel  /  Room 14";showDesk(b);if(printAvailable())b.append(airLedgerButton());if(afternoon.album.records.length)b.append(albumButton());
+      title="A note from Rosario";kicker="Marlin Motel  /  Room 14";showDesk(b);if(save.collection.print)b.append(makeButton("Last Load Before Breakfast",save.collection.print===2?"Captioned by Bea Serrano":"The photograph Jules found in the payroll tin","Pick up",()=>openPanel("shift-print")));if(printAvailable())b.append(airLedgerButton());if(afternoon.album.records.length)b.append(albumButton());
       for(const [id,master] of Object.entries(save.band.best))b.append(makeButton(BaySessions.byId(id).name,"Blue-dot cassette  ·  "+master.score+"%  ·  "+master.notes.length+" recorded strokes","Play tape",()=>cueTape(id)));
     }else if(next==="market"){
       title="Rosario’s night counter";kicker="El Mercado  /  6 PM – 2 AM";showCounter(b);
@@ -81258,6 +81400,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!handled.has(ev.code)&&!((bell.open||active?.campana||afternoon.photo||neighbors.chat||rankPhones.lifted)&&/^(Digit|Numpad)[1-3]$/.test(ev.code))&&!(palm.match&&/^Digit[1-6]$/.test(ev.code))&&!(car?.hydraulic&&/^(Digit|Numpad)[1-4]$/.test(ev.code)))return;
     if((ev.code==="Enter"||ev.code==="Space")&&document.activeElement?.matches("button"))return;
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyN"&&offeredShiftPrint()){
+      active.payroll.photoTaken=true;save.collection.print=1;persist();lastHud=-10;
+      speak("Jules","Says ‘For B.’ Bea still works the Marlin desk. I'll leave it with your things in Fourteen.");return;
+    }
+    if(ev.code==="KeyF"&&besideShiftKeeper()){
+      shiftKeeper.wait=Math.max(shiftKeeper.wait,4);shiftKeeper.yaw=Math.atan2(hero.x-shiftKeeper.x,hero.z-shiftKeeper.z);
+      openPanel("shift-print");return;
+    }
     if(projector&&projectorKey(ev.code))return;
     if(ev.code==="KeyH"&&!active&&!heat&&onStreetFeet()){
       const s=outsideSite();

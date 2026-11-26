@@ -54,6 +54,11 @@ module.exports=async function passing({js,waitFor,key,snap,mode}){
     assert(shadow.pixels.silhouette<=Math.max(3,shadow.pixels.painted*.004));
     console.log("PERF sidewalk shadows",JSON.stringify(shadow));
   }
+  if(mode==="overhead"){
+    const report=await js("("+require("./traffic-prints.cjs").toString()+")()");
+    console.log("PERF overhead traffic",JSON.stringify(report));
+    assert(report.cars===48&&report.overlap>.93&&report.error<22&&report.live);
+  }
   await js("Object.assign(q.local,q.original);true");
   console.log("PASS walked toward a moving local, saw a clear shoulder pass and a continuous gait",mode,poses);
 };
