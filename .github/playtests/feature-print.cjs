@@ -48,8 +48,8 @@ module.exports=async function featurePrint({js,send,waitFor,key,tap,mode}){
   await send("Page.reload");await waitFor("!window.printQA&&document.readyState==='complete'");
   assert.deepEqual(await js(save+".featurePrint"),record);
   await js(`window.boothQA={};const bq=boothQA;
-    const attend=BaySoftSand.Beach.prototype.attend;
-    BaySoftSand.Beach.prototype.attend=function(dt,t,h,f){bq.hero=h;bq.ground=f;return attend.apply(this,arguments);};
+    const rescue=BayRescue.Service.prototype.step;
+    BayRescue.Service.prototype.step=function(dt,e){bq.hero=e.hero;bq.ground=e.ground;return rescue.apply(this,arguments);};
     const move=BayCineRoom.move;BayCineRoom.move=function(r,...args){bq.room=r;return move(r,...args);};
     const program=BayCineProgram;window.BayCineProgram={...program,frame(...args){
       const show=program.frame(...args);bq.show=show.id;bq.elapsed=show.elapsed;return show;
@@ -63,7 +63,11 @@ module.exports=async function featurePrint({js,send,waitFor,key,tap,mode}){
   async function enter(){
     await js("bq.room=null;bq.at(BayCab.cinema)");await tap("KeyF");await waitFor("bq.room?.ada");
   }
-  await waitFor("bq.hero");await enter();
+  await waitFor("bq.hero");
+  if(await js("document.querySelector('#mode').textContent!=='On foot'")){
+    await tap("KeyE");await waitFor("document.querySelector('#mode').textContent==='On foot'");
+  }
+  await enter();
   await js("Object.assign(bq.room,BayCineRoom.points.program)");await tap("KeyF");await click("Hold It There");
   await js("Object.assign(bq.room,BayCineRoom.points.aisle)");await tap("KeyF");
   await waitFor("bq.room.seated&&!bq.room.transition&&bq.show==='soler-gate'");

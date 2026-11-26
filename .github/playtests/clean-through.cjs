@@ -62,10 +62,11 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
     const draw=BayCleanThrough.Reel.prototype.print;BayCleanThrough.Reel.prototype.print=function(t,near){
       const p=draw.apply(this,arguments);if(p&&near)rail.rev=p.rev;return p;};true`);
   await waitFor("rail.hero&&rail.cam");
-  await waitFor("rail.car?.kind==='coupe'");await tap("KeyE");await waitFor("!rail.car");
-  await waitFor("document.querySelector('#context').textContent.includes('Enter')||!document.querySelector('#context').textContent.includes('Step out')");
+  await waitFor("rail.car?.kind==='coupe'");await tap("KeyE");
+  await waitFor("document.querySelector('#mode').textContent==='On foot'&&!rail.car",15000);
   await js("Object.assign(rail.hero,{x:BayCarbonCopies.rail.x,z:BayCarbonCopies.rail.z+2.7,y:BayCarbonCopies.apronY,yaw:Math.PI});rail.cam.reset(rail.hero);true");
-  await waitFor("document.querySelector('#context').textContent.includes('Watch Clean Through')");
+  try{await waitFor("document.querySelector('#context').textContent.includes('Watch Clean Through')");}
+  catch(e){console.log("Playtest state",await js("JSON.stringify([rail.hero.x,rail.hero.z,rail.car?.kind,document.querySelector('#mode').textContent,document.querySelector('#context').textContent])"));throw e;}
   if(mode==="street"){await waitFor("rail.rev>=2");await shot("screen");}
   await tap("KeyF");await waitFor("!!"+slider);
   const rowWith=label=>"Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.textContent.includes("+JSON.stringify(label)+"))";

@@ -30767,6 +30767,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     model("marlin14-porch",porch);
     model("marlin14-phone",phoneCase);model("marlin14-receiver",handset);
     model("marlin14-message-light",g=>g.box(0,0,0,.056,.024,.009,"#ff9857"));
+    model("marlin14-call-slip",g=>{
+      flat(g,0,0,.34,.235,0,"#eadca4");flat(g,-.132,0,.025,.235,.001,"#bf7964");
+      for(const [i,w] of [.18,.13,.15].entries())flat(g,-.08+w*.5,-.06+i*.044,w,.008,.002,"#5e6a62");
+    });
     for(const p of ["day","twilight","night","rain","night-rain"])model("marlin14-window-"+p,g=>windowScene(g,p));
   }
   function draw(view,weather={},room=null,t=0){
@@ -30775,6 +30779,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     view.draw("marlin14-fan",furniture.desk.x+.073,1.17,.39,0,performance.now()*.006,0,.52);
     if(weather.night>.38)view.draw("marlin14-lamps",0,0,0,0,0,0,.97);
     phoneWorld(view,room,t);
+    if(room?.slip)view.draw("marlin14-call-slip",2.47,.902,.113,-.13,0,0,.65);
   }
   function outsideWorld(list,see){
     if(see(outside,62))list.push(["marlin14-porch",129.718,0,-29.02,0,0,0,.8]);
@@ -30924,6 +30929,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       plate={width:w,height:h,period,buffer};
     }
     ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(plate.buffer,0,0);
+    if(person.slip){
+      ctx.save();ctx.translate(ox+2.47*scale,oy-(.113*.94+.902*.34)*scale);ctx.scale(scale,scale);ctx.rotate(.13);
+      ctx.fillStyle="#eadca4";ctx.fillRect(-.17,-.105,.34,.21);ctx.fillStyle="#bf7964";ctx.fillRect(-.144,-.105,.025,.21);
+      ctx.fillStyle="#5e6a62";for(const [i,w] of [.18,.13,.15].entries())ctx.fillRect(-.08,-.06+i*.044,w,.009);
+      ctx.restore();
+    }
     const lift=receiverLift(person,t);
     ctx.save();ctx.translate(ox+phone.x*scale,oy-(phone.z*.94+phone.y*.34)*scale);ctx.scale(scale,scale);
     ctx.fillStyle="#c2aa83";ctx.fillRect(-.15,-.13,.3,.20);
@@ -80700,7 +80711,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const missed=active?.ferry;streetAction.equip(0);car=skiff=deckStep=null;skidLast=null;hero.x=151;hero.z=-27;hero.yaw=0;resetFeet();dashResult=null;heat=0;clearPatrol();cameraSnap();note("Back at the Marlin",fine?"Patrol fine  •  "+cash(fine):"Patrol let you off with a warning.",4.5);
       if(missed)finishFerry(missed,"busted");else dropJob();
       if(meterRide){
-        if(unit.met){unit.remember(meterRide,meterRide);unit.remember(hero,null);unit.save();}
+        if(unit.met||unit.solo){unit.remember(meterRide,meterRide);unit.remember(hero,null);unit.save();}
         if(firstMeter)enterFilm("lastMeter");else pointToMeterRank();
       }else if(firstFoot)enterFilm("carbonMorning");else if(footTarget)note("Back at the Marlin","Release copy "+save.releaseCopy.number+" · "+save.releaseCopy.street+" · "+cash(fine),4.5);
       return;}
@@ -82009,6 +82020,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     $("palmGuide").hidden=true;
     if(room){
       const cinema=room.kind==="cinema",show=cinema?BayCineProgram.frame(room.reader?gateTime(t):t-projectionStart,filmOptions()):null;
+      if(!cinema)room.slip=!wakeBook.ring&&wakeBook.by===unit.lead&&!!wakeBook.message;
       if(cinema)room.projectionist=cabs.people.some(p=>p.phase==="booth");
       if(top){
         const ratio=Math.min(1,1120/innerWidth,740/innerHeight),w=Math.round(innerWidth*ratio),h=Math.round(innerHeight*ratio);
@@ -83667,7 +83679,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   function showAlarm(body){
-    const now=document.createElement("p");now.className="market-hours";now.textContent="The bedside clock reads "+BayHours.time(hours.minute)+".";body.append(now);
+    const now=document.createElement("p");now.className="market-hours";now.textContent="It’s "+BayHours.time(hours.minute)+". Pick a wake-up time. You’ll return to Room 14 if you close the game here.";body.append(now);
     for(const [m,label,detail] of [[420,"Breakfast","Morning light on Ocean Drive."],[720,"Noon","The sun is high over the bay."],[1090,"Dinner shift","Rosario’s griddle is hot."],[15,"After midnight","Catch the last of the night shift."]]){
       body.append(makeButton(label,detail,BayHours.time(m),()=>{
         if(!room||roomAction()!=="bed")return;

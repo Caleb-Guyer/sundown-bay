@@ -146,7 +146,14 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     if(manual){
       assert.deepEqual(restored.autograph,card.autograph);
       await js("document.querySelector('#play').click()");await js(observer);await waitFor("window.site");
-      await tap("KeyE");await waitFor("window.ride?.manual&&document.querySelector('#speed .five-speed')",35000);
+      if(!await js("!!window.ride")){
+        await js(`const service=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,e){
+          window.returnDriver=e.hero;return service.apply(this,arguments);};true`);
+        await waitFor("window.returnDriver&&traffic.some(c=>c.manual)");
+        await js("const parked=traffic.find(c=>c.manual);Object.assign(returnDriver,BayDriving.world(parked,-bayCarLayout(parked.kind).track-1,0));true");
+        await tap("KeyE");
+      }
+      await waitFor("window.ride?.manual&&document.querySelector('#speed .five-speed')",35000);
       console.log("PASS",mode,"manual selector restored on the starter car; signed slip and kitchen cutscene verified.",JSON.stringify(card.autograph));
     }
     if(brakeLaunch){assert.equal(restored.slip.toThirty,card.slip.toThirty);console.log("Brake release",restored.slip.reaction.toFixed(2),"s, 0–30 mph",restored.slip.toThirty.toFixed(2),"s on",restored.slip.launch,"rear tires. Audio starts 0, cursor locks 0.");}

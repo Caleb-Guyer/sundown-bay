@@ -8808,7 +8808,7 @@
       const missed=active?.ferry;streetAction.equip(0);car=skiff=deckStep=null;skidLast=null;hero.x=151;hero.z=-27;hero.yaw=0;resetFeet();dashResult=null;heat=0;clearPatrol();cameraSnap();note("Back at the Marlin",fine?"Patrol fine  •  "+cash(fine):"Patrol let you off with a warning.",4.5);
       if(missed)finishFerry(missed,"busted");else dropJob();
       if(meterRide){
-        if(unit.met){unit.remember(meterRide,meterRide);unit.remember(hero,null);unit.save();}
+        if(unit.met||unit.solo){unit.remember(meterRide,meterRide);unit.remember(hero,null);unit.save();}
         if(firstMeter)enterFilm("lastMeter");else pointToMeterRank();
       }else if(firstFoot)enterFilm("carbonMorning");else if(footTarget)note("Back at the Marlin","Release copy "+save.releaseCopy.number+" · "+save.releaseCopy.street+" · "+cash(fine),4.5);
       return;}
@@ -10117,6 +10117,7 @@
     $("palmGuide").hidden=true;
     if(room){
       const cinema=room.kind==="cinema",show=cinema?BayCineProgram.frame(room.reader?gateTime(t):t-projectionStart,filmOptions()):null;
+      if(!cinema)room.slip=!wakeBook.ring&&wakeBook.by===unit.lead&&!!wakeBook.message;
       if(cinema)room.projectionist=cabs.people.some(p=>p.phase==="booth");
       if(top){
         const ratio=Math.min(1,1120/innerWidth,740/innerHeight),w=Math.round(innerWidth*ratio),h=Math.round(innerHeight*ratio);
@@ -11775,7 +11776,7 @@
     }
   }
   function showAlarm(body){
-    const now=document.createElement("p");now.className="market-hours";now.textContent="The bedside clock reads "+BayHours.time(hours.minute)+".";body.append(now);
+    const now=document.createElement("p");now.className="market-hours";now.textContent="It’s "+BayHours.time(hours.minute)+". Pick a wake-up time. You’ll return to Room 14 if you close the game here.";body.append(now);
     for(const [m,label,detail] of [[420,"Breakfast","Morning light on Ocean Drive."],[720,"Noon","The sun is high over the bay."],[1090,"Dinner shift","Rosario’s griddle is hot."],[15,"After midnight","Catch the last of the night shift."]]){
       body.append(makeButton(label,detail,BayHours.time(m),()=>{
         if(!room||roomAction()!=="bed")return;

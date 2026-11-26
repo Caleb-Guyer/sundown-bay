@@ -87,17 +87,20 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await waitFor("document.querySelector('#countyWords').textContent.includes('relay ·')");
   assert.equal(await js("performance.getEntriesByType('resource').filter(r=>r.name.includes('county-audio.js')).length"),0);
   console.log("PASS Cleo's in-world work order, two curb signal checks, signed "+rooftop+" relay and live range, no muted voice download",mode);
-  // Reload to free roam at the motel. The test supplies encounter positions in an empty block.
+  // Reload the parked car and step out before visiting the signed receipt on foot.
   await send("Page.reload");await waitFor("!window.fightQA&&document.readyState==='complete'&&typeof BayStreetAction==='object'");
   await js("document.querySelector('#play').click()");
   await js(`window.impactQA={};const q=impactQA;
-    const foot=BaySoftSand.Beach.prototype.attend;BaySoftSand.Beach.prototype.attend=function(dt,t,h,f){q.h=h;q.floor=f;return foot.apply(this,arguments);};
+    const rescue=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,e){q.h=e.hero;q.floor=e.ground;return rescue.apply(this,arguments);};
     const cam=BayCamera.prototype.update;BayCamera.prototype.update=function(){q.rig=this;return cam.apply(this,arguments);};
     const walk=BayLocals.animatePeople;BayLocals.animatePeople=function(people,dt,driver,cars){q.people=people;q.car=driver;q.cars=cars;return walk.apply(this,arguments);};
     const map=BayStreetAction.map;BayStreetAction.map=function(c,a){if(a.marks.length)q.marksDrawn=true;return map.apply(this,arguments);};
     const world=BayStreetAction.world;BayStreetAction.world=function(a,items,...rest){const r=world.apply(this,arguments);if(items.some(o=>o[0]==='street-stain'))q.marksDrawn=true;return r;};
     q.at=(p,x,z)=>Object.assign(p,{x,z,y:q.floor(x,z)});`);
   await waitFor("impactQA.h&&impactQA.rig&&impactQA.cars?.length");
+  if(await js("document.querySelector('#mode').textContent!=='On foot'")){
+    await tap("KeyE");await waitFor("document.querySelector('#mode').textContent==='On foot'&&!q.car");
+  }
   const clerk=await js("BayPayroll.stops["+JSON.stringify(route)+"]");
   await js("q.at(q.h,"+clerk.x+","+clerk.z+");q.rig.reset(q.h)");await tap("KeyF");
   await waitFor("document.querySelector('#panel').dataset.screen==='payroll-receipt'&&!document.querySelector('#panel').hidden");
@@ -120,7 +123,8 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await send("Input.dispatchMouseEvent",{type:"mousePressed",x:506,y:315,button:"left",clickCount:1});
   await send("Input.dispatchMouseEvent",{type:"mouseReleased",x:506,y:315,button:"left",clickCount:1});
   await waitFor("document.querySelector('#streetWeapon').textContent.includes('2 / 3')");await tap("Digit0");
-  await js("q.at(q.h,151,-27)");await tap("KeyE");await waitFor("impactQA.car?.kind==='coupe'",22000);
+  await js("q.parked=q.cars.find(c=>c.kind==='coupe'&&c.upgrades?.scanner);q.door=BayDriving.world(q.parked,-bayCarLayout(q.parked.kind).track-1,0);q.at(q.h,q.door.x,q.door.z);q.rig.reset(q.h);true");
+  await tap("KeyE");await waitFor("impactQA.car===impactQA.parked",22000);
   assert(await js("q.car.upgrades.scanner"));await tap("Backslash");
   await waitFor("!document.querySelector('#countyReceiver').hidden&&!/Rescue 4|Cleo Moss/.test(document.querySelector('#countySource').textContent)");
   await snap("county-patrol");console.log("PASS spent job money on the coupe receiver, heard Rescue 4, reloaded and received the live pursuit",mode);
