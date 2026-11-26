@@ -16,7 +16,6 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
       return result;};
     const fire=BayStreetAction.Action.prototype.fire;BayStreetAction.Action.prototype.fire=function(){q.action=this;return fire.apply(this,arguments);};
     const map=BayStreetAction.map;BayStreetAction.map=function(c,a){if(a.marks.length)q.marksDrawn=true;return map.apply(this,arguments);};
-    const bandStep=BaySessions.Band.prototype.step;BaySessions.Band.prototype.step=function(){ga.band=this;return bandStep.apply(this,arguments);};
     const world=BayView.prototype.draw;BayView.prototype.draw=function(name){if(name==="street-stain")q.marksDrawn=true;return world.apply(this,arguments);};
     q.at=(p,x,z)=>Object.assign(p,{x,z,y:q.floor(x,z)});`);
   await waitFor("fightQA.h&&fightQA.rig&&fightQA.cars?.length");
