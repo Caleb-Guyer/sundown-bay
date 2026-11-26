@@ -1,6 +1,7 @@
 (() => {
   const W=1000,H=500,ink="#263b3d",red="#a64534",paper="#decc9e";
   const plates=new Map();
+  const movingInserts=new Set(["pass","key","driverPrint","notice","negative","timetable","rubbing"]);
   function label(g,x,y,text,size,color=ink,family="Georgia",weight="normal"){
     g.font=weight+" "+size+"px "+family;g.fillStyle=color;g.fillText(text,x,y);
   }
@@ -64,7 +65,10 @@
     print(g,id);plates.set(id,c);return c;
   }
   function show(canvas,id,age,table,frame){
-    if(!id)return;const g=canvas.getContext("2d",{alpha:false});
+    // Other chapters paint their own stills on entry. Leave that canvas in
+    // place until the director advances, including between animation frames.
+    if(!movingInserts.has(id))return;
+    const g=canvas.getContext("2d",{alpha:false});
     if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
     const f=Math.min(1,age/5);g.setTransform(1,0,0,1,0,0);g.drawImage(plate(id),-4-5*f,-2-3*f,W+10+10*f,H+5+6*f);
     if(id==="driverPrint"&&frame){

@@ -13028,8 +13028,7 @@
         if(campaign.scene.printFrame!==frame){campaign.scene.printFrame=frame;BayFeaturePrint.frame($("chapterInsert"),frame,true);}
       }else if(art==="watchCopy"){
         if(!campaign.watch.printed){BaySixSharpArt.docket($("chapterInsert"),campaign.watch.departure);campaign.watch.printed=true;}
-      }else if(["inscription","landingOrder","payEnvelope","payReceipt","portReceipt","staffKey","releaseCopy","meterCopy","flowerTag","relayCard","linenSlip","timingCarbon"].includes(art))return;
-      else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
+      }else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
         (isTop()?overheadResolution:streetResolution).sample(delta);

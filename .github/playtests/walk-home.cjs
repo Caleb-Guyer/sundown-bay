@@ -76,7 +76,14 @@ module.exports=async function walkHome({js,send,waitFor,tap,key,mode,errors}){
   }
   await js("BayDriving.settle(q.w);true");await tap("KeyL");
   await wait("document.querySelector('#chapterTitle').textContent==='Rabbit Ears'");
-  await wait("!document.querySelector('#chapterInsert').hidden");await shot("sleeve");await tap("Enter");
+  await wait("!document.querySelector('#chapterInsert').hidden");
+  await js("q.sleeveReady=false;requestAnimationFrame(()=>requestAnimationFrame(()=>{q.sleeveReady=true;}));true");
+  await wait("q.sleeveReady");
+  assert(await js(`(()=>{const actual=document.querySelector('#chapterInsert'),sample=document.createElement('canvas');BayWalkHome.sleeve(sample);
+    if(actual.width!==sample.width||actual.height!==sample.height)return false;
+    const pixels=c=>c.getContext('2d').getImageData(0,0,c.width,c.height).data,a=pixels(actual),b=pixels(sample);
+    return a.every((value,i)=>value===b[i]);})()`),"Marisol’s visor sleeve stays on screen");
+  await shot("sleeve");await tap("Enter");
   assert.equal(await js("BayWalkHome.reelState()"),"sleeve");
   await js(`const film=BayWalkHome.movie;BayWalkHome.movie=function(c,t){q.reelTime=t;return film(c,t);};
     q.at(q.w,90,-61);q.w.yaw=0;BayDriving.settle(q.w);true`);
