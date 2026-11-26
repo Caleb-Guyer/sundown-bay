@@ -360,5 +360,35 @@
     }
     ctx.restore();return true;
   }
-  window.BayOnGreenArt=Object.freeze({car,carMap,finish,finishMap,film});
+  // The kitchen photographs are stills. Repaint when the shot changes.
+  function fridge(canvas,ink,shot){
+    canvas.width=720;canvas.height=400;canvas.setAttribute("aria-label",shot===1?"Lena's kitchen fridge, with two timing slips":"Ríos family timing slips. Dad 3.92 seconds. "+ink.plate+" "+ink.time.toFixed(2)+" seconds.");
+    const c=canvas.getContext?.("2d");if(!c)return;
+    c.fillStyle="#2d302d";c.fillRect(0,0,720,400);c.save();
+    if(shot===2){c.translate(-106,-98);c.scale(1.35,1.35);}
+    if(shot===3){c.translate(-10,-35);c.scale(1.1,1.1);}
+    const enamel=c.createLinearGradient(66,0,647,380);enamel.addColorStop(0,"#92a999");enamel.addColorStop(.58,"#5e8274");enamel.addColorStop(1,"#3c5a52");
+    c.fillStyle=enamel;c.fillRect(64,-6,582,420);c.fillStyle="#344c46";c.fillRect(63,48,583,6);
+    c.fillStyle="#bdc2a8";c.fillRect(86,80,12,198);c.fillStyle="#506562";c.fillRect(82,88,5,184);
+    c.fillStyle="#dad1ac";c.fillRect(641,0,9,420);
+    for(let y=-13;y<402;y+=78){c.fillStyle="#977358";c.fillRect(651,y,69,75);c.fillStyle="#a18467";c.fillRect(656,y+5,60,65);}
+    function paper(x,y,angle,old){
+      c.save();c.translate(x,y);c.rotate(angle);c.fillStyle="#30433c75";c.fillRect(3,6,194,188);
+      c.fillStyle=old?"#d7be89":"#f1e6c2";c.beginPath();c.moveTo(0,0);c.lineTo(194,0);c.lineTo(194,181);
+      for(let i=194;i>0;i-=5)c.lineTo(i,184+(Math.floor(i/5)%2)*3);c.lineTo(0,183);c.closePath();c.fill();
+      c.fillStyle=old?"#6a5a45":"#3e4e48";c.font="bold 12px monospace";c.fillText("PALM  /  TIMING CREW",13,28);
+      c.fillRect(12,36,169,1);c.font="12px monospace";c.fillText(old?"SURF 13    •    1998":ink.plate+"    •    TODAY",13,58);
+      c.font="bold 31px monospace";c.fillText((old?"3.92":ink.time.toFixed(2))+" s",13,97);
+      c.font="12px monospace";c.fillText(old?"HAND CLOCK  /  N. RÍOS":"1–2   "+ink.marks[0].rpm+" rpm",13,118);
+      if(!old)c.fillText("2–3   "+ink.marks[1].rpm+" rpm",13,136);
+      c.font="italic 21px Georgia";c.fillStyle=old?"#574a44":"#325778";c.fillText(old?"For Nico, Dad":"Lena Ríos",15,164);c.restore();
+    }
+    paper(146,111,-.065,true);paper(360,105,.038,false);
+    for(const [x,y,color] of [[243,111,"#ac633e"],[454,109,"#c5a248"]]){
+      c.fillStyle="#33433b";c.beginPath();c.arc(x+1,y+4,10,0,Math.PI*2);c.fill();
+      c.fillStyle=color;c.beginPath();c.arc(x,y,10,0,Math.PI*2);c.fill();c.fillStyle="#f4d59e";c.fillRect(x-4,y-6,5,2);
+    }
+    c.restore();
+  }
+  window.BayOnGreenArt=Object.freeze({car,carMap,finish,finishMap,film,fridge});
 })();

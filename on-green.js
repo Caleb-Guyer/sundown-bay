@@ -22,6 +22,7 @@
     const other=last.plate&&plate&&plate!==last.plate;
     if(r.id==="ocean"){
       if(other)return "Hey, what happened to "+last.plate+"? Pull up. My brother wants a look at this one.";
+      if(last.time&&signedThird(last.manual))return "My brother drew your "+last.time.toFixed(2)+" and both shift marks on the fridge. Same two changes today?";
       if(last.result==="early")return "I heard those tires before the light changed last time. Watch the lamp with me.";
       if(last.result==="first"&&last.time)return "My brother wrote "+last.time.toFixed(2)+" on his lunch bag. Give me another shot at it?";
       return "Still got your slip from the Palm? I've got mine in the visor. Line up.";
@@ -61,10 +62,19 @@
     shots.push(last);
     return {kind:a.p.kind,color:a.p.color,plate:BayStreetCars.plateFor(a.p),shots:shots.map(frame=>frame.map((n,i)=>i===0?Math.round(n):Math.round(n*1000)/1000))};
   }
+  function readChanges(changes){
+    if(!Array.isArray(changes))return null;
+    if(changes.length>10||!changes.every((p,i)=>p&&Number.isInteger(p.to)&&p.to>=1&&p.to<=5&&Number.isInteger(p.from)&&Math.abs(p.from-p.to)===1&&p.from>=1&&p.from<=5&&finite(p.rpm,700,7100)&&finite(p.at,0,46)&&(!i||p.at>=changes[i-1].at)))return null;
+    return changes.map(({at,from,to,rpm})=>({at,from,to,rpm}));
+  }
+  function signedThird(changes){
+    return !!(changes?.length>=2&&changes[0].from===1&&changes[0].to===2&&changes[1].to===3&&changes[1].from===2&&
+      BayDriving.powerBand(changes[0].rpm)&&BayDriving.powerBand(changes[1].rpm));
+  }
   function readSlip(s){
     if(!s||!["first","second","early"].includes(s.result))return null;
     return {result:s.result,time:finite(s.time,1,50)?s.time:null,reaction:finite(s.reaction,0,45)?s.reaction:null,
-      launch:["cold","ready","hot"].includes(s.launch)?s.launch:null,toThirty:finite(s.toThirty,.1,45)?s.toThirty:null,
+      manual:readChanges(s.manual),launch:["cold","ready","hot"].includes(s.launch)?s.launch:null,toThirty:finite(s.toThirty,.1,45)?s.toThirty:null,
       car:typeof s.car==="string"?s.car.slice(0,26):"",plate:typeof s.plate==="string"?s.plate.slice(0,10):"",
       token:typeof s.token==="string"?s.token.slice(0,60):"",film:readFilm(s.film)};
   }
@@ -74,7 +84,9 @@
       const c=raw?.cards?.[r.id];if(!c||!count(c.runs))continue;
       const runs=count(c.runs),wins=Math.min(runs,count(c.wins)),faults=Math.min(runs-wins,count(c.faults));
       const slip=readSlip(c.slip),previous=readSlip(c.bestSlip),best=finite(c.best,1,50)?c.best:null;
-      book.cards[r.id]={runs,wins,faults,best,slip,bestSlip:previous?.film&&previous.time===best&&previous.token!==slip?.token?previous:null,
+      const ink=c.autograph,marks=readChanges(ink?.marks);
+      const autograph=signedThird(marks)&&finite(ink.time,1,50)&&typeof ink.plate==="string"?{time:ink.time,plate:ink.plate.slice(0,10),marks:marks.slice(0,2)}:null;
+      book.cards[r.id]={autograph,runs,wins,faults,best,slip,manualBest:finite(c.manualBest,1,50)?c.manualBest:null,signed:c.signed===true,bestSlip:previous?.film&&previous.time===best&&previous.token!==slip?.token?previous:null,
         reaction:finite(c.reaction,0,45)?c.reaction:null};
     }
     if(Object.hasOwn(book.cards,raw?.last))book.last=raw.last;
@@ -87,6 +99,13 @@
     card.runs++;if(slip.result==="first")card.wins++;if(slip.result==="early")card.faults++;
     if(slip.time!=null&&slip.time<=(card.best??Infinity)){card.best=slip.time;card.bestSlip=null;}
     if(slip.reaction!=null)card.reaction=Math.min(card.reaction??Infinity,slip.reaction);
+    if(slip.manual&&slip.time!=null){
+      card.manualBest=Math.min(card.manualBest??Infinity,slip.time);
+      if(signedThird(slip.manual)){
+        card.signed=true;
+        if(!card.autograph)card.autograph={plate:slip.plate,time:slip.time,marks:slip.manual.slice(0,2).map(p=>({...p}))};
+      }
+    }
     card.slip={...slip};book.cards[id]=card;book.last=id;book.rev++;return true;
   }
   function leg(v,points,pace,yaw){
@@ -191,6 +210,7 @@
         }
         if(!green&&!v.path)a.sawRed=true;
         if(green&&a.sawRed&&!v.path){
+          a.manual=p.manual&&p.gear===1&&!p.reversing?[]:null;
           a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;a.lastSpeed=Math.max(0,p.speed);
           a.frame=exposure(r,p,v,0);a.shots=[a.frame];a.nextPhoto=90;
           leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;v.greenRacing=true;
@@ -228,5 +248,5 @@
       if(Math.abs(q.x)>12||q.z<line-8||q.z>r.finish+6||a.clock>45){this.leave();return "cancel";}
     }
   }
-  window.BayOnGreen={routes,route,line,roadPoint,relative,nose,lined,invitation,read,file,laneChange,Club};
+  window.BayOnGreen={signedThird,routes,route,line,roadPoint,relative,nose,lined,invitation,read,file,laneChange,Club};
 })();

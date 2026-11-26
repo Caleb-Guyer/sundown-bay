@@ -303,8 +303,7 @@
     g.pole([w.x-.024,w.y-.012,w.z+.076],[w.x-.16,w.y+.017,w.z+.034],.009,black,6);
     g.box(w.x-.153,w.y+.016,w.z+.034,.046,.018,.023,p.pad);
     g.box(-.008,s.floorY+.112,ey.z+.10,.151,.17,.49,p.trim);
-    g.pole([-.006,s.floorY+.17,ey.z+.19],[.022,s.floorY+.323,ey.z+.214],.012,p.edge,6);
-    g.box(.022,s.floorY+.327,ey.z+.214,.059,.037,.046,p.hub);
+
     if(a.kind==="cab"){
       g.box(.245,top+.044,z+.14,.193,.101,.092,p.hub);g.box(.245,top+.05,z+.093,.157,.066,.009,black);
       plaque(g,z+.086,"ON CALL",.245,top+.040,.017,"#eeb76f");
@@ -417,12 +416,12 @@
     const id=typeof v.id==="number"?v.id:0,time=state.time||0;
     const blink=(time+(id%13)*.071)%.84<.42,hazard=state.hazards||v.hazards||v.roadside;
     return {left:blink&&(hazard||v.indicator===-1),right:blink&&(hazard||v.indicator===1),
-      dipped:!v.mainBeam&&(state.headlights??(Number(state.night)>.32)),high:!!v.mainBeam,fault:!!v.flatSide||(v.damage?.front||0)>.58};
+      up:v.manual&&!v.reversing&&BayDriving.powerBand(BayDriving.engineRpm(v)),dipped:!v.mainBeam&&(state.headlights??(Number(state.night)>.32)),high:!!v.mainBeam,fault:!!v.flatSide||(v.damage?.front||0)>.58};
   }
   function values(v){
     const speed=Math.abs(v.speed||0),gear=clamp(Math.round(v.gear||1),1,5),spec=BayDriving.cars[v.kind]||BayDriving.cars.coupe;
     const ratio=speed/(spec.top*(v.upgrades?.engine?1.18:1)*[.275,.48,.704,.897,1.12][gear-1]);
-    return {mph:speed*2.237,revs:clamp(.89+Math.max(ratio*4.84,(v.burn||0)*4.55)+(v.throttle||0)*.89-(v.shift>0?.36:0),.8,7.4),
+    return {mph:speed*2.237,revs:v.manual?BayDriving.engineRpm(v)/1000:clamp(.89+Math.max(ratio*4.84,(v.burn||0)*4.55)+(v.throttle||0)*.89-(v.shift>0?.36:0),.8,7.4),
       temp:clamp(36+(v.throttle||0)*9+(v.damage?.front||0)*60,30,100),gear:v.reversing?"R":String(gear)};
   }
   function wheelPoint(a,ang,x,y,z){
@@ -433,8 +432,13 @@
     const mesh=new BayMesh(),parts=[],m=indicators(a);
     function part(task,make){const first=mesh.vertices.length;make();parts.push({...task,first,end:mesh.vertices.length});}
     part({type:"wheel"},()=>wheelShape(mesh,a));
+    part({type:"lever"},()=>{
+      const y=a.s.floorY,z=a.ey.z;
+      mesh.pole([-.006,y+.17,z+.19],[.022,y+.323,z+.214],.012,a.style.edge,6);
+      mesh.box(.022,y+.327,z+.214,.059,.037,.046,a.style.hub);
+    });
     for(const side of [-1,1]){
-      part({type:"hand"},()=>hand(mesh,a,side,gloved));
+      part({type:"hand",side},()=>hand(mesh,a,side,gloved));
       part({type:"arm",side,wrist:grip(a,side)(.021,-.029,-.042)},()=>armTemplate(mesh,gloved,side,kit));
     }
     for(const d of dialLayout(a)){
@@ -456,6 +460,7 @@
       const x=m.x-.048,y=m.y+.002;
       round(mesh,x+.002,y,m.z,.0058,.0058,"#a4d7aa",9);
       for(let j=-1;j<=1;j++)strip(mesh,m.z,x-.004,y+j*.0038,x-.012,y+j*.0038-.0022,.0016,"#a4d7aa");});
+    part({type:"light",id:"up"},()=>round(mesh,m.x+.023,m.y+.007,m.z,.007,.007,"#ffbe50",9));
     part({type:"light",id:"fault"},()=>{
       const x=m.x+.047,y=m.y+.003;
       mesh.tri([x-.007,y-.005,m.z],[x+.007,y-.005,m.z],[x,y+.007,m.z],"#e8a35b");});
@@ -468,25 +473,49 @@
     const rest=new Float32Array(mesh.vertices);
     return {parts,rest,vertices:new Float32Array(rest),wheel:NaN,mph:NaN,revs:NaN,temp:NaN,lit:"",selected:""};
   }
+  const gateCurve=x=>{x=clamp(x,0,1);return x*x*(3-2*x);};
+  const gateSide=g=>g?(Math.floor((g-1)/2)-1)*.057:0;
+  const gateFore=g=>g?(g%2?.050:-.050):0;
   function animate(r,a,v,state){
     const turn=-clamp((v.steer||0)*3.6,-1.98,1.98),handTurn=1.14*Math.tanh(turn/1.27),vals=values(v),lamps=lights(v,state);
-    const bits=(lamps.left?1:0)|(lamps.right?2:0)|(lamps.dipped?4:0)|(lamps.fault?8:0)|(lamps.high?16:0);
+    const bits=(lamps.left?1:0)|(lamps.right?2:0)|(lamps.dipped?4:0)|(lamps.fault?8:0)|(lamps.high?16:0)|(lamps.up?32:0);
     const turning=!(Math.abs(turn-r.wheel)<.001),instruments=!(Math.abs(vals.mph-r.mph)<.11&&Math.abs(vals.revs-r.revs)<.026&&Math.abs(vals.temp-r.temp)<.29);
     const tell=bits!==r.lit||r.selected!==vals.gear;
-    if(!turning&&!instruments&&!tell)return false;
+    const gateTime=v.manual?v.gateTime||0:0,gear=v.manual?(v.reversing?6:v.gear):0;
+    const gateMoved=r.gateTime!==gateTime||r.gate!==gear;
+    if(!turning&&!instruments&&!tell&&!gateMoved)return false;
+    const phase=clamp(1-gateTime/.38,0,1);
+    const reach=gateTime?gateCurve(phase/.33)*(1-gateCurve((phase-.63)/.37)):0;
+    // The lever passes across neutral while the right hand is down at the gate.
+    const old=gateTime?v.gateFrom:gear;
+    const dx=gateTime?mix(gateSide(old),gateSide(gear),gateCurve((phase-.39)/.20)):gateSide(gear);
+    const dz=gateTime?gateFore(old)*(1-gateCurve((phase-.29)/.13))+gateFore(gear)*gateCurve((phase-.53)/.13):gateFore(gear);
+    let hx=0,hy=0,hz=0;
+    if(reach){
+      const palm=wheelPoint(a,handTurn,...grip(a,1)(.010,0,-.024));
+      hx=(.022+dx-palm[0])*reach;hy=(a.s.floorY+.356-palm[1])*reach;hz=(a.ey.z+.214+dz-palm[2])*reach;
+    }
     const src=r.rest,out=r.vertices,w=a.wheel,ct=Math.cos(w.tilt),st=Math.sin(w.tilt);
     for(const p of r.parts){
       const start=p.first,end=p.end;
-      if(p.type==="hand"||p.type==="wheel"){
-        if(!turning)continue;
+      if(p.type==="lever"){
+        if(!gateMoved)continue;
+        for(let i=start;i<end;i+=6){
+          const weight=clamp((src[i+1]-a.s.floorY-.17)/.145,0,1);
+          out[i]=src[i]+dx*weight;out[i+2]=src[i+2]+dz*weight;
+        }
+      }else if(p.type==="hand"||p.type==="wheel"){
+        const right=p.type==="hand"&&p.side>0;
+        if(!turning&&!(right&&gateMoved))continue;
         const ang=p.type==="wheel"?turn:handTurn,co=Math.cos(ang),si=Math.sin(ang);
         for(let i=start;i<end;i+=6){
           const x=src[i]*co-src[i+1]*si,y=src[i]*si+src[i+1]*co,z=src[i+2];
-          out[i]=w.x+x;out[i+1]=w.y+y*ct-z*st;out[i+2]=w.z+y*st+z*ct;
+          out[i]=w.x+x+(right?hx:0);out[i+1]=w.y+y*ct-z*st+(right?hy:0);out[i+2]=w.z+y*st+z*ct+(right?hz:0);
         }
       }else if(p.type==="arm"){
-        if(!turning)continue;
+        if(!turning&&!(p.side>0&&gateMoved))continue;
         const side=p.side,tip=wheelPoint(a,handTurn,...p.wrist),bx=a.ey.x+side*.224,by=a.ey.y-.393,bz=a.ey.z+.036;
+        if(side>0){tip[0]+=hx;tip[1]+=hy;tip[2]+=hz;}
         const dx=tip[0]-bx,dy=tip[1]-by,dz=tip[2]-bz,flat=Math.hypot(dx,dz)||1,len=Math.hypot(dx,dy,dz)||1;
         const ux=dz/flat,uz=-dx/flat,vx=dy/len*uz,vy=flat/len,vz=-dy/len*ux;
         for(let i=start;i<end;i+=6){const x=src[i],y=src[i+1],f=src[i+2];
@@ -503,7 +532,7 @@
     }
     if(turning)r.wheel=turn;
     if(instruments){r.mph=vals.mph;r.revs=vals.revs;r.temp=vals.temp;}
-    r.lit=bits;r.selected=vals.gear;return true;
+    r.gateTime=gateTime;r.gate=gear;r.lit=bits;r.selected=vals.gear;return true;
   }
   function draw(view,model,v,ground,state={}){
     if(!v||!view.gl||view.lost)return;
@@ -541,7 +570,11 @@
     const ang=mix(-3.65,.52,clamp(d.mph/p.limit,0,1));ctx.strokeStyle="#ef986d";ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+16*Math.cos(ang),cy+16*Math.sin(ang));ctx.stroke();
     ctx.fillStyle="#d8d7b5";ctx.beginPath();ctx.arc(cx,cy,2.3,0,tau);ctx.fill();ctx.textAlign="center";ctx.font="bold 7px monospace";ctx.fillText("MPH",cx,46);
     ctx.textAlign="left";ctx.fillStyle="#d9d5b9";ctx.font="bold 8px monospace";ctx.fillText(p.stamp,64,17);ctx.font="bold 22px monospace";ctx.fillStyle="#f1e6bf";ctx.fillText(String(Math.round(d.mph)),63,42);
-    ctx.font="bold 12px monospace";ctx.fillStyle="#deb379";ctx.fillText(v.reversing?"R":"D"+d.gear,102,41);
+    ctx.font="bold 12px monospace";ctx.fillStyle="#deb379";ctx.fillText(v.reversing?"R":(v.manual?"M":"D")+d.gear,102,41);
+    if(v.manual){
+      ctx.fillStyle="#4a5854";ctx.fillRect(64,47,62,3);ctx.fillStyle=l.up?"#ffcc69":d.revs>6.13?"#f18e72":"#b5c49c";
+      ctx.fillRect(64,47,62*clamp(d.revs/6.65,0,1),3);
+    }
     const arrow=(x,side,on)=>{ctx.fillStyle=on?"#bddb8c":"#455854";ctx.beginPath();ctx.moveTo(x+side*5,16);ctx.lineTo(x-side,12);ctx.lineTo(x-side,14);ctx.lineTo(x-side*5,14);ctx.lineTo(x-side*5,18);ctx.lineTo(x-side,18);ctx.lineTo(x-side,20);ctx.closePath();ctx.fill();};
     arrow(140,-1,l.left);arrow(159,1,l.right);ctx.strokeStyle=l.high?"#82caff":l.dipped?"#b7d8aa":"#566864";ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(148,36,4,-Math.PI*.5,Math.PI*.5);ctx.closePath();ctx.stroke();
     for(let j=-1;j<=1;j++){ctx.beginPath();ctx.moveTo(146,36+j*2.5);ctx.lineTo(140,(l.high?36:38)+j*2.5);ctx.stroke();}

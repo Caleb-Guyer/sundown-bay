@@ -20,6 +20,24 @@
     cruiser:{name:"Bay Patrol",top:33,power:12.2,brake:18.3,grip:14.1,balance:.48,steer:.65,response:7.8,roll:.092}
   };
   const shiftAt=[.25,.46,.68,.86],pull=[1,.82,.68,.56,.46];
+  const gearEnd=[.286,.50,.725,.914,1.065];
+  const roadBoxes=new Set(["coupe","hatch","cab","van","caleta","cayo","marea","stepside","estate","solena"]);
+  const powerBand=rpm=>rpm>=5150&&rpm<=6130;
+  function engineRpm(v,gear=v.gear){
+    const spec=v.handling||cars[v.kind]||cars.coupe;
+    const roadSpeed=Math.abs((v.vx||0)*Math.sin(v.yaw)+(v.vz||0)*Math.cos(v.yaw));
+    const wheelRatio=roadSpeed/(spec.top*(v.upgrades?.engine?1.18:1)*gearEnd[clamp(gear||1,1,5)-1]);
+    return clamp(850+Math.max(wheelRatio*5330,(v.burn||0)*5050)+(v.throttle||0)*350,850,6970);
+  }
+  function selectGear(v,dir){
+    if(!v.manual||v.reversing||v.shift>0||v.gateTime>0)return null;
+    const from=v.gear,to=from+dir;
+    if(to<1||to>5)return null;
+    if(dir<0&&engineRpm(v,to)>6570)return "overrev";
+    const rpm=Math.round(engineRpm(v)),clean=dir>0&&powerBand(rpm);
+    v.gear=to;v.shift=clean?.12:.22;v.gateTime=.38;v.gateFrom=from;
+    return {from,to,rpm};
+  }
   const rearDrive=new Set(["coupe","caleta","cayo","solena","stepside","cab","cruiser"]);
   function tireState(v){
     const heat=v.rubberHeat||0;return heat<.42?"cold":heat<=1?"ready":"hot";
@@ -30,6 +48,7 @@
   function settle(v){
     Object.assign(v,{speed:0,vx:0,vz:0,steer:0,yawRate:0,throttle:0,brakes:0,handbrake:0,
       reverseWait:0,reversing:false,gear:1,shift:0,wheelSpin:v.wheelSpin||0,burn:0,rearSpin:0,lean:0,rollRate:0,pitch:0,pitchRate:0,slip:0});
+    v.gateTime=0;v.gateFrom=1;
     v.chalkTurn=null;
     v.impactSlide=null;v.findLane=false;
   }
@@ -44,6 +63,7 @@
   }
   function step(v,dt,gas,back,steerInput,hand,surface,tuned=v.upgrades?.engine,parking=false){
     if(dt<=0)return;
+    if(v.gateTime>0)v.gateTime=Math.max(0,v.gateTime-dt);
     const spec=v.handling||cars[v.kind],shape=v.footprint||bayCarLayout(v.kind),sn=Math.sin(v.yaw),cs=Math.cos(v.yaw);
     const forward=v.vx*sn+v.vz*cs,lateral=v.vx*cs-v.vz*sn,speed=Math.hypot(v.vx,v.vz);
     const d=v.damage,engine=Math.max(0,((d?.front||0)-.19)/.81)*.49,load=v.towLoad?1:v.trailerLoad||0;
@@ -51,7 +71,7 @@
     // The front brakes hold the contact patches while engine torque spins the rear axle.
     // Above walking pace the same two pedals brake normally before the tires can break loose.
     const spin=gas&&back&&!hand&&!parking&&!load&&!v.flatSide&&!v.jumpFlight&&
-      surface>.65&&rearDrive.has(v.kind)&&speed<(v.burn>.2?4.4:1.35);
+      surface>.65&&rearDrive.has(v.kind)&&(!v.manual||v.gear===1)&&speed<(v.burn>.2?4.4:1.35);
     v.burn=damp(v.burn||0,spin?1:0,spin?3.8:5.5,dt);
     if(spin){
       const heating=(tuned ? .21 : .185)*(v.upgrades?.tires ? .88 : 1);
@@ -83,12 +103,13 @@
       v.reverseWait+=dt;if(v.reverseWait>=.26)v.reversing=true;
     }else v.reverseWait=0;
     const reverse=v.reversing&&back&&!gas&&!parking;
+    if(reverse&&v.manual)v.gear=1;
     const brake=parking||(back&&!reverse)||(gas&&forward<-.18);
     v.brakes=damp(v.brakes,brake?1:0,brake?18:12,dt);
     v.handbrake=damp(v.handbrake,hand&&!parking?1:0,hand?16:7,dt);
     v.throttle=damp(v.throttle,(gas||reverse)&&!brake?1:0,gas||reverse?11:16,dt);
     v.shift=Math.max(0,v.shift-dt);
-    if(!v.shift){
+    if(!v.shift&&!v.manual){
       if(v.gear<5&&ratio>shiftAt[v.gear-1]){v.gear++;v.shift=.115;}
       else if(v.gear>1&&ratio<shiftAt[v.gear-2]-.085){v.gear--;v.shift=.085;}
     }
@@ -120,7 +141,10 @@
     // Warm rubber bites on the first car lengths. An overheated tire spins away some of the launch.
     const temperature=v.rubberHeat||0,warm=clamp(temperature/.42,0,1),greasy=clamp((temperature-.98)/.42,0,1);
     const launchGrip=1+(warm*.13-greasy*.43)*clamp(1-Math.max(0,forward)/15,0,1)*surface;
-    const shove=v.reversing?-6.4*(1-.17*load)*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*launchGrip*
+    const rpm=v.manual?engineRpm(v):0;
+    const clutch=v.manual?clamp((6660-rpm)/430,0,1)*
+      (v.gear===1?.96+.10*clamp((rpm-1600)/2700,0,1):.36+.70*clamp((rpm-1100)/2900,0,1)):1;
+    const shove=v.reversing?-6.4*(1-.17*load)*(1-clamp(-forward/7,0,1)):spec.power*gain*pull[v.gear-1]*launchGrip*clutch*
       (v.shift>0?.39:1)*clamp((1.06-ratio)*5,0,1);
     const soft=v.sandSoft||0;
     const drag=.36+.00092*forward*forward+(gas||reverse?0:.63)+soft*(1.1+.14*speed)+
@@ -244,5 +268,5 @@
       v.wait=v.path ? .85 : 0;v.findLane=!!v.path;
     }
   }
-  window.BayDriving={cars,rearDrive,tireState,cool,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact,exchangeImpact,slideStep};
+  window.BayDriving={cars,roadBoxes,powerBand,engineRpm,selectGear,rearDrive,tireState,cool,settle,step,signedSpeed,world,local,tireOnStrip,clearance,contact,exchangeImpact,slideStep};
 })();

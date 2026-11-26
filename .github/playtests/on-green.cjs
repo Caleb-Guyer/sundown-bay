@@ -12,6 +12,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     const dir=path.join(__dirname,"curb-wire-proof");fs.mkdirSync(dir,{recursive:true});
     fs.writeFileSync(path.join(dir,mode+"-"+label+".jpg"),Buffer.from(data,"base64"));
   }
+  const manual=process.argv.includes("--manual");
   const observer=`
     window.driverSeen=window.finishSeen=window.onGreen=false;
     const drawMap=window.drawBayMap;window.drawBayMap=function(c,o){
@@ -20,9 +21,22 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     };
     const pass=BayOnGreen.Club.prototype.step;BayOnGreen.Club.prototype.step=function(dt,t,...rest){
       const event=pass.call(this,dt,t,...rest);
+      if(${manual}&&this.run?.phase==="running"&&!event){
+        const p=rest[0];
+        if(p.gear<5&&BayDriving.powerBand(BayDriving.engineRpm(p))){
+          dispatchEvent(new KeyboardEvent("keydown",{code:"Quote",bubbles:true,cancelable:true}));
+          dispatchEvent(new KeyboardEvent("keyup",{code:"Quote",bubbles:true}));
+        }
+      }
       if(event==="go")window.onGreen=BayCrosswalk.lamps(this.run.s.signal,t)==="ns";
       return event;
     };
+    if(${manual}){
+      window.cabinPaints=window.shiftPaints=0;
+      const seat=window.BayDriversSeat;
+      const capture=v=>{if(v.manual){++cabinPaints;if(v.gateTime>0)++shiftPaints;}};
+      window.BayDriversSeat={...seat,draw(...a){capture(a[2]);return seat.draw(...a);},compact(...a){capture(a[1]);return seat.compact(...a);}};
+    }
     const art=BayOnGreenArt;window.BayOnGreenArt={...art,
       car(...a){if(a[2].greenId==="ocean"&&a[4]>.1)driverSeen=true;return art.car(...a);},
       carMap(...a){if(a[4].greenId==="ocean"&&a[5]>.1)driverSeen=true;return art.carMap(...a);},
@@ -43,6 +57,10 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   }
   try{
     await js(observer);await waitFor("window.site");await tap("KeyE");await waitFor("!!window.ride",35000);
+    if(manual){
+      await controls("ShiftLeft");await tap("KeyZ");await controls();await tap("KeyZ");
+      await waitFor("ride.manual&&window.cabinPaints>0&&document.querySelector('#speed .five-speed')",35000);
+    }
     await lineUp();await waitFor("club.run?.phase==='offer'");await tap("KeyH");
     await waitFor("club.run?.phase==='armed'&&driverSeen",130000);
     const staged=await js("({x:site.v.x,z:site.v.z,dx:Math.abs(ride.x-site.v.x),gap:Math.abs(ride.z-site.v.z)})");
@@ -82,7 +100,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
       await js("driveOcean('curb',ride.z+9)");
       await waitFor("window.curbParked&&ride.x>154.2",75000);
     }
-    await waitFor("!site.runOut&&(!site.out||Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>48)",90000);
+    if(!manual)await waitFor("!site.runOut&&(!site.out||Math.hypot(site.v.x-"+staged.x+",site.v.z-("+staged.z+"))>48)",90000);
     if(process.argv.includes("--return-lap")){
       await waitFor("!site.out&&!site.v.path&&Math.hypot(site.v.x-site.route.home.x,site.v.z-site.route.home.z)<.15",300000);
       assert(await js("club.challenge({...site.route.grid,speed:0})===site"));
@@ -91,6 +109,18 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     await tap("KeyJ");await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('On Green · Timing slips')).click()");
     await waitFor("document.querySelector('.green-slip .slip-time')?.textContent.includes(' s')");await snap("slip");
     const paper=await js("document.querySelector('.green-slip').innerText");assert(paper.includes(card.slip.plate)&&paper.includes("Lena Ríos"));
+    if(manual){
+      assert(card.autograph&&card.signed&&card.manualBest===card.slip.time,JSON.stringify(card.slip.manual));
+      assert.deepEqual(card.autograph.marks,card.slip.manual.slice(0,2));
+      assert(paper.includes("SHIFT RECORDER")&&paper.includes("Third by the sign"));
+      assert(await js("shiftPaints>0"),"No shift was rendered in the driver's seat");
+      await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('Room on the Fridge')).click()");
+      await waitFor("document.querySelector('#chapterTitle').textContent==='Room on the Fridge'");
+      await waitFor("document.querySelector('#chapterLine').textContent.includes('Dad did this stretch')",35000);
+      assert((await js("document.querySelector('#chapterLine').textContent")).includes(card.autograph.plate));
+      await snap("fridge");await tap("Enter");await tap("KeyJ");
+      await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('On Green · Timing slips')).click()");
+    }
     if(brakeLaunch)assert(paper.includes("0–30 MPH")&&paper.includes(card.slip.toThirty.toFixed(2)));
     await js("[...document.querySelectorAll('#panel button')].find(b=>b.textContent.includes('View replay')).click()");
     await waitFor("!!document.querySelector('.timing-film-controls input')");
@@ -106,6 +136,12 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     await send("Page.reload");await waitFor("document.readyState==='complete'&&typeof BayOnGreen==='object'");
     const restored=await js("BayOnGreen.read(JSON.parse(localStorage.getItem('sundownBay.v1')).green).cards.ocean");
     assert.equal(restored.best,card.slip.time);assert.deepEqual(restored.slip.film.shots,card.slip.film.shots);
+    if(manual){
+      assert.deepEqual(restored.autograph,card.autograph);
+      await js("document.querySelector('#play').click()");await js(observer);await waitFor("window.site");
+      await tap("KeyE");await waitFor("window.ride?.manual&&document.querySelector('#speed .five-speed')",35000);
+      console.log("PASS",mode,"manual selector restored on the starter car; signed slip and kitchen cutscene verified.",JSON.stringify(card.autograph));
+    }
     if(brakeLaunch){assert.equal(restored.slip.toThirty,card.slip.toThirty);console.log("Brake release",restored.slip.reaction.toFixed(2),"s, 0–30 mph",restored.slip.toThirty.toFixed(2),"s on",restored.slip.launch,"rear tires. Audio starts 0, cursor locks 0.");}
     assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
     console.log("PASS live",mode,"drove from the Marlin, staged alongside the numbered hatch, launched on the working green, crossed the timing clock and recovered the printed slip after reload.",card.slip.result,card.slip.time.toFixed(2));

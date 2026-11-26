@@ -434,6 +434,14 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 .foto-poses{margin:9px 0 4px}.foto-poses button{flex:1;border:1px solid #75918a;background:#283b3b;color:#f6e4c4;padding:6px 2px;cursor:pointer}.foto-poses button[aria-pressed=true]{background:#efc47d;color:#283536}.foto-strip{display:block;width:min(205px,70%,calc(38vh - 37px));height:auto;margin:6px auto 14px;box-shadow:1px 4px 8px #102d353b}
 .curb-film{display:block;width:100%;height:auto;border:1px solid #4c5651;background:#24363a}.curb-credit{font:italic 1rem Georgia,serif;margin:.45rem 0;color:#41514b}.curb-transport{display:flex;align-items:center;gap:.65rem;margin:.35rem 0 .8rem}.curb-transport input{min-width:0;flex:1;accent-color:#3a7367}.curb-transport button,.curb-slip button{padding:.28rem .55rem;background:#f5e8c9;border:1px solid #827a65;color:#273b38;cursor:pointer}.curb-transport output{font: .8rem monospace;white-space:nowrap}.curb-slip{padding:.65rem .8rem;margin:.5rem 0 .8rem;border-top:2px solid #846550;border-bottom:1px solid #bbaa87;color:#293c38;background:#f4e9ce}.curb-slip strong{font:italic bold 1.13rem Georgia,serif}.curb-slip p{margin:.35rem 0 .5rem}.curb-slip div,.curb-slip button{margin:.15rem 0;display:block;font-size:.92rem}
 .green-slip{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.28rem .9rem;align-items:baseline;margin:.6rem .1rem .8rem;padding:.9rem 1.1rem .73rem;color:#264d41;background:repeating-linear-gradient(0deg,transparent 0 3px,#496e4810 3px 4px),#e2e6cd;border-block:2px dashed #72836c;box-shadow:2px 3px 0 #24362d24}
+.vehicle .gear.five-speed{position:relative;padding-bottom:5px}
+.five-speed .rev-track{position:absolute;left:2px;right:2px;bottom:1px;height:2px;background:#546466}
+.rev-track i{display:block;height:100%;background:currentColor}
+.vehicle .gear.rev-ready{color:#ffcf72;border-color:#e9bb69}
+.vehicle .gear.rev-high{color:#ffa28b;border-color:#df8c77}
+.green-slip .slip-change,.green-slip .slip-autograph{grid-column:1/-1}
+.slip-change{font:.78rem/1.4 Consolas,monospace;white-space:pre-wrap}
+.slip-autograph{font:italic 1.05rem Georgia,serif;color:#26565b}
 .green-slip.red-slip{color:#793c34;background-color:#eed8c9;border-color:#a27262}
 .green-slip .slip-number,.green-slip .slip-launch,.green-slip .slip-car{font:600 .77rem/1.4 ui-monospace,monospace}
 .green-slip .slip-number{grid-column:1 / -1;letter-spacing:.12em}

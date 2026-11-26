@@ -683,11 +683,12 @@
     const dealer=state.dealerEngine,fastback=dealer?.kind==='cayo';
     const load=dealer?.throttle||0,ratio=dealer?speed/BayDriving.cars[dealer.kind].top:0;
     const burn=unit(state.burn||0);
-    const pitch=dealer?unit(Math.max(burn*.90,ratio/[.23,.42,.62,.83,1][dealer.gear-1])+load*.08):0;
+    const manual=state.manualRpm||0;
+    const pitch=manual?unit((manual-850)/5800):dealer?unit(Math.max(burn*.90,ratio/[.23,.42,.62,.83,1][dealer.gear-1])+load*.08):0;
     const firing=(fastback?34:52)+(fastback?79:119)*pitch;
-    mixBed('engine',effects,now,driving?(moto ? .035+.036*rpm : .060+velocity*.038)*(dealer?.shift ? .65 : 1):0,
-      moto?(scooter?330:240)+rpm*670:dealer?(fastback?145:235)+pitch*420+load*160:185+410*velocity+burn*340,
-      moto?(scooter?77:44)+(scooter?160:120)*rpm:dealer?firing:revs+burn*(69+2*Math.sin(worldTime*17)));
+    mixBed('engine',effects,now,driving?(moto ? .035+.036*rpm : .060+velocity*.038)*(state.gearChange||dealer?.shift ? .65 : 1):0,
+      moto?(scooter?330:240)+rpm*670:dealer?(fastback?145:235)+pitch*420+load*160:manual?200+pitch*610:185+410*velocity+burn*340,
+      moto?(scooter?77:44)+(scooter?160:120)*rpm:dealer?firing:manual?37+pitch*108:revs+burn*(69+2*Math.sin(worldTime*17)));
     if(dealer||beds.has('exhaust'))mixBed('exhaust',effects,now,dealer ? .022+load*.029 : 0,
       fastback?240:520,fastback?firing*.5+.65*Math.sin(worldTime*8):firing*1.5);
     if (driving && (speed > 4 || burn > .28) && skid > 0.12) {
