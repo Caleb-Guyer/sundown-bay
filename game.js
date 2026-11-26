@@ -1169,6 +1169,9 @@
     if(!active&&!waypoint&&meterCar())waypoint=save.meterCopy.spent?meterPin(meterCar()):{...BayCab.stops.marlin.stand,kind:"meter-rank",name:"Marlin cab stand · Mina's slip"};
     if(!active&&!waypoint&&campaign.book.pass&&!campaign.book.trips)waypoint=chapterTarget();
     if(!active&&!waypoint&&["ride","negative","return"].includes(campaign.book.stage))waypoint=chapterTarget();
+    if(waypoint?.kind==="meter-rank"||waypoint?.kind==="meter-car"){
+      note("Mina’s driver’s copy",save.meterCopy.spent?"Your car is marked on the map.":"Take your slip to the Marlin cab stand. Mina saved you a ride.",4.3);return;
+    }
     if(unit.met){note(BaySecondUnit.names[unit.lead],district(pos())+" · Y switch characters"+(unit.lead==="frankie"?" · P location camera":""),3.8);return;}
     note("Marlin Motel","Room 14 is yours. "+(personalCar?"Your "+formatVehicle(personalCar)+" is marked on the map.":cars[0].color===paints[0]?"Coral coupe out front. On foot, 1 or 2 draws a weapon.":"Your "+formatVehicle(cars[0])+" is out front."),4.3);
   }
@@ -10294,7 +10297,7 @@
       }else if(b){
         $("objectiveTag").textContent="Bay Cab  /  Unit 17";
         $("objectiveText").textContent=b.stage==="waiting"?"Wait by the curb at "+b.from.name:b.stage==="ready"?"Mina is here · Board the yellow cab":b.stage==="out"?"Step out at "+cabs.location.name:b.stage==="ride"?(b.early?"Mina is pulling over":"Riding to "+b.to.name)+"  ·  "+meters+" m":"Take the passenger seat";
-        $("roadTurn").textContent=b.stage==="waiting"?(cabs.trip?"Mina is finishing a fare":"Mina is on the way"):(b.price?cash(b.price)+" fare":"First ride on the house");
+        $("roadTurn").textContent=b.stage==="waiting"?(cabs.trip?"Mina is finishing a fare":"Mina is on the way"):(b.meterCopy?"Mina’s voucher · Fare paid":b.price?cash(b.price)+" fare":"First ride on the house");
       }else if(fare){
         $("objectiveTag").textContent=fare.name+"  /  "+(fare.to.id===fare.job?"Going to work":"Heading back");
         $("objectiveText").textContent=fare.phase==="out"?"Leave room at the passenger door":fare.phase==="walk"?fare.name.split(" ")[0]+" is walking in":fare.phase!=="ride"?"Wait for "+fare.name.split(" ")[0]+" to board":fare.ride!==car?"Return to the car you picked them up in":"Stop at "+fare.to.name+"  ·  "+meters+" m";

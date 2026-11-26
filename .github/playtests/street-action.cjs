@@ -109,7 +109,7 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await js("Object.assign(m.h,BayCab.stops.marlin.stand);true");await tap("KeyF");
   await waitFor("document.querySelector('#panelBody').textContent.includes('Use free ride')");
   await js(button("Use free ride"));await waitFor("m.service.booking?.stage==='ready'",70000);await tap("KeyE");
-  await waitFor("m.service.booking?.stage==='ride'",18000);await snap("meter-ride");
+  await waitFor("m.service.booking?.stage==='ride'&&document.querySelector('#roadTurn').textContent.includes('Mina’s voucher')",18000);await snap("meter-ride");
   await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).meterCopy.spent",90000);
   assert(await js("Math.hypot(m.h.x-m.lost.x,m.h.z-m.lost.z)<20"));
   await js("Object.assign(m.h,BayDriving.world(m.lost,-2.4,0));true");await tap("KeyE");
