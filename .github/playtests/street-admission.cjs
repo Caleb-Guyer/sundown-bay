@@ -75,7 +75,11 @@ module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
   await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.textContent.includes('The Laundry Line')).click()");
   await waitFor("document.querySelector('#chapterTitle').textContent==='The Laundry Line'");
   await waitFor("document.querySelector('#chapterInsert').getAttribute('aria-label')?.includes('Marlin laundry claim')");
-  await snap("linen-order");await tap("Enter");
+  const front=await js("document.querySelector('#chapterInsert').toDataURL()");
+  await snap("linen-order");
+  await waitFor("document.querySelector('#chapterInsert').getAttribute('aria-label')?.includes('pencilled message')");
+  assert.notEqual(await js("document.querySelector('#chapterInsert').toDataURL()"),front);
+  await snap("linen-reverse");await tap("Enter");
   await js("care.p=BayClinicLaundry.targets.call;care.at(care.hero,care.p.x-.54,care.p.z+.15);care.rig.reset(care.hero)");
   await waitFor("document.querySelector('#objectiveText').textContent.includes('Hold L')");
   await key("keyDown","KeyL");

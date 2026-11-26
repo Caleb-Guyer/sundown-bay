@@ -32003,6 +32003,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       return "";
     }
     pulse(id,now){
+      if(this.talk?.laundry&&this.talk.site.id===id)return now<this.talk.lampUntil;
       if(this.bell?.id!==id)return false;
       const age=now-this.rang;return age>=0&&(age<.39||age>.59&&age<.98);
     }
@@ -50824,12 +50825,20 @@ window.buildBayCity = function buildBayCity(g,water) {
     return {stage:raw.stage,patient:raw.patient.slice(0,56)};
   }
   function count(seconds){return seconds<.35?0:Math.min(3,1+Math.floor((seconds-.35)/1.18));}
-  function slip(canvas,order){
-    canvas.width=720;canvas.height=400;canvas.setAttribute("aria-label","Marlin laundry claim for "+order.patient+", "+order.stage);
+  function slip(canvas,order,reverse=false){
+    canvas.width=720;canvas.height=400;canvas.setAttribute("aria-label","Marlin laundry claim for "+order.patient+", "+(reverse?"pencilled message":order.stage));
     const c=canvas.getContext?.("2d");if(!c)return;
     c.fillStyle="#474940";c.fillRect(0,0,720,400);c.save();c.translate(360,200);c.rotate(-.028);
     c.fillStyle="#2e3934";c.fillRect(-255,-143,532,301);c.fillStyle="#ebd7a6";c.fillRect(-263,-151,532,301);
     c.strokeStyle="#a18c64";c.lineWidth=1;c.setLineDash([3,5]);c.beginPath();c.moveTo(175,-151);c.lineTo(175,150);c.stroke();c.setLineDash([]);
+    if(reverse){
+      c.strokeStyle="#c2ab79";c.lineWidth=1;c.beginPath();c.moveTo(-87,-150);c.lineTo(-83,148);c.stroke();
+      c.fillStyle="#706547";c.font="12px monospace";c.fillText("P.C. LINEN  /  REVERSE",-232,-114);
+      c.rotate(-.015);c.fillStyle="#4c5148";c.font="italic 25px Georgia";
+      c.fillText("A shirt with a pocket,",-196,-44);c.fillText("if there's one left.",-202,-4);
+      c.fillText("I've still got my house key.",-194,39);c.font="italic 21px Georgia";c.fillText(order.patient,7,108,215);
+      c.restore();return;
+    }
     c.fillStyle="#293e42";c.font="bold 15px monospace";c.fillText("MARLIN     •     NIGHT LAUNDRY",-238,-115);
     c.font="italic 32px Georgia";c.fillText("County linen order",-238,-61);
     c.strokeStyle="#bbaa83";for(const y of [-37,20,76]){c.beginPath();c.moveTo(-239,y);c.lineTo(153,y);c.stroke();}
@@ -71076,7 +71085,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
     }
     if(b?.art==="linenSlip"){
-      BayClinicLaundry.slip($("chapterInsert"),save.rescue.laundry);
+      BayClinicLaundry.slip($("chapterInsert"),save.rescue.laundry,campaign.scene.id==="laundryOrder"&&campaign.scene.index===2);
       if(campaign.scene.id==="laundryOrder"&&campaign.scene.index===2)$("chapterWho").textContent=save.rescue.laundry.patient+" · pencilled on the back";
       if(campaign.scene.id==="laundryReceipt")$("chapterLine").textContent=save.rescue.laundry.patient+". That's the name on the tag. You can put it here by my elbow.";
     }
@@ -73754,7 +73763,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(active.start===null)return;
     if(!linenReach()||!held("KeyL")){active.start=null;lastHud=-10;return;}
     const rings=BayClinicLaundry.count(streetTime-active.start);
-    if(rings!==active.rings){active.rings=rings;sound.cue("rank-ring",{distance:0});lastHud=-10;}
+    if(rings!==active.rings){
+      active.rings=rings;
+      if(rankPhones.talk?.laundry)rankPhones.talk.lampUntil=hours.total+.46;
+      sound.cue("rank-ring",{distance:0});lastHud=-10;
+    }
   }
   function linenParcel(){
     const stage=save.rescue.laundry?.stage;

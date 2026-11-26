@@ -881,7 +881,7 @@
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
     }
     if(b?.art==="linenSlip"){
-      BayClinicLaundry.slip($("chapterInsert"),save.rescue.laundry);
+      BayClinicLaundry.slip($("chapterInsert"),save.rescue.laundry,campaign.scene.id==="laundryOrder"&&campaign.scene.index===2);
       if(campaign.scene.id==="laundryOrder"&&campaign.scene.index===2)$("chapterWho").textContent=save.rescue.laundry.patient+" · pencilled on the back";
       if(campaign.scene.id==="laundryReceipt")$("chapterLine").textContent=save.rescue.laundry.patient+". That's the name on the tag. You can put it here by my elbow.";
     }
@@ -3559,7 +3559,11 @@
     if(active.start===null)return;
     if(!linenReach()||!held("KeyL")){active.start=null;lastHud=-10;return;}
     const rings=BayClinicLaundry.count(streetTime-active.start);
-    if(rings!==active.rings){active.rings=rings;sound.cue("rank-ring",{distance:0});lastHud=-10;}
+    if(rings!==active.rings){
+      active.rings=rings;
+      if(rankPhones.talk?.laundry)rankPhones.talk.lampUntil=hours.total+.46;
+      sound.cue("rank-ring",{distance:0});lastHud=-10;
+    }
   }
   function linenParcel(){
     const stage=save.rescue.laundry?.stage;

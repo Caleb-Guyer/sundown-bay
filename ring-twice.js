@@ -47,6 +47,7 @@
       return "";
     }
     pulse(id,now){
+      if(this.talk?.laundry&&this.talk.site.id===id)return now<this.talk.lampUntil;
       if(this.bell?.id!==id)return false;
       const age=now-this.rang;return age>=0&&(age<.39||age>.59&&age<.98);
     }
