@@ -95,6 +95,8 @@ module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
   await waitFor("linenQA.h&&document.querySelector('#objectiveTag').textContent.includes('The Laundry Line')");
   await js("Object.assign(linenQA.h,BayPalmClinic.site.desk)");await tap("KeyF");
   await waitFor("document.querySelector('#chapterTitle').textContent==='One shirt, one comb'");
+  await waitFor("!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterInsert').getAttribute('aria-label')?.endsWith('filed')");
+  assert.equal(await js("document.querySelector('#chapterTitle').textContent"),"");
   assert.equal((await js(order)).patient,name);await snap("linen-received");await tap("Enter");
   assert.equal((await js(order)).stage,"filed");
   console.log("PASS rang the laundry from the Marlin cab phone, took Romy's parcel, resumed delivery after reload and signed the same patient's tag at Palm County",mode);

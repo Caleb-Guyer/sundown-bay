@@ -883,7 +883,7 @@
     if(b?.art==="linenSlip"){
       BayClinicLaundry.slip($("chapterInsert"),save.rescue.laundry,campaign.scene.id==="laundryOrder"&&campaign.scene.index===2);
       if(campaign.scene.id==="laundryOrder"&&campaign.scene.index===2)$("chapterWho").textContent=save.rescue.laundry.patient+" · pencilled on the back";
-      if(campaign.scene.id==="laundryReceipt")$("chapterLine").textContent=save.rescue.laundry.patient+". That's the name on the tag. You can put it here by my elbow.";
+      if(campaign.scene.id==="laundryReceipt")$("chapterLine").textContent=save.rescue.laundry.patient+". That's the right name. Feel that? Peppermint in the shirt pocket. Romy always puts one in.";
     }
     if(b?.art==="relayCard")BayCountyRelay.card($("chapterInsert"),campaign.scene.id==="countySigned"?save.countyRelay.cover:"");
     if(campaign.scene?.id==="countySigned"&&campaign.scene.index===0)$("chapterLine").textContent=BayCountyRelay.line(save.countyRelay.cover);

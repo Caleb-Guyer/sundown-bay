@@ -21169,8 +21169,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       {dur:4.8,art:"linenSlip",who:"",line:"A shirt with a pocket, if there's one left. I've still got my house key."}
     ],
     laundryReceipt:[
-      {dur:4.1,art:"linenSlip",slug:"PALM COUNTY CLINIC   /   NORTH WINDOW",title:"One shirt, one comb",who:"Ora Bell",line:""},
-      {dur:4.8,shot:"clinicDoor",who:"Ora Bell",line:"There's a peppermint in the pocket. Romy does that even when we tell her we'll wash it."}
+      {dur:4.1,shot:"clinicDoor",slug:"PALM COUNTY CLINIC   /   NORTH WINDOW",title:"One shirt, one comb",who:"Ora Bell",line:"You can tell it's hers by the way she ties the string. Pull the little ear and it comes right off."},
+      {dur:5.4,art:"linenSlip",who:"Ora Bell",line:""}
     ],
     countyLoan:[
       {dur:6.8,voice:"loanTicket",art:"relayCard",slug:"PORTSIDE TIRE   /   COUNTY BAND",title:"Say Again, Four",who:"Cleo Moss",line:"Somebody sent me one spare repeater and two work orders. That's county arithmetic."},
@@ -71087,7 +71087,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(b?.art==="linenSlip"){
       BayClinicLaundry.slip($("chapterInsert"),save.rescue.laundry,campaign.scene.id==="laundryOrder"&&campaign.scene.index===2);
       if(campaign.scene.id==="laundryOrder"&&campaign.scene.index===2)$("chapterWho").textContent=save.rescue.laundry.patient+" · pencilled on the back";
-      if(campaign.scene.id==="laundryReceipt")$("chapterLine").textContent=save.rescue.laundry.patient+". That's the name on the tag. You can put it here by my elbow.";
+      if(campaign.scene.id==="laundryReceipt")$("chapterLine").textContent=save.rescue.laundry.patient+". That's the right name. Feel that? Peppermint in the shirt pocket. Romy always puts one in.";
     }
     if(b?.art==="relayCard")BayCountyRelay.card($("chapterInsert"),campaign.scene.id==="countySigned"?save.countyRelay.cover:"");
     if(campaign.scene?.id==="countySigned"&&campaign.scene.index===0)$("chapterLine").textContent=BayCountyRelay.line(save.countyRelay.cover);
