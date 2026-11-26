@@ -30,7 +30,7 @@ module.exports=async function featurePrint({js,send,waitFor,key,tap,mode}){
     await js("q.at(q.v,4.2,56.9);BayDriving.settle(q.v);q.v.speed=q.v.vz=6.4");
     await waitFor("document.querySelector('#objectiveText').textContent.includes('Toss the reel')",20000);
     await tap("KeyH");
-    await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).featurePrint?.rolling===1",10000);
+    await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1'))?.featurePrint?.rolling===1",10000);
     assert(await js("document.querySelector('#chapterFilm').hidden&&document.querySelector('#stars').getAttribute('aria-label')!=='No heat'"));
     await snap("catch");
   }
