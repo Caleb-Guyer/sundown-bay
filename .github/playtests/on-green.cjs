@@ -15,19 +15,25 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   const manual=process.argv.includes("--manual");
   const observer=`
     window.driverSeen=window.finishSeen=window.onGreen=false;
+    const shiftPilot=(${oceanDriver.toString()}),pilotState={raceSpeed:17},pressed=new Set();
+    function sendRaceKeys(next){
+      for(const k of pressed)if(!next.includes(k)){dispatchEvent(new KeyboardEvent("keyup",{code:k,bubbles:true}));pressed.delete(k);}
+      for(const k of next)if(!pressed.has(k)){dispatchEvent(new KeyboardEvent("keydown",{code:k,bubbles:true,cancelable:true}));pressed.add(k);}
+    }
     const drawMap=window.drawBayMap;window.drawBayMap=function(c,o){
-      if(o.mode==="radar"&&o.green){window.club=o.green;window.ride=o.streetCar;window.site=club.sites[0];window.traffic=o.cars;}
+      if(o.mode==="radar"&&o.green){window.club=o.green;window.ride=o.streetCar;window.site=club.sites[0];window.traffic=o.cars.concat(o.motos?.all||[],o.transit?.bus||[]);}
       return drawMap(c,o);
     };
     const pass=BayOnGreen.Club.prototype.step;BayOnGreen.Club.prototype.step=function(dt,t,...rest){
       const event=pass.call(this,dt,t,...rest);
-      if(${manual}&&this.run?.phase==="running"&&!event){
+      if(${manual}&&this.run?.phase==="running"&&(!event||event==="go")){
         const p=rest[0];
+        sendRaceKeys(shiftPilot(p,"race",0,window.traffic,pilotState));
         if(p.gear<5&&BayDriving.powerBand(BayDriving.engineRpm(p))){
           dispatchEvent(new KeyboardEvent("keydown",{code:"Quote",bubbles:true,cancelable:true}));
           dispatchEvent(new KeyboardEvent("keyup",{code:"Quote",bubbles:true}));
         }
-      }
+      }else if(pressed.size)sendRaceKeys([]);
       if(event==="go")window.onGreen=BayCrosswalk.lamps(this.run.s.signal,t)==="ns";
       return event;
     };
@@ -74,7 +80,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
       assert.equal(await js("club.run.react"),null);assert(Math.abs(await js("ride.speed"))<.5);
     }
     const returnLap=process.argv.includes("--return-lap");
-    if(returnLap||manual){
+    if(returnLap){
       await controls();
       await js(`window.oceanKeys=(${oceanDriver.toString()});window.driveOcean=function(leg,end){
         const pressed=new Set(),memory={raceSpeed:${manual?17:11.5}};
@@ -88,7 +94,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
         }
         drive();
       };driveOcean('race',0);`);
-    }else await controls("KeyW");
+    }else if(!manual)await controls("KeyW");
     await waitFor("!club.run||JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1",165000);
     assert(await js("JSON.parse(localStorage.getItem('sundownBay.v1')||'{}').green?.cards?.ocean?.runs===1"),"Race ended before the player's bumper reached the clock");
     await controls("KeyS");await waitFor("Math.abs(ride.speed)<1.5",40000);await controls();
@@ -147,7 +153,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
     console.log("PASS live",mode,"drove from the Marlin, staged alongside the numbered hatch, launched on the working green, crossed the timing clock and recovered the printed slip after reload.",card.slip.result,card.slip.time.toFixed(2));
   }catch(error){
-    const state=await js("window.site&&({stage:club.run?.phase,driver:ride&&[ride.x,ride.z,ride.speed],rival:[site.v.x,site.v.z,site.v.speed,site.v.corner,site.v.blocked],returning:site.out,through:!!site.runOut,waiting:site.v.leftWait&&[site.v.leftWait.held,site.v.leftWait.committed,site.v.leftWait.turn.junction],near:traffic.filter(v=>v!==site.v&&Math.hypot(v.x-site.v.x,v.z-site.v.z)<28).map(v=>[v.id,v.kind,v.x,v.z,v.yaw,v.speed,v.blocked,v.leftWait?.held,v.leftWait?.committed])})").catch(()=>null);
+    const state=await js("window.site&&({stage:club.run?.phase,heat:document.querySelector('#stars').getAttribute('aria-label'),driver:ride&&[ride.x,ride.z,ride.yaw,ride.speed,ride.gear],driverTraffic:ride&&traffic.filter(o=>o!==ride&&Math.hypot(o.x-ride.x,o.z-ride.z)<13).map(o=>[o.kind,o.x,o.z,o.speed]),rival:[site.v.x,site.v.z,site.v.speed,site.v.corner,site.v.blocked],returning:site.out,through:!!site.runOut,waiting:site.v.leftWait&&[site.v.leftWait.held,site.v.leftWait.committed,site.v.leftWait.turn.junction],near:traffic.filter(v=>v!==site.v&&Math.hypot(v.x-site.v.x,v.z-site.v.z)<28).map(v=>[v.id,v.kind,v.x,v.z,v.yaw,v.speed,v.blocked,v.leftWait?.held,v.leftWait?.committed])})").catch(()=>null);
     throw Error(error.message+" · timing camera state "+JSON.stringify(state),{cause:error});
   }finally{await controls();}
 };

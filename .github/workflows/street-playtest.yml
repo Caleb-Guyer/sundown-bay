@@ -15,6 +15,26 @@ permissions:
   contents: read
 
 jobs:
+  five-speed:
+    name: Race the five-speed in ${{ matrix.view }} view
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    strategy:
+      fail-fast: false
+      matrix:
+        view: [street, overhead]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --on-green --manual --frames
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: five-speed-${{ matrix.view }}
+          path: .github/playtests/curb-wire-proof/*.jpg
+          retention-days: 3
+          if-no-files-found: ignore
   rescue:
     name: Follow Rescue 4 in ${{ matrix.view }} view
     runs-on: ubuntu-latest
@@ -28,7 +48,6 @@ jobs:
         with:
           persist-credentials: false
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --admission --frames
-      - run: node .github/playtests/live.cjs ${{ matrix.view }} --on-green --manual --frames
       - uses: actions/upload-artifact@v4
         if: always()
         with:
