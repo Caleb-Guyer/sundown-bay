@@ -198,16 +198,23 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
             const props=items.filter(([name,,,,,,,,car,,vapor])=>{const m=this.models.get(name);
               return m?.count&&!m.dynamic&&!m.sections&&!car&&!vapor&&m.count<=batch.indices.length&&m.vertexCount<=batch.vertices.length/6;});
             const times=[[],[]],counts=[0,0];let hits=0,triIndices=0;
+            // A shared mesh can face two directions in this same snapshot. Start each
+            // timed pass with identical hidden-face selections and distance meshes.
+            const models=new Set(props.map(([name])=>this.models.get(name)));
+            const sides=[...models].map(m=>[m,m.exterior,m.wantedSide]);
+            const resetSides=()=>{for(const [m,exterior,wantedSide] of sides){m.exterior=exterior;m.wantedSide=wantedSide;}};
+            const buildDetail=batch.buildDetail;
             try{
+              batch.buildDetail=false;
               batch.flush=function(){triIndices+=this.count;this.count=this.used=0;};
               for(let i=0;i<16;i++){
                 const enabled=[0,3].includes(i%4)?1:0;
                 batch.repeatedPose=enabled?function(...args){const p=pose.apply(this,args);if(p?.vertices)hits++;return p;}:()=>null;
-                triIndices=0;const start=performance.now();
+                resetSides();triIndices=0;const start=performance.now();
                 for(let k=0;k<4;k++){for(const p of props)batch.append(p);batch.flush();}
                 if(i>=4)times[enabled].push((performance.now()-start)/4);counts[enabled]=triIndices/4;
               }
-            }finally{batch.flush=flush;batch.repeatedPose=pose;batch.count=batch.used=0;}
+            }finally{resetSides();batch.buildDetail=buildDetail;batch.flush=flush;batch.repeatedPose=pose;batch.count=batch.used=0;}
             q.poses={props:props.length,hits,bytes:batch.poseBytes,indices:counts,medianMs:times.map(a=>a.sort((x,y)=>x-y)[a.length>>1])};
             return batchDraw.call(this,items);
           }
