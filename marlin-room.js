@@ -297,6 +297,7 @@
     model("marlin14-phone",phoneCase);model("marlin14-receiver",handset);
     model("marlin14-message-light",g=>g.box(0,0,0,.056,.024,.009,"#ff9857"));
     for(let i=0;i<=12;i++)model("marlin14-cord-"+i,g=>cord(g,i/12));
+    model("marlin14-bay-wire",BayHouseCopies.opened);
     model("marlin14-call-slip",g=>{
       flat(g,0,0,.34,.235,0,"#eadca4");flat(g,-.132,0,.025,.235,.001,"#bf7964");
       for(const [i,w] of [.18,.13,.15].entries())flat(g,-.08+w*.5,-.06+i*.044,w,.008,.002,"#5e6a62");
@@ -310,6 +311,7 @@
     if(weather.night>.38)view.draw("marlin14-lamps",0,0,0,0,0,0,.97);
     phoneWorld(view,room,t);
     if(room?.slip)view.draw("marlin14-call-slip",2.47,.902,.113,-.13,0,0,.65);
+    if(room?.subscriberCopy)view.draw("marlin14-bay-wire",2.54,.905,-.49,-.14,0,0,.68);
   }
   function outsideWorld(list,see){
     if(see(outside,62))list.push(["marlin14-porch",129.718,0,-29.02,0,0,0,.8]);
@@ -480,6 +482,12 @@
       plate={width:w,height:h,period,buffer};
     }
     ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(plate.buffer,0,0);
+    if(person.subscriberCopy){
+      ctx.save();ctx.translate(ox+2.54*scale,oy-(-.49*.94+.905*.34)*scale);ctx.scale(scale,scale);ctx.rotate(.14);
+      ctx.fillStyle="#e9ddbb";ctx.fillRect(-.29,-.18,.58,.36);ctx.fillStyle="#925d49";ctx.fillRect(-.24,-.13,.47,.035);
+      ctx.fillStyle="#6d8780";ctx.fillRect(-.24,-.055,.20,.13);ctx.fillStyle="#756e5b";
+      for(let i=0;i<4;i++)ctx.fillRect(.012,-.062+i*.05,.21,.014);ctx.restore();
+    }
     if(person.slip){
       ctx.save();ctx.translate(ox+2.47*scale,oy-(.113*.94+.902*.34)*scale);ctx.scale(scale,scale);ctx.rotate(.13);
       ctx.fillStyle="#eadca4";ctx.fillRect(-.17,-.105,.34,.21);ctx.fillStyle="#bf7964";ctx.fillRect(-.144,-.105,.025,.21);

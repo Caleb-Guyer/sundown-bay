@@ -40,7 +40,13 @@ module.exports=async({js,send,tap,waitFor,shot,mode} )=>{
   await tap("KeyB");await watch(file+".last&&"+file+".runs===1");
   const end=await js(file+".last");assert(end.edition&&end.pay>=110&&end.score>=145);
   await watch("d.paper&&d.paper.age>=.56");
-  await js("Object.assign(d.h,{x:138.1,z:-45.7,yaw:-Math.PI/2});d.cam?.reset(d.h);true");await shot("lobby-copies");
+  await js("Object.assign(d.h,{x:137.6,z:-45.7,yaw:-Math.PI/2});d.cam?.reset(d.h);true");await shot("lobby-copies");
+  await js("Object.assign(d.h,{x:133.45,z:-45.4,yaw:-Math.PI/2});true");
+  await watch("document.querySelector('#context').textContent.includes('subscriber’s copy')");await tap("KeyF");
+  const page="document.querySelector('canvas[aria-label^=\"Bay Wire subscriber edition\"]')";
+  await watch("!!("+page+")");assert.equal(await js("BayHouseCopies.sheet(("+file+").last.front).crop"),mode==="street"?"driver":"street");
+  await watch("(()=>{const image="+page+".getContext('2d').getImageData(28,120,520,170).data;let tones=new Set();for(let i=0;i<image.length;i+=128)tones.add(image[i]);return tones.size>20;})()");
+  await shot("subscriber");
   assert.equal(await js("audioStarts+cursorRequests"),0);
   console.log("PASS House Copies",mode,"Meli's edition collected on foot, rolling delivery at the Palm, saved satchel after reload, Marlin handoff and pay",end);
 };

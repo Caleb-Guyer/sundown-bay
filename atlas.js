@@ -1427,6 +1427,11 @@
         }
       } else playerIcon(ctx,x,y,(radar?7.15:6.6)*ui,player.yaw);
     }
+    if(street&&opt.courier&&!player?.driving){
+      const rider=opt.courier;ctx.save();ctx.translate(px(rider.x),py(rider.z));ctx.rotate(rider.yaw||0);
+      ctx.fillStyle="#6a523e";ctx.fillRect(.25*s,-.21*s,.26*s,.48*s);ctx.fillStyle="#4a8275";ctx.fillRect(.27*s,-.17*s,.19*s,.39*s);
+      ctx.fillStyle="#e7d4a9";ctx.fillRect(.29*s,-.15*s,.04*s,.27*s);ctx.restore();
+    }
     if(street&&opt.romyHome)BayPayroll.map(ctx,opt.romyHome,px,py,s,visible,personSprite);
     if(street&&opt.payroll)BayPayroll.map(ctx,opt.payroll,px,py,s,visible,personSprite);
     if(opt.recovery&&street)BayRecoveryArt.map(ctx,opt,px,py,s,visible);

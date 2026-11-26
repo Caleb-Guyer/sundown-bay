@@ -9172,7 +9172,10 @@
   function loadHouseCopies(){
     if(!wireDeskNear()||active||heat)return;
     const edition=pictureDesk.issue?.street||"Ocean Drive";
-    if(!save.houseCopies.run){BayHouseCopies.start(save.houseCopies,edition);persist();}
+    if(!save.houseCopies.run){
+      const front=BayHouseCopies.photograph(pictureDesk.issue,save.houseCopies.last?.front)||campaign.book.morning?.luis;
+      BayHouseCopies.start(save.houseCopies,edition,front);persist();
+    }
     markHouseCopy();closePanel();
     speak("Meli Funes","Red rack at the Palm. Green at the Marlin. Throw before you draw level, or walk them up. Bea gets two.");
     note("House Copies","B near either rack · A clean moving delivery earns the best tip.",5);
@@ -9180,6 +9183,24 @@
   function paperCarrier(){
     if(!save.houseCopies.run||active||heat||room||transfer||campaign.scene||unit.eye||unit.transition)return null;
     return unitRoadCar(car)?car:!car&&cycles.riding&&!cycles.transfer?cycles.riding:onStreetFeet()?hero:null;
+  }
+  function subscriber(){
+    if(!save.houseCopies.last&&!save.houseCopies.run?.mask||active||heat||!onStreetFeet())return null;
+    for(const s of BayHouseCopies.stops){
+      if(save.houseCopies.run&&!(save.houseCopies.run.mask&s.id))continue;
+      const r=BayHouseCopies.reader(save.houseCopies,s,copyReaction,streetTime);
+      if(r.reading&&dist(hero,r)<1.55)return s;
+    }
+    return null;
+  }
+  function unfoldSubscriber(body){
+    const record=room?save.houseCopies.last:save.houseCopies.run||save.houseCopies.last;if(!record)return;
+    const page=document.createElement("canvas");page.width=600;page.height=384;page.className="curb-film";
+    page.setAttribute("role","img");page.setAttribute("aria-label","Bay Wire subscriber edition · "+record.edition);
+    const paint=()=>BayHouseCopies.frontPage(page,record,pictureDesk,()=>BayHouseCopies.frontPage(page,record,pictureDesk));
+    paint();body.append(page);
+    const reader=subscriber();
+    signedNote(body,room?"Leave me the front page. Someone walked off with the racing results again.":reader?.id===1?"See that crease? That’s where I fold it to fit beside the sugar.":"Read it here. Bea counts the lobby copies before she goes upstairs.",room?"Bea · Room 14":reader?.who||"Bay Wire");
   }
   function throwHouseCopy(){
     const p=paperCarrier();if(!p||flyingCopy&&!flyingCopy.landed)return false;
@@ -9716,7 +9737,7 @@
       searchPoint:heat&&chase.searching?chase.lastSeen:null,
       roadblock:skiff?null:backup.roadblock,air:backup.air,ferry:ferryScene,ferryActive:!!active?.ferry,inez:play?ferryScene?.rider||BayFerry.pickup:null,
       dashIndex:active?.job.id==="dash"?active.index:null,dashRun:active?.dash||dashResult?.run,ghost:active?.showGhost?active.ghost:null,
-      houseCopies:play&&modeName==="street"?save.houseCopies:null,flyingCopy,copyReaction,
+      houseCopies:play&&modeName==="street"?save.houseCopies:null,courier:modeName==="street"&&save.houseCopies.run?paperCarrier():null,flyingCopy,copyReaction,
       signals:BayStreetArt.signals,streetActors:modeName==="street"?BayStreetArt.overview(streetTime):[],cameraYaw:isTop()?(take?.lookYaw??cameraRig.yaw+cameraRig.lookBack):cam.yaw};
   }
   function drawMini(){
@@ -10192,7 +10213,7 @@
     $("palmGuide").hidden=true;
     if(room){
       const cinema=room.kind==="cinema",show=cinema?BayCineProgram.frame(room.reader?gateTime(t):t-projectionStart,filmOptions()):null;
-      if(!cinema)room.slip=!wakeBook.ring&&wakeBook.by===unit.lead&&!!wakeBook.message;
+      if(!cinema){room.slip=!wakeBook.ring&&wakeBook.by===unit.lead&&!!wakeBook.message;room.subscriberCopy=!!save.houseCopies.last;}
       if(cinema)room.projectionist=cabs.people.some(p=>p.phase==="booth");
       if(top){
         const ratio=Math.min(1,1120/innerWidth,740/innerHeight),w=Math.round(innerWidth*ratio),h=Math.round(innerHeight*ratio);
@@ -10403,6 +10424,7 @@
     if(play)BaySandArt.world(view,model,see,sandBeach,t,hero,car);
     const visible=[],owned=transfer?.v||car;
     if(play)BayHouseCopies.world(save.houseCopies,flyingCopy,visible,model,see,footLevel,personSkin,copyReaction,t);
+    if(play&&save.houseCopies.run){const courier=paperCarrier();if(courier)BayHouseCopies.carry(visible,model,courier,footLevel(courier.x,courier.z),courier===car,courier===cycles.riding);}
     if(play)BayStreetAction.world(streetAction,visible,footLevel,see);
     const companion=play&&(romyOutside()||(campaign.scene?.id==="walkHomeDoor"?homeWalk:null));
     if(companion)BayPayroll.world(view,model,visible,see,companion);
@@ -11457,6 +11479,7 @@
       if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print"+(canReadRoadMap()?" · Shift + N for her street map":""));
       else contextHint("","Stop to look at Mara’s contact print");
     }
+    else if(subscriber())contextHint("F","Unfold the subscriber’s copy of Bay Wire");
     else if(save.houseCopies.run&&paperCarrier()&&dist(pos(),BayHouseCopies.nearest(save.houseCopies,pos()))<22)contextHint("B","Toss to "+BayHouseCopies.nearest(save.houseCopies,pos()).name+" · throw before you pass");
     else if(canReadRoadMap())contextHint("Shift + N","Unfold Mara’s street map");
     else if(beachHint)contextHint(...beachHint);
@@ -11836,6 +11859,7 @@
     if(save.houseCopies.last){
       const r=save.houseCopies.last;
       signedNote(body,"Two copies of the "+r.edition+" edition, received at the Marlin. Your route paid "+cash(r.pay)+". Best round "+save.houseCopies.best+"/200. I put the clean one in the lobby. — Bea","Bay Wire · Subscriber receipt "+save.houseCopies.runs);
+      body.append(makeButton("Bea’s subscriber copy",r.edition+" · The edition you delivered.","Unfold",()=>openPanel("subscriber-copy")));
     }
     if(wakeBook.message&&wakeBook.by===unit.lead){
       const id=wakeBook.message,lead=wakeLead(id);
@@ -12292,6 +12316,8 @@
       const clock=nearbyClock();title=clock.route.landmark;kicker="On Green  /  "+clock.route.street;clockCard(b,clock);
     }else if(next==="curb-wire"){
       title="On the Curb";kicker="Bay Wire  /  Street clips";wirePanel(b);
+    }else if(next==="subscriber-copy"){
+      title="The Bay Wire";kicker="Ocean Drive  /  Subscriber copy";unfoldSubscriber(b);
     }else if(next==="late-plate"){
       title="Late Plate";kicker=pictureDesk.packet&&wireDeskNear()?"Bay Wire / Picture desk":"Bay Wire / Page three";platePanel(b);
     }else if(next==="wire-edition"){
@@ -12905,6 +12931,7 @@
     if(roadside.vehicle&&(ev.code==="KeyX"||ev.code==="KeyZ"&&!ev.shiftKey&&!held("ShiftLeft","ShiftRight")))roadside.stop();
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
     if(ev.code==="KeyB"&&throwHouseCopy())return;
+    if(ev.code==="KeyF"&&subscriber()){openPanel("subscriber-copy");return;}
     if(ev.code==="KeyU"&&active?.payroll?.aboard&&car===active.payroll.car&&active.payroll.envelopes?.count<3)return;
     if(homeKey(ev.code))return;
     if(ev.code==="KeyF"&&atTimetable()){openPanel("route-six");return;}

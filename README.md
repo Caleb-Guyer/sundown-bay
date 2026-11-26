@@ -4,7 +4,7 @@ At six sharp, Dalia Cruz has a ferry to dispatch and a passenger running late. Y
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
-**House Copies** starts at Meli’s Bay Wire cart near the Marlin. Take the satchel and look for the red sidewalk rack at Palm Diner and the green one at the motel. Either stop can go first. Press **B** just before you pass a rack on a bicycle or in your car. Your bundle carries some of your speed. You can circle back after a miss or walk up to place it. Teo and Alba unfold their copies, and Bea leaves your signed receipt in Room 14. Your tip rewards moving deliveries and accurate landings.
+**House Copies** starts at Meli’s Bay Wire cart near the Marlin. Take the satchel and look for the red sidewalk rack at Palm Diner and the green one at the motel. Either stop can go first. Press **B** just before you pass a rack on a bicycle or in your car. Your bundle carries some of your speed. You can circle back after a miss or walk up to place it. Your tip rewards moving deliveries and accurate landings. When Teo or Alba unfolds the paper, walk up and press **F** to read it. The front page carries your ferry dispatch or the photograph and crop you gave Meli. Bea keeps a copy with the signed receipt on your desk in Room 14.
 
 **Clean Through** starts on the street. In free roam, pass close beside a moving car above **20 mph**. Get through two cars on opposite sides in the same gap for a **250-point bonus**. Another pass extends the run. Five clear seconds bank it, and a collision spoils it. The screen on the back of Romy’s chalk rail across Tideway from Portside Tire loops your best pass. Walk up and press **F** to scrub through it, or open the saved reel under **J**.
 

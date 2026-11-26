@@ -7,14 +7,31 @@
   ];
   const integer=(n,max)=>Number.isSafeInteger(n)&&n>=0?Math.min(n,max):0;
   const edition=v=>typeof v==="string"?v.slice(0,64):"";
+  const front=v=>typeof v==="string"&&/^(?:aboard|ashore|city|print-[a-z0-9]+-(?:street|driver))$/.test(v)?v:"city";
+  const archiveKey="sundownBay.subscriberPrints.v1";
+  let sheets={};
+  function photograph(p,previous){
+    if(!p?.cover)return null;
+    let hash=2166136261;for(let i=0;i<p.cover.length;i++)hash=Math.imul(hash^p.cover.charCodeAt(i),16777619);
+    const id="print-"+(hash>>>0).toString(36)+"-"+p.crop;
+    const keep=sheet(previous);sheets=keep&&previous!==id?{[previous]:keep,[id]:p}:{[id]:p};
+    try{localStorage.setItem(archiveKey,JSON.stringify(sheets));}catch{}
+    return id;
+  }
+  function sheet(id){
+    if(!id?.startsWith("print-"))return null;
+    let p=sheets[id];if(!p)try{p=JSON.parse(localStorage.getItem(archiveKey)||"{}")[id];}catch{}
+    if(!p||typeof p.cover!=="string"||p.cover.length>96000||!p.cover.startsWith("data:image/jpeg;base64,")||!["driver","street"].includes(p.crop))return null;
+    sheets[id]=p;return p;
+  }
   function read(raw){
     const b={rev:integer(raw?.rev,1e9),runs:integer(raw?.runs,1e7),best:integer(raw?.best,200),last:null,run:null};
-    if(b.runs&&raw?.last)b.last={score:integer(raw.last.score,200),pay:integer(raw.last.pay,145),edition:edition(raw.last.edition)};
+    if(b.runs&&raw?.last)b.last={score:integer(raw.last.score,200),pay:integer(raw.last.pay,145),edition:edition(raw.last.edition),front:front(raw.last.front)};
     const r=raw?.run;
-    if(r&&[0,1,2].includes(r.mask))b.run={mask:r.mask,points:r.mask?integer(r.points,100):0,misses:integer(r.misses,99),edition:edition(r.edition)};
+    if(r&&[0,1,2].includes(r.mask))b.run={mask:r.mask,points:r.mask?integer(r.points,100):0,misses:integer(r.misses,99),edition:edition(r.edition),front:front(r.front)};
     return b;
   }
-  function start(book,headline){if(book.run)return false;book.run={mask:0,points:0,misses:0,edition:edition(headline)};book.rev++;return true;}
+  function start(book,headline,print){if(book.run)return false;book.run={mask:0,points:0,misses:0,edition:edition(headline),front:front(print)};book.rev++;return true;}
   function pending(book){return stops.filter(s=>book.run&&!(book.run.mask&s.id));}
   function nearest(book,p){
     let target=null,distance=Infinity;
@@ -47,7 +64,7 @@
     const score=Math.max(35,Math.round(65+Math.min(22,p.speed*2.6)+13*(1-hit.gap/1.42)-Math.min(20,r.misses*4)));
     r.points+=score;r.mask|=p.stop.id;
     if(r.mask!==3)return {score};
-    const receipt={edition:r.edition,score:r.points,pay:45+Math.round(r.points*.5)};
+    const receipt={edition:r.edition,front:r.front,score:r.points,pay:45+Math.round(r.points*.5)};
     book.runs++;book.best=Math.max(book.best,r.points);book.last=receipt;book.run=null;return {score,receipt};
   }
   function rack(g,s){
@@ -69,6 +86,37 @@
       g.box(c,.010,.124,.245,.006,.035,"#865443");
       for(let i=0;i<4;i++)g.box(c,.010,.064-i*.053,i===3?.16:.245,.006,.014,"#686862");
     }
+  }
+  function satchel(g){
+    const teal="#42736a",edge="#704c38",light="#e2cba0";
+    g.box(0,.12,0,.20,.30,.39,edge);g.box(-.012,.14,0,.22,.27,.37,teal);
+    for(let i=0;i<3;i++)g.box(-.027+i*.021,.32+i*.020,(i-1)*.045,.045,.16,.26,light);
+    g.box(.096,.235,0,.034,.12,.39,"#669182");g.box(.119,.174,-.045,.024,.09,.037,"#c79962");
+    for(const z of [-.13,.13])g.pole([-.021,.3,z],[-.09,.61,z*.32],.014,edge,5);
+  }
+  function carry(list,model,p,level,inCar,onBike){
+    if(!p)return;
+    model("house-satchel",satchel);const yaw=p.yaw||0,side=inCar?.39:.32,forward=inCar?.10:onBike?-.26:0;
+    list.push(["house-satchel",p.x+Math.cos(yaw)*side+Math.sin(yaw)*forward,level+(inCar?.69:onBike?.71:.69),
+      p.z-Math.sin(yaw)*side+Math.cos(yaw)*forward,yaw]);
+  }
+  function frontPage(canvas,record,desk,ready){
+    const photo=sheet(record.front);if(photo&&desk.page(canvas,photo,photo.crop,ready))return;
+    const c=canvas.getContext("2d");c.save();c.scale(canvas.width/600,canvas.height/384);c.fillStyle="#ede2c5";c.fillRect(0,0,600,384);
+    c.fillStyle="#29413b";c.font="bold 42px Georgia, serif";c.fillText("THE BAY WIRE",22,48);
+    c.font="bold 13px monospace";c.fillText("SUBSCRIBER EDITION",435,35);c.fillStyle="#9f513f";c.fillRect(22,60,554,4);
+    const aboard=record.front==="aboard",ashore=record.front==="ashore";
+    c.fillStyle="#293a38";c.font="bold 34px Georgia, serif";c.fillText(aboard?"One more on the first crossing":ashore?"The six o’clock sails on time":"Before Ocean Drive wakes up",22,108);
+    c.font="italic 17px Georgia, serif";c.fillText(aboard||ashore?"PORT SOL   /   First boat · Dispatch book":"OCEAN DRIVE   /   The early round",24,139);
+    c.fillStyle="#b5c4af";c.fillRect(24,157,552,112);c.fillStyle="#688c84";c.fillRect(24,225,552,44);
+    c.fillStyle="#e4cb96";c.beginPath();c.arc(469,191,19,0,7);c.fill();
+    c.fillStyle="#485f5c";c.fillRect(95,211,262,12);c.fillRect(144,187,139,28);c.fillRect(180,178,49,11);
+    c.fillStyle="#c7b38c";for(let i=0;i<7;i++)c.fillRect(151+i*18,191,11,11);
+    c.fillStyle="#476e68";for(let i=0;i<5;i++)c.fillRect(65+i*58,231+(i%2)*11,42,2);
+    c.fillStyle="#313f37";c.font="18px Georgia, serif";
+    c.fillText(aboard?"The gate crew held for Luis. His name made the first sailing.":ashore?"Luis reached the slip as the ferry pulled away.":"The ferry crew is on the water before the coffee shops open.",24,304);
+    c.fillText(aboard?"There was still a cup of coffee waiting on the other side.":ashore?"His next crossing is pencilled into the dispatch book.":"Two copies wait at the Marlin. Teo puts his by the coffee pot.",24,333);
+    c.fillStyle="#95644a";c.fillRect(24,349,552,1);c.font="bold 12px monospace";c.fillText("OCEAN DRIVE   /   HOME DELIVERY",24,371);c.restore();
   }
   function reader(book,s,reaction,t){
     const delivered=!!(book.run?book.run.mask&s.id:book.last);
@@ -107,5 +155,5 @@
       c.fillStyle="#a25245";c.fillRect(.04*s,-.14*s,.07*s,.28*s);c.restore();
     }
   }
-  window.BayHouseCopies={stops,read,start,pending,nearest,launch,step,file,reader,world,map};
+  window.BayHouseCopies={stops,read,start,pending,nearest,launch,step,file,reader,world,map,carry,opened,frontPage,photograph,sheet};
 })();
