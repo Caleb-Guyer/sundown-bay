@@ -56,11 +56,18 @@ module.exports = async ({js, send, waitFor, tap, errors, mode}) => {
           if(close)memoryTest.done=true;else requestAnimationFrame(advance);
         }requestAnimationFrame(advance);
       }`);
-      await waitFor("memoryTest.done&&document.querySelector('#context').innerText.includes('Cheap Seats')",55000);
+      const hint="document.querySelector('#context').innerText";
+      await waitFor("memoryTest.done&&("+hint+".includes('Cheap Seats')||"+hint+".includes('Take your driver copy'))",65000);
+      if(await js(hint+".includes('Take your driver copy')")){
+        await tap("KeyF");await waitFor("document.querySelector('#panelTitle').textContent==='Driver copy'");
+        await tap("Escape");await waitFor(hint+".includes('Cheap Seats')");
+      }
       assert(await js("memoryTest.distance>15&&memoryTest.lead>1"));
       assert(await js("Math.cos(radar.rotation-radar.streetCar.yaw)>.95"));
       await tap("KeyF");await waitFor("!document.querySelector('#chapterFilm').hidden");
-      await snapshot("cheap-seats");await waitFor("document.querySelector('#chapterFilm').hidden",65000);
+      await snapshot("cheap-seats");
+      await waitFor("document.querySelector('#chapterLine').textContent.includes('"+(guest?"eggs":"rabbit")+"')",60000);
+      await snapshot("passenger-window");await waitFor("document.querySelector('#chapterFilm').hidden",25000);
       assert.equal(await js("localStorage.getItem('sundownBay.cheapSeats."+who+"')"),"1");
       assert.equal(await js("crew.afternoon.vehicle.garageKey"),ride);assert(await js("crew.afternoon.seated"));
       assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
@@ -95,7 +102,7 @@ module.exports = async ({js, send, waitFor, tap, errors, mode}) => {
   } catch (error) {
     console.log("Playtest state",await js(`JSON.stringify({outing:window.crew?.outing?.phase,leg:crew?.outing?.leg?.at,
       active:crew?.afternoon.active,phase:crew?.afternoon.phase,context:document.querySelector('#context').innerText,
-      hud:document.querySelector('#objectiveText').textContent,panel:document.querySelector('#panelBody').innerText,seen:[...drivePhases]})`));
+      hud:document.querySelector('#objectiveText').textContent,panel:document.querySelector('#panelBody').innerText,seen:[...drivePhases],memory:window.memoryTest})`));
     throw error;
   }
 };

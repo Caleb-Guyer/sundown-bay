@@ -1589,10 +1589,6 @@
       return true;
     }
     if(unit.transition||unit.eye||windowRide||panel)return false;
-    if(code==="KeyF"&&atMemoryCurb()){
-      BayDriving.settle(car);$("speech").hidden=true;speechTill=elapsed;
-      enterFilm(BayOffClock.cheapSeats[unit.other].film);return true;
-    }
     if(a.active&&code==="KeyY"&&(a.phase!=="foot"||car||transfer)){note("Second Unit","Park and step outside together to switch.",2.6);return true;}
     if(code==="KeyG"&&(nearPartner()||a.active&&a.seated&&car===a.vehicle)){
       if(a.active)openPanel("free-afternoon");else startAfternoon();return true;
@@ -1607,7 +1603,7 @@
     return false;
   }
   function atMemoryCurb(){
-    return waypoint?.kind==="cheap-seats"&&!active&&!heat&&!transfer&&afternoon.seated&&car===afternoon.vehicle&&
+    return waypoint?.kind==="cheap-seats"&&!active&&!heat&&!transfer&&afternoon.seated&&car===afternoon.vehicle&&beat.stop?.target!==car&&
       dist(car,BayOffClock.cheapSeats[unit.other])<8&&Math.abs(car.speed)<.65;
   }
   function afternoonHint(){
@@ -1616,7 +1612,6 @@
     const site=onStreetFeet()&&BayOffClock.near(hero);
     if(site&&!heat){contextHint("F",afternoon.active?"Sit together for a Foto Bahía strip":"Sit for a Foto Bahía strip");return true;}
     if(afternoon.inDoor){contextHint("",BaySecondUnit.names[unit.other]+(afternoon.phase==="in"?" is buckling up":" is stepping out"));return true;}
-    if(atMemoryCurb()){contextHint("F","Listen to "+BaySecondUnit.names[unit.other]+" · The Cheap Seats");return true;}
     if(afternoon.seated&&car===afternoon.vehicle&&!heat){contextHint("G","Passenger seat · Stories, radio & stops");return true;}
     if(!afternoon.active&&nearPartner()){contextHint("G","Hang out with "+BaySecondUnit.names[unit.other]+(crewDeskNear()?" · F location desk":""));return true;}
     return false;
@@ -3653,7 +3648,10 @@
     if(!onStreetFeet()||room||heat||active||watchCrew.towing||cabs.booking||transit.engaged)return "";
     if(dist(hero,clinic.desk)<2.35)return "clinic-desk";
     if([rescue.recovering,rescue.waiting].some(a=>a&&dist(hero,a)<2.35))return "recovered";
-    if(["ready","outbound","scene","rear","sceneRoll","toPatient"].includes(rescue.phase)&&dist(hero,rescue.call.wait)<3.25)return "rescue-call";
+    if(["ready","outbound","scene","rear","sceneRoll","toPatient"].includes(rescue.phase)&&dist(hero,rescue.call.wait)<3.25){
+      const closer=nearbyJobContact();
+      if(!closer||dist(hero,rescue.call.wait)<=dist(hero,closer))return "rescue-call";
+    }
     return "";
   }
   function streetCallNear(){
@@ -7016,12 +7014,16 @@
     return pins;
   }
   const laundryContact=jobContacts.find(c=>c.id==="collection");
-  function atLaundry(){return !car&&!active&&!heat&&Math.abs(hero.x-laundryContact.x)<2&&Math.abs(hero.z-laundryContact.z)<2&&actionFeet()&&dist(hero,laundryContact)<2;}
+  function atLaundry(){
+    if(car||active||heat||Math.abs(hero.x-laundryContact.x)>=2||Math.abs(hero.z-laundryContact.z)>=2||!actionFeet())return false;
+    const d=dist(hero,laundryContact);
+    return d<2&&(!!ferryScene||dist(hero,BayFerry.pickup)>=d);
+  }
   function nearbyJobContact(speaker){
     if(!play||active||car||skiff||transfer||deckStep)return null;
     let closest=null,range=speaker?Math.min(2.8,dist(hero,speaker)):2.8;
     for(const contact of jobContacts){
-      if(contact.id==="collection"&&romyOutside()||contact.id==="ferry"&&ferryScene)continue;
+      if(contact.id==="collection"&&romyOutside()||contact.id==="ferry"&&ferryScene||contact.id==="getaway"&&meet.rival)continue;
       const d=dist(hero,contact);if(d<range){range=d;closest=contact;}
     }
     return closest;
@@ -8226,7 +8228,8 @@
   }
   function jumpChalk(){
     if(active||!onStreetFeet()||unit.eye||afternoon.photo||roofs.raised||pickup||room)return null;
-    return jumps.sites.find(s=>dist(hero,s.toe)<3.8);
+    const site=jumps.sites.find(s=>dist(hero,s.toe)<3.8);
+    return site&&dist(hero,site.toe)<=dist(hero,course[0])?site:null;
   }
   function openJumpBook(site){
     jumpPage=site;save.pictureJumps.known=true;persist();openPanel("picture-jumps",true);
@@ -11555,6 +11558,7 @@
       if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print"+(canReadRoadMap()?" · Shift + N for her street map":""));
       else contextHint("","Stop to look at Mara’s contact print");
     }
+    else if(atMemoryCurb())contextHint("F","Listen to "+BaySecondUnit.names[unit.other]+" · The Cheap Seats");
     else if(subscriber())contextHint("F","Unfold the subscriber’s copy of Bay Wire");
     else if(save.houseCopies.run&&paperCarrier()&&dist(pos(),BayHouseCopies.nearest(save.houseCopies,pos()))<22)contextHint("B","Toss to "+BayHouseCopies.nearest(save.houseCopies,pos()).name+" · throw before you pass");
     else if(canReadRoadMap())contextHint("Shift + N","Unfold Mara’s street map");
@@ -13062,6 +13066,10 @@
       if(ev.code==="KeyH"&&luz.bell()){sound.cue("luz-bell");speak("Channel watch","Two bells back. Come on through, Luz.");}
       if(ev.code==="Escape")openPanel("pause");if(ev.code==="KeyM")openPanel("map");if(ev.code==="KeyR")radioToggle();
       return;
+    }
+    if(ev.code==="KeyF"&&atMemoryCurb()){
+      BayDriving.settle(car);$("speech").hidden=true;speechTill=elapsed;
+      enterFilm(BayOffClock.cheapSeats[unit.other].film);return;
     }
     if(ev.code==="KeyF"&&rescue.call.source&&streetCallNear()===rescue.call&&!heat){openPanel("rescue-call");return;}
     if(ev.code==="KeyH"){const call=streetCallNear();if(call){flagRescue(call);return;}}
