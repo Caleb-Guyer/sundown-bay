@@ -21606,6 +21606,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     pullOut:["ride",[2.1,1.7,-3.7],[.7,3.1,-6.4],[0,.94,2.1],1.48,23],
     van:["live",[-6,2.1,2],[-4.9,1.7,1.3],[1.3,1.58,.45],1.6,22],
     cinema:["print",[-8,3.7,-7],[-6.5,2.8,-6.2],[1,2,.1],1.58,29],
+    lunaCurb:["print",[-11,3.8,4],[-9.7,3.4,4.6],[2.3,2.7,-7.1],1.40,32],
     recorder:["reel",[3.5,1.95,-3.0],[2.75,1.67,-2.35],[-.02,1.17,-.18],1.55,14],
     spool:["reel",[1.60,2.15,-.72],[1.34,1.99,-.84],[-.50,1.32,-1.50],1.65,7],
     luis:["gate",[-.35,1.71,-1.56],[-.41,1.66,-1.37],[-1.50,1.37,-.77],1.28,8],
@@ -21614,7 +21615,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
     lunaThroughTheWall:[
-      {dur:4.1,shot:"cinema",title:"The Cheap Seats",slug:"CINE LUNA   /   SIDE WALL",who:"Frankie Prado",line:"First picture I can remember, I never even got inside."},
+      {dur:4.1,shot:"lunaCurb",title:"The Cheap Seats",slug:"CINE LUNA   /   SIDE WALL",who:"Frankie Prado",line:"First picture I can remember, I never even got inside."},
       {dur:5.9,shot:"cab",who:"Frankie Prado",line:"See that wall? The fan carried every word out to the street. My little brother did the pictures with his hands."},
       {dur:5.2,shot:"doubleSeat",who:"Frankie Prado",line:"Only shape he knew was a rabbit. When the cowboy got on his horse, it was two rabbits, one on top of the other."}
     ],
@@ -79291,6 +79292,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const freeTowTarget={...recoveryYard.drop,kind:"recovery-drop",name:"Portside handoff lane"};
   const currentTarget=()=>active?.homeWalk?homeTarget():active?.featurePrint?.ride.aboard&&car!==active.featurePrint.ride.car?{...active.featurePrint.ride.car,name:"Romy and the film can"}:active?.laundry?BayClinicLaundry.targets[save.rescue.laundry.stage]:active?.county?BayCountyRelay.sites[save.countyRelay.next]:active?.payroll?.aboard&&car!==active.vehicle?{x:active.vehicle.x,z:active.vehicle.z,name:"Jules and the payroll car"}:active?.freight&&spur.trip?(spur.trip.phase==="board"?spur.trip.start.desk:spur.trip.target.desk):active?.cup?cupTarget():active?.engineSeven?engineTarget():green.run?.accepted&&!active?green.run.s.route.target:mantaRide.run&&skiff===manta?mantaRide.target(clubBoat):active?.campana?campana.target(car===iceVan):!active&&waypoint?.kind==="campana-track"?{...campana.counter,name:"La Campana"}:windowRide?windowTarget():active?.buttonwood?works.target(car,skiff===pip):active?.brisas?(club.reserve&&!BayBrisasClub.switches(car)?{...plum,name:"Plum Solena 64"}:club.target):active?.palm?(palm.match?null:palm.target):active?.gull?gullTarget():active?.moto?motos.target():active?.rescue?rescue.target(rescueEnv):airTarget()||(active?.skate?skateTarget():transit.flag?transit.flag.s:transit.aboard?transit.target:active?.neon?neonTarget():active?.bridge?bridgeSite:active?.wash?wash.marker():active?.band?band.destination(car):active?.valet?valet.target(car):active?.relay?cycles.target(hero):watchCrew.towing?watchCrew.target():active?.recovery?recovery.target(car):cabs.booking||active?.cabFare?cabs.target(car):active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:car===wrecker&&tow.target&&(BayRecovery.worst(tow.target)||tow.target.flatSide)?freeTowTarget:waypoint);
   function streetTarget(){
+    if(campaign.scene&&waypoint?.kind==="cheap-seats")return null;
     if(active?.cup&&(cup.phase==="count"||cup.phase==="parked"&&dist(pos(),BayCoastCup.grid)<7))return null;
     if(active?.engineSeven&&(!company.manual||car!==engine7))return null;
     if(mantaRide.run&&dist(pos(),mantaRide.target(clubBoat))<30)return null;
