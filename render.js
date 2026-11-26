@@ -229,12 +229,14 @@
     const side=(value,half,lo,hi)=>value>half+near?lo:value< -half-near?hi:0;
     return side(u-b.x,b.hw,1,2)|side(v-b.y,b.hh,4,8)|side(w-b.z,b.hd,16,32);
   }
-  function exteriorMesh(model,mask){
+  function exteriorMesh(model,mask,batch){
     const old=model.exterior;
     if(old?.mask===mask)return old;
     // Multiple instances can use the same model in one frame. Rebuild only
     // when a camera side repeats; a spinning wheel can keep its original mesh.
     if(model.wantedSide!==mask){model.wantedSide=mask;return null;}
+    const recent=model.recentSides?.get(mask);
+    if(recent)return model.exterior=recent;
     const sources=[],indices=[],lookup=new Uint16Array(model.vertexCount);
     for(let i=0;i<model.count;i+=3){
       if(model.closedSides[i/3]&mask)continue;
@@ -244,7 +246,15 @@
         indices.push(lookup[id]-1);
       }
     }
-    return model.exterior={mask,indices:new Uint16Array(indices),sources:new Uint32Array(sources)};
+    const mesh={mask,indices:new Uint16Array(indices),sources:new Uint32Array(sources)};
+    const bytes=mesh.indices.byteLength+mesh.sources.byteLength;
+    while(batch.sideBytes+bytes>2*1024*1024){
+      const [first,owner]=batch.sideHistory.entries().next().value;
+      owner.recentSides.delete(first.mask);batch.sideHistory.delete(first);
+      batch.sideBytes-=first.indices.byteLength+first.sources.byteLength;
+    }
+    (model.recentSides??=new Map()).set(mask,mesh);
+    batch.sideHistory.set(mesh,model);batch.sideBytes+=bytes;return model.exterior=mesh;
   }
   // Keep the city in its static vertex buffer. A street camera draws one
   // ordered index list, including near and distant streets. The same list is
@@ -339,6 +349,8 @@
       this.vertexWords=new Uint32Array(this.vertices.buffer);
       this.indices=new Uint16Array(65532);
       this.savedPoses=new Set();this.poseBytes=0;
+      this.sourceIds=new WeakMap();this.nextSource=1;
+      this.sideHistory=new Map();this.sideBytes=0;
       this.details=new Map();this.detailBytes=0;this.buildDetail=true;
       // Give the GPU time to consume a submitted street batch before the
       // next upload writes to the same storage. All three pairs total 2.1 MiB.
@@ -389,10 +401,20 @@
       this.poseBytes-=p.vertices.byteLength;this.savedPoses.delete(p);p.vertices=null;
     }
     repeatedPose(model,sources,x,y,z,yaw,tiltX,tiltZ){
-      const p=model.batchPose??={x:NaN,vertices:null};
-      if(p.x===x&&p.y===y&&p.z===z&&p.yaw===yaw&&p.tiltX===tiltX&&p.tiltZ===tiltZ&&p.sources===sources)return p;
+      // Street furniture can share a mesh at several addresses. Give repeated
+      // placements a chance to reuse their transform as the car passes them.
+      const slots=model.batchPoses??=[];
+      let sourceId=this.sourceIds.get(sources);
+      if(!sourceId){sourceId=this.nextSource++;this.sourceIds.set(sources,sourceId);}
+      for(let i=0;i<slots.length;i++){
+        const p=slots[i];
+        if(p.x===x&&p.y===y&&p.z===z&&p.yaw===yaw&&p.tiltX===tiltX&&p.tiltZ===tiltZ&&p.sourceId===sourceId){
+          if(i){slots.splice(i,1);slots.unshift(p);}return p;
+        }
+      }
+      const p=slots.length<12?{}:slots.pop();slots.unshift(p);
       this.forgetPose(p);
-      p.x=x;p.y=y;p.z=z;p.yaw=yaw;p.tiltX=tiltX;p.tiltZ=tiltZ;p.sources=sources;return null;
+      p.x=x;p.y=y;p.z=z;p.yaw=yaw;p.tiltX=tiltX;p.tiltZ=tiltZ;p.sourceId=sourceId;return null;
     }
     rememberPose(p,vertices){
       while(this.poseBytes+vertices.byteLength>3*1024*1024)this.forgetPose(this.savedPoses.values().next().value);
@@ -417,7 +439,8 @@
       while(this.detailBytes+bytes>4*1024*1024){
         const [old,entry]=this.details.entries().next().value;
         delete entry.model.detailLevels[entry.cell];this.detailBytes-=entry.bytes;this.details.delete(old);
-        if(entry.model.batchPose?.sources===old.data){this.forgetPose(entry.model.batchPose);entry.model.batchPose.sources=null;}
+        const sourceId=this.sourceIds.get(old.data);
+        for(const p of entry.model.batchPoses||[])if(p.sourceId===sourceId)this.forgetPose(p);
       }
       this.details.set(detail,{model,cell,bytes});this.detailBytes+=bytes;return detail;
     }
@@ -444,7 +467,7 @@
         if(model.closedSides===undefined)model.closedSides=closedBoxFaces(data);
         if(model.closedSides){
           const mask=cameraSides(model,view.basis,x,y,z,yaw,tiltX,tiltZ);
-          const exterior=mask&&exteriorMesh(model,mask);
+          const exterior=mask&&exteriorMesh(model,mask,this);
           if(exterior){indices=exterior.indices;sources=exterior.sources;count=indices.length;n=sources.length;}
         }
       }
@@ -464,7 +487,7 @@
       const dest=this.vertices;
       const start=this.used*6;
       // The source list changes with distance and the visible sides of a closed
-      // model. Only two identical consecutive static draws can admit a pose.
+      // model. Only a repeated static placement can admit a pose.
       const pose=!model.dynamic&&!car&&n>=48?this.repeatedPose(model,sources||data,x,y,z,yaw,tiltX,tiltZ):null;
       if(pose?.vertices)dest.set(pose.vertices,start);
       else{

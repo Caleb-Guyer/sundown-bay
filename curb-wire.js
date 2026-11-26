@@ -5,7 +5,7 @@
   const desk={x:155.35,z:-17.1,y:.076,yaw:-Math.PI/2,name:"Bay Wire · Curb desk"};
   desk.stand=BayDriving.world(desk,0,1.1);desk.block={x:desk.x,z:desk.z,w:.84,d:1.43,bottom:0,top:1.45,streetProp:true};
   const assignments=["pass","slide","hop"];
-  const titles={pass:"Street pass",slide:"Sliding corner",donut:"Around on the rear tires",hop:"Off the springs",jump:"Picture car jump",chase:"Sirens in frame",impact:"Fender bender"};
+  const titles={pass:"Street pass",slide:"Sliding corner",donut:"Around on the rear tires",hop:"Off the springs",jump:"Picture car jump",chase:"Sirens in frame",impact:"Fender bender",air:"Last Seen · Air One"};
   const clamp=(n,a,b)=>Math.min(b,Math.max(a,n)),round=n=>Math.round(n*100)/100;
   const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   const cleanName=s=>typeof s==="string"&&s.length>0&&s.length<=70;
@@ -13,7 +13,7 @@
   function valid(c){
     if(!c||!Number.isSafeInteger(c.id)||c.id<1||!Object.hasOwn(titles,c.type)||!cleanName(c.by)||!cleanName(c.street)||
       !Number.isInteger(c.score)||c.score<1||c.score>100||!Number.isInteger(c.day)||c.day<1||!Number.isFinite(c.minute)||c.minute<0||c.minute>=1440||
-      ![c.rain,c.night].every(n=>Number.isFinite(n)&&n>=0&&n<=1)||!c.eye||!placeOK(c.eye.x,c.eye.z)||!Number.isFinite(c.eye.y)||Math.abs(c.eye.y)>60||
+      ![c.rain,c.night].every(n=>Number.isFinite(n)&&n>=0&&n<=1)||!c.eye||!placeOK(c.eye.x,c.eye.z)||!Number.isFinite(c.eye.y)||Math.abs(c.eye.y)>(c.type==="air"?160:60)||
       !Array.isArray(c.cast)||c.cast.length<1||c.cast.length>4||!c.cast.every(v=>v&&Object.hasOwn(BayDriving.cars,v.kind)&&/^#[a-f\d]{6}$/i.test(v.color))||
       !Array.isArray(c.frames)||c.frames.length<7||c.frames.length>48)return false;
     let last=-1;
@@ -21,6 +21,8 @@
       if(!Array.isArray(f)||f.length<2||f.length>1+c.cast.length||!f[1]||!Number.isFinite(f[0])||f[0]<=last||f[0]>8)return false;
       last=f[0];for(const p of f.slice(1))if(p!==null&&(!Array.isArray(p)||p.length!==6||!p.every(Number.isFinite)||!placeOK(p[0],p[2])||Math.abs(p[1])>60))return false;
     }
+    if(c.type==="air"&&(!Array.isArray(c.flight)||c.flight.length!==c.frames.length||
+      !c.flight.every(p=>Array.isArray(p)&&p.length===3&&placeOK(p[0],p[2])&&Number.isFinite(p[1])&&p[1]>0&&p[1]<=160)))return false;
     return c.frames[0][0]===0;
   }
   class Book{
@@ -33,13 +35,15 @@
       if(Array.isArray(raw.clips))for(const c of raw.clips.slice(0,6))if(valid(c))clips.set(c.id,c);
       this.clips=[...clips.values()].sort((a,b)=>b.id-a.id).slice(0,6);
       if(valid(raw.cover)){this.cover=raw.cover;this.pin=raw.cover.id;}
+      if(raw.air?.type==="air"&&valid(raw.air)&&(!this.air||raw.air.id>=this.air.id))this.air=raw.air;
     }
-    save(){try{localStorage.setItem(key,JSON.stringify({met:this.met,list:this.list,edits:this.edits,clips:this.clips,cover:this.cover}));}catch{}}
+    save(){try{localStorage.setItem(key,JSON.stringify({met:this.met,list:this.list,edits:this.edits,clips:this.clips,cover:this.cover,air:this.air}));}catch{}}
     meet(){this.refresh();if(!this.met){this.met=true;this.save();}}
     takeList(){this.refresh();this.met=true;this.list=true;this.save();}
     get complete(){return assignments.every(id=>this.edits[id]);}
     keep(c){
       this.refresh();c.id=Math.max(Date.now(),(this.clips[0]?.id||0)+1);if(!valid(c))return false;
+      if(c.type==="air")this.air=c;
       if(this.list&&c.called&&assignments.includes(c.type)&&(!this.edits[c.type]||c.score>this.edits[c.type].score))this.edits[c.type]=c;
       this.clips=[c,...this.clips].slice(0,6);if(!this.cover){this.cover=c;this.pin=c.id;}this.save();return true;
     }
@@ -50,6 +54,38 @@
     return [round(v.x),round((v.jumpFlight?.height??env.floor(v.x,v.z))+.012+(v.hydraulic?.bodyLift||0)),round(v.z),round(v.yaw),round(pose.pitch||0),round(pose.lean||0)];
   }
   const castMember=v=>({kind:v.kind,color:/^#[a-f\d]{6}$/i.test(v.color)?v.color:v.kind==="cruiser"?"#e1e1ce":"#898e85"});
+  class AirReel{
+    reset(){this.take=this.last=null;}
+    cut(){
+      if(this.take?.samples.length>=7)this.last=this.take;
+      this.take=null;
+    }
+    step(air,car,patrol,env){
+      if(!air?.sees||!car||this.take&&this.take.car!==car)this.cut();
+      if(!air?.sees||!car||air.age!==air.scanAge)return;
+      const shot=this.take??={car,cast:[castMember(car)],units:[],samples:[]};
+      const near=q=>Math.abs(q.x-car.x)<37&&Math.abs(q.z-car.z)<37;
+      for(const q of patrol)if(shot.units.length<2&&near(q)&&!shot.units.includes(q)&&q.kind==="cruiser"){
+        shot.units.push(q);shot.cast.push(castMember(q));
+      }
+      const cars=[body(car,env)];
+      for(const q of shot.units)cars.push(patrol.includes(q)&&near(q)&&env.airSees(air,q)?body(q,env):null);
+      shot.samples.push({at:air.age,cars,eye:[round(air.x),round(air.y-.6),round(air.z)]});
+      while(shot.samples.length>45||air.age-shot.samples[0].at>4.5)shot.samples.shift();
+      shot.street=env.street(car);shot.minute=Math.floor(env.hours.minute);shot.day=env.hours.day+1;
+      shot.night=env.hours.night;shot.rain=env.hours.rain;
+    }
+    file(book){
+      this.cut();const shot=this.last;this.reset();if(!shot)return;
+      const samples=shot.samples,first=samples[0],last=samples.at(-1),[x,y,z]=first.eye;
+      const travel=Math.hypot(last.cars[0][0]-first.cars[0][0],last.cars[0][2]-first.cars[0][2]);
+      const clip={type:"air",by:"Air One",street:shot.street,score:Math.round(clamp(43+travel*.55+samples.length*.52,1,100)),
+        day:shot.day,minute:shot.minute,night:round(shot.night),rain:round(shot.rain),eye:{x,y,z},cast:shot.cast,
+        flight:samples.map(s=>s.eye),frames:samples.map(s=>[round(s.at-first.at),...s.cars])};
+      if(book.keep(clip))return clip;
+    }
+  }
+  const duration=clip=>clip.frames.at(-1)[0]+(clip.type==="air"?.9:0);
   function track(clip,time){
     const frames=clip.frames;
     let right=frames.findIndex(f=>f[0]>=time);if(right<0)right=frames.length-1;
@@ -59,13 +95,29 @@
       const l=x||y,r=y||x,at=k=>l[k]+(r[k]-l[k])*p,turn=r[3]-l[3];
       cars.push({...clip.cast[i],x:at(0),y:at(1),z:at(2),yaw:l[3]+Math.atan2(Math.sin(turn),Math.cos(turn))*p,pitch:at(4),lean:at(5)});
     }
-    const car=cars[0],d=gap(car,clip.eye);
-    return {cars,eye:{...clip.eye,yaw:Math.atan2(car.x-clip.eye.x,car.z-clip.eye.z),
-      pitch:Math.atan2(car.y+.83-clip.eye.y,d),focal:clamp(1.07+d*.075,1.4,3.2)}};
+    let eye=clip.eye;
+    if(clip.type==="air"){
+      const from=clip.flight[Math.max(0,right-1)],to=clip.flight[right],at=k=>from[k]+(to[k]-from[k])*p;
+      eye={x:at(0),y:at(1),z:at(2)};
+    }
+    const car=cars[0],d=gap(car,eye);
+    return {cars,eye:{...eye,yaw:Math.atan2(car.x-eye.x,car.z-eye.z),
+      pitch:Math.atan2(car.y+.83-eye.y,d),focal:clip.type==="air"?clamp(Math.hypot(d,eye.y-car.y)/13,1.4,5):clamp(1.07+d*.075,1.4,3.2)}};
   }
   function paint(canvas,clip,time,scenery){
     const duration=clip.frames.at(-1)[0],t=clamp(time,0,duration),frame=track(clip,t);
     scenery.paint(canvas,frame.eye,{id:"curb-"+clip.id},t,{curb:true,hours:{rain:clip.rain,night:clip.night},cars:frame.cars},true);
+    if(clip.type==="air"){
+      const c=canvas.getContext("2d"),w=canvas.width,h=canvas.height;
+      c.save();c.scale(w/384,h/216);c.font="bold 12px monospace";c.textBaseline="middle";
+      c.fillStyle="#182b31";c.fillRect(9,10,75,20);c.fillStyle="#f2dfab";c.fillText("AIR ONE",18,21);
+      c.strokeStyle="#f4ecc9";c.lineWidth=1.2;
+      for(const sx of [-1,1])for(const sy of [-1,1]){
+        const x=192+sx*22,y=108+sy*15;c.beginPath();c.moveTo(x-sx*7,y);c.lineTo(x,y);c.lineTo(x,y-sy*6);c.stroke();
+      }
+      if(time>duration){c.fillStyle="#172b30";c.fillRect(123,143,138,23);c.fillStyle="#f4dfad";c.textAlign="center";c.fillText("LAST VISUAL",192,155);}
+      c.restore();
+    }
   }
   class Column{
     constructor(){this.book=new Book();this.shot=null;this.scan=0;this.cool=0;this.author=null;}
@@ -153,5 +205,5 @@
       this.cool=12;if(this.book.keep(clip))return clip;
     }
   }
-  window.BayCurbWire={Column,Book,key,desk,titles,assignments,track,paint,valid};
+  window.BayCurbWire={Column,Book,AirReel,key,desk,titles,assignments,track,paint,valid,duration};
 })();

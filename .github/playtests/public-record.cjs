@@ -137,6 +137,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const expose=atlas.replace("  function castBuildings(","  window.patch=groundPatch;\n  function castBuildings(");
       const ground=await js("("+require("./ground-window.cjs").toString()+")((function(window){"+expose+";return window.patch;})({}))");
       console.log("PERF overhead block pixels",JSON.stringify(ground));
+      const lot=await js("("+require("./starlite-lot.cjs").toString()+")()");
+      console.log("PERF Starlite lot",JSON.stringify(lot));
+      for(const v of lot)assert(v.original.paths>50&&v.cached.paths<=5&&v.cached.images===1&&v.overlap>.98&&v.error<5);
       for(const sample of ground)assert(sample.changed<sample.pixels*.001&&sample.meanError<.12,"Block transition "+JSON.stringify(sample));
       const wheel=await js("("+require("./wheel-map.cjs").toString()+")()");
       console.log("PERF Coast Wheel",JSON.stringify(wheel));

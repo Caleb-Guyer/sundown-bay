@@ -253,6 +253,7 @@
   let fittingItem="",fittingAngle=0,windowStrip=null,windowStamp=0;
   const unitPin={...BaySecondUnit.home.frankie,kind:"scout",name:"Cine Luna · Location desk"};
   const curbWire=new BayCurbWire.Column(),wireDesk=BayCurbWire.desk,wirePin={...wireDesk.stand,kind:"curb-news",name:wireDesk.name};locations.push(wirePin);
+  const airReel=new BayCurbWire.AirReel();
   let wireView=null,wireSelected=0,wireTV=null,wireTVVersion=0,wireLastFrame="",wireNextTV=0;
   let freshEdition=null;
   const afternoon=new BayOffClock.Afternoon();let stripShown=0,fotoGlass="";
@@ -6765,7 +6766,7 @@
     }
     signedNote(body,"I’m at the Marlin or the picture house. Park at the curb and give me a toot if a lamp’s been playing up.","Lina Solís · Ocean Unit 12");
   }
-  function clearPatrol(){beat.release(beatEnv);patrol.length=0;boxed=0;lastIncident=-100;crashContacts.clear();chase.reset();backup.reset();harbor.reset();}
+  function clearPatrol(){airReel.reset();beat.release(beatEnv);patrol.length=0;boxed=0;lastIncident=-100;crashContacts.clear();chase.reset();backup.reset();harbor.reset();}
   function addHeat(n){
     const prev=heat;heat=Math.min(5,heat+n);lastIncident=elapsed;
     chase.report(pos(),skiff?.vx??car?.vx??motion.vx,skiff?.vz??car?.vz??motion.vz,!!skiff);lastHud=-10;
@@ -8518,6 +8519,7 @@
     harbor.update(heat,dt,streetTime,p,deckStep?null:skiff||(swim?hero:null),dock,civilianFleet,submerged);
     if(p.z>277)for(const unit of harbor.units)if(unit.z>289&&Math.abs(unit.x-284)<19)bay.clearWorkingHull(unit,BayCutWildlife.trawlerHull(streetTime,hours));
     backup.fly(heat,dt,p,submerged);
+    if(backup.air||airReel.take)airReel.step(backup.air,curbVehicle(),patrol,wireEnv);
     chase.observe(patrol,p,vx,vz,heat,dt,harbor.sighted||!!backup.air?.sees,afloat,submerged);
     backup.updateBlock(heat,dt,p,blockSiteClear,patrol,!waterside);
     // Road units cover the last landing while the launches take the water call.
@@ -8557,7 +8559,10 @@
       }else if(firstFoot)enterFilm("carbonMorning");else if(footTarget)note("Back at the Marlin","Release copy "+save.releaseCopy.number+" · "+save.releaseCopy.street+" · "+cash(fine),4.5);
       return;}
     if(chase.searching&&chase.unseen-1.05>=chase.searchTime(heat)){
+      const tape=airReel.file(curbWire.book);
       heat=0;clearPatrol();lastHud=-10;note("Pursuit lost","Bay Patrol called off the search.",3.5);
+      if(tape){note("Pursuit lost · Last Seen","Air One over "+tape.street+" · J opens Bay Wire",5);
+        speak("Meli Funes · Bay Wire","I got the camera feed. It ends on "+tape.street+". Come by the cart. I left the last frame in.");}
     }
   }
   function isTop(){return manualTop||!view.gl||view.lost;}
@@ -8850,6 +8855,7 @@
     street:v=>BayStreetNames.through(v,v.yaw)||district(v),
     get wanted(){return heat>0;},
     present:v=>cars.includes(v)||patrol.includes(v),
+    airSees:(air,v)=>BayCamera.safeFraction(backup.lamp(air),{x:v.x,y:footLevel(v.x,v.z)+1,z:v.z},chase.cover)>=1,
     nearby(v){return [...patrol,...cars.filter(c=>c!==v&&Math.abs(c.x-v.x)<42&&Math.abs(c.z-v.z)<42).sort((a,b)=>dist(a,v)-dist(b,v))];},
     sees(w,v){
       return scoutSight({x:w.x,y:footLevel(w.x,w.z)+1.54,z:w.z},{x:v.x,y:(v.jumpFlight?.height??footLevel(v.x,v.z))+.9+(v.hydraulic?.bodyLift||0),z:v.z});
@@ -8861,7 +8867,7 @@
     return curbWire.book.clips.find(c=>c.id===w.curbClip);
   }
   function curbStep(dt){
-    const w=curbWire.shot?.w,c=curbWire.step(dt,curbVehicle(),wireEnv);
+    const vehicle=curbVehicle(),w=curbWire.shot?.w,c=curbWire.step(dt,vehicle,wireEnv);
     if(c){if(w){w.curbPosted=elapsed;w.curbClip=c.id;}
       if(!heat&&!active)note("Bay Wire · "+BayCurbWire.titles[c.type],curbWire.book.edits[c.type]?.id===c.id?"Meli kept your take · "+Object.keys(curbWire.book.edits).length+" of 3 in the street edition":c.by+" filmed you on "+c.street+" · J to watch",4);
       lastHud=-10;
@@ -8885,7 +8891,7 @@
   function wirePanel(b){
     const book=curbWire.book;book.refresh();
     if(neighbors.editions.length)b.append(makeButton("Bay Wire · Neighborhood edition",neighbors.editions.map(s=>s.name).join(" · "),"Read",()=>openPanel("wire-edition")));
-    const all=[...new Map([...book.clips,book.cover,...Object.values(book.edits)].filter(Boolean).map(c=>[c.id,c])).values()];
+    const all=[...new Map([...book.clips,book.cover,book.air,...Object.values(book.edits)].filter(Boolean).map(c=>[c.id,c])).values()];
     const at=Math.max(0,all.findIndex(c=>c.id===wireSelected)),clip=all[at];
     if(!clip){
       wireList(b,book);signedNote(b,"A clean pass, a sideways corner, a hydraulic hop. If somebody on the sidewalk sees it, the clip lands here. Tap your horn near me first and I’ll have the phone up by the time you hit the gas.","Meli Funes · Bay Wire");
@@ -8895,7 +8901,7 @@
     canvas.setAttribute("aria-label",BayCurbWire.titles[clip.type]+", filmed by "+clip.by+" on "+clip.street);b.append(canvas);
     const caption=document.createElement("p");caption.className="curb-credit";
     caption.textContent=clip.by+" · "+clip.street+" · Day "+clip.day+" · "+BayHours.time(clip.minute);b.append(caption);
-    const duration=clip.frames.at(-1)[0],transport=document.createElement("div");transport.className="curb-transport";
+    const duration=BayCurbWire.duration(clip),transport=document.createElement("div");transport.className="curb-transport";
     const toggle=document.createElement("button");toggle.textContent="Pause";
     const scrub=document.createElement("input");scrub.type="range";scrub.min="0";scrub.max=String(duration);scrub.step=".025";scrub.value="0";scrub.setAttribute("aria-label","Scrub the street clip");
     const counter=document.createElement("output");transport.append(toggle,scrub,counter);b.append(transport);
@@ -8909,9 +8915,13 @@
       book.mount(clip);wireOpen(clip.id);
     });
     tvButton.disabled=pinned;b.append(tvButton);
+    if(book.air&&book.air.id!==clip.id)b.append(makeButton("Last Seen · Air One",book.air.street+" · Last five-star sighting","Play tape",()=>wireOpen(book.air.id)));
     if(all.length>1)b.append(makeButton("Another clip",(at+1)+" of "+all.length+" · The six latest clips stay on your phone.","Next",()=>wireOpen(all[(at+1)%all.length].id)));
     wireList(b,book);
-    b.append(makeButton("Where it was filmed",clip.street+" · "+clip.by+"’s camera position","Mark map",()=>clockPin({...clip.eye,name:clip.street+" · On the Curb"})));
+    if(clip.type==="air"){
+      const last=clip.frames.at(-1)[1];
+      b.append(makeButton("Last place on camera",clip.street+" · Where Air One lost the car","Mark map",()=>clockPin({x:last[0],z:last[2],name:clip.street+" · Last Seen"})));
+    }else b.append(makeButton("Where it was filmed",clip.street+" · "+clip.by+"’s camera position","Mark map",()=>clockPin({...clip.eye,name:clip.street+" · On the Curb"})));
   }
   function wireList(b,book){
     if(!book.list){
@@ -8932,7 +8942,7 @@
     b.append(slip);
   }
   function paintWire(now){
-    const v=wireView;if(!v)return;const end=v.clip.frames.at(-1)[0];
+    const v=wireView;if(!v)return;const end=BayCurbWire.duration(v.clip);
     if(v.playing){v.t=(v.t+Math.min(.3,(now-v.last)/1000))%end;v.scrub.value=String(v.t);}v.last=now;
     const f=Math.floor(v.t*12);if(v.frame===f)return;v.frame=f;
     BayCurbWire.paint(v.canvas,v.clip,v.t,rideScenery);v.counter.textContent=v.t.toFixed(1)+" / "+end.toFixed(1)+" s";
@@ -8943,7 +8953,7 @@
     const playlist=book.complete?BayCurbWire.assignments.map(id=>book.edits[id]):book.cover?[book.cover]:[];
     // A hand-picked clip opens the loop even after the whole edition is signed.
     if(book.complete&&book.cover&&playlist[0].id!==book.pin)playlist.unshift(book.cover);
-    const clipSeconds=playlist.reduce((sum,c)=>sum+c.frames.at(-1)[0],0);
+    const clipSeconds=playlist.reduce((sum,c)=>sum+BayCurbWire.duration(c),0);
     let time=t%(clipSeconds+editions.length*5),clip=playlist[0];
     if(!wireTV){wireTV=document.createElement("canvas");wireTV.width=128;wireTV.height=80;}
     const page=streetTime<(freshEdition?.until??0)?freshEdition.story:time>=clipSeconds?editions[Math.floor((time-clipSeconds)/5)]:null;
@@ -8951,7 +8961,7 @@
       const stamp="edition/"+page.id;if(wireLastFrame!==stamp){BayNeighborhoodEdition.paint(wireTV,page.id);wireTVVersion++;wireLastFrame=stamp;}
       return wireTV;
     }
-    for(const c of playlist){clip=c;const end=c.frames.at(-1)[0];if(time<end)break;time-=end;}
+    for(const c of playlist){clip=c;const end=BayCurbWire.duration(c);if(time<end)break;time-=end;}
     if(t<wireNextTV&&wireLastFrame.startsWith(clip.id+"/"))return wireTV;
     const stamp=clip.id+"/"+Math.floor(time*6);
     if(stamp!==wireLastFrame){BayCurbWire.paint(wireTV,clip,time,rideScenery);wireTVVersion++;wireLastFrame=stamp;}

@@ -165,6 +165,7 @@
       a.pitch=ease(a.pitch,-clamp((a.vx*Math.sin(a.yaw)+a.vz*Math.cos(a.yaw))*.005,-.10,.14),3,dt);
       a.scanIn-=dt;
       if(a.scanIn<=0){
+        a.scanAge=a.age;
         a.scanIn+=.10;
         const floor=this.floorForAircraft(a.x,a.z);
         const nextFloor=this.floorForAircraft(a.x+a.vx*.95,a.z+a.vz*.95);

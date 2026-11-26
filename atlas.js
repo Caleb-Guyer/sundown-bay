@@ -998,7 +998,11 @@
     if(street&&opt.gutters)BayGutterArt.overhead(ctx,px,py,s,opt.gutters,streetTime);
     if(opt.starlite&&visible(px(opt.starlite.x),py(opt.starlite.z),s*16)){
       const site=opt.starlite;
-      if(street)BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,opt.starliteFrame(),opt.starliteVisit,opt.atProjector);
+      if(street){
+        const screen=BayDriving.world(site,0,opt.starliteVisit||opt.atProjector?7.55:8.67);
+        const film=visible(px(screen.x),py(screen.z),5.4*s+1)?opt.starliteFrame():null;
+        BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,film,opt.starliteVisit,opt.atProjector,opt.lowDetail);
+      }
       else if(atlas){disc(ctx,px(site.x),py(site.z),3.1*ui,"#b56247");ctx.save();ctx.textAlign="center";ctx.fillStyle="#533b31";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.fillText("STARLITE",px(site.x),py(site.z)-5*ui);ctx.restore();}
     }
     if(street&&opt.pavement)BayPavementArt.overhead(ctx,px,py,s,opt.pavement,streetTime,visible);
@@ -1223,7 +1227,8 @@
         if(!visible(px(g.site.x),py(g.site.z),16*s))continue;
         for(const a of g.human?[...g.locals,g.human]:g.locals){
           const at=BayCourtPlaces.mapPoint({x:a.x,y:a.y+a.lift,z:a.z},g.site);
-          BayCourtPlayers.mapActor(ctx,a,px(at.x),py(at.z),s,streetTime);
+          const x=px(at.x),y=py(at.z);
+          if(visible(x,y,3*s+1))BayCourtPlayers.mapActor(ctx,a,x,y,s,streetTime);
         }
         BayCourtPlayers.mapBall(ctx,g.ball,g.site,px,py,s,streetTime);
       }
