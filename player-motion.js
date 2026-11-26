@@ -266,6 +266,10 @@
           if(ride.passenger)reachFor(limb,side*.12,ride.seatY+.18,.19,grip);
           else reachFor(limb,side*.105*Math.cos(turn),ride.seatY+.41-side*.105*Math.sin(turn),.32,grip);
           if(hand>0)reachFor(limb,...ride.handle,hand);
+          if(ride.passenger&&side===1&&ride.coverArm){
+            const h=ride.coverArm;
+            reachFor(limb,h.x,h.y,h.z,h.weight);
+          }
         }else if(motion.console){
           const hand=side<0?motion.console.left:motion.console.right;
           reachFor(limb,hand.x,hand.y,hand.z,hand.weight);

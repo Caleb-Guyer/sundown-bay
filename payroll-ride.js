@@ -4,7 +4,7 @@
   const pickup={x:153.7,z:-13.7,yaw:-1.46};
   const stops={
     luna:{x:9.55,z:61.65,yaw:-Math.PI/2,name:"Marisol Vale",colors:["#b58366","#bf7960","#51484a"]},
-    port:{x:-133.55,z:-81.05,yaw:-Math.PI/2,name:"Vic at the scales",colors:["#85634f","#798f80","#454d55"]}
+    port:{x:-129.55,z:-81.05,yaw:-Math.PI/2,name:"Vic at the scales",colors:["#85634f","#798f80","#454d55"]}
   };
   const heldStages=new Set(["approach","enter","exit","deliver","pass"]);
   const colors=["#ad7c60","#496c73","#4d5258"];
@@ -114,13 +114,16 @@
   function world(view,model,list,see,run){
     const a=run.jules,r=run.receiver||run.waiting;
     if(!see(a,76)&&(!r||!see(r,76)))return;
+    if(run.film&&a.motion.ride){
+      const shot=run.aboard&&run.coverPose;
+      a.motion.ride.coverArm=shot?{x:.52,y:1.13+.055*Math.exp(-shot.age*11),z:-.18,weight:Math.min(1,(.65-shot.age)*7)}:null;
+    }
     const j=run.film?body(view,list,a,"print-romy",["#ba8167","#bc694c","#485460"]):body(view,list,a,"payroll-jules",colors);
     if(r)body(view,list,r,"payroll-"+r.route,stops[r.route].colors);
     if(run.coverPose&&run.aboard){
-      const v=run.car,yaw=run.coverPose.yaw,p=BayDriving.world(v,bayCarLayout(v.kind).track+.14,-.15);
-      const lift=.06*Math.exp(-run.coverPose.age*9),height=a.y+1.12+lift;
-      list.push(["street-prop-1",p.x,height,p.z,yaw]);
-      if(run.coverPose.age<.14)list.push(["street-flash",p.x+.23*Math.sin(yaw),height,p.z+.23*Math.cos(yaw),yaw]);
+      const yaw=run.coverPose.yaw,height=j.y+.12;
+      list.push(["street-prop-1",j.x,height,j.z,yaw]);
+      if(run.coverPose.age<.14)list.push(["street-flash",j.x+.23*Math.sin(yaw),height,j.z+.23*Math.cos(yaw),yaw]);
     }
     const to=run.receiver?counterTop(run.route):j;
     const seat=a.motion.ride?.seat||0;
