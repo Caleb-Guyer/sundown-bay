@@ -3,11 +3,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 module.exports = async ({js, send, waitFor, tap, errors, mode}) => {
+  const cheapSeats=process.argv.includes("--cheap-seats"),guest=cheapSeats&&mode==="overhead";
   // Load a returning pair at the Marlin curb through the game's normal save reader.
   await js(`(() => {
     const u=new BaySecondUnit.Unit();
-    u.met=true;u.remember(BaySecondUnit.home.guest,null,"guest");
-    u.remember({x:152,z:-25,yaw:0},null,"frankie");u.save();
+    u.met=true;u.lead=${guest?'"frankie"':'"guest"'};u.remember(BaySecondUnit.home.guest,null,u.lead);
+    u.remember({x:152,z:-25,yaw:0},null,u.other);u.save();
   })()`);
   await send("Page.reload");
   await waitFor("document.readyState==='complete' && typeof BayWindowSeat==='object'");
@@ -15,7 +16,7 @@ module.exports = async ({js, send, waitFor, tap, errors, mode}) => {
     const paintRadar=drawBayMap;
     window.drawBayMap=function(ctx,o){
       if(o.mode==='radar'&&o.crew){
-        window.crew=o.crew;
+        window.crew=o.crew;window.radar=o;
         if(crew.outing)drivePhases.add(crew.outing.phase);
       }
       return paintRadar(ctx,o);
@@ -36,6 +37,36 @@ module.exports = async ({js, send, waitFor, tap, errors, mode}) => {
     await tap("KeyG");await waitFor("crew.afternoon.active");
     await tap("KeyE");await waitFor("crew.afternoon.seated",35000);
     const ride=await js("crew.afternoon.vehicle.garageKey");
+    if(cheapSeats){
+      const who=guest?"guest":"frankie",memory="BayOffClock.cheapSeats."+who;
+      await tap("KeyG");await choose("The Cheap Seats");await waitFor("radar.target?.kind==='cheap-seats'");
+      await js(`{
+        const dest=${memory},v=crew.afternoon.vehicle;
+        Object.assign(v,{x:dest.x+(dest.x<50?-2.3:2.3),z:dest.z+(dest.x<50?-21:21),yaw:dest.x<50?0:Math.PI});
+        BayDriving.settle(v);
+        const driver=(${require("./road-driver.cjs").toString()}),line=BayRescue.track([{x:v.x,z:v.z},dest]),held=new Set();
+        window.memoryTest={distance:0,lead:0};let prev={x:v.x,z:v.z};
+        function advance(){
+          memoryTest.distance+=Math.hypot(v.x-prev.x,v.z-prev.z);prev={x:v.x,z:v.z};
+          memoryTest.lead=Math.max(memoryTest.lead,Math.hypot(radar.cx-radar.player.x,radar.cz-radar.player.z));
+          const close=Math.hypot(dest.x-v.x,dest.z-v.z)<4&&Math.abs(v.speed)<.6;
+          const wanted=new Set(close?[]:driver(v,line,dest,true,radar.cars).filter(k=>k!=='park'));
+          for(const k of held)if(!wanted.has(k)){dispatchEvent(new KeyboardEvent('keyup',{code:k,bubbles:true}));held.delete(k);}
+          for(const k of wanted)if(!held.has(k)){dispatchEvent(new KeyboardEvent('keydown',{code:k,bubbles:true}));held.add(k);}
+          if(close)memoryTest.done=true;else requestAnimationFrame(advance);
+        }requestAnimationFrame(advance);
+      }`);
+      await waitFor("memoryTest.done&&document.querySelector('#context').innerText.includes('Cheap Seats')",55000);
+      assert(await js("memoryTest.distance>15&&memoryTest.lead>1"));
+      assert(await js("Math.cos(radar.rotation-radar.streetCar.yaw)>.95"));
+      await tap("KeyF");await waitFor("!document.querySelector('#chapterFilm').hidden");
+      await snapshot("cheap-seats");await waitFor("document.querySelector('#chapterFilm').hidden",65000);
+      assert.equal(await js("localStorage.getItem('sundownBay.cheapSeats."+who+"')"),"1");
+      assert.equal(await js("crew.afternoon.vehicle.garageKey"),ride);assert(await js("crew.afternoon.seated"));
+      assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
+      console.log("PASS",mode,"The Cheap Seats",who,"steered to the marked curb, watched the passenger scene and kept the memory and car. Muted, no lock.",await js("memoryTest"));
+      return;
+    }
     await tap("KeyG");await choose("You drive");await choose("North Boardwalk");
     await waitFor("crew.outing?.phase==='ready'",45000);
     assert.equal(await js("crew.outing.vehicle.garageKey"),ride);

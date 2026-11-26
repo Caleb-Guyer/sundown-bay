@@ -793,7 +793,7 @@
     const streetTime=Number.isFinite(opt.time)?opt.time:t;
     const solids=opt.solids||empty, cars=opt.cars||empty, player=opt.player;
     const px=x=>w/2+(x-opt.cx)*s,py=z=>h/2-(z-opt.cz)*s;
-    const rotation=street?(opt.rotation||0):0,cs=Math.cos(rotation),sn=Math.sin(rotation);
+    const rotation=atlas?0:(opt.rotation||0),cs=Math.cos(rotation),sn=Math.sin(rotation);
     const screenX=(x,y)=>w/2+cs*(x-w/2)+sn*(y-h/2);
     const screenY=(x,y)=>h/2-sn*(x-w/2)+cs*(y-h/2);
     const visible=(x,y,pad=15)=>{
@@ -1087,7 +1087,8 @@
       const x=px(site.x),y=py(site.z);if(!visible(x,y))continue;
       const r=(radar?4.0:3.55)*ui;
       disc(ctx,x,y,r+.8*ui,ink);disc(ctx,x,y,r,"#efbc6d");
-      rect(ctx,x-.18*r,y-.68*r,.36*r,.83*r,ink);disc(ctx,x,y+.49*r,.19*r,ink);
+      ctx.save();ctx.translate(x,y);ctx.rotate(rotation);
+      rect(ctx,-.18*r,-.68*r,.36*r,.83*r,ink);disc(ctx,0,.49*r,.19*r,ink);ctx.restore();
     }
     if(!street&&opt.personal&&!opt.marina?.bayChart){
       const x=px(opt.personal.x),y=py(opt.personal.z);
@@ -1261,7 +1262,7 @@
       const x=px(b.x),y=py(b.z);if(!visible(x,y,2*s+5*ui))continue;
       if(street){BayPedalArt.mapBike(ctx,b,x,y,s,streetTime);continue;}
       if(opt.marina?.bayChart||b.rider)continue;
-      ctx.save();ctx.translate(x,y);ctx.rotate(-rotation);ctx.scale(ui,ui);
+      ctx.save();ctx.translate(x,y);ctx.rotate(rotation);ctx.scale(ui,ui);
       ctx.fillStyle="#345452";ctx.fillRect(-5.5,-3.7,11,7.4);ctx.lineWidth=.9;ctx.strokeStyle="#f4d69f";
       for(const k of [-2.65,2.65]){ctx.beginPath();ctx.arc(k,.9,1.6,0,Math.PI*2);ctx.stroke();}
       ctx.beginPath();ctx.moveTo(-2.65,.9);ctx.lineTo(-.85,-1.2);ctx.lineTo(.4,.9);ctx.lineTo(2,-1.65);ctx.lineTo(2.65,.9);ctx.stroke();ctx.restore();
@@ -1319,6 +1320,14 @@
       if(visible(x,y,12*s)){
         intersectionLights(ctx,x,y,s,BayCrosswalk.lamps(sig,streetTime));
         BayCrosswalkArt.map(ctx,px,py,s,sig,BayCrosswalk.phase(sig,streetTime),streetTime);
+      }
+    }
+    if(radar&&Number.isFinite(opt.route?.maneuver?.exit)){
+      const turn=opt.route.maneuver,x=px(turn.point.x),y=py(turn.point.z);
+      if(visible(x,y)){
+        ctx.save();ctx.translate(x,y);ctx.rotate(turn.exit);ctx.scale(ui,ui);
+        disc(ctx,0,0,5.5,"#234d47");disc(ctx,0,0,4.5,"#a1f2cd");
+        path(ctx,[[0,-3.5],[3,1.1],[.9,.4],[.9,2.8],[-.9,2.8],[-.9,.4],[-3,1.1]],"#20473e");ctx.restore();
       }
     }
     if(opt.target&&(street||opt.target.kind!=="garage")&&!(street&&opt.target.kind==="engine-bay"&&opt.engineCompany?.bayLamp)&&!(street&&opt.target.kind==="ferry-gate"&&visible(px(opt.target.x),py(opt.target.z),-12))&&!(street&&opt.dashIndex!=null&&visible(px(opt.target.x),py(opt.target.z),-12))) {

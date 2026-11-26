@@ -133,7 +133,7 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 .radar {padding:0;left:22px;bottom:22px;width:clamp(103px,16.3vmin,151px);height:clamp(103px,16.3vmin,151px);background:var(--ink);border:3px solid var(--cream);border-radius:50%;box-shadow:0 0 0 2px #223b38,0 3px 9px #15282e78}
 .radar canvas {height:100%;width:100%;border-radius:50%}
 .north,.map-key {position:absolute;font-size:.65rem;color:#fff1d3;text-shadow:0 1px 2px #102029}
-.north {top:3px;left:calc(50% - 4px)}
+.north {top:5%;left:50%;transform:translate(-50%,-50%);line-height:1;text-shadow:0 1px 2px #102029,0 0 3px #102029}
 .map-key {right:0;bottom:0;border:1px solid #eee6c7a3;background:var(--ink);border-radius:3px;padding:2px 4px}
 .vehicle {right:24px;bottom:64px;text-align:right;color:var(--cream);filter:drop-shadow(1px 2px 2px #16272b)}
 .vehicle>span {display:block;font-size:.77rem}
@@ -612,7 +612,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
         <div id="pursuitStatus" hidden><span id="pursuitLabel"></span><i aria-hidden="true"></i></div>
         <span id="blockCall" class="dispatch-call" hidden></span><span id="airCall" class="dispatch-call" hidden></span>
       </div>
-      <button id="miniButton" class="radar" title="Open city map (M)" aria-label="Open city map"><canvas id="mini" width="200" height="200"></canvas><span class="north">N</span><span class="map-key">M</span></button>
+      <button id="miniButton" class="radar" title="Open city map (M)" aria-label="Open city map"><canvas id="mini" width="200" height="200"></canvas><span class="north" id="radarNorth">N</span><span class="map-key">M</span></button>
       <div id="objective" hidden><span id="objectiveTag"></span><b id="objectiveText"></b><small id="roadTurn"></small>
         <canvas id="wageEnvelopes" width="278" height="105" aria-label="Jules gathering the loose wage envelopes in the passenger footwell" hidden></canvas>
         <div id="ferryMeter" role="progressbar" aria-label="Steady alongside the ferry" aria-valuemin="0" aria-valuemax="100" hidden><i></i></div></div>
@@ -997,6 +997,6 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "house-copies.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=8e56f847736e4145"></script>
+  <script src="sundown.js?v=80c566286a05ff89"></script>
 </body>
 </html>

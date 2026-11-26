@@ -124,7 +124,7 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 .radar {padding:0;left:22px;bottom:22px;width:clamp(103px,16.3vmin,151px);height:clamp(103px,16.3vmin,151px);background:var(--ink);border:3px solid var(--cream);border-radius:50%;box-shadow:0 0 0 2px #223b38,0 3px 9px #15282e78}
 .radar canvas {height:100%;width:100%;border-radius:50%}
 .north,.map-key {position:absolute;font-size:.65rem;color:#fff1d3;text-shadow:0 1px 2px #102029}
-.north {top:3px;left:calc(50% - 4px)}
+.north {top:5%;left:50%;transform:translate(-50%,-50%);line-height:1;text-shadow:0 1px 2px #102029,0 0 3px #102029}
 .map-key {right:0;bottom:0;border:1px solid #eee6c7a3;background:var(--ink);border-radius:3px;padding:2px 4px}
 .vehicle {right:24px;bottom:64px;text-align:right;color:var(--cream);filter:drop-shadow(1px 2px 2px #16272b)}
 .vehicle>span {display:block;font-size:.77rem}

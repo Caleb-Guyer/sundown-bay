@@ -11,6 +11,10 @@
     s.block={x:s.x,z:s.z,w:1.36,d:1.64,bottom:0,top:2.25,streetProp:true};
   }
   const gap=(p,q)=>Math.hypot(p.x-q.x,p.z-q.z);
+  const cheapSeats={
+    frankie:{x:4.9,z:52.5,kind:"cheap-seats",name:"Cine Luna side wall",film:"lunaThroughTheWall",invite:"Take Luna Boulevard. I want to show you where we used to watch the pictures.",caption:"The rabbit and the horse"},
+    guest:{x:139.4,z:-41.5,kind:"cheap-seats",name:"Marlin Motel canopy",film:"marlinLastInning",invite:"Pull in on Ocean, by the motel canopy. Used to be the best seat in the ballpark.",caption:"The game after the radio quit"}
+  };
   const storeKey=id=>"sundownBay.fotoBahia."+id;
   function valid(r,id){
     return r?.site===id&&["guest","frankie"].includes(r.lead)&&Number.isSafeInteger(r.day)&&r.day>0&&
@@ -53,11 +57,20 @@
     }
   }
   class Afternoon{
-    constructor(){this.album=new Album();this.reset();}
+    constructor(){
+      this.album=new Album();this.memories=new Set();
+      for(const who of Object.keys(cheapSeats))try{if(localStorage.getItem("sundownBay.cheapSeats."+who)==="1")this.memories.add(who);}catch{}
+      this.reset();
+    }
+    remember(who){
+      this.memories.add(who);this.storyEndMeters=this.meters;
+      try{localStorage.setItem("sundownBay.cheapSeats."+who,"1");}catch{}
+    }
     reset(){
       this.active=false;this.phase="foot";this.vehicle=null;this.side=1;this.seat=0;
       this.path=[];this.goal=null;this.replan=0;this.lastLine=-20;this.said=new Set();
       this.photo=null;this.trail=[];this.meters=0;this.lastDrive=null;this.ending=false;this.handoff=null;
+      this.lastDirection="";this.storyEndMeters=0;
     }
     start(v){
       this.reset();this.active=true;
@@ -111,5 +124,5 @@
       }
     }
   }
-  window.BayOffClock={sites,Album,Sitting,Afternoon,valid,near(p){return sites.find(s=>gap(s.stand,p)<1.75);}};
+  window.BayOffClock={sites,cheapSeats,Album,Sitting,Afternoon,valid,near(p){return sites.find(s=>gap(s.stand,p)<1.75);}};
 })();

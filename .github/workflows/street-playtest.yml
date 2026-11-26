@@ -50,6 +50,7 @@ jobs:
           persist-credentials: false
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --admission --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --clean-through --frames
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --partner-drive --cheap-seats --frames
       - uses: actions/upload-artifact@v4
         if: always()
         with:

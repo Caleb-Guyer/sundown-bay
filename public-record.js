@@ -15,6 +15,7 @@
     motel:["motel",[4.6,2.1,-6.3],[3.3,1.7,-5.8],[1.3,1.25,3.2],1.48,20],
     mara:["mara",[2.9,1.68,-2.8],[2.2,1.59,-2.6],[0,1.37,0],1.50,12],
     cab:["ride",[3.8,1.50,4.2],[2.9,1.43,3.6],[0,.94,0],1.58,18],
+    doubleSeat:["ride",[2.75,1.53,2.90],[1.85,1.42,2.54],[.19,1.02,.07],1.56,9],
     flowerSeat:["ride",[-2.48,1.45,-.69],[-1.95,1.19,-.54],[.07,.82,.20],1.38,5.8],
     rearPlate:["ride",[2.6,1.14,-4.7],[1.05,.89,-3.7],[0,.62,-1.55],1.54,10],
     payrollDesk:["ride",[-2.65,1.62,2.8],[-1.85,1.45,2.3],[0,1.04,.64],1.54,7.8],
@@ -28,6 +29,16 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    lunaThroughTheWall:[
+      {dur:4.1,shot:"cinema",title:"The Cheap Seats",slug:"CINE LUNA   /   SIDE WALL",who:"Frankie Prado",line:"First picture I can remember, I never even got inside."},
+      {dur:5.9,shot:"cab",who:"Frankie Prado",line:"See that wall? The fan carried every word out to the street. My little brother did the pictures with his hands."},
+      {dur:5.2,shot:"doubleSeat",who:"Frankie Prado",line:"Only shape he knew was a rabbit. When the cowboy got on his horse, it was two rabbits, one on top of the other."}
+    ],
+    marlinLastInning:[
+      {dur:4.8,shot:"ocean",title:"The Cheap Seats",slug:"MARLIN MOTEL   /   OCEAN DRIVE",who:"Marlin driver",line:"Dad used to park right here for the last inning. Crack the window. Stretch his legs out under the dash."},
+      {dur:5.7,shot:"cab",who:"Marlin driver",line:"One night the radio quit with the bases loaded. Dad called the rest himself. Three wild pitches. We won."},
+      {dur:5.3,shot:"doubleSeat",who:"Marlin driver",line:"Next morning the paper said four to nothing. He folded it over and asked how I wanted my eggs."}
+    ],
     visorSleeve:[
       {dur:3.2,shot:"cab",slug:"MARISOL’S STAFF WAGON",title:"Rabbit Ears",who:"Romy Vale · note under the visor",line:"Careful with the flap. Mum sealed it with the last of my school glue."},
       {dur:6.2,art:"rabbitSleeve",who:"Marisol Vale · in pencil",line:"Ada kept the little reel. Pull into our old spot at the Starlite, second speaker from the left. She’ll know the wagon."}

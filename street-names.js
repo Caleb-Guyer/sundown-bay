@@ -16,6 +16,36 @@
     if(Math.max(a.z,b.z)>165)return BayCut.nearest((a.x+b.x)*.5,(a.z+b.z)*.5).route.name;
     return Math.abs(b.x-a.x)>Math.abs(b.z-a.z)?streets[grid((a.z+b.z)*.5).i]:avenues[grid((a.x+b.x)*.5).i];
   }
+  function maneuver(car,road,target){
+    const [a,b,c]=road;
+    if(!b)return null;
+    const heading=Math.atan2(b.x-a.x,b.z-a.z),street=segment(a,b);
+    const range=Math.round(Math.hypot(b.x-a.x,b.z-a.z));
+    const off=Math.hypot(car.x-a.x,car.z-a.z);
+    if(off>9)return {kind:"join",point:a,range:Math.round(off),street,text:"Join "+street};
+    if(range>6&&Math.cos(car.yaw-heading)<-.67)
+      return {kind:"back",point:a,range:0,street,text:"Turn around on "+street};
+    if(c){
+      const exit=Math.atan2(c.x-b.x,c.z-b.z),bend=Math.sin(exit-heading);
+      if(Math.abs(bend)>.5){
+        const kind=bend>0?"right":"left",next=segment(b,c);
+        return {kind,point:b,exit,range,street:next,text:(bend>0?"↱ Right":"↰ Left")+" on "+next+" in "+range+" m"};
+      }
+    }
+    const side=(target.x-b.x)*Math.cos(heading)-(target.z-b.z)*Math.sin(heading);
+    const curb=Math.abs(side)>2?(side>0?"right":"left"):"";
+    const text=range>32?"Continue on "+street:"Destination "+(curb?"on the "+curb:"ahead");
+    return {kind:"arrive",point:b,range,street,curb,text};
+  }
+  // The same planned leg holds while the car travels within its carriageway.
+  function alongLeg(car,road){
+    const [a,b]=road;if(!b)return null;
+    const dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
+    if(length<3)return null;
+    const x=car.x-a.x,z=car.z-a.z,at=(dx*x+dz*z)/length;
+    if(at<0||at>length-2||Math.abs(dx*z-dz*x)>6.5*length)return null;
+    return {x:a.x+dx*at/length,z:a.z+dz*at/length};
+  }
   function atlas(ctx,px,py,scale){
     const print=(text,x,z,vertical)=>{
       ctx.save();ctx.translate(px(x),py(z));if(vertical)ctx.rotate(-Math.PI/2);
@@ -27,5 +57,5 @@
     [32,-106,39,-37,102].forEach((x,i)=>print(streets[i],x,i*72-144,false));
     ctx.restore();
   }
-  window.BayStreetNames={through,segment,atlas};
+  window.BayStreetNames={through,segment,atlas,maneuver,alongLeg};
 })();
