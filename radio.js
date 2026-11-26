@@ -98,7 +98,7 @@
 
   const countyBuffers=new Map(),countySources=new Set();
   let countyReport=null,countyPending=false,countyDeadline=0,countyBus=null,countyLevels=null;
-  function mixCounty(report,now,fresh=true){
+  function mixCounty(report,now,fresh=true,offset=0){
     if(report!==countyReport){
       for(const source of countySources){source.onended=null;source.stop();source.disconnect();}
       countySources.clear();countyReport=report;countyPending=!!report;countyDeadline=now+2;
@@ -119,10 +119,11 @@
         for(let i=0;i<bytes.length;i++)pcm[i]=countyLevels[bytes.charCodeAt(i)];
         countyBuffers.set(id,buffer);
       }
+      if(offset>=buffer.duration){offset-=buffer.duration;continue;}
       countyBus??=gainNode(effects,.66);
       const source=context.createBufferSource();source.buffer=buffer;source.connect(countyBus);
       countySources.add(source);source.onended=()=>{countySources.delete(source);source.disconnect();};
-      source.start(at);at+=buffer.duration+.034;
+      source.start(at,offset);at+=buffer.duration-offset+.034;offset=0;
     }
   }
 
@@ -982,6 +983,9 @@
     else wake();
   }
 
+  function countyScene(report,age){
+    if(enabled&&!paused&&context?.state==="running")mixCounty(report,context.currentTime,true,age);
+  }
   function warmReel(){if(enabled)window.loadRoomVoices?.();}
-  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField, stopField, reel, warmReel, stopCounty:()=>mixCounty(null,0) });
+  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField, stopField, reel, warmReel, countyScene, stopCounty:()=>mixCounty(null,0) });
 })();

@@ -239,7 +239,7 @@
   if(save.edition&&BayExposure.routes[save.edition]&&campaign.book.stage!=="filed"){
     campaign.book.route=save.edition;campaign.advance("return");
   }
-  let filmPage=null,lastFilmPaint=-Infinity,filmReplay=false;
+  let filmPage=null,filmCountyVoice=null,lastFilmPaint=-Infinity,filmReplay=false;
   let jumpPage=jumps.sites[0];
   locations.push(luggage.counter,threads.counter,starliteBooth,BayEngineSeven.desk);
   const rainWalk=new BayRainWalk.Walk(),negatives=new BayWindowSeat.Negatives();
@@ -898,7 +898,9 @@
     if(b?.art==="landingOrder")BayLandingOrder.docket($("chapterInsert"),campaign.book);
     if(b?.art==="negative")sound.cue("record-shutter");
     if(b?.title)sound.cue("record-theme",{ending:campaign.scene?.id==="crew"||campaign.scene?.id==="signed"});
-    filmPage=b;lastFilmPaint=-Infinity;
+    filmPage=b;
+    const voice=b?.voice==="covered"?(save.countyRelay.cover==="market"?"signedMarket":"signedMotel"):b?.voice;
+    filmCountyVoice=voice?{clips:[voice]}:null;lastFilmPaint=-Infinity;
   }
   function enterFilm(id,replay=false){
     if(panel)closePanel();
@@ -927,6 +929,7 @@
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
   function endFilm(id,playedThrough=false){
+    if(filmCountyVoice){sound.stopCounty();filmCountyVoice=null;}
     if(campaign.table?.kind==="splice")sound.reel(null);
     campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("roadChoices").hidden=true;$("game").classList.toggle("in-chapter",false);
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
@@ -12276,6 +12279,7 @@
       if(campaign.scene){
         const id=campaign.scene.id,morning=campaign.beat().watch;
         if(campaign.step(delta,held("Space"))){if(!campaign.scene){endFilm(id,true);return;}setFilmPage();}
+        if(filmCountyVoice&&radio)sound.countyScene(filmCountyVoice,campaign.scene.age);
         if(morning&&radio){
           const w=campaign.watch;if(w.gateSound)sound.cue(w.gateSound);
           if(w.tinSound)sound.cue("watch-tins",{aboard:w.crossing});if(w.horn)sound.cue("luz-cast");

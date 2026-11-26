@@ -18386,7 +18386,7 @@ window.buildBayCity = function buildBayCity(g,water) {
 
   const countyBuffers=new Map(),countySources=new Set();
   let countyReport=null,countyPending=false,countyDeadline=0,countyBus=null,countyLevels=null;
-  function mixCounty(report,now,fresh=true){
+  function mixCounty(report,now,fresh=true,offset=0){
     if(report!==countyReport){
       for(const source of countySources){source.onended=null;source.stop();source.disconnect();}
       countySources.clear();countyReport=report;countyPending=!!report;countyDeadline=now+2;
@@ -18407,10 +18407,11 @@ window.buildBayCity = function buildBayCity(g,water) {
         for(let i=0;i<bytes.length;i++)pcm[i]=countyLevels[bytes.charCodeAt(i)];
         countyBuffers.set(id,buffer);
       }
+      if(offset>=buffer.duration){offset-=buffer.duration;continue;}
       countyBus??=gainNode(effects,.66);
       const source=context.createBufferSource();source.buffer=buffer;source.connect(countyBus);
       countySources.add(source);source.onended=()=>{countySources.delete(source);source.disconnect();};
-      source.start(at);at+=buffer.duration+.034;
+      source.start(at,offset);at+=buffer.duration-offset+.034;offset=0;
     }
   }
 
@@ -19270,8 +19271,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     else wake();
   }
 
+  function countyScene(report,age){
+    if(enabled&&!paused&&context?.state==="running")mixCounty(report,context.currentTime,true,age);
+  }
   function warmReel(){if(enabled)window.loadRoomVoices?.();}
-  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField, stopField, reel, warmReel, stopCounty:()=>mixCounty(null,0) });
+  window.BaySound = Object.freeze({ setEnabled, update, cue, pause, playField, stopField, reel, warmReel, countyScene, stopCounty:()=>mixCounty(null,0) });
 })();
 
 ;
@@ -20338,7 +20342,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   window.loadCountyVoices=()=>{
     if(window.BayCountySamples||loading||performance.now()<retryAt)return;
     loading=true;const tag=document.createElement("script");
-    tag.src="county-audio.js?v=cfe1d2d24e5163ca";
+    tag.src="county-audio.js?v=731505c917a415f2";
     tag.onload=()=>{loading=false;tag.remove();};
     tag.onerror=()=>{loading=false;retryAt=performance.now()+10000;tag.remove();};
     document.head.append(tag);
@@ -21100,12 +21104,12 @@ window.buildBayCity = function buildBayCity(g,water) {
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
     countyLoan:[
-      {dur:5.5,art:"relayCard",slug:"PORTSIDE TIRE   /   COUNTY BAND",title:"Say Again, Four",who:"Cleo Moss",line:"Somebody sent me one spare repeater and two work orders. That's county arithmetic."},
-      {dur:5.2,shot:"cab",who:"Cleo Moss",line:"Take the receiver under the Luna sign. Key it there and listen to what comes back. The market and the Marlin both want the spare."}
+      {dur:6.8,voice:"loanTicket",art:"relayCard",slug:"PORTSIDE TIRE   /   COUNTY BAND",title:"Say Again, Four",who:"Cleo Moss",line:"Somebody sent me one spare repeater and two work orders. That's county arithmetic."},
+      {dur:7.1,voice:"lunaCheck",shot:"cab",who:"Cleo Moss",line:"Take the receiver under the Luna sign. Key it there and listen to what comes back. The market and the Marlin both want the spare."}
     ],
     countySigned:[
-      {dur:5.8,shot:"pullOut",slug:"PALM COUNTY   /   SIGNAL CHECK",title:"Reading you five",who:"Cleo Moss",line:""},
-      {dur:4,art:"relayCard",who:"Cleo Moss",line:"Keep the carbon. If anybody says they got there first, that's my signature."}
+      {dur:6.0,voice:"covered",shot:"pullOut",slug:"PALM COUNTY   /   SIGNAL CHECK",title:"Reading you five",who:"Cleo Moss",line:""},
+      {dur:5.0,voice:"driverCarbon",art:"relayCard",who:"Cleo Moss",line:"Keep the carbon. If anybody says they got there first, that's my signature."}
     ],
     flowersMotel:[
       {dur:4.4,shot:"flowerSeat",slug:"MARLIN MOTEL   /   FRONT WALK",title:"The Extra Chair",who:"Bea Salas",line:"She always sits out here to do the crossword. I'll turn the chair so she can have the morning light."},
@@ -70299,7 +70303,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   if(save.edition&&BayExposure.routes[save.edition]&&campaign.book.stage!=="filed"){
     campaign.book.route=save.edition;campaign.advance("return");
   }
-  let filmPage=null,lastFilmPaint=-Infinity,filmReplay=false;
+  let filmPage=null,filmCountyVoice=null,lastFilmPaint=-Infinity,filmReplay=false;
   let jumpPage=jumps.sites[0];
   locations.push(luggage.counter,threads.counter,starliteBooth,BayEngineSeven.desk);
   const rainWalk=new BayRainWalk.Walk(),negatives=new BayWindowSeat.Negatives();
@@ -70958,7 +70962,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(b?.art==="landingOrder")BayLandingOrder.docket($("chapterInsert"),campaign.book);
     if(b?.art==="negative")sound.cue("record-shutter");
     if(b?.title)sound.cue("record-theme",{ending:campaign.scene?.id==="crew"||campaign.scene?.id==="signed"});
-    filmPage=b;lastFilmPaint=-Infinity;
+    filmPage=b;
+    const voice=b?.voice==="covered"?(save.countyRelay.cover==="market"?"signedMarket":"signedMotel"):b?.voice;
+    filmCountyVoice=voice?{clips:[voice]}:null;lastFilmPaint=-Infinity;
   }
   function enterFilm(id,replay=false){
     if(panel)closePanel();
@@ -70987,6 +70993,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
   function endFilm(id,playedThrough=false){
+    if(filmCountyVoice){sound.stopCounty();filmCountyVoice=null;}
     if(campaign.table?.kind==="splice")sound.reel(null);
     campaign.scene=null;campaign.table=null;campaign.watch=null;filmPage=null;$("chapterFilm").hidden=true;$("dispatchClock").hidden=true;$("roadChoices").hidden=true;$("game").classList.toggle("in-chapter",false);
     keys.clear();resetPointer();cameraSnap();lastHud=lastMap=-10;
@@ -82336,6 +82343,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(campaign.scene){
         const id=campaign.scene.id,morning=campaign.beat().watch;
         if(campaign.step(delta,held("Space"))){if(!campaign.scene){endFilm(id,true);return;}setFilmPage();}
+        if(filmCountyVoice&&radio)sound.countyScene(filmCountyVoice,campaign.scene.age);
         if(morning&&radio){
           const w=campaign.watch;if(w.gateSound)sound.cue(w.gateSound);
           if(w.tinSound)sound.cue("watch-tins",{aboard:w.crossing});if(w.horn)sound.cue("luz-cast");
