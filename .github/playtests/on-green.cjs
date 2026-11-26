@@ -60,6 +60,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
     if(manual){
       await controls("ShiftLeft");await tap("KeyZ");await controls();await tap("KeyZ");
       await waitFor("ride.manual&&window.cabinPaints>0&&document.querySelector('#speed .five-speed')",35000);
+      assert.equal(await js("getComputedStyle(document.querySelector('#speed')).clipPath"),mode==="overhead"?"inset(50%)":"none");
     }
     await lineUp();await waitFor("club.run?.phase==='offer'");await tap("KeyH");
     await waitFor("club.run?.phase==='armed'&&driverSeen",130000);
