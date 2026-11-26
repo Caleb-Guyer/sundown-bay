@@ -1,4 +1,4 @@
-/* Romy's way home follows the south pavement of Marquee, then the east side of Ocean. */
+/* Romy's way home follows Marquee to the protected south crosswalk on Ocean. */
 (() => {
   "use strict";
   const key="sundownBay.walkHome.v1";

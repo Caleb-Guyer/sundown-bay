@@ -68,7 +68,7 @@ module.exports=async function walkHome({js,send,waitFor,tap,key,mode,errors}){
   await launch();await wait("q.cars.some(v=>v.kind==='estate'&&v.kept&&v.garageKey==='estate@149.10,-49.00')");
   await js("q.w=q.cars.find(v=>v.garageKey==='estate@149.10,-49.00');const p=BayDriving.world(q.w,-1.65,0);q.at(q.h,p.x,p.z);q.rig.reset(q.h);true");
   await tap("KeyE");await wait("q.car===q.w",22000);const z=await js("q.car.z");
-  await key("keyDown","KeyW");try{await wait("Math.abs(q.car.z-("+z+"))>1",10000);}finally{await key("keyUp","KeyW");}
+  await key("keyDown","KeyW");try{await wait("Math.abs(q.car.z-("+z+"))>8",12000);}finally{await key("keyUp","KeyW");}
   await shot("wagon");assert.equal(await js("q.cars.filter(v=>v.garageKey===q.w.garageKey).length"),1);
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS The Long Way Home",mode,route,port?"honest answer, passenger lift":"entire walk, crossing signal","laundry scene, saved owner key and drivable estate after reload");

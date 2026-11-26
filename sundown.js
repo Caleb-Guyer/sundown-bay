@@ -71101,7 +71101,7 @@ window.buildBayCity = function buildBayCity(g,water) {
 
 ;
 /* home-walk.js */
-/* Romy's way home follows the south pavement of Marquee, then the east side of Ocean. */
+/* Romy's way home follows Marquee to the protected south crosswalk on Ocean. */
 (() => {
   "use strict";
   const key="sundownBay.walkHome.v1";
@@ -78848,12 +78848,17 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function staffWagon(){
     if(homeWagon||!homeWalk.book?.spare)return;
-    const v={kind:"estate",yaw:0},bay=[[149.1,-49,0],[138.8,-45,Math.PI],[132,-32,Math.PI]];
+    const v={kind:"estate"},bay=[[149.1,-49,Math.PI],[138.8,-45,0],[138.8,-35,0]];
     const spot=bay.find(([x,z,yaw])=>{
-      Object.assign(v,{x,z,yaw});return fitsCar(v,x,z,yaw)&&cars.every(c=>dist(c,v)>9||!BayDriving.contact(v,c));
+      // Leave a full car length to pull out, including when a second car has been parked here.
+      for(let ahead=0;ahead<=8;ahead+=2){
+        Object.assign(v,{x:x+Math.sin(yaw)*ahead,z:z+Math.cos(yaw)*ahead,yaw});
+        if(!fitsCar(v,v.x,v.z,yaw)||cars.some(c=>dist(c,v)<9&&BayDriving.contact(v,c)))return false;
+      }
+      return true;
     });
     if(!spot)return;
-    homeWagon=addCar("estate","#548898",bay[0][0],bay[0][1],0);
+    homeWagon=addCar("estate","#548898",bay[0][0],bay[0][1],spot[2]);
     Object.assign(homeWagon,{x:spot[0],z:spot[1],yaw:spot[2],kept:true});streetFleet.add(homeWagon);
     if(BayMotelParking.read(cars)?.v===homeWagon)restoreParking();
   }
