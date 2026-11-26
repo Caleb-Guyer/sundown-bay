@@ -21632,7 +21632,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     cab:["ride",[3.8,1.50,4.2],[2.9,1.43,3.6],[0,.94,0],1.58,18],
     doubleSeat:["ride",[2.75,1.53,2.90],[1.85,1.42,2.54],[.19,1.02,.07],1.56,9],
     flowerSeat:["ride",[-2.48,1.45,-.69],[-1.95,1.19,-.54],[.07,.82,.20],1.38,5.8],
-    coneStack:["ride",[-2.8,.88,2.8],[-1.65,.83,2.15],[0,.73,0],1.40,6.1],
+    coneStack:["ride",[-1.75,1.13,-2.45],[-1.45,1.07,-1.94],[0,.79,-.16],1.48,5.3],
     countyForeman:["ride",[-2.1,1.56,2.5],[-1.64,1.52,2.08],[0,1.41,0],1.35,6.5],
     rearPlate:["ride",[2.6,1.14,-4.7],[1.05,.89,-3.7],[0,.62,-1.55],1.54,10],
     cabWindow:["ride",[3.2,1.49,-2.35],[2.05,1.32,-1.82],[.52,1.05,-.53],1.38,7],
@@ -71996,6 +71996,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     g.pole([-.35,1.14,-.61],[.35,1.14,-.61],.043,grip,7);
     g.box(0,.70,-.545,.59,.23,.035,"#edc992");g.box(-.17,.70,-.567,.10,.14,.012,orange);
     for(const y of [.66,.72])g.box(.06,y,-.568,.25,.02,.012,grip);
+    // The spare vest hangs over the passenger side of the handle.
+    for(const z of [-.637,-.575]){
+      g.quad([.095,1.15,z],[.31,1.15,z],[.33,.77,z-.046],[.077,.81,z-.046],"#df8348");
+      g.quad([.087,.923,z-.033],[.322,.896,z-.033],[.326,.862,z-.037],[.084,.889,z-.037],"#e8e2bb");
+    }
   }
   function world(crew,list,model,see,ground,hero){
     const s=crew.site;if(!s||!see(s.rack,97))return;
@@ -72009,7 +72014,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     const pose=w.moving?1+Math.floor(w.phase)%8:0,token="county/inez/"+pose+"/"+Number(crew.loaded);
     model(token,g=>{buildBayPerson(g,"#9b674f","#e2874c","#485966",pose?(pose-1)*Math.PI/4:0,"dockhand",crew.loaded?4:0);
-      g.box(0,1.16,0,.36,.044,.246,"#e6dbab");g.cyl(0,1.83,.02,.13,.12,.09,9,"#c29b64");});
+      g.box(0,1.16,0,.36,.044,.246,"#e6dbab");});
     list.push([token,w.x,ground(w.x,w.z),w.z,w.yaw]);
     crew.cones(hero,(p,y,yaw,tilt)=>list.push(["patrol-cone",p.x,ground(p.x,p.z)+y,p.z,yaw,tilt]));
   }
@@ -77481,7 +77486,23 @@ window.buildBayCity = function buildBayCity(g,water) {
     return seat&&!freshFlowerChair&&onStreetFeet()&&!projector&&!active&&!heat&&dist(hero,seat)<1.65;
   }
   function flowerSubject(){
-    if(["lastCone","countyAlone"].includes(campaign.scene?.id)&&countyCrew.site)return campaign.beat()?.shot==="coneStack"?countyCrew.site.rack:countyCrew.worker;
+    if((campaign.scene?.id==="lastCone"||campaign.scene?.id==="countyAlone")&&countyCrew.site){
+      const scene=campaign.scene,shot=campaign.beat().shot;
+      if(scene.countyAngle?.shot===shot)return scene.countyAngle;
+      const stack=shot==="coneStack",w=countyCrew.worker,r=countyCrew.site.rack,subject=stack?r:w;
+      const cover=chase.cover.filter(o=>Math.abs(o.x-subject.x)<5+o.w*.5&&Math.abs(o.z-subject.z)<5+o.d*.5);
+      const people=stack?[hero,w]:[hero];
+      for(const p of people)cover.push({x:p.x,z:p.z,w:.42,d:.42,top:1.82});
+      let best=-Infinity;
+      for(const turn of [0,.72,-.72,1.45,-1.45,2.2,-2.2,Math.PI]){
+        const anchor={x:subject.x,z:subject.z,yaw:subject.yaw+turn,shot},eye=campaign.frame(anchor);
+        let score=BayCamera.safeFraction(eye.to,eye,cover);
+        for(const p of people)score=Math.min(score,dist(eye,p)/1.25);
+        if(score>best){best=score;scene.countyAngle=anchor;}
+        if(score>=.999)break;
+      }
+      return scene.countyAngle;
+    }
     if(active?.meter&&campaign.beat()?.shot&&["rearPlate","cabWindow"].includes(campaign.beat().shot))return active.meter.cab;
     if(campaign.beat()?.shot==="flowerSeat"){
       const scene=campaign.scene;if(scene.seatAngle)return scene.seatAngle;
@@ -85693,7 +85714,12 @@ window.buildBayCity = function buildBayCity(g,water) {
       ev.preventDefault();if(!ev.repeat||ev.code!=="Space")gateKey(ev.code);return;
     }
     if(ev.code==="KeyF"&&atCountyWrap()){
-      ev.preventDefault();if(!ev.repeat)enterFilm(countyCrew.site.cones.some(c=>c.by==="player")?"lastCone":"countyAlone");return;
+      ev.preventDefault();
+      if(!ev.repeat){
+        const w=countyCrew.worker;w.yaw=Math.atan2(hero.x-w.x,hero.z-w.z);
+        enterFilm(countyCrew.site.cones.some(c=>c.by==="player")?"lastCone":"countyAlone");
+      }
+      return;
     }
     if(ev.code==="KeyL"&&countyCrew.site&&countyFeet()&&countyCrew.hint(hero)){
       ev.preventDefault();if(!ev.repeat)coneEvent(countyCrew.press(hero));return;

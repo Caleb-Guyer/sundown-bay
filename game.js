@@ -4948,7 +4948,23 @@
     return seat&&!freshFlowerChair&&onStreetFeet()&&!projector&&!active&&!heat&&dist(hero,seat)<1.65;
   }
   function flowerSubject(){
-    if(["lastCone","countyAlone"].includes(campaign.scene?.id)&&countyCrew.site)return campaign.beat()?.shot==="coneStack"?countyCrew.site.rack:countyCrew.worker;
+    if((campaign.scene?.id==="lastCone"||campaign.scene?.id==="countyAlone")&&countyCrew.site){
+      const scene=campaign.scene,shot=campaign.beat().shot;
+      if(scene.countyAngle?.shot===shot)return scene.countyAngle;
+      const stack=shot==="coneStack",w=countyCrew.worker,r=countyCrew.site.rack,subject=stack?r:w;
+      const cover=chase.cover.filter(o=>Math.abs(o.x-subject.x)<5+o.w*.5&&Math.abs(o.z-subject.z)<5+o.d*.5);
+      const people=stack?[hero,w]:[hero];
+      for(const p of people)cover.push({x:p.x,z:p.z,w:.42,d:.42,top:1.82});
+      let best=-Infinity;
+      for(const turn of [0,.72,-.72,1.45,-1.45,2.2,-2.2,Math.PI]){
+        const anchor={x:subject.x,z:subject.z,yaw:subject.yaw+turn,shot},eye=campaign.frame(anchor);
+        let score=BayCamera.safeFraction(eye.to,eye,cover);
+        for(const p of people)score=Math.min(score,dist(eye,p)/1.25);
+        if(score>best){best=score;scene.countyAngle=anchor;}
+        if(score>=.999)break;
+      }
+      return scene.countyAngle;
+    }
     if(active?.meter&&campaign.beat()?.shot&&["rearPlate","cabWindow"].includes(campaign.beat().shot))return active.meter.cab;
     if(campaign.beat()?.shot==="flowerSeat"){
       const scene=campaign.scene;if(scene.seatAngle)return scene.seatAngle;
@@ -13160,7 +13176,12 @@
       ev.preventDefault();if(!ev.repeat||ev.code!=="Space")gateKey(ev.code);return;
     }
     if(ev.code==="KeyF"&&atCountyWrap()){
-      ev.preventDefault();if(!ev.repeat)enterFilm(countyCrew.site.cones.some(c=>c.by==="player")?"lastCone":"countyAlone");return;
+      ev.preventDefault();
+      if(!ev.repeat){
+        const w=countyCrew.worker;w.yaw=Math.atan2(hero.x-w.x,hero.z-w.z);
+        enterFilm(countyCrew.site.cones.some(c=>c.by==="player")?"lastCone":"countyAlone");
+      }
+      return;
     }
     if(ev.code==="KeyL"&&countyCrew.site&&countyFeet()&&countyCrew.hint(hero)){
       ev.preventDefault();if(!ev.repeat)coneEvent(countyCrew.press(hero));return;

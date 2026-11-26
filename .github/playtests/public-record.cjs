@@ -37,15 +37,15 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       };
       recQA.view.drawOpaque=function(items){delete this.drawOpaque;
         delete this.trafficVisible;
-        const kept=items.filter(([name,x,y,z])=>!((name.startsWith("traffic-shell/")||name.startsWith("traffic-brakes/")||name.startsWith("registry/"))&&omitted.has(x+"/"+y+"/"+z)));
+        const rejected=items.filter(([name,x,y,z])=>(name.startsWith("traffic-shell/")||name.startsWith("traffic-brakes/")||name.startsWith("registry/"))&&omitted.has(x+"/"+y+"/"+z));
+        // Draw the entire rejected set against the city. A passing pedestrian or
+        // a different car must never cover up an erroneous early rejection.
         const draw=list=>()=>{this.draw("city");this.drawOpaque(list);};
-        // Compare the traffic decision with the same mesh detail on both draws.
-        // A cold batch otherwise builds another distance mesh during the reference.
         const batch=this.streetBatch,detail=batch?.distanceDetail;
         if(batch)batch.distanceDetail=function(...args){this.buildDetail=false;return detail.apply(this,args);};
         try{
-          recQA.trafficProof={low:this.scale<=.65,checked,skipped:omitted.size,parts:items.length-kept.length,
-            pixels:comparePixels(this,[],draw(kept),draw(items),true)};
+          recQA.trafficProof={low:this.scale<=.65,checked,skipped:omitted.size,parts:rejected.length,
+            pixels:comparePixels(this,[],draw([]),draw(rejected),true)};
         }finally{if(batch)batch.distanceDetail=detail;}
         recQA.surfaceResult=(${require("./street-surface.cjs").toString()})(this,items,comparePixels);
         recQA.wallResult=(${require("./street-walls.cjs").toString()})(this,items,comparePixels,recQA);

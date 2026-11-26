@@ -111,6 +111,7 @@ module.exports=async({js,waitFor:wait,tap,key,send,mode,errors})=>{
   assert(await js("rc.book.best>=3.5&&JSON.parse(localStorage.getItem('sundownBay.v1')).threads.owned.includes('roadcrew')"));
   await js("Object.assign(h,{x:rc.worker.x+.4,z:rc.worker.z+.65});true");await tap("KeyF");
   await waitFor("document.querySelector('#game').classList.contains('in-chapter')");await snap("county-wrap");
+  await waitFor("document.querySelector('#chapterLine').textContent.includes('vest on the handle')");await snap("county-inez");
   await waitFor("!document.querySelector('#game').classList.contains('in-chapter')",22000);
   console.log("PASS actual pursuit closure, saved city worksite, timed cone toss, lane reopening, wardrobe reward and cinematic",mode,site.street);
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);

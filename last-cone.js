@@ -155,6 +155,11 @@
     g.pole([-.35,1.14,-.61],[.35,1.14,-.61],.043,grip,7);
     g.box(0,.70,-.545,.59,.23,.035,"#edc992");g.box(-.17,.70,-.567,.10,.14,.012,orange);
     for(const y of [.66,.72])g.box(.06,y,-.568,.25,.02,.012,grip);
+    // The spare vest hangs over the passenger side of the handle.
+    for(const z of [-.637,-.575]){
+      g.quad([.095,1.15,z],[.31,1.15,z],[.33,.77,z-.046],[.077,.81,z-.046],"#df8348");
+      g.quad([.087,.923,z-.033],[.322,.896,z-.033],[.326,.862,z-.037],[.084,.889,z-.037],"#e8e2bb");
+    }
   }
   function world(crew,list,model,see,ground,hero){
     const s=crew.site;if(!s||!see(s.rack,97))return;
@@ -168,7 +173,7 @@
     }
     const pose=w.moving?1+Math.floor(w.phase)%8:0,token="county/inez/"+pose+"/"+Number(crew.loaded);
     model(token,g=>{buildBayPerson(g,"#9b674f","#e2874c","#485966",pose?(pose-1)*Math.PI/4:0,"dockhand",crew.loaded?4:0);
-      g.box(0,1.16,0,.36,.044,.246,"#e6dbab");g.cyl(0,1.83,.02,.13,.12,.09,9,"#c29b64");});
+      g.box(0,1.16,0,.36,.044,.246,"#e6dbab");});
     list.push([token,w.x,ground(w.x,w.z),w.z,w.yaw]);
     crew.cones(hero,(p,y,yaw,tilt)=>list.push(["patrol-cone",p.x,ground(p.x,p.z)+y,p.z,yaw,tilt]));
   }
