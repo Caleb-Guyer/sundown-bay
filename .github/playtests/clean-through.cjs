@@ -98,6 +98,7 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
   console.log("PASS Late Plate",mode,"physical Portside envelope and desk handoff, proof chosen and published, archived photograph reopened after reload");
   await tap("Escape");
   await require("./room-call.cjs")({js,send,tap,key,waitFor,shot,mode});
+  await require("./house-copies.cjs")({js,send,tap,waitFor,shot,mode});
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS Roadside camera",mode,"driver-controlled cuts, printed traffic photograph, saved cover after reload, camera released");
   console.log("PASS Clean Through",mode,card.score,"points, double gap under driver input, five clear seconds, saved moving traffic reel and scrub after reload");

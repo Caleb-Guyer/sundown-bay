@@ -4,6 +4,8 @@ At six sharp, Dalia Cruz has a ferry to dispatch and a passenger running late. Y
 
 [Play Sundown Bay](https://caleb-guyer.github.io/sundown-bay/)
 
+**House Copies** starts at Meli’s Bay Wire cart near the Marlin. Take the satchel and look for the red sidewalk rack at Palm Diner and the green one at the motel. Either stop can go first. Press **B** just before you pass a rack on a bicycle or in your car. Your bundle carries some of your speed. You can circle back after a miss or walk up to place it. Teo and Alba unfold their copies, and Bea leaves your signed receipt in Room 14. Your tip rewards moving deliveries and accurate landings.
+
 **Clean Through** starts on the street. In free roam, pass close beside a moving car above **20 mph**. Get through two cars on opposite sides in the same gap for a **250-point bonus**. Another pass extends the run. Five clear seconds bank it, and a collision spoils it. The screen on the back of Romy’s chalk rail across Tideway from Portside Tire loops your best pass. Walk up and press **F** to scrub through it, or open the saved reel under **J**.
 
 After **Last Collection**, find Romy outside Cine Luna. Press **F** to join her on **The Long Way Home**. She walks the south pavement, calls the lights and waits if you fall behind. **H** answers her question on foot. You can also pull up beside her in a stopped car and tap **H** to offer her the passenger seat. If you sold the payroll, she wants an honest answer before she’ll ride. Meet her on foot at the Marlin laundry door to hear what she has to say about the walk. If she hands you the blue key, Marisol’s staff wagon is yours to drive and take to Portside Tire.

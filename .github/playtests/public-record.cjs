@@ -153,6 +153,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const expose=atlas.replace("  function castBuildings(","  window.patch=groundPatch;\n  function castBuildings(");
       const ground=await js("("+require("./ground-window.cjs").toString()+")((function(window){"+expose+";return window.patch;})({}))");
       console.log("PERF overhead block pixels",JSON.stringify(ground));
+      const people=await js("("+require("./sidewalk-prints.cjs").toString()+")((function(window){"+atlas.replace("  function castBuildings(","  window.person=personSprite;\n  function castBuildings(")+";return window.person;})({}))");
+      console.log("PERF standing pedestrians",JSON.stringify(people));
+      assert(people.ink>1500&&people.fills[0]>200&&!people.fills[1]&&people.overlap>.88&&people.meanError<22&&people.walkingChanges===0);
       const lot=await js("("+require("./starlite-lot.cjs").toString()+")()");
       console.log("PERF Starlite lot",JSON.stringify(lot));
       const lamps=await js("("+require("./traffic-prints.cjs").toString()+")()");

@@ -473,7 +473,21 @@
     c.clearRect(0,0,w,h);
     carSprite(c,{kind,color,yaw:Math.PI*.46},w*.50,h*.50,Math.min(w/5.25,h/2.90),0);
   };
-  function personSprite(c,p,x,y,s,hero,bearing=0,ghost=false) {
+  const peoplePrints=new Map();
+  function standingPrint(c,p,x,y,s){
+    const key=(p.skin||"#c58b68")+"/"+(p.shirt||"#cb8a78");
+    let print=peoplePrints.get(key);
+    if(!print){
+      const surface=mapSurface(48,48),ink=surface?.getContext("2d");if(!ink)return false;
+      ink.lineJoin="round";personSprite(ink,{skin:p.skin,shirt:p.shirt},24,24,38,false);
+      print=freezeSurface(surface);
+      if(peoplePrints.size>=64){const first=peoplePrints.keys().next().value;peoplePrints.get(first).close?.();peoplePrints.delete(first);}
+      peoplePrints.set(key,print);
+    }
+    const half=s*24/38;c.save();c.translate(x,y);c.rotate(p.yaw||0);c.drawImage(print,-half,-half,2*half,2*half);c.restore();return true;
+  }
+  function personSprite(c,p,x,y,s,hero,bearing=0,ghost=false,low=false) {
+    if(low&&s<=16&&!hero&&!ghost&&!p.down&&!p.stride&&!p.startle&&!p.sprayPose&&p.gesture!==4&&standingPrint(c,p,x,y,s))return;
     c.save();c.translate(x,y);
     if(p.down){
       c.rotate(p.yaw);c.scale(s,s);const roll=Math.sin(BayStreetAction.tilt(p));
@@ -504,6 +518,9 @@
         }
         if(side===1&&m.handTarget?.streetWave){
           const w=m.handTarget.weight;ax+=(m.handTarget.x-ax)*w;az+=(-.56-az)*w;
+        }
+        if(side===1&&m.handTarget?.paperToss){
+          const h=m.handTarget;ax+=(h.x-ax)*h.weight;az+=(-h.z-az)*h.weight;
         }
         line(c,side*.206,0,ax,az,p.kit&&p.kit!=="street"?"#b68160":"#357d75",.11);disc(c,ax,az,.061,"#b68160");
       }
@@ -1121,11 +1138,12 @@
     if(street&&opt.slideProjection)for(const v of BayPavementShow.venues){
       if(visible(px(v.x),py(v.z),7*s))BayPavementShow.map(ctx,px(v.x),py(v.z),s,v,opt.slideProjection(v));
     }
+    if(street&&opt.houseCopies)BayHouseCopies.map(ctx,opt.houseCopies,opt.flyingCopy,px,py,s,visible,personSprite,rotation,opt.copyReaction,streetTime);
     if(street&&opt.streetAction)BayStreetAction.map(ctx,opt.streetAction,px,py,s);
     if(street) for(const person of opt.peds||empty) {
       const x=px(person.x),y=py(person.z);
       if(visible(x,y)){
-        personSprite(ctx,person,x,y,Math.max(2.3,s*1.42),false,rotation);
+        personSprite(ctx,person,x,y,Math.max(2.3,s*1.42),false,rotation,false,opt.lowDetail);
         if(person.neighborPose&&!person.startle&&!person.sprayPose)BayNeighborGestures.map(ctx,x,y,Math.max(2.3,s*1.42),person,person.neighborPose);
         if(person.curbAim&&!person.startle)BayCurbDeskArt.mapPhone(ctx,px,py,s,person,person.curbAim.lift);
         if(person.canopy>.01&&!person.startle)BayRainCanopies.map(ctx,px,py,s,person,person.canopy,person.canopyStyle,streetTime);

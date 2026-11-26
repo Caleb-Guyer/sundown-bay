@@ -166,7 +166,7 @@
   }
   function readSave(){
     const result=blankSave();result.engineSeven=BayEngineSeven.read(null);result.starlite=BayStarlite.read(null);result.stunt=storedPoster();result.bikes=BayPedal.read(null);result.boardwalk=BayBoardwalk.read(null);result.courts=BayPickup.read(null);result.valet=BayMotorCourt.read(null);
-    result.countyRelay=BayCountyRelay.read(null);result.featurePrint=BayFeaturePrint.read(null);
+    result.countyRelay=BayCountyRelay.read(null);result.featurePrint=BayFeaturePrint.read(null);result.houseCopies=BayHouseCopies.read(null);
     result.sand=BaySoftSand.read(null);
     result.band=BaySessions.read(null);result.palma=BayPalma.read(null);result.bridge=BayDrawbridge.read(null);result.neon=BayMarlinNeon.read(null);
     result.campana=BayCampana.read(null);result.windowBest={};result.windowJobs=0;result.transit=BayTransit.read(null);result.airwaves=BayAirwaves.read(null);
@@ -179,6 +179,7 @@
     result.pictureJumps=jumps.read(null);result.copies=carbon.read(null);
     try{const raw=JSON.parse(localStorage.getItem("sundownBay.v1")||"null");if(!raw||typeof raw!=="object")return result;
       result.featurePrint=BayFeaturePrint.read(raw.featurePrint);
+      result.houseCopies=BayHouseCopies.read(raw.houseCopies);
       if(raw.collection){
         for(const id of ["luna","port","best"])if(Number.isFinite(raw.collection[id])&&raw.collection[id]>=0)result.collection[id]=raw.collection[id];
         if([1,2].includes(raw.collection.print))result.collection.print=raw.collection.print;
@@ -234,6 +235,7 @@
     }catch{return result;}
   }
   const save=readSave(),houseLights=new BayHouseLights.Book();
+  let flyingCopy=null,copyReaction=null;
   const campaign=new BayPublicRecord.Story();
   const maraFilm=new BayLotNegative.Archive();
   const outsideCases=new BayOutsideCopy.Cases();
@@ -470,6 +472,14 @@
           local.best[s.id]=entry;
         }
       }
+    }
+    if(latest?.houseCopies?.rev>save.houseCopies.rev){
+      const updated=BayHouseCopies.read(latest.houseCopies);
+      if(updated.runs>save.houseCopies.runs){
+        if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
+        if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
+      }
+      save.houseCopies=updated;flyingCopy=null;
     }
     if(latest?.engineSeven?.rev>save.engineSeven.rev){save.engineSeven=BayEngineSeven.read(latest.engineSeven);if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;}
     if(latest?.starlite?.rev>save.starlite.rev){save.starlite=BayStarlite.read(latest.starlite);spider.roofTarget=save.starlite.roof;if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;}
@@ -1322,6 +1332,7 @@
     if(!active&&!waypoint&&campaign.book.pass&&!campaign.book.trips)waypoint=chapterTarget();
     if(!active&&!waypoint&&["ride","negative","return"].includes(campaign.book.stage))waypoint=chapterTarget();
     if(!active&&wakeBook.mark&&wakeBook.by===unit.lead)waypoint={...wakeLead(wakeBook.mark).pin,wakeCall:wakeBook.mark};
+    if(!active&&save.houseCopies.run)markHouseCopy();
     if(!active&&wakeBook.inside===unit.lead){
       startMorning(false);return;
     }
@@ -6900,6 +6911,12 @@
     return true;
   }
   function actionPose(dt){
+    if(flyingCopy?.walking&&flyingCopy.age<.47&&onStreetFeet()){
+      const u=flyingCopy.age/.47,w=Math.sin(u*Math.PI);
+      const reach=BayDriving.local(hero,flyingCopy.stop.x,flyingCopy.stop.z);
+      motion.handTarget={paperToss:true,x:.18+clamp(reach.x,-.34,.34)*w,y:1.14+.33*w,z:.18+.36*w,weight:w};return;
+    }
+    if(motion.handTarget?.paperToss)motion.handTarget=null;
     const armed=streetAction.slot&&actionFeet();
     if(!armed){
       if(streetAction.slot)streetAction.equip(0);
@@ -7741,7 +7758,7 @@
       if(waypoint?.kind==="june"){waypoint.x=band.june.x;waypoint.z=band.june.z;}
       if(waypoint?.kind==="neighbor"){const who=neighbors.byId(waypoint.id);if(who){waypoint.x=who.x;waypoint.z=who.z;}}
       if(waypoint?.kind==="neighbor-place"&&onStreetFeet()&&dist(hero,waypoint)<2.55&&neighbors.known(unit.lead,neighbors.byId(waypoint.id),"visited"))waypoint=null;
-      if(waypoint&&!["dive-site","neighbor","neighbor-place","street-response","shift-print","meter-car","flower-call","unit-four"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
+    if(waypoint&&!["house-copy","dive-site","neighbor","neighbor-place","street-response","shift-print","meter-car","flower-call","unit-four"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
         if(waypoint.kind!=="garage"||!car?.flatSide)note("City map","Waypoint reached.",1.7);
         if(waypoint.wakeCall===wakeBook.mark&&wakeBook.mark){wakeBook.mark=null;BayMarlinRoom.saveWake(wakeBook);}
         waypoint=null;
@@ -9147,8 +9164,60 @@
     BayNeighborhoodEdition.paint(picture,story.id);name.textContent=story.name;copy.textContent=story.news;
     caption.append(name,copy);page.append(picture,caption);b.append(page);
   }
+  function markHouseCopy(){
+    const stop=BayHouseCopies.pending(save.houseCopies)[0];
+    if(stop)waypoint={...stop,kind:"house-copy"};else if(waypoint?.kind==="house-copy")waypoint=null;
+    lastHud=lastMap=-10;
+  }
+  function loadHouseCopies(){
+    if(!wireDeskNear()||active||heat)return;
+    const edition=pictureDesk.issue?.street||"Ocean Drive";
+    if(!save.houseCopies.run){BayHouseCopies.start(save.houseCopies,edition);persist();}
+    markHouseCopy();closePanel();
+    speak("Meli Funes","Red rack at the Palm. Green at the Marlin. Throw before you draw level, or walk them up. Bea gets two.");
+    note("House Copies","B near either rack · A clean moving delivery earns the best tip.",5);
+  }
+  function paperCarrier(){
+    if(!save.houseCopies.run||active||heat||room||transfer||campaign.scene||unit.eye||unit.transition)return null;
+    return unitRoadCar(car)?car:!car&&cycles.riding&&!cycles.transfer?cycles.riding:onStreetFeet()?hero:null;
+  }
+  function throwHouseCopy(){
+    const p=paperCarrier();if(!p||flyingCopy&&!flyingCopy.landed)return false;
+    const shot=BayHouseCopies.launch(save.houseCopies,p,footLevel(p.x,p.z),p===hero);if(!shot)return false;
+    const end={x:shot.endX,y:footLevel(shot.endX,shot.endZ)+.64,z:shot.endZ};
+    if(BayCamera.safeFraction(shot,end,cameraRig.space.near(shot.x,shot.z,24))<.99){
+      note("House Copies","Find a clear line to the sidewalk rack.",2);return true;
+    }
+    if(shot.walking&&streetAction.slot)streetAction.equip(0);
+    flyingCopy=shot;return true;
+  }
+  function stepHouseCopy(dt){
+    const p=flyingCopy;if(!p)return;
+    if(p.landed){p.landed-=dt;if(p.landed<=0)flyingCopy=null;return;}
+    const hit=BayHouseCopies.step(p,dt,footLevel(p.endX,p.endZ));if(!hit)return;
+    // A throw launched in another tab may have landed during this flight.
+    try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
+    const result=BayHouseCopies.file(save.houseCopies,p,hit);
+    if(!result){flyingCopy=null;return;}
+    if(result.receipt){
+      save.wallet+=result.receipt.pay;save.paid++;sound.cue("paid");
+      note("House Copies · "+result.receipt.score+"/200","+"+cash(result.receipt.pay)+" · Bea left the signed delivery slip in Room 14.",5);
+    }else if(result.miss){
+      const gap=Math.round(hit.gap*10)/10;
+      note("On the pavement · "+gap+" m from the rack",p.walking?"Walk closer and press B.":"Circle back. Press B a little before the rack.",3);
+    }else note(p.stop.name,result.score+"/100 · One bundle to go.",4);
+    if(!result.miss){copyReaction={id:p.stop.id,at:streetTime};speak(p.stop.who,p.stop.response);markHouseCopy();}
+    persist();p.landed=result.miss?3:.24;
+  }
   function wirePanel(b){
     const book=curbWire.book;book.refresh();
+    if(save.houseCopies.run){
+      b.append(makeButton("House Copies · Delivery slip",BayHouseCopies.pending(save.houseCopies).map(s=>s.name).join(" / "),"Mark rack",()=>{markHouseCopy();closePanel();}));
+      if(wireDeskNear()&&!active&&!heat)b.append(makeButton("Return the satchel","Leave the remaining bundles with Meli.","Return",()=>{
+        if(!wireDeskNear()||!save.houseCopies.run)return;save.houseCopies.run=null;save.houseCopies.rev++;flyingCopy=null;copyReaction=null;
+        markHouseCopy();persist();closePanel();speak("Meli Funes","Set it behind the cart. I'll put those ones back on the rack.");
+      }));
+    }else if(wireDeskNear()&&!heat&&!active)b.append(makeButton("House Copies","Two subscriber bundles for the Palm Diner and Marlin Motel.","Take satchel",loadHouseCopies));
     if(pictureDesk.packet&&wireDeskNear()||pictureDesk.issue)b.append(makeButton("Late Plate",pictureDesk.packet&&wireDeskNear()?"Meli is making room on page three.":"Bay Wire · Late city edition","Open proof",()=>openPanel("late-plate")));
     if(neighbors.editions.length)b.append(makeButton("Bay Wire · Neighborhood edition",neighbors.editions.map(s=>s.name).join(" · "),"Read",()=>openPanel("wire-edition")));
     const all=[...new Map([...book.clips,book.cover,book.air,...Object.values(book.edits)].filter(Boolean).map(c=>[c.id,c])).values()];
@@ -9647,6 +9716,7 @@
       searchPoint:heat&&chase.searching?chase.lastSeen:null,
       roadblock:skiff?null:backup.roadblock,air:backup.air,ferry:ferryScene,ferryActive:!!active?.ferry,inez:play?ferryScene?.rider||BayFerry.pickup:null,
       dashIndex:active?.job.id==="dash"?active.index:null,dashRun:active?.dash||dashResult?.run,ghost:active?.showGhost?active.ghost:null,
+      houseCopies:play&&modeName==="street"?save.houseCopies:null,flyingCopy,copyReaction,
       signals:BayStreetArt.signals,streetActors:modeName==="street"?BayStreetArt.overview(streetTime):[],cameraYaw:isTop()?(take?.lookYaw??cameraRig.yaw+cameraRig.lookBack):cam.yaw};
   }
   function drawMini(){
@@ -10332,6 +10402,7 @@
     drawSkids();
     if(play)BaySandArt.world(view,model,see,sandBeach,t,hero,car);
     const visible=[],owned=transfer?.v||car;
+    if(play)BayHouseCopies.world(save.houseCopies,flyingCopy,visible,model,see,footLevel,personSkin,copyReaction,t);
     if(play)BayStreetAction.world(streetAction,visible,footLevel,see);
     const companion=play&&(romyOutside()||(campaign.scene?.id==="walkHomeDoor"?homeWalk:null));
     if(companion)BayPayroll.world(view,model,visible,see,companion);
@@ -11386,6 +11457,7 @@
       if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print"+(canReadRoadMap()?" · Shift + N for her street map":""));
       else contextHint("","Stop to look at Mara’s contact print");
     }
+    else if(save.houseCopies.run&&paperCarrier()&&dist(pos(),BayHouseCopies.nearest(save.houseCopies,pos()))<22)contextHint("B","Toss to "+BayHouseCopies.nearest(save.houseCopies,pos()).name+" · throw before you pass");
     else if(canReadRoadMap())contextHint("Shift + N","Unfold Mara’s street map");
     else if(beachHint)contextHint(...beachHint);
     else if(phoneHint)contextHint(...phoneHint);
@@ -11761,6 +11833,10 @@
     }
   }
   function showDesk(body){
+    if(save.houseCopies.last){
+      const r=save.houseCopies.last;
+      signedNote(body,"Two copies of the "+r.edition+" edition, received at the Marlin. Your route paid "+cash(r.pay)+". Best round "+save.houseCopies.best+"/200. I put the clean one in the lobby. — Bea","Bay Wire · Subscriber receipt "+save.houseCopies.runs);
+    }
     if(wakeBook.message&&wakeBook.by===unit.lead){
       const id=wakeBook.message,lead=wakeLead(id);
       body.append(makeButton("Bea’s telephone slip",lead.line,"Mark address",()=>{
@@ -12828,6 +12904,7 @@
     }
     if(roadside.vehicle&&(ev.code==="KeyX"||ev.code==="KeyZ"&&!ev.shiftKey&&!held("ShiftLeft","ShiftRight")))roadside.stop();
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
+    if(ev.code==="KeyB"&&throwHouseCopy())return;
     if(ev.code==="KeyU"&&active?.payroll?.aboard&&car===active.payroll.car&&active.payroll.envelopes?.count<3)return;
     if(homeKey(ev.code))return;
     if(ev.code==="KeyF"&&atTimetable()){openPanel("route-six");return;}
@@ -13176,7 +13253,7 @@
     if(!play){traffic(dt);motion.step(dt,0,0);}
     if(play&&!panel){
       if(passReel.vehicle&&(transfer||!car||car!==passReel.vehicle||active))passReel.reset();
-      streetAction.tick(dt);elapsed+=dt;hours.step(dt);stepRankPhones();gutters.weather(hours);if(hours.total-savedAt>=20)saveTime();
+      streetAction.tick(dt);stepHouseCopy(dt);elapsed+=dt;hours.step(dt);stepRankPhones();gutters.weather(hours);if(hours.total-savedAt>=20)saveTime();
       bumpLock=Math.max(0,bumpLock-dt);
       // Small steps keep steering and collision response consistent on slower hardware.
       let left=dt,trafficTime=0;while(left>.00001&&!panel){
