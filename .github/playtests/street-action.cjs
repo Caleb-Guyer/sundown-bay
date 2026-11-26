@@ -5,6 +5,7 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
     const dir=path.join(__dirname,"curb-wire-proof");fs.mkdirSync(dir,{recursive:true});
     fs.writeFileSync(path.join(dir,mode+"-record-"+name+".jpg"),Buffer.from(data,"base64"));
   }
+  const button=text=>"Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.textContent.includes("+JSON.stringify(text)+")).click()";
   await js(`window.fightQA={};const q=fightQA;
     const foot=BaySoftSand.Beach.prototype.attend;BaySoftSand.Beach.prototype.attend=function(dt,t,h,f){q.h=h;q.floor=f;return foot.apply(this,arguments);};
     const cam=BayCamera.prototype.update;BayCamera.prototype.update=function(){q.rig=this;return cam.apply(this,arguments);};
@@ -44,6 +45,15 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await snap("collection-handoff");await tap("Enter");
   assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.last"),route);
   console.log("PASS Jules walked in, opened both doors, carried the tin to "+name+" and completed "+route,mode);
+  await js("q.at(q.car,-109,-17);q.car.yaw=0;BayDriving.settle(q.car);true");
+  await waitFor("document.querySelector('#context').textContent.includes('Upgrades & paint')");await tap("KeyF");
+  await waitFor("document.querySelector('#panelBody').textContent.includes('County-band scanner')");
+  const balance=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).wallet");
+  await js(button("County-band scanner"));await waitFor("q.car.upgrades.scanner");
+  assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).wallet"),balance-90);
+  await tap("Escape");await tap("Backslash");
+  await waitFor("!document.querySelector('#countyReceiver').hidden&&/Rescue 4|Cleo Moss/.test(document.querySelector('#countySource').textContent)");
+  await snap("county-four");
   // Reload to free roam at the motel. The test supplies encounter positions in an empty block.
   await send("Page.reload");await waitFor("!window.fightQA&&document.readyState==='complete'&&typeof BayStreetAction==='object'");
   await js("document.querySelector('#play').click()");
@@ -63,7 +73,6 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await js("q.bea=q.people.find(p=>p.coffeeRegular);q.at(q.h,q.bea.x+.55,q.bea.z);q.rig.reset(q.h)");
   await waitFor("document.querySelector('#context').textContent.includes('Show Bea')");await tap("KeyF");
   await waitFor("document.querySelector('#panel').dataset.screen==='shift-print'");await snap("night-shift-front");
-  const button=text=>"Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.textContent.includes("+JSON.stringify(text)+")).click()";
   await js(button("Turn the photograph"));await waitFor("document.querySelector('#panelBody canvas').getAttribute('aria-label').includes('dedication')");
   await js(button("Ask Bea"));await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.print===2&&document.querySelector('#panelBody canvas').getAttribute('aria-label').includes('Tino')");
   await snap("night-shift-caption");await tap("Escape");
@@ -77,6 +86,9 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await send("Input.dispatchMouseEvent",{type:"mouseReleased",x:506,y:315,button:"left",clickCount:1});
   await waitFor("document.querySelector('#streetWeapon').textContent.includes('2 / 3')");await tap("Digit0");
   await js("q.at(q.h,151,-27)");await tap("KeyE");await waitFor("impactQA.car?.kind==='coupe'",22000);
+  assert(await js("q.car.upgrades.scanner"));await tap("Backslash");
+  await waitFor("!document.querySelector('#countyReceiver').hidden&&!/Rescue 4|Cleo Moss/.test(document.querySelector('#countySource').textContent)");
+  await snap("county-patrol");console.log("PASS spent job money on the coupe receiver, heard Rescue 4, reloaded and received the live pursuit",mode);
   await js(`BayDriving.settle(q.car);q.at(q.car,72,38);q.car.yaw=0;q.person=q.people.find(p=>p!==q.p&&!p.name&&!p.palmManaged&&!p.down);
     const impact=BayStreetAction.Action.prototype.bumper;BayStreetAction.Action.prototype.bumper=function(v,people,ground){
       if(!q.placed&&v===q.car&&v.speed>6){q.placed=true;q.at(q.person,v.x,v.z+1.8);}

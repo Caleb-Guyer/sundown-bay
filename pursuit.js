@@ -335,5 +335,56 @@
       v.brakes+=(Number(pace<old-.4||v.speed<.9)-v.brakes)*-Math.expm1(-12*dt);
     }
   }
+  // A receiver samples the same sightings and calls that move the units. A busy
+  // channel reads the newest report once it clears, never a queue of old locations.
+  class DispatchReceiver {
+    constructor(){this.car=null;this.until=0;this.pursuit=false;this.call=null;}
+    tune(car){
+      if(car===this.car)return;
+      this.car=car;this.until=0;this.pursuit=false;this.block=null;this.air=null;
+      this.call=null;this.stage="";this.last=null;this.searching=false;this.district="";
+    }
+    transmit(now,source,text){this.until=now+4.3;return this.last={source,text,until:now+4.8};}
+    patrol(now,heat,chase,backup,place,description,repeat){
+      if(!heat){
+        if(!this.pursuit)return null;
+        this.pursuit=false;this.block=this.air=null;this.call=null;
+        return this.transmit(now,"Bay Dispatch","All units, close the "+(this.district||"street")+" call. Back on the board.");
+      }
+      if(this.pursuit&&now<this.until&&!repeat)return null;
+      const where=chase.lastSeen?place(chase.lastSeen):"",lost=!!chase.searching,block=backup.roadblock;
+      if(!this.pursuit){
+        this.pursuit=true;this.district=where;this.searching=lost;this.identified=chase.sighted&&!lost;this.air=this.block=null;
+        const line=lost?"Last report from "+where+". Waiting for another call.":chase.sighted?
+          "Unit Two, I read "+description+" in "+where+".":"Road units, pick up the call"+(where?" in "+where:"")+".";
+        return this.transmit(now,"Bay Dispatch",line);
+      }
+      if(lost!==this.searching){
+        this.searching=lost;if(!lost)this.identified=true;if(where)this.district=where;
+        return this.transmit(now,"Unit Two",lost?"Lost it. My last sighting was "+this.district+".":"Got it again. "+description+". "+this.district+".");
+      }
+      if(chase.sighted&&!lost&&!this.identified){
+        this.identified=true;this.district=where;return this.transmit(now,"Unit Two","Have a visual. "+description+" in "+where+".");
+      }
+      if(backup.air&&backup.air!==this.air){this.air=backup.air;return this.transmit(now,"Air One","Air One overhead. Ground, I have your channel.");}
+      if(block&&block.clearedAt===undefined&&(block!==this.block||!!block.strip!==this.strip)){
+        this.block=block;this.strip=!!block.strip;return this.transmit(now,"Road Unit",
+          (block.strip?"Strip crew is in position":"Both cruisers are in position")+" in "+place(block)+".");
+      }
+      if(chase.sighted&&where&&where!==this.district){this.district=where;return this.transmit(now,"Unit Two","Passing through "+where+". Still with "+description+".");}
+      return repeat?this.transmit(now,this.last.source,this.last.text):null;
+    }
+    ambulance(now,service,repeat){
+      if(!repeat&&now<this.until)return null;
+      const call=service.call;if(!call)return null;
+      const phase=service.phase,stage=phase==="ready"?"ready":phase==="outbound"?"out":phase==="rest"||phase==="handoff"?"home":service.cot.occupied?"loaded":"curb";
+      if(!repeat&&this.call===call&&this.stage===stage)return null;
+      this.call=call;this.stage=stage;
+      const line=stage==="ready"?"Four, your next pickup is "+call.place+".":stage==="out"?"Four is rolling to "+call.place+".":
+        stage==="home"?"Four at Palm County Clinic. Receiving has the call.":stage==="loaded"?"One aboard. Tell receiving we're coming in.":"Four on scene at "+call.place+". Crew is at the curb.";
+      return this.transmit(now,stage==="ready"?"Cleo Moss · Dispatch":"Rescue 4",line);
+    }
+  }
+  window.BayDispatchReceiver=DispatchReceiver;
   window.BayPursuit=BayPursuit;
 })();

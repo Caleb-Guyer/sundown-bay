@@ -14201,6 +14201,57 @@ window.buildBayCity = function buildBayCity(g,water) {
       v.brakes+=(Number(pace<old-.4||v.speed<.9)-v.brakes)*-Math.expm1(-12*dt);
     }
   }
+  // A receiver samples the same sightings and calls that move the units. A busy
+  // channel reads the newest report once it clears, never a queue of old locations.
+  class DispatchReceiver {
+    constructor(){this.car=null;this.until=0;this.pursuit=false;this.call=null;}
+    tune(car){
+      if(car===this.car)return;
+      this.car=car;this.until=0;this.pursuit=false;this.block=null;this.air=null;
+      this.call=null;this.stage="";this.last=null;this.searching=false;this.district="";
+    }
+    transmit(now,source,text){this.until=now+4.3;return this.last={source,text,until:now+4.8};}
+    patrol(now,heat,chase,backup,place,description,repeat){
+      if(!heat){
+        if(!this.pursuit)return null;
+        this.pursuit=false;this.block=this.air=null;this.call=null;
+        return this.transmit(now,"Bay Dispatch","All units, close the "+(this.district||"street")+" call. Back on the board.");
+      }
+      if(this.pursuit&&now<this.until&&!repeat)return null;
+      const where=chase.lastSeen?place(chase.lastSeen):"",lost=!!chase.searching,block=backup.roadblock;
+      if(!this.pursuit){
+        this.pursuit=true;this.district=where;this.searching=lost;this.identified=chase.sighted&&!lost;this.air=this.block=null;
+        const line=lost?"Last report from "+where+". Waiting for another call.":chase.sighted?
+          "Unit Two, I read "+description+" in "+where+".":"Road units, pick up the call"+(where?" in "+where:"")+".";
+        return this.transmit(now,"Bay Dispatch",line);
+      }
+      if(lost!==this.searching){
+        this.searching=lost;if(!lost)this.identified=true;if(where)this.district=where;
+        return this.transmit(now,"Unit Two",lost?"Lost it. My last sighting was "+this.district+".":"Got it again. "+description+". "+this.district+".");
+      }
+      if(chase.sighted&&!lost&&!this.identified){
+        this.identified=true;this.district=where;return this.transmit(now,"Unit Two","Have a visual. "+description+" in "+where+".");
+      }
+      if(backup.air&&backup.air!==this.air){this.air=backup.air;return this.transmit(now,"Air One","Air One overhead. Ground, I have your channel.");}
+      if(block&&block.clearedAt===undefined&&(block!==this.block||!!block.strip!==this.strip)){
+        this.block=block;this.strip=!!block.strip;return this.transmit(now,"Road Unit",
+          (block.strip?"Strip crew is in position":"Both cruisers are in position")+" in "+place(block)+".");
+      }
+      if(chase.sighted&&where&&where!==this.district){this.district=where;return this.transmit(now,"Unit Two","Passing through "+where+". Still with "+description+".");}
+      return repeat?this.transmit(now,this.last.source,this.last.text):null;
+    }
+    ambulance(now,service,repeat){
+      if(!repeat&&now<this.until)return null;
+      const call=service.call;if(!call)return null;
+      const phase=service.phase,stage=phase==="ready"?"ready":phase==="outbound"?"out":phase==="rest"||phase==="handoff"?"home":service.cot.occupied?"loaded":"curb";
+      if(!repeat&&this.call===call&&this.stage===stage)return null;
+      this.call=call;this.stage=stage;
+      const line=stage==="ready"?"Four, your next pickup is "+call.place+".":stage==="out"?"Four is rolling to "+call.place+".":
+        stage==="home"?"Four at Palm County Clinic. Receiving has the call.":stage==="loaded"?"One aboard. Tell receiving we're coming in.":"Four on scene at "+call.place+". Crew is at the curb.";
+      return this.transmit(now,stage==="ready"?"Cleo Moss · Dispatch":"Rescue 4",line);
+    }
+  }
+  window.BayDispatchReceiver=DispatchReceiver;
   window.BayPursuit=BayPursuit;
 })();
 
@@ -18980,6 +19031,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(name==="street-sidearm"||name==="street-scatter"){
       const heavy=name==="street-scatter";waterNoise(effects,at,heavy?.19:.083,heavy?.14:.10,heavy?1520:2610,230);
       tone(effects,heavy?121:179,at,.11,.084,"triangle",48,.002);return;
+    }
+    if(name==="county-radio"){
+      const pitch=source.medical?905:995;waterNoise(effects,at,.13,.037,2520,780);
+      tone(effects,pitch,at+.034,.055,.027,"sine",pitch,.006);
+      tone(effects,pitch*.79,at+.102,.09,.025,"sine",pitch*.79,.008);return;
     }
     if(name==="watch-bell"){
       for(const [pitch,life,gain] of [[526,.87,.073],[1327,.47,.028],[1996,.29,.014]]){
@@ -70086,7 +70142,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   const parts=[
     {id:"engine",name:"Engine tune",price:250,detail:"18% more engine power for quicker acceleration."},
     {id:"tires",name:"Sport tires",price:125,detail:"25% more cornering grip on pavement."},
-    {id:"hydraulics",name:"Las Brisas switch kit",price:120,detail:"Four hydraulic switches fitted to this car. Use 1–4 to work the suspension."}
+    {id:"hydraulics",name:"Las Brisas switch kit",price:120,detail:"Four hydraulic switches fitted to this car. Use 1–4 to work the suspension."},
+    {id:"scanner",name:"County-band scanner",price:90,detail:"Hear patrol and Rescue 4 in this car. Press backslash to repeat a patrol call or mark the ambulance."}
   ];
   const finishes=[
     {name:"Motel Coral",color:paints[0]}, {name:"Sea Glass",color:paints[1]},
@@ -70189,7 +70246,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       if(raw.upgrades&&typeof raw.upgrades==="object"&&!Array.isArray(raw.upgrades)){
         for(const [key,fitted] of Object.entries(raw.upgrades)){
-          if(fitted?.engine===true||fitted?.tires===true||fitted?.hydraulics===true)result.upgrades[key]={engine:fitted.engine===true,tires:fitted.tires===true,hydraulics:fitted.hydraulics===true};
+          if(fitted?.engine===true||fitted?.tires===true||fitted?.hydraulics===true||fitted?.scanner===true){
+            result.upgrades[key]={engine:fitted.engine===true,tires:fitted.tires===true,hydraulics:fitted.hydraulics===true};
+            if(fitted.scanner===true)result.upgrades[key].scanner=true;
+          }
         }
       }
       result.juneReturned=raw.juneReturned===true&&result.tapes.includes(0);return result;
@@ -72787,7 +72847,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const v=vehicles[i],number="Bay "+(i+1);
       if(!v){if(desk)signedNote(body,"Available",number);continue;}
       const r=gull.record(v),location=BayGullSales.inBay(v,gullSite.stalls[i],true)?"At Gull Street":district(v);
-      const features=[v.upgrades?.engine?"Engine tune":"",v.upgrades?.tires?"Sport tires":"",v.flatSide?tireStatus(v):BayRecovery.worst(v)?BayRecovery.faultText(v):""].filter(Boolean);
+      const features=[v.upgrades?.engine?"Engine tune":"",v.upgrades?.tires?"Sport tires":"",v.upgrades?.scanner?"County-band scanner":"",v.flatSide?tireStatus(v):BayRecovery.worst(v)?BayRecovery.faultText(v):""].filter(Boolean);
       const text=[location,(r.meters/1000).toFixed(1)+" km in your collection",...features].join(" · ");
       body.append(makeButton(number+" · "+formatVehicle(v),text,"Locate car",()=>clockPin({...v,name:"Your "+formatVehicle(v)})));
       const onStripe=v.stockId?BayGullSales.inBay(v,gullSite.display[v.kind],true):gull.bayFor(v)>=0;
@@ -73419,6 +73479,11 @@ window.buildBayCity = function buildBayCity(g,water) {
   function stepRescue(dt){
     if(rescue.joined&&heat){dropJob();speak("Anaïs Park","We'll take it from here. Leave the unit by the curb.");}
     rescue.step(dt,rescueEnv);
+    if(waypoint?.kind==="unit-four"){
+      if(waypoint.call!==rescue.call||["rest","handoff"].includes(rescue.phase)){
+        waypoint={...clinic.desk,kind:"receiving-visit",name:"Palm County Clinic · Receiving"};
+      }else {waypoint.x=unit4.x;waypoint.z=unit4.z;}
+    }
     if(waypoint?.kind==="street-response"){
       const c=waypoint.call;
       if(rescue.recovering?.source===c.source||rescue.waiting?.source===c.source){
@@ -77990,6 +78055,28 @@ window.buildBayCity = function buildBayCity(g,water) {
       return recoveryWalkway(a,b,v,corners,nearby,false);
     }
   };
+  const countyRadio=new BayDispatchReceiver();let nextCountyCheck=0;
+  function countyVehicle(v){
+    const name=formatVehicle(v),plate=BayStreetCars.plateFor(v);return name+", plate ending "+plate.slice(-3);
+  }
+  function receiveCounty(repeat=false){
+    const v=car?.upgrades?.scanner&&!transfer&&!campaign.scene&&!campaign.table?car:null;
+    if(v!==countyRadio.car){countyRadio.tune(v);nextCountyCheck=0;}
+    const receiver=$("countyReceiver");
+    if(!v){if(!receiver.hidden)receiver.hidden=true;return;}
+    const now=streetTime;
+    if(!repeat&&countyRadio.pursuit===!!heat&&now<Math.max(nextCountyCheck,countyRadio.until))return;
+    nextCountyCheck=now+.2;
+    const patrolCall=countyRadio.patrol(now,heat,chase,backup,district,heat?countyVehicle(v):"",repeat);
+    const medical=!heat&&(!patrolCall||repeat),report=medical?countyRadio.ambulance(now,rescue,repeat):patrolCall;
+    if(report){
+      $("countySource").textContent=report.source;$("countyWords").textContent=report.text;
+      receiver.hidden=false;sound.cue("county-radio",{medical});
+      if(repeat&&!heat&&!active){
+        waypoint={x:unit4.x,z:unit4.z,name:"Rescue 4 · "+rescue.call.place,kind:"unit-four",call:rescue.call};lastMap=-10;
+      }
+    }else if(!receiver.hidden&&now>(countyRadio.last?.until||0))receiver.hidden=true;
+  }
   function pursuit(dt){
     if(!heat)return;
     const p=pos(),coach=transit.aboard?transit.bus:null,vx=motos.bike?.vx??skiff?.vx??car?.vx??coach?.vx??cycles.riding?.vx??skate.rider?.vx??swim?.vx??motion.vx,vz=motos.bike?.vz??skiff?.vz??car?.vz??coach?.vz??cycles.riding?.vz??skate.rider?.vz??swim?.vz??motion.vz;
@@ -78909,6 +78996,15 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(opened>.01)for(const [i,id] of trunkContents(v).entries())if(id)bagArt.case(list,model,id,inBoot(v,i));
     }
     if(rig.windshield&&(v!==taxi||!cabWindow()))list.push([rig.windshield,v.x,bodyGround,v.z,v.yaw,v.pitch,v.lean,0,v]);
+    if(v.upgrades?.scanner){
+      model("county-receiver",g=>{
+        g.box(0,.041,0,.23,.082,.145,"#424543");g.box(0,.045,-.075,.19,.054,.015,"#252e2e");
+        g.box(-.029,.05,-.085,.087,.025,.009,"#9aa775");g.box(.070,.043,-.088,.029,.031,.018,"#bea279");
+        g.pole([.09,.079,.042],[.11,.232,.049],.005,"#a9a393",5);
+      });
+      const base=chassisPoint(v,.18,s.glass[4]+.012,s.hingeZ-.03,bodyGround);
+      list.push(["county-receiver",base.x,base.y,base.z,v.yaw,v.pitch,v.lean]);
+    }
     if(v===taxi&&cabWindow())list.push([BayCabArt.dashboard(model,cabs.booking.price),v.x,bodyGround,v.z,v.yaw,v.pitch,v.lean,.28]);
     for(const side of [-1,1]){
       const hinge=chassisPoint(v,side*s.hingeX,0,s.hingeZ,bodyGround);
@@ -81897,6 +81993,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(car&&active?.payroll?.aboard&&active.vehicle===car&&/^(Digit|Numpad)[12]$/.test(ev.code)){
       ev.preventDefault();if(!ev.repeat)collectionRoute(ev.code.endsWith("1")?"luna":"port");return;
     }
+    if(ev.code==="Backslash"&&car?.upgrades?.scanner&&!transfer){ev.preventDefault();if(!ev.repeat)receiveCounty(true);return;}
     if(/^(Digit|Numpad)[012]$/.test(ev.code)&&actionFeet()){
       ev.preventDefault();if(!ev.repeat){streetAction.equip(Number(ev.code.at(-1)));lastHud=-10;}return;
     }
@@ -82238,7 +82335,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       actionPose(dt);
       if(!pickup&&!room&&!boardwalk.player&&!cabs.playerHeld&&!windowRide?.held&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??(transit.aboard?transit.bus.speed:null)??motos.bike?.speed??skiff?.speed??car?.speed??(windowRide?.held?windowRide.vehicle.speed:cabs.playerHeld?taxi.speed:0));
-      if(!panel){stepSand(dt);bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();ferryBulletin(Math.min(raw,.8));stepField(dt);}
+      if(!panel){if(car?.upgrades?.scanner||countyRadio.car)receiveCounty();stepSand(dt);bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();ferryBulletin(Math.min(raw,.8));stepField(dt);}
       if(!panel){theatreStep(dt);neighborStep();stepPavement(dt);listenAtCase();if(projector?.showing)advanceScreening(raw);}
       for(const v of cars){BayPalma.weatherCar(v,dt,hours.wet);if(v!==car&&v.rubberHeat>0)BayDriving.cool(v,dt);}
       if(car)driverSeat.wipers(car,dt,Math.max(hours.rain,glassWater()));

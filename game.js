@@ -111,7 +111,8 @@
   const parts=[
     {id:"engine",name:"Engine tune",price:250,detail:"18% more engine power for quicker acceleration."},
     {id:"tires",name:"Sport tires",price:125,detail:"25% more cornering grip on pavement."},
-    {id:"hydraulics",name:"Las Brisas switch kit",price:120,detail:"Four hydraulic switches fitted to this car. Use 1–4 to work the suspension."}
+    {id:"hydraulics",name:"Las Brisas switch kit",price:120,detail:"Four hydraulic switches fitted to this car. Use 1–4 to work the suspension."},
+    {id:"scanner",name:"County-band scanner",price:90,detail:"Hear patrol and Rescue 4 in this car. Press backslash to repeat a patrol call or mark the ambulance."}
   ];
   const finishes=[
     {name:"Motel Coral",color:paints[0]}, {name:"Sea Glass",color:paints[1]},
@@ -214,7 +215,10 @@
       }
       if(raw.upgrades&&typeof raw.upgrades==="object"&&!Array.isArray(raw.upgrades)){
         for(const [key,fitted] of Object.entries(raw.upgrades)){
-          if(fitted?.engine===true||fitted?.tires===true||fitted?.hydraulics===true)result.upgrades[key]={engine:fitted.engine===true,tires:fitted.tires===true,hydraulics:fitted.hydraulics===true};
+          if(fitted?.engine===true||fitted?.tires===true||fitted?.hydraulics===true||fitted?.scanner===true){
+            result.upgrades[key]={engine:fitted.engine===true,tires:fitted.tires===true,hydraulics:fitted.hydraulics===true};
+            if(fitted.scanner===true)result.upgrades[key].scanner=true;
+          }
         }
       }
       result.juneReturned=raw.juneReturned===true&&result.tapes.includes(0);return result;
@@ -2812,7 +2816,7 @@
       const v=vehicles[i],number="Bay "+(i+1);
       if(!v){if(desk)signedNote(body,"Available",number);continue;}
       const r=gull.record(v),location=BayGullSales.inBay(v,gullSite.stalls[i],true)?"At Gull Street":district(v);
-      const features=[v.upgrades?.engine?"Engine tune":"",v.upgrades?.tires?"Sport tires":"",v.flatSide?tireStatus(v):BayRecovery.worst(v)?BayRecovery.faultText(v):""].filter(Boolean);
+      const features=[v.upgrades?.engine?"Engine tune":"",v.upgrades?.tires?"Sport tires":"",v.upgrades?.scanner?"County-band scanner":"",v.flatSide?tireStatus(v):BayRecovery.worst(v)?BayRecovery.faultText(v):""].filter(Boolean);
       const text=[location,(r.meters/1000).toFixed(1)+" km in your collection",...features].join(" · ");
       body.append(makeButton(number+" · "+formatVehicle(v),text,"Locate car",()=>clockPin({...v,name:"Your "+formatVehicle(v)})));
       const onStripe=v.stockId?BayGullSales.inBay(v,gullSite.display[v.kind],true):gull.bayFor(v)>=0;
@@ -3444,6 +3448,11 @@
   function stepRescue(dt){
     if(rescue.joined&&heat){dropJob();speak("Anaïs Park","We'll take it from here. Leave the unit by the curb.");}
     rescue.step(dt,rescueEnv);
+    if(waypoint?.kind==="unit-four"){
+      if(waypoint.call!==rescue.call||["rest","handoff"].includes(rescue.phase)){
+        waypoint={...clinic.desk,kind:"receiving-visit",name:"Palm County Clinic · Receiving"};
+      }else {waypoint.x=unit4.x;waypoint.z=unit4.z;}
+    }
     if(waypoint?.kind==="street-response"){
       const c=waypoint.call;
       if(rescue.recovering?.source===c.source||rescue.waiting?.source===c.source){
@@ -8015,6 +8024,28 @@
       return recoveryWalkway(a,b,v,corners,nearby,false);
     }
   };
+  const countyRadio=new BayDispatchReceiver();let nextCountyCheck=0;
+  function countyVehicle(v){
+    const name=formatVehicle(v),plate=BayStreetCars.plateFor(v);return name+", plate ending "+plate.slice(-3);
+  }
+  function receiveCounty(repeat=false){
+    const v=car?.upgrades?.scanner&&!transfer&&!campaign.scene&&!campaign.table?car:null;
+    if(v!==countyRadio.car){countyRadio.tune(v);nextCountyCheck=0;}
+    const receiver=$("countyReceiver");
+    if(!v){if(!receiver.hidden)receiver.hidden=true;return;}
+    const now=streetTime;
+    if(!repeat&&countyRadio.pursuit===!!heat&&now<Math.max(nextCountyCheck,countyRadio.until))return;
+    nextCountyCheck=now+.2;
+    const patrolCall=countyRadio.patrol(now,heat,chase,backup,district,heat?countyVehicle(v):"",repeat);
+    const medical=!heat&&(!patrolCall||repeat),report=medical?countyRadio.ambulance(now,rescue,repeat):patrolCall;
+    if(report){
+      $("countySource").textContent=report.source;$("countyWords").textContent=report.text;
+      receiver.hidden=false;sound.cue("county-radio",{medical});
+      if(repeat&&!heat&&!active){
+        waypoint={x:unit4.x,z:unit4.z,name:"Rescue 4 · "+rescue.call.place,kind:"unit-four",call:rescue.call};lastMap=-10;
+      }
+    }else if(!receiver.hidden&&now>(countyRadio.last?.until||0))receiver.hidden=true;
+  }
   function pursuit(dt){
     if(!heat)return;
     const p=pos(),coach=transit.aboard?transit.bus:null,vx=motos.bike?.vx??skiff?.vx??car?.vx??coach?.vx??cycles.riding?.vx??skate.rider?.vx??swim?.vx??motion.vx,vz=motos.bike?.vz??skiff?.vz??car?.vz??coach?.vz??cycles.riding?.vz??skate.rider?.vz??swim?.vz??motion.vz;
@@ -8934,6 +8965,15 @@
       if(opened>.01)for(const [i,id] of trunkContents(v).entries())if(id)bagArt.case(list,model,id,inBoot(v,i));
     }
     if(rig.windshield&&(v!==taxi||!cabWindow()))list.push([rig.windshield,v.x,bodyGround,v.z,v.yaw,v.pitch,v.lean,0,v]);
+    if(v.upgrades?.scanner){
+      model("county-receiver",g=>{
+        g.box(0,.041,0,.23,.082,.145,"#424543");g.box(0,.045,-.075,.19,.054,.015,"#252e2e");
+        g.box(-.029,.05,-.085,.087,.025,.009,"#9aa775");g.box(.070,.043,-.088,.029,.031,.018,"#bea279");
+        g.pole([.09,.079,.042],[.11,.232,.049],.005,"#a9a393",5);
+      });
+      const base=chassisPoint(v,.18,s.glass[4]+.012,s.hingeZ-.03,bodyGround);
+      list.push(["county-receiver",base.x,base.y,base.z,v.yaw,v.pitch,v.lean]);
+    }
     if(v===taxi&&cabWindow())list.push([BayCabArt.dashboard(model,cabs.booking.price),v.x,bodyGround,v.z,v.yaw,v.pitch,v.lean,.28]);
     for(const side of [-1,1]){
       const hinge=chassisPoint(v,side*s.hingeX,0,s.hingeZ,bodyGround);
@@ -11922,6 +11962,7 @@
     if(car&&active?.payroll?.aboard&&active.vehicle===car&&/^(Digit|Numpad)[12]$/.test(ev.code)){
       ev.preventDefault();if(!ev.repeat)collectionRoute(ev.code.endsWith("1")?"luna":"port");return;
     }
+    if(ev.code==="Backslash"&&car?.upgrades?.scanner&&!transfer){ev.preventDefault();if(!ev.repeat)receiveCounty(true);return;}
     if(/^(Digit|Numpad)[012]$/.test(ev.code)&&actionFeet()){
       ev.preventDefault();if(!ev.repeat){streetAction.equip(Number(ev.code.at(-1)));lastHud=-10;}return;
     }
@@ -12263,7 +12304,7 @@
       }
       actionPose(dt);
       if(!pickup&&!room&&!boardwalk.player&&!cabs.playerHeld&&!windowRide?.held&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??(transit.aboard?transit.bus.speed:null)??motos.bike?.speed??skiff?.speed??car?.speed??(windowRide?.held?windowRide.vehicle.speed:cabs.playerHeld?taxi.speed:0));
-      if(!panel){stepSand(dt);bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();ferryBulletin(Math.min(raw,.8));stepField(dt);}
+      if(!panel){if(car?.upgrades?.scanner||countyRadio.car)receiveCounty();stepSand(dt);bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();ferryBulletin(Math.min(raw,.8));stepField(dt);}
       if(!panel){theatreStep(dt);neighborStep();stepPavement(dt);listenAtCase();if(projector?.showing)advanceScreening(raw);}
       for(const v of cars){BayPalma.weatherCar(v,dt,hours.wet);if(v!==car&&v.rubberHeat>0)BayDriving.cool(v,dt);}
       if(car)driverSeat.wipers(car,dt,Math.max(hours.rain,glassWater()));

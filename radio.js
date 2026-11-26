@@ -720,6 +720,11 @@
       const heavy=name==="street-scatter";waterNoise(effects,at,heavy?.19:.083,heavy?.14:.10,heavy?1520:2610,230);
       tone(effects,heavy?121:179,at,.11,.084,"triangle",48,.002);return;
     }
+    if(name==="county-radio"){
+      const pitch=source.medical?905:995;waterNoise(effects,at,.13,.037,2520,780);
+      tone(effects,pitch,at+.034,.055,.027,"sine",pitch,.006);
+      tone(effects,pitch*.79,at+.102,.09,.025,"sine",pitch*.79,.008);return;
+    }
     if(name==="watch-bell"){
       for(const [pitch,life,gain] of [[526,.87,.073],[1327,.47,.028],[1996,.29,.014]]){
         tone(effects,pitch,at,life,gain,"sine",pitch*.997,.002);
