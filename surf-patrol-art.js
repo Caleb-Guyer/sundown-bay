@@ -26,12 +26,8 @@
     const letters=Array.from(text,c=>glyph[c]);
     let left=z-unit*(letters.reduce((n,letter)=>n+letter[0].length+1,-1))*.5;
     for(const letter of letters){
-      letter.forEach((row,r)=>{
-        for(const hit of row.matchAll(/1+/g)){
-          const width=hit[0].length*unit;
-          panel(g,x,y+(2-r)*unit,left+hit.index*unit+width*.5,width,unit,color);
-        }
-      });
+      for(const p of BayMesh.glyphRects(letter))
+        panel(g,x,y+(2.5-p.y-p.h/2)*unit,left+(p.x+p.w/2)*unit,p.w*unit,p.h*unit,color);
       left+=(letter[0].length+1)*unit;
     }
   }

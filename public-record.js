@@ -18,6 +18,8 @@
     doubleSeat:["ride",[2.75,1.53,2.90],[1.85,1.42,2.54],[.19,1.02,.07],1.56,9],
     flowerSeat:["ride",[-2.48,1.45,-.69],[-1.95,1.19,-.54],[.07,.82,.20],1.38,5.8],
     rearPlate:["ride",[2.6,1.14,-4.7],[1.05,.89,-3.7],[0,.62,-1.55],1.54,10],
+    cabWindow:["ride",[3.2,1.49,-2.35],[2.05,1.32,-1.82],[.52,1.05,-.53],1.38,7],
+    sugarBowl:["motel",[.10,1.72,-10.8],[1.54,1.48,-10.34],[3.60,1.00,-9.55],1.53,6.4],
     payrollDesk:["ride",[-2.65,1.62,2.8],[-1.85,1.45,2.3],[0,1.04,.64],1.54,7.8],
     pullOut:["ride",[2.1,1.7,-3.7],[.7,3.1,-6.4],[0,.94,2.1],1.48,23],
     van:["live",[-6,2.1,2],[-4.9,1.7,1.3],[1.3,1.58,.45],1.6,22],
@@ -30,6 +32,18 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    unclaimedFare:[
+      {dur:3.3,shot:"rearPlate",slug:"BAY CAB CO.   /   OFF THE CLOCK",title:"Keep the Meter Running",who:"Bay Cab driver",line:"She paid me in quarters. Said if the meter hit four dollars I should let her out wherever we were."},
+      {dur:4.8,shot:"cabWindow",who:"Neve Armas",line:"Thirty-eight forty? That's the extra for nights. I can sign right here. Or leave it with Bea. She keeps our envelopes under the sugar bowl."}
+    ],
+    fareWindow:[
+      {dur:3.6,shot:"cabWindow",who:"Neve Armas",line:"Leave the meter on. I'm going all the way to my door tonight."},
+      {dur:4.2,art:"fareCarbon",who:"Bay Cab driver",line:"She took her quarters back. I gave her the good pen."}
+    ],
+    fareDesk:[
+      {dur:3.2,shot:"sugarBowl",slug:"MARLIN MOTOR INN   /   NIGHT LAUNDRY",who:"Bea Serrano · note on the night desk",line:"She'll be in at eleven. First thing she does is put two sugars in her coffee."},
+      {dur:4.2,art:"fareCarbon",who:"Bea Serrano",line:"There. She'll find it before I even have to tell her."}
+    ],
     lunaThroughTheWall:[
       {dur:4.1,shot:"lunaCurb",title:"The Cheap Seats",slug:"CINE LUNA   /   SIDE WALL",who:"Frankie Prado",line:"First picture I can remember, I never even got inside."},
       {dur:5.9,shot:"cab",who:"Frankie Prado",line:"See that wall? The fan carried every word out to the street. My little brother did the pictures with his hands."},

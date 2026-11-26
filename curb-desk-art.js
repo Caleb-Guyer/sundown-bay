@@ -20,12 +20,10 @@
     let px=u-(widths.reduce((a,b)=>a+b,0)+widths.length-1)*scale*.5;
     for(let i=0;i<text.length;i++){
       const rows=glyph[text[i]];
-      if(rows)rows.forEach((row,j)=>{
-        for(const run of row.matchAll(/1+/g)){
-          const a=px+run.index*scale,b=a+run[0].length*scale,top=y+(2.5-j)*scale;
-          g.quad(face(a,top),face(b,top),face(b,top-scale),face(a,top-scale),color);
-        }
-      });
+      if(rows)for(const p of BayMesh.glyphRects(rows)){
+        const a=px+p.x*scale,b=a+p.w*scale,top=y+(2.5-p.y)*scale,bottom=top-p.h*scale;
+        g.quad(face(a,top),face(b,top),face(b,bottom),face(a,bottom),color);
+      }
       px+=(widths[i]+1)*scale;
     }
   }

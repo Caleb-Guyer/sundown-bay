@@ -1307,5 +1307,36 @@
       if(vapor){gl.uniform1f(this.u.beam,0);gl.disable(gl.BLEND);gl.depthMask(true);}
     }
   }
+  // Cover a painted glyph with disjoint rectangles. A vertical stem can be
+  // one quad across several rows, just as a crossbar can span columns.
+  const glyphPaint=new WeakMap();
+  function coverGlyph(glyph,vertical){
+    const spans=[],across=vertical?glyph.length:glyph[0].length,lines=vertical?glyph[0].length:glyph.length;
+    let previous=new Map();
+    for(let line=0;line<lines;line++){
+      const next=new Map();
+      for(let i=0;i<across;){
+        const ink=j=>(vertical?glyph[j][line]:glyph[line][j])==="1";
+        if(!ink(i)){i++;continue;}
+        const start=i++;while(i<across&&ink(i))i++;
+        const key=start*(across+1)+i,old=previous.get(key);
+        if(old){if(vertical)old.w++;else old.h++;next.set(key,old);}
+        else{
+          const rect=vertical?{x:line,y:start,w:1,h:i-start}:{x:start,y:line,w:i-start,h:1};
+          spans.push(rect);next.set(key,rect);
+        }
+      }
+      previous=next;
+    }
+    return spans;
+  }
+  Mesh.glyphRects=glyph=>{
+    let paint=glyphPaint.get(glyph);
+    if(!paint){
+      const rows=coverGlyph(glyph,false),columns=coverGlyph(glyph,true);
+      paint=columns.length<rows.length?columns:rows;glyphPaint.set(glyph,paint);
+    }
+    return paint;
+  };
   window.BayMesh=Mesh;window.BayView=View;
 })();

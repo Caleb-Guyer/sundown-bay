@@ -460,8 +460,8 @@
     const glyphs=Array.from(text,c=>letters[c]),len=glyphs.reduce((s,rows)=>s+rows[0].length+1,-1);
     let x=-len*unit*.5;
     for(const rows of glyphs){
-      for(let j=0;j<5;j++)for(const run of rows[j].matchAll(/1+/g)){
-        const l=x+run.index*unit,r=l+run[0].length*unit,t=(2.5-j)*unit,b=t-unit;
+      for(const p of BayMesh.glyphRects(rows)){
+        const l=x+p.x*unit,r=l+p.w*unit,t=(2.5-p.y)*unit,b=t-p.h*unit;
         g.quad(plane(l,t),plane(r,t),plane(r,b),plane(l,b),col);
       }
       x+=(rows[0].length+1)*unit;

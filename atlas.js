@@ -1443,6 +1443,7 @@
     }
     if(street&&opt.romyHome)BayPayroll.map(ctx,opt.romyHome,px,py,s,visible,personSprite);
     if(street&&opt.payroll)BayPayroll.map(ctx,opt.payroll,px,py,s,visible,personSprite);
+    if(street)BayMeterRunning.map(ctx,px,py,s,visible,opt.meterFare,opt.fareLedger);
     if(opt.recovery&&street)BayRecoveryArt.map(ctx,opt,px,py,s,visible);
     if(street&&opt.lastDiner&&t<opt.lastDiner.until){
       const bag=BayDriving.world(opt.lastDiner.customer,.40,.12);

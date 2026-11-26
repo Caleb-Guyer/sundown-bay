@@ -38,7 +38,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return {at, box, face, camera};
   }
 
-  // Five-row painted signage. Long horizontal pixels share their geometry.
+  // Five-row painted signage, laid on the facade in continuous strokes.
   const alphabet = {
     A:["010","101","111","101","101"], B:["110","101","110","101","110"],
     C:["011","100","100","100","011"], D:["110","101","101","101","110"],
@@ -64,12 +64,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     const letters = [...word].map(ch => alphabet[ch] || alphabet[" "]);
     let left = u - (letters.reduce((a,p) => a + p[0].length + 1, -1) * unit) / 2;
     for (const glyph of letters) {
-      glyph.forEach((row,r) => {
-        for (const hit of row.matchAll(/1+/g)) {
-          f.face(left + (hit.index + hit[0].length / 2) * unit, y + (2-r)*unit,
-            v, hit[0].length*unit, unit, color);
-        }
-      });
+      for(const p of BayMesh.glyphRects(glyph))
+        f.face(left+(p.x+p.w/2)*unit,y+(2.5-p.y-p.h/2)*unit,v,p.w*unit,p.h*unit,color);
       left += (glyph[0].length+1)*unit;
     }
   }

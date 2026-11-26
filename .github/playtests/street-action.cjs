@@ -106,7 +106,30 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await waitFor("document.querySelector('#panel').dataset.screen==='payroll-receipt'&&!document.querySelector('#panel').hidden");
   assert(await js("document.querySelector('#panelBody').textContent.includes('"+gathered+" of 3 back in the tin')"));
   console.log("PASS recovered "+gathered+" envelopes after a driving impact and kept the handoff on the signed counter copy",mode);
-  await snap("collection-copy");await tap("Escape");
+  await snap("collection-copy");
+  await js(button("Keep the Meter Running"));
+  await waitFor("BayMeterRunning.read()?.stage==='search'");
+  await js(`q.fare=q.cars.find(v=>v.garageKey===BayMeterRunning.read().car);
+    const p=BayDriving.world(q.fare,6,9);q.at(q.h,p.x,p.z);q.rig.reset(q.h);true`);
+  await waitFor("document.querySelector('#context').textContent.includes('Wave down')");
+  await tap("KeyH");await waitFor("document.querySelector('#objectiveText').textContent.includes('Meet Neve')",55000);
+  await js("Object.assign(q.h,BayMeterRunning.windowPoint(q.fare));q.rig.reset(q.h);true");
+  await waitFor("document.querySelector('#context').textContent.includes('Talk to Neve')");await tap("KeyF");
+  await waitFor("document.querySelector('#chapterLine').textContent.includes('Thirty-eight')",30000);
+  await snap("neve-window");
+  await waitFor("document.querySelector('#panel').dataset.screen==='fare-window'&&!document.querySelector('#panel').hidden",30000);
+  await js(button(port?"Take it to the night desk":"Hand it to Neve"));
+  if(port){
+    await waitFor("BayMeterRunning.read().stage==='return'");
+    await js("Object.assign(q.h,BayMeterRunning.desk);q.rig.reset(q.h);true");
+    await waitFor("document.querySelector('#context').textContent.includes('with Bea')");await tap("KeyF");
+  }
+  await waitFor("!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterInsert').getAttribute('aria-label')?.includes('Bay Cab trip sheet')",30000);
+  await snap("neve-carbon");await tap("Enter");
+  await js("Object.assign(q.h,BayMeterRunning.desk);q.rig.reset(q.h);true");await tap("KeyN");
+  await waitFor("document.querySelector('#panel').dataset.screen==='fare-copy'&&!document.querySelector('#panel').hidden");
+  assert.equal(await js("BayMeterRunning.read().stage"),port?"desk":"neve");
+  await tap("Escape");console.log("PASS",mode,"moving payroll cab, curb stop, Neve's window scene and signed night desk copy",port?"desk":"window");
   console.log("PASS visited "+name+" and read the signed receipt after reloading",mode);
   await js("q.bea=q.people.find(p=>p.coffeeRegular);q.at(q.h,q.bea.x+.55,q.bea.z);q.rig.reset(q.h)");
   await waitFor("document.querySelector('#context').textContent.includes('Show Bea')");await tap("KeyF");
