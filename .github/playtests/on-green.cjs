@@ -155,6 +155,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
       }
       await waitFor("window.ride?.manual&&document.querySelector('#speed .five-speed')",35000);
       console.log("PASS",mode,"manual selector restored on the starter car; signed slip and kitchen cutscene verified.",JSON.stringify(card.autograph));
+      await require("./trade-keys.cjs")({js,send,waitFor,tap,key,snap,mode});
     }
     if(brakeLaunch){assert.equal(restored.slip.toThirty,card.slip.toThirty);console.log("Brake release",restored.slip.reaction.toFixed(2),"s, 0–30 mph",restored.slip.toThirty.toFixed(2),"s on",restored.slip.launch,"rear tires. Audio starts 0, cursor locks 0.");}
     assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);

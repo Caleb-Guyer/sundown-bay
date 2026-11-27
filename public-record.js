@@ -35,6 +35,10 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    tradeReturn:[
+      {dur:3.4,shot:"cabWindow",title:"Both Sides of the Slip"},
+      {dur:5.6,art:"matchedSlips"}
+    ],
     twoPockets:[
       {dur:4.6,shot:"cameraCounter",slug:"COAST CAMERA & CYCLE   /   OCEAN DRIVE",title:"Two Pockets",who:"Inés Vidal",line:"Remy came in to check the board. Stood here a full minute with his helmet on. I could see him doing the sums."},
       {dur:5.4,art:"twoPockets",who:"Inés Vidal",line:"He took my chalk. I said, what do you want the chalk for? He said, you’ve still got the other side of the window."}

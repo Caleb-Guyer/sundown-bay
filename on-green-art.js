@@ -395,5 +395,36 @@
     }
     c.restore();
   }
-  window.BayOnGreenArt=Object.freeze({car,carMap,finish,finishMap,film,fridge});
+  function matchedSlips(canvas,route,pair){
+    canvas.width=600;canvas.height=348;
+    canvas.setAttribute("aria-label",route.driver+"’s visor · "+pair.own.toFixed(2)+" s and "+pair.loan.toFixed(2)+" s");
+    const c=canvas.getContext?.("2d");if(!c)return;
+    const team=teams[route.id];
+    c.fillStyle="#393b35";c.fillRect(0,0,600,348);
+    c.fillStyle=team.dark;c.fillRect(0,13,600,322);
+    for(let y=20;y<330;y+=5){
+      c.fillStyle=y%2?"#ffffff0a":"#0000000c";c.fillRect(0,y,600,1);
+    }
+    c.strokeStyle="#cfbd8b";c.setLineDash([4,5]);c.strokeRect(11,24,578,296);c.setLineDash([]);
+    function ticket(x,y,angle,stock,plate,seconds,signature){
+      c.save();c.translate(x,y);c.rotate(angle);
+      c.fillStyle="#202a29";c.fillRect(5,5,212,217);
+      c.fillStyle=stock;c.fillRect(0,0,212,217);
+      c.fillStyle="#807d6c";for(let n=8;n<206;n+=9)c.fillRect(n,11,4,1);
+      c.fillStyle="#4d5145";c.font="bold 13px monospace";c.fillText("BAY MOTOR CLUB",15,38);
+      c.font="11px monospace";c.fillText(route.street.toUpperCase(),15,56);c.fillRect(14,67,182,1);
+      c.font="bold 19px monospace";c.fillText(plate||"YOUR CAR",15,98);
+      c.font="bold 34px monospace";c.fillText(seconds.toFixed(2)+" s",15,143);
+      c.strokeStyle="#baaa91";c.beginPath();c.moveTo(14,187);c.lineTo(194,187);c.stroke();
+      c.font="italic 21px Georgia";c.fillStyle="#385c72";c.fillText(signature,16,183);
+      c.restore();
+    }
+    ticket(66,74,-.085,"#ebe0bb",pair.plate,pair.own,"First run");
+    ticket(298,63,.06,"#edc1a5",route.plate,pair.loan,route.driver);
+    c.save();c.rotate(-.024);c.fillStyle="#282d26";c.fillRect(-3,66,610,17);
+    c.fillStyle="#6c6954";c.fillRect(-3,65,610,11);
+    for(let x=1;x<610;x+=4){c.fillStyle="#b0a789";c.fillRect(x,65,1,10);}
+    c.restore();
+  }
+  window.BayOnGreenArt=Object.freeze({car,carMap,finish,finishMap,film,fridge,matchedSlips});
 })();

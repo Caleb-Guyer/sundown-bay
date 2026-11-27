@@ -835,13 +835,13 @@
   }));
   const cupScans=new Map(),marshalMotion=new BayPlayerMotion();let marshalMesh=null;
   let beatMesh=null,footPatrolMesh=null;
-  let timingFilm=null;
+  let timingFilm=null,tradeReturn=null;
   let stuntNegative=BayTakeSplice.negative(),stuntRelease=BayTakeSplice.release(),spliceBench=null;
   for(const site of green.sites){
     const {route,v}=site,slip=save.green.cards[route.id]?.slip;
     const owner=BayMotorCourt.actor("racer-"+route.id,route.home,"drive");
     Object.assign(owner,{name:route.driver,car:v,ride:v,seat:1});v.owner=owner;v.serviceCar=true;owners.people.push(owner);
-    site.clock=slip?.film?slip.film.shots.at(-1)[0]/1000:slip?.time||0;
+    site.clock=save.green.cards[route.id]?.trade?.last??(slip?.film?slip.film.shots.at(-1)[0]/1000:slip?.time||0);
   }
   if(!personalCar)restoreParking();
   const sandSite=BaySoftSand.home,surfWagon=addCar("hatch","#c68058",sandSite.x,sandSite.z,sandSite.yaw);
@@ -977,6 +977,18 @@
     $("chapterWho").textContent=table?"Mara Vega":b?.who||"";
     if(b?.who==="Bay Cab driver"&&active?.meter?.cab?.owner)$("chapterWho").textContent=active.meter.cab.owner.name+" · Bay Cab";
     $("chapterLine").textContent=table?(table.cover>=.92?"Who gets the credit?   1  Dalia Cruz     2  The night shift":"Hold Space and sweep A / D across the covered line."):(b?.line||"");
+    if(campaign.scene?.id==="tradeReturn"&&tradeReturn){
+      const {site,pair}=tradeReturn,r=site.route,quicker=pair.loan<pair.own;
+      $("chapterWho").textContent=r.driver;
+      $("chapterSlug").textContent=r.street.toUpperCase()+"   /   "+r.plate;
+      const returns={
+        ocean:["Dad put that elastic there for gas receipts. Hasn't seen one in years.",quicker?"I’ll tell my brother you did it in his sister’s hatch. Otherwise he’ll say I wrote the plates on backwards.":"I'm keeping both. My brother's been saying it's all in the car. Let him look at those two numbers."],
+        luna:["Put the two slips where I can see them. The usher wants the pink one for her ticket window.","My dad used to tuck the matinee takings up there. I like having something under that strap again."],
+        port:["Give me the little one too. You have to lift the visor with both hands. That hinge is older than you.","My crew's been taking bets. If I show up with only one slip they'll say I threw the slow one away."]
+      };
+      $("chapterLine").textContent=returns[r.id][campaign.scene.index];
+      if(b.art==="matchedSlips")BayOnGreenArt.matchedSlips($("chapterInsert"),r,pair);
+    }
     if(campaign.scene?.id==="collectionOpen"&&campaign.scene.index===0&&save.collection.last){
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
       const last=save.collection.call;
@@ -1093,6 +1105,7 @@
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
   function endFilm(id,playedThrough=false){
+    if(id==="tradeReturn")tradeReturn=null;
     $("gloveLatch").hidden=true;
     if(filmCountyVoice){sound.stopCounty();filmCountyVoice=null;}
     if(campaign.table?.kind==="splice")sound.reel(null);
@@ -4793,7 +4806,13 @@
       ivo:"Try the night counter over at El Mercado. Tell her I sent you."};
     speak(person.name,save.plates.visits[person.id]?person.again:lines[person.id]);
   }
+  function lendingSite(v){
+    if(!v?.greenId||heat||!save.green.cards[v.greenId]?.best||v.owner?.phase!=="drive"||v.path)return null;
+    const s=green.sites.find(s=>s.v===v);
+    return s&&!s.out&&dist(v,s.route.home)<2?s:null;
+  }
   function vehicleEntryLabel(v){
+    if(lendingSite(v))return "Borrow "+v.plate+" from "+v.owner.name.split(" ")[0];
     return v.greenId&&v.owner?.phase==="drive"?"Take "+v.plate:"Enter "+formatVehicle(v);
   }
   function enterable(){
@@ -4950,6 +4969,31 @@
     return !!car&&unitRoadCar(car)&&!active&&!heat&&!transfer&&!room&&!unit.transition&&!unit.eye&&!cabs.booking&&!transit.engaged&&
       !afternoon.active&&!valet.onDuty&&!watchCrew.towing&&!gull.engaged&&!serviceVehicle&&!band.take;
   }
+  function tradeFree(){
+    return car?.owner?.loan&&!active&&!heat&&!room&&!transfer&&!unit.transition&&!unit.eye&&!watchCrew.towing&&!serviceVehicle;
+  }
+  function compareTime(time,target){
+    const gap=Math.round((time-target)*100);
+    return gap===0?"Dead even":(Math.abs(gap)/100).toFixed(2)+" s "+(gap<0?"quicker":"slower");
+  }
+  function tradeStep(dt){
+    const a=green.trade,r=a.s.route;
+    const event=green.stepTrade(dt,streetTime,tradeFree()&&car===a.s.v);
+    if(!event)return;
+    lastHud=lastMap=-10;
+    if(event==="go"){note("Green · "+a.s.v.plate,a.pace?"Catch your pace car.":"Beat "+a.benchmark.toFixed(2)+" s to the clock.",1.5);return;}
+    if(event==="finish"){
+      syncProgress(readSave());const c=save.green.cards[r.id];
+      if(c){
+        c.trade={...c.trade,last:a.clock,best:Math.min(c.trade?.best??Infinity,a.clock),laps:(c.trade?.laps||0)+1};
+        if(!c.trade.returned)c.trade.pending={own:a.benchmark,loan:a.clock,plate:a.pace?.plate||
+          (c.slip?.time===a.benchmark?c.slip.plate:c.bestSlip?.plate)||""};
+        save.green.rev++;persist();
+      }
+      note(a.clock.toFixed(2)+" s · "+a.s.v.plate,compareTime(a.clock,a.benchmark)+" · Bring the car back to "+r.driver.split(" ")[0]+" at the bay.",6);
+    }else note("Trade Keys",event==="early"?"Jumped the light. Circle back for another run.":"Run called off. The starting light is yours for another try.",3.4);
+    green.trade=null;
+  }
   function acceptGreen(){
     if(!greenFree())return false;
     if(!green.run){const s=green.challenge(car);if(s)green.approach(s,car);}
@@ -4989,6 +5033,11 @@
     if(!blocker.path&&Math.abs(blocker.speed)<.5)v.passHold={body:blocker,until:streetTime+.48};
   }
   function greenStep(dt){
+    if(waypoint?.kind==="green-loan"){
+      const s=green.sites.find(site=>site.v.plate===waypoint.plate);
+      if(s){waypoint.x=s.v.x;waypoint.z=s.v.z;}
+    }
+    if(green.trade)tradeStep(dt);
     const old=green.run,event=green.step(dt,streetTime,car,greenFree(),held("KeyW","ArrowUp")&&!held("KeyS","ArrowDown")),a=green.run;
     for(const s of green.sites)if(s.runOut)greenPassing(s.runOut,dt);
     if(old&&old!==a)old.s.v.greenGesture=0;
@@ -5006,14 +5055,25 @@
     const winner=event==="first",early=event==="early";
     const slip={token:a.token,result:event,manual:early?null:a.manual||null,time:early?null:a.clock,reaction:early?null:a.react,launch:a.launch||null,toThirty:a.toThirty??null,car:formatVehicle(car),plate:BayStreetCars.plateFor(car),film:a.film||null};
     syncProgress(readSave());
-    if(BayOnGreen.file(save.green,r.id,slip)){if(winner){save.wallet+=r.pay;save.paid++;}persist();}
+    const firstKeys=!early&&!save.green.cards[r.id]?.best;
+    if(BayOnGreen.file(save.green,r.id,slip,a.pace)){if(winner){save.wallet+=r.pay;save.paid++;}persist();}
     if(early)a.s.clock=0;
     speak(r.driver,slip.manual&&r.id==="ocean"&&BayOnGreen.signedThird(slip.manual)?"Third before the Palm. Give me that timing strip. I'm signing this one.":early?"Still red. Come back around. We'll give it another go.":winner?r.win:r.lose);
     note(early?"False start":winner?"First to the clock":"Second to the clock",early?"Red slip · "+r.street:
-      raceWatch(a.clock)+(winner?"  ·  +"+cash(r.pay):"")+"  ·  J for your timing slip",4.4);
+      raceWatch(a.clock)+(winner?"  ·  +"+cash(r.pay):"")+(firstKeys?"  ·  "+r.driver.split(" ")[0]+" will lend you "+r.plate+" back at the bay":"  ·  J for your timing slip"),firstKeys?7:4.4);
     a.s.v.greenGesture=0;green.leave();
   }
   function greenHud(){
+    if(tradeFree()){
+      const s=green.sites.find(s=>s.v===car),a=green.trade;
+      if(a){
+        $("objective").hidden=false;$("objectiveTag").textContent="Trade Keys  /  "+s.route.street;
+        $("objectiveText").textContent=a.phase==="armed"?"Hold for the next green":s.route.landmark+" · "+Math.max(0,Math.ceil(s.route.finish-BayOnGreen.nose(s.route,car)))+" m";
+        $("roadTurn").textContent=(a.phase==="armed"?"Your own car":a.clock.toFixed(2)+" s")+"  /  Time to beat "+a.benchmark.toFixed(2)+" s";
+        return ["",a.phase==="armed"?"Launch on green":a.pace?"Mint car · Your recorded drive":"Cross the beam"];
+      }
+      if(s&&BayOnGreen.lined(s.route,car))return ["H","Trade Keys · Race your "+save.green.cards[s.route.id].best.toFixed(2)+" s"];
+    }
     if(!greenFree())return null;
     const a=green.run;
     if(!a){
@@ -5067,6 +5127,7 @@
       if(c.manualBest!=null)line("span","slip-split","Best five-speed run   "+c.manualBest.toFixed(2)+" s");
       if(c.signed)line("span","slip-autograph",r.driver+"  /  Third by the sign"+(c.autograph?" · "+c.autograph.plate+" · "+c.autograph.time.toFixed(2)+" s":""));
       line("span","slip-signed","Timed against "+r.driver);b.append(paper);
+      if(c.best)tradeCard(b,r,c);
       if(r.id==="ocean"&&c.autograph)fridgeButton(b);
       if(slip.film)b.append(makeButton("Finish camera","The last second at the timing line.","View replay",()=>openPanel("green-film-"+r.id)));
       if(c.bestSlip?.film)b.append(makeButton("Personal best · "+c.best.toFixed(2)+" s",c.bestSlip.car+" · "+c.bestSlip.plate,"View best",()=>openPanel("green-best-"+r.id)));
@@ -5115,8 +5176,21 @@
     else signedNote(b,c?.signed?"I kept the strip with your two amber marks. Take another run if you fancy beating it.":
       "My dad called it third by the sign. Start in manual first. Catch the amber light twice before my clock and I'll sign the strip. Shift + Z selects the five-speed. Apostrophe up, semicolon down.",r.driver);
     if(r.id==="ocean"&&ink)fridgeButton(b);
+    if(c?.best)tradeCard(b,r,c);
     b.append(makeButton("Find the starting light",r.street+" · "+r.driver,"Mark light",()=>clockPin({...r.grid,name:r.street+" · On Green start",kind:"green-start"})));
     if(c)b.append(makeButton("Your timing slips",c.wins+" wins from "+c.runs+" starts here.","Open",()=>openPanel("green-slips")));
+  }
+  function tradeCard(b,r,c){
+    const s=green.sites.find(s=>s.route===r),v=s.v;
+    const text=c.trade?"Best in "+r.plate+"  "+c.trade.best.toFixed(2)+" s · Latest "+c.trade.last.toFixed(2)+" s · "+compareTime(c.trade.last,c.best)+" against your best in your own car.":
+      "My keys are yours for a spin. Find "+r.plate+" in my parking spot. If you want a time, stop at our light and honk.";
+    b.append(makeButton("Trade Keys · "+r.plate,text,v===car?"Mark light":"Find car",()=>clockPin(v===car?
+      {...r.grid,name:r.street+" · Trade Keys start",kind:"green-start"}:{x:v.x,z:v.z,name:r.driver+" · "+r.plate,kind:"green-loan",plate:r.plate})));
+    if(v.owner?.loan)b.append(makeButton("Return "+r.plate,"Park in the spot where you met "+r.driver+" and step clear of the doors.","Mark bay",
+      ()=>clockPin({...r.home,name:r.driver+" · Return "+r.plate,kind:"green-return"})));
+    if(c.trade?.returned){
+      const sheet=document.createElement("canvas");sheet.className="timing-film";BayOnGreenArt.matchedSlips(sheet,r,c.trade.returned);b.append(sheet);
+    }
   }
   function askForGap(){
     if(heat||!BayBoulevardLanes.ask(car,cars,streetTime))return false;
@@ -5126,6 +5200,11 @@
     if(elapsed<hornReady)return;hornReady=elapsed+.67;car.hornAt=streetTime;sound.cue("horn");
     const pass=active?.story?.signal(car);
     if(pass){if(pass!=="Pass the film")note("Mara Vega",pass,2);lastHud=-10;return;}
+    if(tradeFree()){
+      if(green.trade)return;
+      const s=green.sites.find(s=>s.v===car);
+      if(s&&green.startTrade(s,save.green.cards[s.route.id])){lastMap=lastHud=-10;note("Trade Keys","Hold the car here until the light turns green.",3);return;}
+    }
     if(!active&&askForGap())return;
     if(cupEntry())return;
     if(beat.start("check",car,beatEnv))return;
@@ -5248,6 +5327,7 @@
     return seat&&!freshFlowerChair&&onStreetFeet()&&!projector&&!active&&!heat&&dist(hero,seat)<1.65;
   }
   function flowerSubject(){
+    if(campaign.scene?.id==="tradeReturn"&&tradeReturn)return tradeReturn.site.v;
     if(campaign.scene?.id==="twoPockets")return {x:studio.counter.x,z:studio.counter.z,yaw:0};
     if((campaign.scene?.id==="lastCone"||campaign.scene?.id==="countyAlone")&&countyCrew.site){
       const scene=campaign.scene,shot=campaign.beat().shot;
@@ -5538,7 +5618,19 @@
       return Math.hypot(v.x-a.x-f*(b.x-a.x),v.z-a.z-f*(b.z-a.z))<4.4;
     },
     rejoin(p){const v=p.car;
-      if(v.greenId){green.returnCar(v,BayCab.streetStop(v,chase.road(v)));return;}
+      if(v.greenId){
+        const site=green.sites.find(s=>s.v===v);
+        green.returnCar(v,BayCab.streetStop(v,chase.road(v)));
+        if(!p.loan)return;
+        if(waypoint?.kind==="green-return"&&waypoint.name.endsWith(v.plate))waypoint=null;
+        syncProgress(readSave());const result=save.green.cards[v.greenId]?.trade;
+        const pair=result?.pending;if(!pair||result.returned)return;
+        result.returned=pair;delete result.pending;save.green.rev++;persist();lastMap=lastHud=-10;
+        if(!active&&!heat&&!panel&&!campaign.scene&&onStreetFeet()&&dist(hero,v)<16){
+          tradeReturn={site,pair};enterFilm("tradeReturn",true);
+        }
+        return;
+      }
       v.path=p.route;v.corner=BayMotorCourt.nearestLeg(v,v.path);v.blocked=0;v.wait=.45;v.reaction=null;},
     note:(title,detail)=>note(title,detail,3.2),line:(p,line)=>speak(p.name,line),
     pay(g,tip){save.wallet+=g.pay+tip;save.paid++;persist();sound.cue("paid");speak(g.name,g.thanks);
@@ -6252,7 +6344,7 @@
     if(onStreetFeet()&&active?.valet&&valet.act(hero,motorEnv)){lastHud=lastMap=-10;return true;}
     if(atValet()){openPanel("valet-desk");return true;}
     const owner=onStreetFeet()&&!heat&&!active&&owners.nearby(hero);
-    if(owner){speak(owner.name,owner.phase==="phone"?"I’ve given them the plate. I’m waiting right here.":"That’s my ride. Leave me enough room to get back in.");return true;}
+    if(owner){speak(owner.name,owner.loan?"Leave it here when you’re done. I’ll take it round again.":owner.phase==="phone"?"I’ve given them the plate. I’m waiting right here.":"That’s my ride. Leave me enough room to get back in.");return true;}
     return false;
   }
   function leaveRecoveryYard(p){
@@ -7261,7 +7353,9 @@
     dashResult=null;skidLast=null;
     transfer={v,passenger,exiting:!!car,side:approach.side,points:approach.points,next:0,
       parked:!car||Math.hypot(v.vx,v.vz)<.16,p:car?1:0,aligned:!!car,turnTime:0};
+    const lender=!car&&lendingSite(v);
     if(!car&&!owners.yieldSeat(v,transfer,motorEnv)){transfer=null;note("Driver’s door","Leave a little space for the driver.",2);return;}
+    if(lender&&transfer.owner){transfer.owner.loan=lender.route;transfer.loan=true;}
     if(!car){BayDriving.settle(v);v.reaction=null;v.hornAt=-100;}
     lastHud=-10;
   }
@@ -7334,7 +7428,11 @@
     driverSeat.center();driverSeat.mirrorAt=-Infinity;
     if(!borrowed&&!active&&!v.seatHint){v.seatHint=true;note(formatVehicle(v),v===homeWagon?"L while parked · There’s a film sleeve under the visor.":v===spider?"O  canvas roof · Starlite tonight on Gantry St.":BayDriving.roadBoxes.has(v.kind)?"Z  driver’s seat · Shift + Z  five-speed · Shift + C  roadside camera":"Z  driver’s seat · I  wipers · Shift + C  roadside camera",4);}
     if(returned)speak("Mina Ortiz · dispatch","Seventeen to base. Cross that plate off my sheet. Somebody’s taking it home.");
-    if(borrowed){addHeat(1);note("Dispatch",a.owner?a.owner.name+" reported "+BayStreetCars.plateFor(v)+".":"A driver called in the switch.",2.3);}
+    if(a.loan){
+      if(waypoint?.kind==="green-loan"&&waypoint.plate===v.plate)waypoint=null;
+      speak(v.owner.name,({ocean:"Take her round. If you come past the Palm clock, give the horn a tap at our light. I want to see what she does with you driving.",luna:"See that nick in the wheel? My wedding ring. Go find out what she does from the light.",port:"Keys are in it. Try the truck off our light. Bring her back to this spot when you’re done."})[v.greenId]);
+      note("Trade Keys · "+v.plate,"Free drive · Stop at the starting light and honk for a timed run.",5);
+    }else if(borrowed){addHeat(1);note("Dispatch",a.owner?a.owner.name+" reported "+BayStreetCars.plateFor(v)+".":"A driver called in the switch.",2.3);}
   }
   const cupEnv={
     clear(v,q){
@@ -7701,7 +7799,7 @@
     save.wallet+=amount;save.paid++;persist();active=null;sound.cue("paid");note("Job complete","+"+cash(amount)+msg,5);
   }
   const freeTowTarget={...recoveryYard.drop,kind:"recovery-drop",name:"Portside handoff lane"};
-  const currentTarget=()=>active?.homeWalk?homeTarget():active?.featurePrint?.ride.aboard&&car!==active.featurePrint.ride.car?{...active.featurePrint.ride.car,name:"Romy and the film can"}:active?.laundry?BayClinicLaundry.targets[save.rescue.laundry.stage]:active?.county?BayCountyRelay.sites[save.countyRelay.next]:active?.payroll?.aboard&&car!==active.vehicle?{x:active.vehicle.x,z:active.vehicle.z,name:"Jules and the payroll car"}:active?.freight&&spur.trip?(spur.trip.phase==="board"?spur.trip.start.desk:spur.trip.target.desk):active?.cup?cupTarget():active?.engineSeven?engineTarget():green.run?.accepted&&!active?green.run.s.route.target:mantaRide.run&&skiff===manta?mantaRide.target(clubBoat):active?.campana?campana.target(car===iceVan):!active&&waypoint?.kind==="campana-track"?{...campana.counter,name:"La Campana"}:windowRide?windowTarget():active?.buttonwood?works.target(car,skiff===pip):active?.brisas?(club.reserve&&!BayBrisasClub.switches(car)?{...plum,name:"Plum Solena 64"}:club.target):active?.palm?(palm.match?null:palm.target):active?.gull?gullTarget():active?.moto?motos.target():active?.rescue?rescue.target(rescueEnv):airTarget()||(active?.skate?skateTarget():transit.flag?transit.flag.s:transit.aboard?transit.target:active?.neon?neonTarget():active?.bridge?bridgeSite:active?.wash?wash.marker():active?.band?band.destination(car):active?.valet?valet.target(car):active?.relay?cycles.target(hero):watchCrew.towing?watchCrew.target():active?.recovery?recovery.target(car):cabs.booking||active?.cabFare?cabs.target(car):active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:car===wrecker&&tow.target&&(BayRecovery.worst(tow.target)||tow.target.flatSide)?freeTowTarget:waypoint);
+  const currentTarget=()=>active?.homeWalk?homeTarget():active?.featurePrint?.ride.aboard&&car!==active.featurePrint.ride.car?{...active.featurePrint.ride.car,name:"Romy and the film can"}:active?.laundry?BayClinicLaundry.targets[save.rescue.laundry.stage]:active?.county?BayCountyRelay.sites[save.countyRelay.next]:active?.payroll?.aboard&&car!==active.vehicle?{x:active.vehicle.x,z:active.vehicle.z,name:"Jules and the payroll car"}:active?.freight&&spur.trip?(spur.trip.phase==="board"?spur.trip.start.desk:spur.trip.target.desk):active?.cup?cupTarget():active?.engineSeven?engineTarget():green.trade&&!active?green.trade.s.route.target:green.run?.accepted&&!active?green.run.s.route.target:mantaRide.run&&skiff===manta?mantaRide.target(clubBoat):active?.campana?campana.target(car===iceVan):!active&&waypoint?.kind==="campana-track"?{...campana.counter,name:"La Campana"}:windowRide?windowTarget():active?.buttonwood?works.target(car,skiff===pip):active?.brisas?(club.reserve&&!BayBrisasClub.switches(car)?{...plum,name:"Plum Solena 64"}:club.target):active?.palm?(palm.match?null:palm.target):active?.gull?gullTarget():active?.moto?motos.target():active?.rescue?rescue.target(rescueEnv):airTarget()||(active?.skate?skateTarget():transit.flag?transit.flag.s:transit.aboard?transit.target:active?.neon?neonTarget():active?.bridge?bridgeSite:active?.wash?wash.marker():active?.band?band.destination(car):active?.valet?valet.target(car):active?.relay?cycles.target(hero):watchCrew.towing?watchCrew.target():active?.recovery?recovery.target(car):cabs.booking||active?.cabFare?cabs.target(car):active?.field?active.field.target():active?.plate?active.plate.customer:active?.take?BayTake.runway:active?.meet?meet.target():active?.ferry?active.ferry.target(car,skiff):active?.regatta?active.regatta.target():active?.story?active.story.target(car):active?active.stops[active.index]:car===wrecker&&tow.target&&(BayRecovery.worst(tow.target)||tow.target.flatSide)?freeTowTarget:waypoint);
   function streetTarget(){
     if(active?.meter&&(campaign.scene||dist(pos(),active.stops[0])<12))return null;
     if(campaign.scene&&waypoint?.kind==="cheap-seats")return null;
@@ -11892,6 +11990,10 @@
       if(ghostMesh.update(r.motion))view.updateAnimated("dash-ghost");
       view.drawGhost("dash-ghost",r.x,footLevel(r.x,r.z)+r.motion.lift,r.z,r.yaw);
     }
+    const pace=green.trade?.ghost;
+    if(pace&&see(pace,86)&&dist(eye,pace)>2.7){
+      view.drawGhost(carSkin(pace.kind,"#98dfcc"),pace.x,footLevel(pace.x,pace.z)+.014,pace.z,pace.yaw);
+    }
     if(pickup?.human.shot?.stage==="wind"){
       const p=view.project(hero.x,hero.y+1.30,hero.z);
       courtMeterAt(p?.x??innerWidth*.50,p?.y??innerHeight*.56);
@@ -12638,6 +12740,7 @@
     else if(atThreads())contextHint("F","Cora Vidal · Low Tide Exchange");
     else if(curbPrompt)contextHint(...curbPrompt);
     else if(localRun)contextHint(...localRun);
+    else if(!active&&!panel&&onStreetFeet()&&lendingSite(nearby)&&dist(hero,nearby)<2.8)contextHint("E",vehicleEntryLabel(nearby));
     else if(luggageHint)contextHint(...luggageHint);
     else if(clock)contextHint("F","Read the "+clock.route.landmark);
     else if(coffee.stage&&corner)contextHint(corner.startsWith("Walk light")||corner.startsWith("Flashing hand")?"":"F",corner);
@@ -14370,7 +14473,7 @@
     if(curbsideKey(ev.code))return;
     if(bellKey(ev.code))return;
     if(ev.code==="KeyF"&&nearbyClock()){openPanel("green-clock");return;}
-    if(ev.code==="KeyH"&&green.run&&greenFree()){honk();return;}
+    if(ev.code==="KeyH"&&(green.run&&greenFree()||tradeFree()&&(green.trade||BayOnGreen.lined(car.owner.loan,car)))){honk();return;}
     if(afternoon.photo&&afternoonKey(ev.code))return;
     if(paletaKey(ev.code))return;
     if(neighborKey(ev.code))return;

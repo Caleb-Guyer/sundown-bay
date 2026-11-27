@@ -1356,6 +1356,12 @@
         else personSprite(ctx,a,px(a.x),py(a.z),Math.max(3,s*1.8),true,rotation);
       }
     }
+    const pace=opt.green?.trade?.ghost;
+    if(street&&pace&&visible(px(pace.x),py(pace.z),5*s)){
+      ctx.save();ctx.globalAlpha=.46;
+      carSprite(ctx,{kind:pace.kind,color:"#98dfcc",yaw:pace.yaw},px(pace.x),py(pace.z),s,streetTime);
+      ctx.restore();
+    }
     if(opt.ghost){
       const g=opt.ghost,x=px(g.x),y=py(g.z);
       if(visible(x,y)&&(!player||Math.hypot(player.x-g.x,player.z-g.z)>.75)){

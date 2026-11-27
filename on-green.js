@@ -78,6 +78,33 @@
       car:typeof s.car==="string"?s.car.slice(0,26):"",plate:typeof s.plate==="string"?s.plate.slice(0,10):"",
       token:typeof s.token==="string"?s.token.slice(0,60):"",film:readFilm(s.film)};
   }
+  // Positions are relative to the starting light, with milliseconds on the same clock as the timing slip.
+  function paceFrame(r,v,seconds){
+    const q=relative(r,v);
+    return [Math.round(seconds*1000),Math.round(q.x*100),Math.round(q.z*100),Math.round(wrapped(v.yaw-r.yaw)*1000)];
+  }
+  function readPace(p,best){
+    if(!p||best==null||!Object.hasOwn(BayDriving.cars,p.kind)||!/^#[0-9a-f]{6}$/i.test(p.color)||
+      !Array.isArray(p.frames)||p.frames.length<2||p.frames.length>300)return null;
+    const frames=p.frames;
+    if(frames[0]?.[0]!==0||frames.at(-1)?.[0]!==Math.round(best*1000))return null;
+    for(let i=0;i<frames.length;i++){
+      const f=frames[i];
+      if(!Array.isArray(f)||f.length!==4||!f.every(Number.isSafeInteger)||i&&f[0]<=frames[i-1][0]||
+        Math.abs(f[1])>1400||!finite(f[2],-2500,7000)||Math.abs(f[3])>3142)return null;
+    }
+    return {kind:p.kind,color:p.color,plate:typeof p.plate==="string"?p.plate.slice(0,10):"",frames};
+  }
+  function paceAt(run,seconds){
+    const ref=run.pace;if(!ref)return null;
+    const ms=seconds*1000,frames=ref.frames;
+    if(ms>frames.at(-1)[0])return null;
+    while(run.index+1<frames.length-1&&frames[run.index+1][0]<=ms)run.index++;
+    const a=frames[run.index],b=frames[run.index+1],f=Math.min(1,Math.max(0,(ms-a[0])/(b[0]-a[0])));
+    const lateral=(a[1]+(b[1]-a[1])*f)/100,along=(a[2]+(b[2]-a[2])*f)/100;
+    const r=run.s.route;
+    return {...roadPoint(r,lateral,along),yaw:r.yaw+a[3]/1000+wrapped((b[3]-a[3])/1000)*f,kind:ref.kind,color:ref.color};
+  }
   function read(raw){
     const book={rev:count(raw?.rev),last:"",cards:{}};
     for(const r of routes){
@@ -86,18 +113,25 @@
       const slip=readSlip(c.slip),previous=readSlip(c.bestSlip),best=finite(c.best,1,50)?c.best:null;
       const ink=c.autograph,marks=readChanges(ink?.marks);
       const autograph=signedThird(marks)&&finite(ink.time,1,50)&&typeof ink.plate==="string"?{time:ink.time,plate:ink.plate.slice(0,10),marks:marks.slice(0,2)}:null;
-      book.cards[r.id]={autograph,runs,wins,faults,best,slip,manualBest:finite(c.manualBest,1,50)?c.manualBest:null,signed:c.signed===true,bestSlip:previous?.film&&previous.time===best&&previous.token!==slip?.token?previous:null,
+      const laps=count(c.trade?.laps),trade=laps&&finite(c.trade?.best,1,50)&&finite(c.trade?.last,1,50)?
+        {laps,best:c.trade.best,last:c.trade.last}:null;
+      if(trade)for(const state of ["returned","pending"]){
+        const pair=c.trade[state];
+        if(pair&&finite(pair.own,1,50)&&finite(pair.loan,1,50)&&typeof pair.plate==="string")
+          trade[state]={own:pair.own,loan:pair.loan,plate:pair.plate.slice(0,10)};
+      }
+      book.cards[r.id]={autograph,runs,wins,faults,best,slip,trade,pace:readPace(c.pace,best),manualBest:finite(c.manualBest,1,50)?c.manualBest:null,signed:c.signed===true,bestSlip:previous?.film&&previous.time===best&&previous.token!==slip?.token?previous:null,
         reaction:finite(c.reaction,0,45)?c.reaction:null};
     }
     if(Object.hasOwn(book.cards,raw?.last))book.last=raw.last;
     return book;
   }
-  function file(book,id,slip){
+  function file(book,id,slip,pace){
     const card=book.cards[id]||{runs:0,wins:0,faults:0,best:null,reaction:null,slip:null};
     if(!route(id)||card.slip?.token===slip.token||card.bestSlip?.token===slip.token)return false;
     if(card.slip?.film&&card.slip.time===card.best)card.bestSlip=card.slip;
     card.runs++;if(slip.result==="first")card.wins++;if(slip.result==="early")card.faults++;
-    if(slip.time!=null&&slip.time<=(card.best??Infinity)){card.best=slip.time;card.bestSlip=null;}
+    if(slip.time!=null&&slip.time<=(card.best??Infinity)){card.best=slip.time;card.bestSlip=null;card.pace=readPace(pace,slip.time);}
     if(slip.reaction!=null)card.reaction=Math.min(card.reaction??Infinity,slip.reaction);
     if(slip.manual&&slip.time!=null){
       card.manualBest=Math.min(card.manualBest??Infinity,slip.time);
@@ -163,6 +197,29 @@
       }
       return null;
     }
+    startTrade(s,card){
+      if(this.trade||this.run||!card?.best||!s.v.owner?.loan||!lined(s.route,s.v))return false;
+      this.trade={s,benchmark:card.best,pace:card.pace,index:0,phase:"armed",clock:0,start:nose(s.route,s.v),red:false,ghost:null};
+      return true;
+    }
+    stepTrade(dt,t,eligible){
+      const a=this.trade,r=a.s.route,v=a.s.v,q=relative(r,v),now=nose(r,v);
+      if(!eligible||Math.abs(q.x)>12||q.z<line-8||q.z>r.finish+8||a.clock>45)return "cancel";
+      if(a.phase==="armed"){
+        const lit=BayCrosswalk.lamps(a.s.signal,t)===(Math.abs(Math.cos(r.yaw))>.7?"ns":"ew");
+        if(!lit)a.red=true;
+        if(lit&&a.red){a.phase="running";a.prev=now;a.ghost=paceAt(a,0);a.s.clock=0;return "go";}
+        if(now>a.start+.85)return "early";
+        if(Math.abs(q.z-line)>3.2||q.x<.3||q.x>7)return "cancel";
+        return;
+      }
+      const hit=crossed(a.prev,now,r.finish);
+      if(hit!==null){
+        if(q.x< -6.6||q.x>7.2||Math.cos(v.yaw-r.yaw)<.65)return "cancel";
+        a.clock+=dt*hit;a.s.clock=a.clock;a.s.flash=1.7;return "finish";
+      }
+      a.prev=now;a.clock+=dt;a.s.clock=a.clock;a.ghost=paceAt(a,a.clock);
+    }
     returnCar(v,start){
       const s=this.sites.find(site=>site.v===v),r=s.route;
       const distance=Math.hypot(v.x-r.home.x,v.z-r.home.z);
@@ -223,6 +280,7 @@
           a.manual=p.manual&&p.gear===1&&!p.reversing?[]:null;
           a.phase="running";a.prev=nose(r,p);a.rivalPrev=nose(r,v);s.clock=0;a.lastSpeed=Math.max(0,p.speed);
           a.frame=exposure(r,p,v,0);a.shots=[a.frame];a.nextPhoto=90;
+          a.pace={kind:p.kind,color:p.color,plate:BayStreetCars.plateFor(p),frames:[paceFrame(r,p,0)]};
           leg(v,homeward(s,a.lane),0,r.yaw);v.wait=r.delay;v.greenRacing=true;
           return "go";
         }
@@ -253,8 +311,13 @@
       a.prev=now;a.rivalPrev=other;
       if(driverCross!==null&&cleanCross){
         a.clock=before+dt*driverCross;
+        const finish=paceFrame(r,p,a.clock);
+        finish[2]=Math.round((r.finish-bayCarLayout(p.kind).halfLength*Math.cos(p.yaw-r.yaw))*100);
+        if(a.pace.frames.at(-1)[0]>=finish[0])a.pace.frames.pop();
+        a.pace.frames.push(finish);
         return a.opponent===null||a.clock<=a.opponent?"first":"second";
       }
+      if(a.clock*1000-a.pace.frames.at(-1)[0]>=165)a.pace.frames.push(paceFrame(r,p,a.clock));
       if(Math.abs(q.x)>12||q.z<line-8||q.z>r.finish+6||a.clock>45){this.leave();return "cancel";}
     }
   }

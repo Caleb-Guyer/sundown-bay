@@ -34,11 +34,12 @@
           if(!env.held(v))this.exit(p,dt,env);
         }else if(p.phase==="walk"){
           if(!BayMotorCourt.move(p,dt,env,2.55))continue;
-          BayMotorCourt.phase(p,"phone");p.yaw=Math.atan2(v.x-p.x,v.z-p.z);
-        }else if(p.phase==="phone"||p.phase==="upset"){
+          BayMotorCourt.phase(p,p.loan?"watch":"phone");p.yaw=Math.atan2(v.x-p.x,v.z-p.z);
+        }else if(p.phase==="phone"||p.phase==="upset"||p.phase==="watch"){
           p.motion.step(dt,0,0);
           if(p.phase==="phone"&&p.age>5.5)BayMotorCourt.phase(p,"upset");
           if(p.age<2||env.held(v)||(!v.greenId&&gap(v,p)>32)||!env.reclaimable(v)||!env.canRejoin(p))continue;
+          if(p.loan&&gap(v,p.loan.home)>8)continue;
           if(v.greenId){
             p.walkRetry=(p.walkRetry||0)-dt;if(p.walkRetry>0)continue;
             p.walkRetry=1;
@@ -47,21 +48,21 @@
           if(!BayMotorCourt.walkTo(p,dest,v,env))continue;
           BayMotorCourt.phase(p,"return");
         }else if(p.phase==="return"){
-          if(env.held(v)){BayMotorCourt.phase(p,"upset");continue;}
+          if(env.held(v)){BayMotorCourt.phase(p,p.loan?"watch":"upset");continue;}
           if(!BayMotorCourt.move(p,dt,env,1.75))continue;
           const access=env.door(v,false,p);
-          if(!access){BayMotorCourt.phase(p,"upset");continue;}
+          if(!access){BayMotorCourt.phase(p,p.loan?"watch":"upset");continue;}
           p.path=access.points;p.side=access.side;BayMotorCourt.phase(p,"approach");
         }else if(p.phase==="approach"){
           if(!BayMotorCourt.move(p,dt,env,1.6))continue;
           BayMotorCourt.phase(p,"in");
         }else if(p.phase==="in"){
           if(!BayMotorCourt.open(p,v,true,dt,env))continue;
-          env.rejoin(p);p.ride=v;p.displaced=false;BayMotorCourt.phase(p,"drive");
+          env.rejoin(p);p.ride=v;p.displaced=false;p.loan=null;BayMotorCourt.phase(p,"drive");
         }
       }
     }
-    nearby(hero){return this.people.find(p=>!p.stranded&&["upset","phone"].includes(p.phase)&&gap(hero,p)<2.8);}
+    nearby(hero){return this.people.find(p=>!p.stranded&&["upset","phone","watch"].includes(p.phase)&&gap(hero,p)<2.8);}
   }
   window.BayRoadOwners=Owners;
 })();
