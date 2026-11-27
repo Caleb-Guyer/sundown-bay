@@ -27,6 +27,17 @@ module.exports=async function tradeKeys({js,send,waitFor,tap,snap,mode}){
   await snap("trade-keys");
   await js(`{
     const r=site.route;
+    // The first race exercises the normal traffic queue. Give the timed loan a
+    // repeatable clear start by staging nearby circulating cars farther along
+    // their own routes before arming the clock. Keep parked vehicles in place.
+    for(const other of traffic){
+      if(other===ride||other.finiteRoute||!other.path?.length||Math.hypot(other.x-r.x,other.z-r.z)>104)continue;
+      const at=other.path.findIndex(p=>Math.hypot(p.x-r.x,p.z-r.z)>110);
+      if(at<0)continue;
+      const p=other.path[at],corner=(at+1)%other.path.length,next=other.path[corner];
+      Object.assign(other,{x:p.x,z:p.z,yaw:Math.atan2(next.x-p.x,next.z-p.z),corner,wait:18,leftWait:null,lanes:null});
+      BayDriving.settle(other);
+    }
     Object.assign(ride,BayOnGreen.roadPoint(r,4.8,BayOnGreen.line));BayDriving.settle(ride);
     const steer=(${oceanDriver.toString()}),memory={raceSpeed:17},held=new Set();
     const advance=BayOnGreen.Club.prototype.stepTrade;
