@@ -13,7 +13,15 @@ module.exports = function oceanDriver(car, leg, endZ, traffic = [], memory = {})
         const body = other.footprint || bayCarLayout(other.kind);
         const side = Math.abs(Math.sin(other.yaw)), facing = Math.cos(other.yaw);
         const across = side * body.halfLength + Math.abs(facing) * body.track;
-        if (Math.abs(other.x - lane) > across + width + .32) continue;
+        // Look along the line the wheels can actually reach, including traffic
+        // crossing that line while the player brakes or changes lane.
+        const distance = other.z - car.z;
+        const blend = Math.min(1, Math.max(0, (distance - nose) / 11));
+        const x = car.x + (lane - car.x) * blend;
+        const seconds = Math.min(1.1, distance / Math.max(4, car.speed));
+        const futureX = other.x + Math.sin(other.yaw) * (other.speed || 0) * seconds;
+        if (x < Math.min(other.x, futureX) - across - width - .42 ||
+            x > Math.max(other.x, futureX) + across + width + .42) continue;
         const gap = other.z - car.z - nose - Math.abs(facing) * body.halfLength - side * body.track;
         const ahead = Math.max(0, facing * (other.speed || 0));
         allowed = Math.min(allowed, Math.sqrt(ahead * ahead + 12 * Math.max(0, gap - 2.2)));

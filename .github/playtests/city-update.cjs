@@ -42,6 +42,24 @@ for(const file of JSON.parse(fs.readFileSync(path.join(root,"index.html"),"utf8"
   console.log("PASS changing traffic and passenger lists keep their order and clear vacated tiles");
 }
 let bound,actual=0,full=0,drawn=0;
+{
+  const wash=new BayPalma.Wash((kind,color,x,z,yaw)=>({kind,color,x,z,yaw}),BayPalma.read(null));
+  const guest=wash.guests[0],customer=guest.car;
+  Object.assign(customer,wash.site.bay);wash.sendHome(guest);
+  // An Ocean driver is halfway across the two left turns outside Palma.
+  const entry={x:69.5,z:-2.7},corner={x:69.5,z:-74.5},exit={x:141.3,z:-74.5};
+  const driver={id:21,kind:"hatch",x:69.5,z:-63.3,yaw:Math.PI,path:[entry,corner,exit],corner:1};
+  BayJunctionTurns.remember(driver.path,1,entry,corner,exit);
+  BayJunctionTurns.distance(driver,[driver],null,1);assert(driver.leftWait.committed);
+  const leg=customer.path.findIndex((p,i)=>i>0&&customer.path[i-1].x-p.x>40&&Math.abs(p.z+69.5)<.01);
+  assert(leg>0);Object.assign(customer,{id:45,x:80.7,z:-69.5,yaw:-Math.PI/2,corner:leg});
+  assert(BayJunctionTurns.distance(customer,[driver,customer],null,1.2)<.01);
+  assert(customer.leftWait.held&&!customer.leftWait.committed);
+  driver.x=83.2;driver.z=-74.5;driver.corner=2;BayJunctionTurns.distance(driver,[driver,customer],null,2);
+  assert.equal(BayJunctionTurns.distance(customer,[driver,customer],null,2.1),Infinity);
+  assert(customer.leftWait.committed);
+  console.log("PASS a Palma customer waits for the Ocean driver's turn and takes the junction when it clears");
+}
 const gl={ARRAY_BUFFER:1,ELEMENT_ARRAY_BUFFER:2,UNSIGNED_INT:4,UNSIGNED_SHORT:2,
   createBuffer:()=>({}),bindBuffer(target,b){bound=b;},
   bufferData(target,data){bound.data=typeof data==="number"?new Uint8Array(data):data;},

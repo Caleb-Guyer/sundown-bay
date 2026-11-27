@@ -9300,7 +9300,7 @@
         continue;
       }
       let clearance=Math.min(v.z>224?bridge.stopDistance(v,ux,uz,halfLength):Infinity,spur.stopDistance(v,ux,uz,halfLength)),redAhead=Number.isFinite(clearance);
-      if(play&&(v.cityLanes||v.greenId))clearance=Math.min(clearance,BayJunctionTurns.distance(v,laneTraffic,car,streetTime,ux,uz,remaining));
+      if(play&&(v.cityLanes||v.greenId||v.washGuest))clearance=Math.min(clearance,BayJunctionTurns.distance(v,laneTraffic,car,streetTime,ux,uz,remaining));
       if(lane)clearance=Math.min(clearance,lane.gap,BayBoulevardLanes.holdGap(v,lane,ux,uz,streetTime));
       if(v.greenRacing&&v.passHold&&streetTime<=v.passHold.until){
         const q=v.passHold.body,rx=q.x-v.x,rz=q.z-v.z,front=rx*ux+rz*uz;
@@ -11482,7 +11482,7 @@
       const rigged=split||v===bell.lid||v===engine7&&(v.passengerDoor>.01||see(v,38));
       // Below the projected-shadow tier a closed, single-piece car and its
       // driver share one bound. Ground shadows still get their own pass.
-      if(closed&&!rigged&&!v.soil&&v!==spider&&v!==unit4&&!view.trafficVisible(v.x,ground,v.z))continue;
+      if(closed&&!rigged&&v!==spider&&v!==unit4&&!view.trafficVisible(v.x,ground,v.z))continue;
       if(rigged)addRig(visible,rigBody,ground);
       else{
         visible.push([v.model,v.x,ground,v.z,v.yaw,body.pitch,body.lean,0,v]);

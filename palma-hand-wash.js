@@ -77,8 +77,7 @@
   }
   const cleanEnough=v=>v.soil.every(n=>n<=.037);
   function road(v,points,yaw,speed){
-    const path=BayMotorCourt.lotPath(v,points).path;
-    v.path=[{x:v.x,z:v.z},...path];v.corner=1;v.finiteRoute=true;v.finiteYaw=yaw;v.pace=speed;v.wait=0;v.blocked=0;v.wantsCurb=false;v.pullOver=v.reaction=null;
+    v.path=BayMotorCourt.streetPath(v,points);v.corner=1;v.finiteRoute=true;v.finiteYaw=yaw;v.pace=speed;v.wait=0;v.blocked=0;v.wantsCurb=false;v.pullOver=v.reaction=null;
   }
   class Wash{
     constructor(addCar,memory){
@@ -130,8 +129,8 @@
     depart(g){g.phase="return";g.path=[];g.goal=null;g.retry=0;g.car.washCells=null;}
     sendHome(g){
       const v=g.car,h=g.home;g.phase="outgoing";this.order=null;this.due=22;
-      road(v,[this.site.exit,points(161.6,-78.7),points(154.2,-70),points(145,-69.5),points(74,-69.5),
-        points(69.5,-74),points(69.5,-140),points(75,-146.5),points(145,-146.5),points(152.8,-145.5),points(153.2,h.z-5),points(h.x,h.z-3.2),h],0,7.8);
+      road(v,[this.site.exit,points(161.6,-78.7),points(154.2,-70),points(145,-69.5),points(69.5,-69.5),
+        points(69.5,-146.5),points(145,-146.5),points(152.8,-145.5),points(153.2,h.z-5),points(h.x,h.z-3.2),h],0,7.8);
     }
     walk(a,dest,v,dt,env){
       if(gap(a,dest)<.12){a.path=[];a.motion.step(dt,0,0);return true;}

@@ -40632,11 +40632,16 @@ window.buildBayCity = function buildBayCity(g,water) {
     v.doorAngle=0;if(!inward)a.motion.reset();return true;
   }
   function face(a,b,dt){a.yaw+=turn(a.yaw,Math.atan2(b.x-a.x,b.z-a.z))*Math.min(1,dt*8);}
-  function lotPath(v,points,reverse=false){
-    const line=[pt(v.x,v.z),...points],path=[];
-    for(let i=1;i<line.length-1;i++)bend(line[i-1],line[i],line[i+1],3.6,path);
-    path.push(line.at(-1));return {path,reverse};
+  function roundedPath(v,points,street){
+    const line=[pt(v.x,v.z),...points],path=street?[line[0]]:[];
+    for(let i=1;i<line.length-1;i++){
+      if(street)BayJunctionTurns.remember(path,path.length,line[i-1],line[i],line[i+1]);
+      bend(line[i-1],line[i],line[i+1],street?5.2:3.6,path);
+    }
+    path.push(line.at(-1));return path;
   }
+  function lotPath(v,points,reverse=false){return {path:roundedPath(v,points,false),reverse};}
+  function streetPath(v,points){return roundedPath(v,points,true);}
   function lotDrive(v,leg,dt,env){
     const b=leg.path[0];if(!b)return true;
     const d=gap(v,b);if(d<.075){leg.path.shift();return !leg.path.length;}
@@ -40835,7 +40840,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       this.staff.age+=dt;this.staffStep(dt,env);
     }
   }
-  window.BayMotorCourt={Service,read,parked,cast,actor,phase,move,open,walkTo,lotPath,lotDrive,road,roundLoop,nearestLeg,signal};
+  window.BayMotorCourt={Service,read,parked,cast,actor,phase,move,open,walkTo,lotPath,streetPath,lotDrive,road,roundLoop,nearestLeg,signal};
 })();
 
 ;
@@ -44974,8 +44979,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   const cleanEnough=v=>v.soil.every(n=>n<=.037);
   function road(v,points,yaw,speed){
-    const path=BayMotorCourt.lotPath(v,points).path;
-    v.path=[{x:v.x,z:v.z},...path];v.corner=1;v.finiteRoute=true;v.finiteYaw=yaw;v.pace=speed;v.wait=0;v.blocked=0;v.wantsCurb=false;v.pullOver=v.reaction=null;
+    v.path=BayMotorCourt.streetPath(v,points);v.corner=1;v.finiteRoute=true;v.finiteYaw=yaw;v.pace=speed;v.wait=0;v.blocked=0;v.wantsCurb=false;v.pullOver=v.reaction=null;
   }
   class Wash{
     constructor(addCar,memory){
@@ -45027,8 +45031,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     depart(g){g.phase="return";g.path=[];g.goal=null;g.retry=0;g.car.washCells=null;}
     sendHome(g){
       const v=g.car,h=g.home;g.phase="outgoing";this.order=null;this.due=22;
-      road(v,[this.site.exit,points(161.6,-78.7),points(154.2,-70),points(145,-69.5),points(74,-69.5),
-        points(69.5,-74),points(69.5,-140),points(75,-146.5),points(145,-146.5),points(152.8,-145.5),points(153.2,h.z-5),points(h.x,h.z-3.2),h],0,7.8);
+      road(v,[this.site.exit,points(161.6,-78.7),points(154.2,-70),points(145,-69.5),points(69.5,-69.5),
+        points(69.5,-146.5),points(145,-146.5),points(152.8,-145.5),points(153.2,h.z-5),points(h.x,h.z-3.2),h],0,7.8);
     }
     walk(a,dest,v,dt,env){
       if(gap(a,dest)<.12){a.path=[];a.motion.step(dt,0,0);return true;}
@@ -83531,7 +83535,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         continue;
       }
       let clearance=Math.min(v.z>224?bridge.stopDistance(v,ux,uz,halfLength):Infinity,spur.stopDistance(v,ux,uz,halfLength)),redAhead=Number.isFinite(clearance);
-      if(play&&(v.cityLanes||v.greenId))clearance=Math.min(clearance,BayJunctionTurns.distance(v,laneTraffic,car,streetTime,ux,uz,remaining));
+      if(play&&(v.cityLanes||v.greenId||v.washGuest))clearance=Math.min(clearance,BayJunctionTurns.distance(v,laneTraffic,car,streetTime,ux,uz,remaining));
       if(lane)clearance=Math.min(clearance,lane.gap,BayBoulevardLanes.holdGap(v,lane,ux,uz,streetTime));
       if(v.greenRacing&&v.passHold&&streetTime<=v.passHold.until){
         const q=v.passHold.body,rx=q.x-v.x,rz=q.z-v.z,front=rx*ux+rz*uz;
@@ -85713,7 +85717,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const rigged=split||v===bell.lid||v===engine7&&(v.passengerDoor>.01||see(v,38));
       // Below the projected-shadow tier a closed, single-piece car and its
       // driver share one bound. Ground shadows still get their own pass.
-      if(closed&&!rigged&&!v.soil&&v!==spider&&v!==unit4&&!view.trafficVisible(v.x,ground,v.z))continue;
+      if(closed&&!rigged&&v!==spider&&v!==unit4&&!view.trafficVisible(v.x,ground,v.z))continue;
       if(rigged)addRig(visible,rigBody,ground);
       else{
         visible.push([v.model,v.x,ground,v.z,v.yaw,body.pitch,body.lean,0,v]);

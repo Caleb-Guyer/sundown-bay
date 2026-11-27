@@ -87,11 +87,16 @@
     v.doorAngle=0;if(!inward)a.motion.reset();return true;
   }
   function face(a,b,dt){a.yaw+=turn(a.yaw,Math.atan2(b.x-a.x,b.z-a.z))*Math.min(1,dt*8);}
-  function lotPath(v,points,reverse=false){
-    const line=[pt(v.x,v.z),...points],path=[];
-    for(let i=1;i<line.length-1;i++)bend(line[i-1],line[i],line[i+1],3.6,path);
-    path.push(line.at(-1));return {path,reverse};
+  function roundedPath(v,points,street){
+    const line=[pt(v.x,v.z),...points],path=street?[line[0]]:[];
+    for(let i=1;i<line.length-1;i++){
+      if(street)BayJunctionTurns.remember(path,path.length,line[i-1],line[i],line[i+1]);
+      bend(line[i-1],line[i],line[i+1],street?5.2:3.6,path);
+    }
+    path.push(line.at(-1));return path;
   }
+  function lotPath(v,points,reverse=false){return {path:roundedPath(v,points,false),reverse};}
+  function streetPath(v,points){return roundedPath(v,points,true);}
   function lotDrive(v,leg,dt,env){
     const b=leg.path[0];if(!b)return true;
     const d=gap(v,b);if(d<.075){leg.path.shift();return !leg.path.length;}
@@ -290,5 +295,5 @@
       this.staff.age+=dt;this.staffStep(dt,env);
     }
   }
-  window.BayMotorCourt={Service,read,parked,cast,actor,phase,move,open,walkTo,lotPath,lotDrive,road,roundLoop,nearestLeg,signal};
+  window.BayMotorCourt={Service,read,parked,cast,actor,phase,move,open,walkTo,lotPath,streetPath,lotDrive,road,roundLoop,nearestLeg,signal};
 })();
