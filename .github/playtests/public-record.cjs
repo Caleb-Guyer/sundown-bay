@@ -407,6 +407,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await parkAt(aboard?{x:146,z:103}:{x:-2,z:37});
     assert.equal(await js("BayLotNegative.passengerSubject(recQA.map.streetCar)"),null);
     await js("recQA.sensorCalls=recQA.previewCalls=0;const sensor=BayRideFilm.Scenery.prototype.paint;BayRideFilm.Scenery.prototype.paint=function(...args){if(args[0].id==='maraGlass')recQA.previewCalls++;else recQA.sensorCalls++;return sensor.apply(this,args);};");
+    await waitFor("document.querySelector('#context').innerText.includes('Look through Mara’s finder')");
     await tap("KeyP");await waitFor("recQA.previewCalls>0&&!document.querySelector('#maraFinder').hidden");
     const glass=await js("(()=>{const r=document.querySelector('#maraGlass').getBoundingClientRect();return {x:r.x+r.width*.69,y:r.y+r.height*.42};})()");
     await send("Input.dispatchMouseEvent",{type:"mousePressed",...glass,button:"left",buttons:1,clickCount:1});

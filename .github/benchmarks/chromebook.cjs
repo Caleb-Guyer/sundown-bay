@@ -14,8 +14,20 @@ module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
   // Start beside the Marlin. Only movement keys move the walker during timing.
   await js("Object.assign(walkTest.hero,{x:162.8,z:-42});walkTest.rig.reset(walkTest.hero);true");
   if(process.argv[2]==="automatic"){
+    await send("Profiler.enable");await send("Profiler.start");
     await js(`(async()=>{
       const game=document.getElementById("game"),paint=drawBayMap,rows=[];
+      const methods=new Map(),expensive=new Map(),prototypes=[CanvasRenderingContext2D.prototype,OffscreenCanvasRenderingContext2D.prototype];
+      for(const proto of prototypes){
+        const source=proto.drawImage;methods.set(proto,source);
+        proto.drawImage=function(image,...args){
+          const start=performance.now();try{return source.call(this,image,...args);}finally{
+            const cost=performance.now()-start;
+            if(cost>=1){const key=[image.width,image.height,...new Error().stack.split("\\n").slice(2,5)].join(" ");
+              expensive.set(key,(expensive.get(key)||0)+cost);}
+          }
+        };
+      }
       for(const stage of ["street","skip paint","hide layers"]){
         let mapMs=0,frames=0;
         window.drawBayMap=(ctx,state)=>{
@@ -29,10 +41,20 @@ module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
         }));
         const ms=performance.now()-start;rows.push({stage,hz:frames*1000/ms,paintMs:mapMs/frames});
       }
+      for(const [proto,source] of methods)proto.drawImage=source;
       game.style.visibility="";window.drawBayMap=paint;walkTest.diagnosis=rows;
+      walkTest.images=[...expensive].sort((a,b)=>b[1]-a[1]).slice(0,6);
     })();true`);
     await waitFor("Boolean(walkTest.diagnosis)",30000);
     console.log("PERF software map diagnosis",JSON.stringify(await js("walkTest.diagnosis")));
+    console.log("PERF software map images",JSON.stringify(await js("walkTest.images")));
+    const {profile}=await send("Profiler.stop");
+    const nodes=new Map(profile.nodes.map(n=>[n.id,n])),cost=new Map();
+    profile.samples.forEach((id,i)=>cost.set(id,(cost.get(id)||0)+profile.timeDeltas[i]));
+    const hot=[...cost].sort((a,b)=>b[1]-a[1]).slice(0,20).map(([id,us])=>{
+      const f=nodes.get(id).callFrame;return [f.functionName,f.lineNumber+1,Math.round(us/1000)];
+    });
+    console.log("PERF software map CPU",JSON.stringify(hot));
   }
   await tap("Escape");
   await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('One-minute frame check')).click()");
