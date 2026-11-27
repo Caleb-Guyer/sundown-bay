@@ -9,7 +9,7 @@ module.exports=async({js,send,waitFor,tap,mode,errors})=>{
     await js(`window.news={};const q=news,map=drawBayMap;window.drawBayMap=function(c,s){q.map=s;return map(c,s);};
       const service=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,e){q.hero=e.hero;return service.call(this,dt,e);};
       document.getElementById('play').click();true`);
-    await waitFor("q.hero&&q.map?.pressVan");
+    await waitFor("Boolean(q.hero&&q.map?.pressVan)");
     await js("Object.assign(q.hero,BayExposure.pickup);true");await waitFor("document.querySelector('#context').innerText.includes('Last Exposure')");
     await tap("KeyF");await waitFor("q.map.story?.phase==='pickup'");
     await js("Object.assign(q.hero,{x:147.6,z:-22.6});true");await tap("KeyE");
