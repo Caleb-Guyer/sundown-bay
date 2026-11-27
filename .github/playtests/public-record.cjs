@@ -55,9 +55,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         recQA.surfaceResult=(${require("./street-surface.cjs").toString()})(this,items,comparePixels);
         recQA.wallResult=(${require("./street-walls.cjs").toString()})(this,items,comparePixels,recQA);
         recQA.paintResult=(${require("./frame-paint.cjs").toString()})(this,items,comparePixels,freezeStreet);
+        recQA.depthResult=(${require("./building-depth.cjs").toString()})(this,items,comparePixels,freezeStreet);
         return this.drawOpaque(items);};}`);
     await waitFor("!!recQA.surfaceResult",40000);
     const result=await js("recQA.surfaceResult");console.log("PERF solid street "+label,JSON.stringify(result));
+    const depth=await js("recQA.depthResult");console.log("PERF building depth "+label,JSON.stringify(depth));
+    assert(depth.faces>0&&depth.pixels.painted>10000&&depth.pixels.silhouette===0&&depth.pixels.changed===0);
     const walls=await js("recQA.wallResult");console.log("PERF street walls "+label,JSON.stringify(walls));
     const traffic=await js("recQA.trafficProof");console.log("PERF traffic visibility "+label,JSON.stringify(traffic));
     assert(traffic.pixels.painted>10000&&traffic.pixels.silhouette===0&&traffic.pixels.maxError<=2);

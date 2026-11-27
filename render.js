@@ -195,6 +195,30 @@
     return d-hd>f.front&&u-hu>f.left*d+Math.abs(f.left)*hd&&u+hu<f.right*d-Math.abs(f.right)*hd&&
       v-hv>f.bottom*d+Math.abs(f.bottom)*hd&&v+hv<f.top*d-Math.abs(f.top)*hd;
   }
+  // These faces sit five centimetres inside closed building shells. Fill their
+  // depth first so the expensive street shader need not paint the city behind them.
+  function writeWallDepth(walls,basis,output){
+    const {cs,sn,cp,sp,f,aspect}=basis,fx=f/aspect;
+    const near=.13*Math.hypot(1,basis.horizontal,basis.vertical)+.1;
+    let end=0;
+    for(const wall of walls){
+      if(wall.front<=near)continue;
+      const d=wall.sign*wall.front;
+      const left=wall.left*wall.front,right=wall.right*wall.front;
+      const bottom=wall.bottom*wall.front,top=wall.top*wall.front;
+      const start=end;
+      for(let i=0;i<4;i++){
+        const u=i&1?right:left,v=i&2?top:bottom;
+        const x=wall.axis===0?d:u,y=wall.axis===1?d:v,z=wall.axis===2?d:wall.axis===0?u:v;
+        const along=x*sn+z*cs;
+        output[end++]=(x*cs-z*sn)*fx;output[end++]=(y*cp-along*sp)*f;output[end++]=along*cp+y*sp;
+      }
+      // First triangle 0,1,2. The fourth corner starts the second triangle 3,2,1.
+      output.copyWithin(end,start+6,start+9);end+=3;
+      output.copyWithin(end,start+3,start+6);end+=3;
+    }
+    return end;
+  }
   // A wall can hide an object only if it covers the ray through its centre.
   // Bins at the image edges also contain offscreen rays: a long shop sign can
   // still enter the picture even when its centre lies beyond the viewport.
@@ -895,6 +919,11 @@
         catch{return this.createStreetSurface(modelSpace,false);}
       };
       this.streetSurface=surface(false);this.modelSurface=surface(true);
+      const wallProgram=program(`attribute vec3 pos;uniform vec2 depth;
+        void main(){gl_Position=vec4(pos.xy,depth.x*pos.z+depth.y,pos.z);}`,
+        PRECISION+"void main(){gl_FragColor=vec4(0.);}",{pos:this.pos});
+      gl.useProgram(wallProgram);gl.uniform2f(gl.getUniformLocation(wallProgram,"depth"),(f+n)/(f-n),-2*f*n/(f-n));
+      this.wallDepth={program:wallProgram,buffer:gl.createBuffer(),stream:new Float32Array(0)};
       gl.useProgram(p);this.streetFrame=null;this.shadowAxes=null;
       gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);
       gl.clearColor(0,0,0,0);gl.uniform2f(this.u.depth,(f+n)/(f-n),-2*f*n/(f-n));
@@ -1309,8 +1338,23 @@
         if(walls.length>=12)(this.wallGrid??=new WallGrid()).build(walls,v);
       }
     }
+    primeBuildingDepth(){
+      const walls=this.streetWalls;
+      if(this.scale>.65||!walls?.length||!this.models.has("city"))return 0;
+      const gl=this.gl,depth=this.wallDepth,words=walls.length*18;
+      if(depth.stream.length<words)depth.stream=new Float32Array(Math.max(words,depth.stream.length*2,288));
+      const used=writeWallDepth(walls,this.basis,depth.stream);
+      if(!used)return 0;
+      gl.useProgram(depth.program);gl.bindBuffer(gl.ARRAY_BUFFER,depth.buffer);
+      gl.bufferData(gl.ARRAY_BUFFER,depth.stream.subarray(0,used),gl.STREAM_DRAW);
+      gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,0,0);gl.disableVertexAttribArray(this.col);
+      gl.colorMask(false,false,false,false);gl.drawArrays(gl.TRIANGLES,0,used/3);gl.colorMask(true,true,true,true);
+      gl.enableVertexAttribArray(this.col);gl.useProgram(this.program);this.bound=null;
+      return used/18;
+    }
     drawCityAndWater(t){
       this.collectStreetWalls();
+      this.primeBuildingDepth();
       this.draw("city");
       // Opaque land masks the water shader. Keep city surfaces on equal-depth shore pixels.
       const gl=this.gl;gl.depthFunc(gl.LESS);this.drawWater(t);gl.depthFunc(gl.LEQUAL);
