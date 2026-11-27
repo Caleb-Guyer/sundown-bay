@@ -86806,8 +86806,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       view.drawGhost("dash-ghost",r.x,footLevel(r.x,r.z)+r.motion.lift,r.z,r.yaw);
     }
     const pace=green.trade?.ghost;
-    if(pace&&see(pace,86)&&dist(eye,pace)>2.7){
-      view.drawGhost(carSkin(pace.kind,"#98dfcc"),pace.x,footLevel(pace.x,pace.z)+.014,pace.z,pace.yaw);
+    if(pace&&see(pace,86)&&dist(eye,pace)>(insideSeat()?4.4:2.7)){
+      view.drawGhost(carSkin(pace.kind,pace.color),pace.x,footLevel(pace.x,pace.z)+.014,pace.z,pace.yaw);
     }
     if(pickup?.human.shot?.stage==="wind"){
       const p=view.project(hero.x,hero.y+1.30,hero.z);
@@ -89428,10 +89428,12 @@ window.buildBayCity = function buildBayCity(g,water) {
   addEventListener("blur",()=>{keys.clear();resetPointer();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");});
   document.addEventListener("visibilitychange",()=>{if(document.hidden){keys.clear();sound.reel(null);if(play)saveTime();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");}});
   let last=performance.now(),lastIntroPaint=0,lastMenuPaint=0;
-  const overheadQuality={scale:1};
+  const cpuCount=globalThis.navigator?.hardwareConcurrency,ramGiB=globalThis.navigator?.deviceMemory;
+  const smallOverhead=cpuCount>0&&cpuCount<=2&&(ramGiB==null||ramGiB<=4);
+  const overheadQuality={scale:smallOverhead?.70:1,maxScale:smallOverhead?.75:1};
   class SceneResolution {
     constructor(target,floor,adaptiveWidth=false){this.target=target;this.floor=floor;this.adaptiveWidth=adaptiveWidth;this.reset();}
-    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;}
+    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;this.roughWindows=0;}
     sample(seconds){
       if(!(seconds>0)||seconds>2){this.reset();return;}
       // Judge a stretch of play. An occasional upload or texture decode should
@@ -89440,19 +89442,23 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(seconds>1/28)this.late++;
       if(this.time<1.25)return;
       const mean=this.time/this.frames,late=this.late/this.frames,scale=this.target.scale;
-      if(mean>1/28&&late>=.4&&scale>this.floor){
+      // Consecutive windows with several missed frames can stutter even at a good average.
+      this.roughWindows=late>.055&&this.late>=3?this.roughWindows+1:0;
+      if((mean>1/28&&late>=.4||this.roughWindows>=2)&&scale>this.floor){
         const step=mean>1/21?.14:.08;
         this.target.scale=Math.max(this.floor,Math.round((scale-step)*100)/100);
+        this.roughWindows=0;
       }
       const width=this.target.widthScale??1;
       if(this.adaptiveWidth&&scale===this.floor&&mean>1/25&&late>=.55){
         this.slowTime+=this.time;
         if(this.slowTime>=2.5){this.target.widthScale=width>.84?.84:.72;this.slowTime=0;}
       }else this.slowTime=0;
-      this.headroom=mean<1/43&&late<.08?this.headroom+this.time:0;
-      if(this.headroom>=6&&(width<1||scale<1)){
+      const ceiling=this.target.maxScale??1;
+      this.headroom=mean<1/43&&late<.055?this.headroom+this.time:0;
+      if(this.headroom>=6&&(width<1||scale<ceiling)){
         if(width<1)this.target.widthScale=width<.84?.84:1;
-        else this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);
+        else this.target.scale=Math.min(ceiling,Math.round((scale+.06)*100)/100);
         this.headroom=0;
       }
       this.time=this.frames=this.late=0;

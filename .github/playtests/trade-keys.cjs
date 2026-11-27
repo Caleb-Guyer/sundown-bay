@@ -1,8 +1,9 @@
 const assert=require("node:assert/strict");
+const oceanDriver=require("./ocean-driver.cjs");
 
 // Continue the real Ocean Drive race after its save has reloaded. Fixtures position the
 // returning player at the bay and light. The car, handover, clock and ghosts use the game.
-module.exports=async function tradeKeys({js,send,waitFor,tap,key,snap,mode}){
+module.exports=async function tradeKeys({js,send,waitFor,tap,snap,mode}){
   const record="JSON.parse(localStorage.getItem('sundownBay.v1')).green.cards.ocean";
   const card=await js(record);
   assert(card.pace.frames.length>12);assert.equal(card.pace.frames.at(-1)[0],Math.round(card.best*1000));
@@ -26,18 +27,27 @@ module.exports=async function tradeKeys({js,send,waitFor,tap,key,snap,mode}){
   await snap("trade-keys");
   await js(`{
     const r=site.route;
-    for(const q of traffic)if(q!==ride&&Math.abs(q.x-r.grid.x)<7.5&&q.z>=r.grid.z-5&&q.z<68)q.x-=25;
-    Object.assign(ride,r.grid);BayDriving.settle(ride);
+    Object.assign(ride,BayOnGreen.roadPoint(r,4.8,BayOnGreen.line));BayDriving.settle(ride);
+    const steer=(${oceanDriver.toString()}),memory={raceSpeed:17},held=new Set();
+    const advance=BayOnGreen.Club.prototype.stepTrade;
+    BayOnGreen.Club.prototype.stepTrade=function(...args){
+      const event=advance.apply(this,args),a=this.trade;
+      const driving=a.phase==='running'&&(!event||event==='go');
+      const next=driving?steer(a.s.v,'race',0,traffic,memory):[];
+      for(const code of held)if(!next.includes(code)){dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}));held.delete(code);}
+      for(const code of next)if(!held.has(code)){dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true}));held.add(code);}
+      if(event)loanQA.event=event;
+      return event;
+    };
   }`);
   await waitFor("document.querySelector('#context').innerText.includes('Race your')");
   await tap("KeyH");await waitFor("club.trade?.phase==='armed'");
   await waitFor("club.trade?.phase==='running'",85000);
-  await key("keyDown","KeyW");
-  try{
-    await waitFor("loanQA.draws>0&&club.trade?.index>1",18000);
-    await snap("trade-pace");
-    await waitFor(record+".trade?.laps===1",25000);
-  }finally{await key("keyUp","KeyW");}
+  await waitFor("loanQA.draws>0&&club.trade?.index>1",18000);
+  await snap("trade-pace");
+  await waitFor("loanQA.event==='finish'||loanQA.event==='cancel'",65000);
+  assert.equal(await js("loanQA.event"),"finish");
+  await waitFor(record+".trade?.laps===1");
   const timed=await js(record);assert.equal(timed.best,card.best);assert.equal(timed.trade.pending.plate,card.slip.plate);
   assert(timed.trade.last>1&&timed.trade.last<40);assert.equal(timed.runs,card.runs);
   await js("Object.assign(ride,site.route.home);BayDriving.settle(ride);true");
