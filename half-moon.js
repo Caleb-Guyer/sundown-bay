@@ -21,8 +21,14 @@
       const valid=data&&Object.hasOwn(piers,data.pier)&&Number.isInteger(data.stage)&&data.stage>=1&&data.stage<=5;
       this.stage=valid?data.stage:0;this.pier=valid?data.pier:"south";
       this.stamps=valid&&this.stage===5?BayTransit.stops.map(s=>s.id).filter(id=>Array.isArray(data.stamps)&&data.stamps.includes(id)):[];
+      this.take=this.stage===5&&BayLastBoat.valid(this.pier,data.take)?data.take:null;
     }
-    save(){try{localStorage.setItem(key,JSON.stringify({stage:this.stage,pier:this.pier,stamps:this.stamps}));}catch{}}
+    save(){try{localStorage.setItem(key,JSON.stringify({stage:this.stage,pier:this.pier,stamps:this.stamps,take:this.take}));}catch{}}
+    keepDub(dub){
+      if(this.stage!==5||dub.pier!==this.pier||!dub.done||dub.score<60)return false;
+      if(!this.take||dub.score>BayLastBoat.sync(this.pier,this.take)){this.take=dub.marks.slice();this.save();}
+      return true;
+    }
     accept(morning){
       if(this.stage)return;
       this.pier=morning?.luis==="aboard"?"north":"south";this.stage=1;this.save();

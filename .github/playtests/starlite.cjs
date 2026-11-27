@@ -45,9 +45,10 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await reload();await waitFor("nav.car?.kind==='caleta'&&Math.abs(nav.car.x-90)<1&&nav.car.softTop===1",30000);
     await hold(["KeyW"]);await waitFor("nav.car.z>-59.55",30000);await hold(["Space"]);await waitFor("Math.abs(nav.car.speed)<.3",20000);await hold([]);
     await tap("KeyO");await waitFor("nav.car.softTop===0",25000);await tap("KeyF");await waitFor("nav.theatre.visit?.bay===2",18000);
-    await waitFor("nav.billboard&&nav.stamps.size>=3",35000);const pixel=await js("nav.billboard.toDataURL()");
+    const capture="(()=>{const film=nav.billboard,c=document.createElement('canvas');c.width=film.width;c.height=film.height;c.getContext('2d').drawImage(film,0,0);return c.toDataURL();})()";
+    await waitFor("nav.billboard&&nav.stamps.size>=3",35000);const pixel=await js(capture);
     await waitFor(saved+".starlite?.tickets?.length>0",35000);
-    assert.notEqual(await js("nav.billboard.toDataURL()"),pixel);await snap("starlite");
+    assert.notEqual(await js(capture),pixel);await snap("starlite");
     await tap("KeyF");await waitFor("!nav.theatre.visit");await tap("KeyE");await waitFor("!nav.map.player.driving",30000);
     await waitFor("Number.isFinite(nav.yaw)");await walk(84.17,-60.77,1.5);await tap("KeyF");
     await waitFor(row("The Last Pelican"));await js(row("The Last Pelican")+".click()");await waitFor("nav.theatre.run?.id==='pelican'");

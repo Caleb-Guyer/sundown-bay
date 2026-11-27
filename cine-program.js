@@ -547,7 +547,7 @@
   }
 
   let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver,listedGate;
-  let listedFamily=false;
+  let listedFamily=false,listedMoon=null,listedPier=null;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -562,7 +562,9 @@
     const driver=options?.driverPrint||null;
     const gate=options?.soler;
     const family=!!options?.valeRelease;
-    if(schedule&&listedFamily===family&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const moon=options?.moonTake||null,pier=options?.moonPier||null;
+    if(schedule&&listedMoon===moon&&listedPier===pier&&listedFamily===family&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedMoon=moon;listedPier=pier;
     listedFamily=family;
     listedDriver=driver;listedGate=gate;
     listedHouse=house;
@@ -574,6 +576,7 @@
     const soler=window.BayFeaturePrint?.reel;
     const gateSlot=gate&&soler?slot(soler.id,soler.title,"Ada Soler · Gantry Street, before the fire",soler.seconds):null;
     if(gateSlot&&gate==="first")list.push(gateSlot);
+    if(moon){const f=BayLastBoat.reel;list.push(slot(f.id,f.title,f.credit+" · Live Foley",f.seconds));}
     if(driver)list.push(slot("frame-13","From the Passenger Window","Mara Vega · "+BayLotNegative.locations[driver.place].name,5));
     if(house)list.push(slot("house-lights","House Lights","Two exposures on Luna Boulevard · "+house.day.by,8));
     if(jumps)list.push(slot("picture-jumps","Four Wheels Down","Romy Vale · An animation from three measured jumps",15));
@@ -619,7 +622,8 @@
       if(image?.naturalWidth)context.drawImage(image,18,0,380,213.75);
       label(context,item.credit,19,227,"italic 12px Georgia,serif","#eddfbf");
       label(context,"35 MM   /   13",397,227,"bold 9px monospace","#caa977","right");
-    }else if(item.id==="rabbit")BayWalkHome.movie(context,elapsed);
+    }else if(item.id==="last-boat")BayLastBoat.film(context,listedPier,elapsed,listedMoon);
+    else if(item.id==="rabbit")BayWalkHome.movie(context,elapsed);
     else if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
     else if(item.id==="pelican")showPelican(context,elapsed);
     else if(item.id==="tram")showTram(context,elapsed,item.credit);

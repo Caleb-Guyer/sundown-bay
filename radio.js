@@ -798,6 +798,7 @@
       }return;
     }
     if(name==="record-shutter"){waterNoise(effects,at,.034,.07,2400,620);waterNoise(effects,at+.11,.052,.042,1230,250);return;}
+    if(name==="ticket-punch"){waterNoise(effects,at,.022,.08,3150,820);waterNoise(effects,at+.065,.035,.039,1650,550);return;}
     if(name==="jules-ring"){
       for(const d of [0,.48])for(const [i,n] of [739,880,988].entries())
         tone(effects,n,at+d+i*.088,.076,.024,"triangle",n,.008);

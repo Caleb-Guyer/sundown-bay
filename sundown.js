@@ -16265,7 +16265,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const site=opt.starlite;
       if(street){
         const screen=BayDriving.world(site,0,opt.starliteVisit||opt.atProjector?7.55:8.67);
-        const film=visible(px(screen.x),py(screen.z),5.4*s+1)?opt.starliteFrame(opt.lowDetail?9.04*s:undefined):null;
+        const film=visible(px(screen.x),py(screen.z),5.4*s+1)?opt.starliteFrame(opt.lowDetail?9.04*s:undefined,true):null;
         if(opt.starliteVisit||opt.atProjector)focusedFilm=film;
         BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,film,opt.starliteVisit,opt.atProjector,opt.lowDetail,!!focusedFilm);
       }
@@ -19702,6 +19702,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }return;
     }
     if(name==="record-shutter"){waterNoise(effects,at,.034,.07,2400,620);waterNoise(effects,at+.11,.052,.042,1230,250);return;}
+    if(name==="ticket-punch"){waterNoise(effects,at,.022,.08,3150,820);waterNoise(effects,at+.065,.035,.039,1650,550);return;}
     if(name==="jules-ring"){
       for(const d of [0,.48])for(const [i,n] of [739,880,988].entries())
         tone(effects,n,at+d+i*.088,.076,.024,"triangle",n,.008);
@@ -34790,7 +34791,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
 
   let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver,listedGate;
-  let listedFamily=false;
+  let listedFamily=false,listedMoon=null,listedPier=null;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -34805,7 +34806,9 @@ window.buildBayCity = function buildBayCity(g,water) {
     const driver=options?.driverPrint||null;
     const gate=options?.soler;
     const family=!!options?.valeRelease;
-    if(schedule&&listedFamily===family&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const moon=options?.moonTake||null,pier=options?.moonPier||null;
+    if(schedule&&listedMoon===moon&&listedPier===pier&&listedFamily===family&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedMoon=moon;listedPier=pier;
     listedFamily=family;
     listedDriver=driver;listedGate=gate;
     listedHouse=house;
@@ -34817,6 +34820,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const soler=window.BayFeaturePrint?.reel;
     const gateSlot=gate&&soler?slot(soler.id,soler.title,"Ada Soler · Gantry Street, before the fire",soler.seconds):null;
     if(gateSlot&&gate==="first")list.push(gateSlot);
+    if(moon){const f=BayLastBoat.reel;list.push(slot(f.id,f.title,f.credit+" · Live Foley",f.seconds));}
     if(driver)list.push(slot("frame-13","From the Passenger Window","Mara Vega · "+BayLotNegative.locations[driver.place].name,5));
     if(house)list.push(slot("house-lights","House Lights","Two exposures on Luna Boulevard · "+house.day.by,8));
     if(jumps)list.push(slot("picture-jumps","Four Wheels Down","Romy Vale · An animation from three measured jumps",15));
@@ -34862,7 +34866,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(image?.naturalWidth)context.drawImage(image,18,0,380,213.75);
       label(context,item.credit,19,227,"italic 12px Georgia,serif","#eddfbf");
       label(context,"35 MM   /   13",397,227,"bold 9px monospace","#caa977","right");
-    }else if(item.id==="rabbit")BayWalkHome.movie(context,elapsed);
+    }else if(item.id==="last-boat")BayLastBoat.film(context,listedPier,elapsed,listedMoon);
+    else if(item.id==="rabbit")BayWalkHome.movie(context,elapsed);
     else if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
     else if(item.id==="pelican")showPelican(context,elapsed);
     else if(item.id==="tram")showTram(context,elapsed,item.credit);
@@ -69891,13 +69896,107 @@ window.buildBayCity = function buildBayCity(g,water) {
 })();
 
 ;
+/* last-boat.js */
+/* Ada's silent home movie and the two sounds the projectionist plays into it. */
+(() => {
+  "use strict";
+  const reel={id:"last-boat",title:"The Last Boat at Six",seconds:13,credit:"Ada Soler · Marlin Pier, one week earlier"};
+  const beats=pier=>pier==="north"?[3.4,9.8]:[2.8,9.0];
+  const clamp=x=>Math.max(0,Math.min(1,x));
+  function sync(pier,marks){const cue=beats(pier);return Math.round(100*Math.max(0,1-(Math.abs(cue[0]-marks[0]/100)+Math.abs(cue[1]-marks[1]/100))/1.8));}
+  function valid(pier,marks){return Array.isArray(marks)&&marks.length===2&&marks.every((n,i)=>Number.isInteger(n)&&Math.abs(n/100-beats(pier)[i])<=.90);}
+  class Dub{
+    constructor(pier){this.pier=pier;this.beats=beats(pier);this.marks=[null,null];this.age=0;this.done=false;this.feedback="";this.feedbackTill=0;}
+    input(code){
+      if(this.done)return;
+      const i=code==="KeyH"?0:code==="Space"?1:-1;if(i<0||this.marks[i]!==null)return;
+      const error=this.age-this.beats[i];
+      if(Math.abs(error)<=.90)this.marks[i]=Math.round(this.age*100);
+      this.feedback=(i?"Punch":"Bell")+" · "+(Math.abs(error)<.12?"in sync":Math.abs(error).toFixed(1)+" s "+(error<0?"early":"late"));
+      this.feedbackTill=this.age+.75;return i?"ticket-punch":"watch-bell";
+    }
+    step(dt){if(this.done)return false;this.age=Math.min(reel.seconds,this.age+dt);if(this.age<reel.seconds)return false;this.done=true;return true;}
+    get score(){return valid(this.pier,this.marks)?sync(this.pier,this.marks):0;}
+    hint(){
+      if(this.done)return ["F","Run another take · E leave the booth"];
+      if(this.age<this.feedbackTill)return ["",this.feedback];
+      if(this.age<this.beats[0]+.90&&this.marks[0]===null)return ["H","Ring when the brass tongue strikes"];
+      if(this.age<this.beats[1]+.90&&this.marks[1]===null)return ["Space","Punch when the two jaws meet"];
+      return ["","Listen to the last few feet of film · E leave"];
+    }
+  }
+  function film(c,pier,t,marks){
+    const north=pier==="north",cue=beats(pier);
+    const ink="#303c3d",sea="#507c76",light="#ead7a4",rust="#a65441",brass="#d99b56";
+    const rect=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
+    const path=(pts,color,width=0)=>{
+      c.beginPath();c.moveTo(pts[0],pts[1]);for(let i=2;i<pts.length;i+=2)c.lineTo(pts[i],pts[i+1]);
+      if(width){c.lineWidth=width;c.strokeStyle=color;c.stroke();}else{c.closePath();c.fillStyle=color;c.fill();}
+    };
+    const oval=(x,y,rx,ry,color)=>{c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fillStyle=color;c.fill();};
+    const type=(s,x,y,font,color)=>{c.font=font;c.fillStyle=color;c.fillText(s,x,y);};
+    c.save();c.lineCap="round";c.lineJoin="round";rect(0,0,416,234,light);
+    rect(0,83,416,151,sea);
+    for(let i=0;i<12;i++){const x=((i*79+Math.sin(t*.8+i)*5)%420);rect(x,89+(i*17)%83,12+i%5,1,"#a0ad90");}
+    if(t<4.8){
+      // The pivot stays on the canopy bolt as the skirt swings into the clapper.
+      rect(0,0,416,19,ink);rect(76,13,23,144,"#6e6251");rect(69,24,37,6,brass);
+      path([96,37,181,37,213,53,211,60,173,49,96,49],ink);
+      const swing=clamp((t-cue[0]+1.8)/1.8),ring=t>=cue[0];
+      const a=ring?Math.sin((t-cue[0])*8+.64)*.38*Math.exp(-(t-cue[0])*1.5):-.44+.67*swing*swing;
+      c.save();c.translate(208,56);c.rotate(a);
+      path([-4,0,5,0,9,14,21,20,26,46,35,59,35,66,-34,66,-35,58,-26,47,-20,21,-7,13],brass);
+      path([-20,25,-12,18,-13,48,-25,59,-29,59],"#efc986");
+      oval(0,64,35,6,"#5b5142");const clapper=ring?24*Math.cos((t-cue[0])*8)*Math.exp(-(t-cue[0])):-13+37*swing*swing;
+      path([0,28,clapper,68],ink,4);oval(clapper,70,5,5,"#443b33");c.restore();
+      type("MARLIN PIER",15,191,"bold 11px monospace",light);
+    }else if(t<8){
+      const travel=clamp((t-4.8)/3.2),x=180+travel*108,y=104+Math.sin(t*3);
+      path([0,120,102,110,178,117,160,130,0,143],"#775943");
+      for(const p of [9,83,147])rect(p,126,8,49,ink);
+      c.save();c.translate(x,y);
+      path([-68,18,75,18,61,36,-52,36],ink);path([-63,17,70,17,63,23,-58,23],rust);
+      rect(-40,-3,65,19,light);for(let i=0;i<5;i++)rect(-35+i*12,0,8,9,sea);
+      rect(-48,-9,85,6,ink);rect(32,-18,5,35,ink);path([37,-18,56,-12,37,-7],rust);
+      function luis(px,py){oval(px,py-18,4,5,"#966244");rect(px-5,py-14,10,12,"#b06548");path([px-3,py-2,px-4,py+9,px+1,py+9,px+3,py-1],ink);
+        for(const d of [-10,7]){rect(px+d,py-2,6,6,"#658c9b");path([px+d+1,py-2,px+d+2,py-5,px+d+5,py-4],ink,1);}}
+      if(north)luis(-55,6);c.restore();if(!north)luis(131,107);
+      type(north?"EIGHTEEN ABOARD":"SEVENTEEN ABOARD",16,191,"bold 11px monospace",light);
+    }else{
+      rect(0,0,416,234,"#47564d");c.save();c.translate(59,38);c.rotate(-.06);
+      rect(3,4,247,130,ink);rect(0,0,247,130,"#eadbb3");rect(0,9,247,5,sea);
+      type("OCEAN LOOP",13,38,"bold 17px Georgia",ink);type("GOOD FOR ONE TRANSFER",13,55,"11px monospace",ink);
+      for(let i=0;i<5;i++){rect(13+i*45,71,1,40,"#a4997c");type(String(6+i),23+i*45,94,"13px monospace",ink);}
+      if(t>=cue[1])oval(246,68,9,7,"#47564d");c.restore();
+      const jaw=Math.min(1,Math.abs(t-cue[1])/.85),h=19*jaw;
+      path([277,97,316,100,382,67,390,76,322,114,275,111],ink);
+      path([278,98-h,313,99,376,133+h*.55,368,141+h*.55,308,111,277,107-h],"#bbbba2");
+      oval(314,105,5,5,brass);type("MARTA LEAL   /   COACH 608",16,191,"bold 11px monospace",light);
+    }
+    rect(0,200,416,34,ink);
+    const active=marks?.findIndex(n=>Number.isInteger(n)&&t>=n/100&&t<n/100+.6)??-1;
+    type(active===0?"[bell rings]":active===1?"[ticket punch clicks]":t<4.8?"THE LAST BOAT AT SIX":t<8?(north?"Luis made it with both tins.":"Luis watched from the step."):"Half a moon. Good all the way home.",15,221,"italic 15px Georgia",light);
+    c.restore();
+  }
+  function leader(c,dub,t){
+    const next=t<dub.beats[0]+.9?0:1,remaining=dub.beats[next]-t;
+    if(remaining>2.2||remaining<-.8||dub.marks[next]!==null)return;
+    // Two grease-pencil slashes meet at the edge of the projected frame.
+    const x=360+remaining*19;
+    c.save();c.strokeStyle="#f6e9c2";c.lineWidth=2;c.beginPath();
+    c.moveTo(360,15);c.lineTo(354,27);c.moveTo(x,15);c.lineTo(x-6,27);c.stroke();c.restore();
+  }
+  window.BayLastBoat={reel,Dub,valid,sync,film,leader};
+})();
+
+;
 /* starlite.js */
 /* Gantry Street's open-air theatre. All timing is in simulated seconds. */
 (() => {
   "use strict";
   const site={x:90,y:.096,z:-58,yaw:0},booth={x:84.17,z:-60.77,kind:"drive-in",name:"Starlite Motor Theatre"};
   const coast={id:"coast",title:"Coast Road, 1983",credit:"Soler family print · 16 mm",seconds:16};
-  const ids=new Set(["coast","pelican","tram","windows","stunt","skate","edition","location","picture-jumps","rabbit"]);
+  const ids=new Set(["coast","pelican","tram","windows","stunt","skate","edition","location","picture-jumps","rabbit","last-boat"]);
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   function read(raw){
     const best={};
@@ -69924,6 +70023,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   class Theatre {
     constructor(){this.clock=0;this.run=null;this.visit=null;this.playFrom=0;this.variation=0;this.version=0;this.frameKey="";}
     show(program,booked){
+      if(this.run?.dub)return {reel:BayLastBoat.reel,time:Math.min(this.run.dub.age,BayLastBoat.reel.seconds-.01),cue:""};
       if(this.visit?.family)return {reel:BayWalkHome.reel,time:Math.min(this.visit.age,BayWalkHome.reel.seconds-.1),cue:""};
       const bill=[coast,...program],r=this.run;
       if(r&&!r.done&&!r.switched){
@@ -69955,24 +70055,29 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     step(dt){
       this.clock+=dt;const r=this.run;if(!r||r.done)return;
+      if(r.dub){if(r.dub.step(dt)){r.done=true;return r;}return;}
       r.age+=dt;r.motor=r.started?clamp((r.age-r.motorTime)/1.25,0,1):0;
       r.cue=Math.abs(r.age-r.motorAt)<=.38?"motor":Math.abs(r.age-r.changeAt)<=.38?"change":"";
       if(r.age>r.changeAt+1.35)return this.finish(r,0,"The tail leader ran through the gate.");
     }
-    frame(options,booked,projectedWidth){
+    frame(options,booked,projectedWidth,overhead=false){
       const program=BayCineProgram.describe(options),{reel,time,cue}=this.show(program,booked);
       // A drive-by projection can occupy fewer than fifty display pixels.
       // Sample the same film clock at twice its projected width or greater.
       const full=this.visit||this.run||!(projectedWidth>0);
       const width=full||projectedWidth>104?416:projectedWidth>72?208:144,height=width*9/16;
       const tick=Math.max(0,Math.floor(time*10)),key=reel.id+"/"+tick+"/"+cue+"/"+width;
-      if(this.frameKey===key)return this.canvas;
-      if(!this.canvas)this.canvas=document.createElement("canvas");
-      if(this.canvas.width!==width)this.canvas.width=width;
-      if(this.canvas.height!==height)this.canvas.height=height;
-      const c=this.canvas.getContext("2d");
+      const bitmap=overhead&&typeof OffscreenCanvas!=="undefined"&&typeof OffscreenCanvas.prototype.transferToImageBitmap==="function";
+      const take=this.run?.dub?.marks||options?.moonTake;
+      const signature=reel.id==="last-boat"?(take?.join("/")||"silent"):"";
+      if(this.frameKey===key&&this.frameSignature===signature&&this.frameBitmap===bitmap)return bitmap?this.print:this.canvas;
+      const source=bitmap?(this.plate??=new OffscreenCanvas(width,height)):(this.canvas??=document.createElement("canvas"));
+      if(source.width!==width)source.width=width;
+      if(source.height!==height)source.height=height;
+      const c=source.getContext("2d");
       c.save();c.scale(width/416,height/234);
-      if(reel.id==="coast")BayCoastRoadFilm.paint(this.canvas,tick/10,width);
+      if(reel.id==="coast")BayCoastRoadFilm.paint(source,tick/10,width);
+      else if(reel.id==="last-boat")BayLastBoat.film(c,this.run?.dub?.pier||options.moonPier,tick/10,take);
       else if(reel.id==="rabbit")BayWalkHome.movie(c,tick/10);
       else{
         let offset=0;for(const f of program){if(f.id===reel.id)break;offset+=f.seconds;}
@@ -69980,7 +70085,10 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(frame.canvas)c.drawImage(frame.canvas,0,0,416,234);
       }
       if(cue){c.save();c.beginPath();c.arc(387,22,8,0,Math.PI*2);c.lineWidth=4;c.strokeStyle="#3a2923";c.stroke();c.lineWidth=2;c.strokeStyle="#ffefc8";c.stroke();c.restore();}
-      c.restore();this.frameKey=key;this.version++;return this.canvas;
+      if(this.run?.dub&&!this.run.done)BayLastBoat.leader(c,this.run.dub,tick/10);
+      c.restore();this.frameKey=key;this.frameSignature=signature;this.frameBitmap=bitmap;this.version++;
+      this.print?.close();this.print=bitmap?source.transferToImageBitmap():null;
+      return this.print||this.canvas;
     }
   }
   window.BayStarlite={site,booth,coast,read,bay,fold,wheelStop,Theatre};
@@ -74008,8 +74116,14 @@ window.buildBayCity = function buildBayCity(g,water) {
       const valid=data&&Object.hasOwn(piers,data.pier)&&Number.isInteger(data.stage)&&data.stage>=1&&data.stage<=5;
       this.stage=valid?data.stage:0;this.pier=valid?data.pier:"south";
       this.stamps=valid&&this.stage===5?BayTransit.stops.map(s=>s.id).filter(id=>Array.isArray(data.stamps)&&data.stamps.includes(id)):[];
+      this.take=this.stage===5&&BayLastBoat.valid(this.pier,data.take)?data.take:null;
     }
-    save(){try{localStorage.setItem(key,JSON.stringify({stage:this.stage,pier:this.pier,stamps:this.stamps}));}catch{}}
+    save(){try{localStorage.setItem(key,JSON.stringify({stage:this.stage,pier:this.pier,stamps:this.stamps,take:this.take}));}catch{}}
+    keepDub(dub){
+      if(this.stage!==5||dub.pier!==this.pier||!dub.done||dub.score<60)return false;
+      if(!this.take||dub.score>BayLastBoat.sync(this.pier,this.take)){this.take=dub.marks.slice();this.save();}
+      return true;
+    }
     accept(morning){
       if(this.stage)return;
       this.pier=morning?.luis==="aboard"?"north":"south";this.stage=1;this.save();
@@ -79116,7 +79230,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
   const filmOptions=()=>({valeRelease:valeReel==="luna",soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
-    deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
+    moonPier:halfMoon.take?halfMoon.pier:null,moonTake:halfMoon.take,deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   function adaCopy(){
     return room?.kind==="cinema"&&room.ada&&!room.reader&&!room.transition&&
       dist(room,BayCineRoom.adaChair)<2.35?pavement.forAda():null;
@@ -79889,7 +80003,23 @@ window.buildBayCity = function buildBayCity(g,water) {
     sound.cue("street-sidearm");if(r.rounds===2)addHeat(1);
     note("Romy Vale","That one's backing off. "+r.rounds+" left.",2);lastHud=-10;
   }
-  function theatreFilm(projectedWidth){return theatre.frame(filmOptions(),save.starlite.booked,projectedWidth);}
+  function theatreFilm(projectedWidth,overhead=false){
+    return theatre.frame(filmOptions(),save.starlite.booked,projectedWidth,overhead);
+  }
+  let lastDubPlace=null,lastDubTime=-1;
+  function playDub(place,time){
+    if(lastDubPlace===place&&time>=lastDubTime&&time-lastDubTime<.6&&halfMoon.take){
+      halfMoon.take.forEach((mark,i)=>{if(lastDubTime<mark/100&&time>=mark/100)sound.cue(i?"ticket-punch":"watch-bell");});
+    }
+    lastDubTime=time;lastDubPlace=place;
+  }
+  function startDub(){
+    if(halfMoon.stage!==5||!atProjectionBooth())return;
+    closePanel();releaseMouse();keys.clear();theatre.visit=null;
+    theatre.run={id:"last-boat",dub:new BayLastBoat.Dub(halfMoon.pier),done:false};
+    gaugeStamp=-1;lastHud=-10;
+    speak("Ada Soler","I shot this without sound. You take the bell. Keep Marta’s punch in your other hand.");
+  }
   function theatreShirt(lead){return BayThreadsArt.colors[worn(lead)]||BayCourtPlayers.kitColors[worn(lead)]||(lead==="guest"?personColors[0][1]:BayExposureArt.palette[1]);}
   function setTheatreSeats(){
     const shared=windowRide?.vehicle===spider,driver=shared||otherCar===spider?unit.other:car===spider&&(!transfer||transfer.exiting)?unit.lead:null;
@@ -79898,6 +80028,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function starliteHint(){
     const r=theatre.run;
+    if(r?.dub)return r.dub.hint();
     if(r)return r.done?["F","Pick another print · E leave the booth"]:[r.started?"F":"Space",r.started?"Second cue dot · open the shutter":"First cue dot · start the right-hand motor"];
     if(theatre.visit)return ["F","Unclip speaker "+theatre.visit.bay+" · "+theatre.show(BayCineProgram.describe(filmOptions()),save.starlite.booked).reel.title];
     if(atProjectionBooth())return ["F","Ada Soler · Starlite projection booth"];
@@ -79905,14 +80036,24 @@ window.buildBayCity = function buildBayCity(g,water) {
     return null;
   }
   function drawTheatreGauge(){
-    const r=theatre.run,canvas=$("starliteGauge");canvas.hidden=!r;
-    if(!r)return;
+    const r=theatre.run,canvas=$("starliteGauge");canvas.hidden=!r||!!r.dub;
+    if(canvas.hidden)return;
     const frame=Math.floor(theatre.clock*12);
     if(gaugeStamp===frame)return;
     gaugeStamp=frame;BayStarliteBooth.draw(canvas,r,theatre.clock);
   }
   function boothResult(r){
     if(!r)return;
+    if(r.dub){
+      const kept=halfMoon.keepDub(r.dub);
+      if(kept){
+        syncProgress(readSave());save.starlite.booked=r.id;save.starlite.rev++;persist();
+        theatre.onScreen=r.id;theatre.playFrom=theatre.clock;
+      }
+      speak("Ada Soler",kept?(r.dub.pier==="north"?"There. Hear that bell? Luis could tell you exactly where he was standing on that deck.":"There. Luis used to say he could hear the bell all the way back to the motel."):"Run it back. Watch my two pencil marks. When they cross, make the sound.");
+      note("The Last Boat at Six",kept?"Take scored "+r.dub.score+"/100. Your best soundtrack is on the Starlite and Cine Luna bills.":"Take missed. Watch the bell tongue and the jaws of the punch, then try again.",7);
+      lastHud=-10;return;
+    }
     syncProgress(readSave());
     const book=save.starlite,best=book.best[r.id]||0,paid=r.switched&&best<70;
     book.best[r.id]=Math.max(best,r.score);
@@ -79931,8 +80072,9 @@ window.buildBayCity = function buildBayCity(g,water) {
   function starliteKey(code){
     const r=theatre.run;
     if(r){
-      if(code==="KeyE"){theatre.run=null;$("starliteGauge").hidden=true;cameraSnap();keys.clear();lastHud=-10;return true;}
+      if(code==="KeyE"){if(r.dub?.done&&halfMoon.take)theatre.playFrom=theatre.clock;theatre.run=null;$("starliteGauge").hidden=true;cameraSnap();keys.clear();lastHud=-10;return true;}
       if(r.done&&code==="KeyF"){theatre.run=null;$("starliteGauge").hidden=true;openPanel("starlite-booth");return true;}
+      if(r.dub){const cue=r.dub.input(code);if(cue){sound.cue(cue);lastHud=-10;}return !["Escape","KeyM","KeyJ","KeyR"].includes(code);}
       if(code==="Space"||code==="KeyF"){boothResult(theatre.input(code));lastHud=-10;return true;}
       return !["Escape","KeyM","KeyJ","KeyR"].includes(code);
     }
@@ -79959,6 +80101,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     BayStarlite.fold(spider,dt);
     if(theatre.run&&!starliteFree()){theatre.run=null;lastHud=-10;}
     boothResult(theatre.step(dt));drawTheatreGauge();
+    if(halfMoon.take&&!room){
+      if(!theatre.run&&dist(pos(),starliteSite)<19){
+        const show=theatre.show(BayCineProgram.describe(filmOptions()),save.starlite.booked);
+        playDub(show.reel.id==="last-boat"?"starlite":null,show.reel.id==="last-boat"?show.time:-1);
+      }else if(lastDubPlace)playDub(null,-1);
+    }
     const v=theatre.visit;if(!v)return;
     if(car!==v.v||!starliteFree()||BayStarlite.bay(car)!==v.bay){theatre.visit=null;cameraSnap();lastHud=-10;return;}
     const reel=theatre.show(BayCineProgram.describe(filmOptions()),save.starlite.booked).reel;
@@ -79992,6 +80140,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       return;
     }
     const print=save.featurePrint;
+    if(halfMoon.stage===5)body.append(makeButton("The Last Boat at Six",halfMoon.take?"Your best Foley take scored "+BayLastBoat.sync(halfMoon.pier,halfMoon.take)+"/100.":"Ada has a silent print of Dalia’s departure. H rings the bell. Space works Marta’s punch.","Record live sound",startDub));
     body.append(makeButton("Before the Feature",print.last?"Fastest handoff "+print.best.toFixed(1)+" s · "+print.first+" first shows · "+print.late+" late shows":"Romy has twelve frames to get to Cine Luna before the trailers end.",print.last?"Drive again":"Talk to Ada",startFeaturePrint));
     if(print.last)body.append(makeButton(print.last==="first"?"Before the trailers":"Hold the house","The last screening at Cine Luna","Watch ending",()=>enterFilm(print.last==="first"?"printFirst":"printLate",true)));
     if(print.last)body.append(makeButton("The laundry gate","Marlin Steam Laundry · Frames 183–194","Project print",()=>enterFilm("printArchive",true)));
@@ -85127,6 +85276,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     $("palmGuide").hidden=true;
     if(room){
       const cinema=room.kind==="cinema",show=cinema?BayCineProgram.frame(room.reader?gateTime(t):t-projectionStart,filmOptions()):null;
+      if(halfMoon.take)playDub(show?.id==="last-boat"?"luna":null,show?.id==="last-boat"?show.elapsed:-1);
       if(!cinema){room.slip=!wakeBook.ring&&wakeBook.by===unit.lead&&!!wakeBook.message;room.subscriberCopy=!!save.houseCopies.last;}
       if(cinema)room.projectionist=cabs.people.some(p=>p.phase==="booth");
       if(top){
@@ -87273,6 +87423,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     skateProof=null;
     if(next==="half-moon"&&halfMoon.stage===5){
       title="Marta’s transfer";kicker="Ocean Loop / Lost property";BayHalfMoon.ticket(b,halfMoon);
+      b.append(makeButton("Ada’s silent print","Bring the punch to Ada’s projection booth at the Starlite on Gantry Street.","Mark Starlite",()=>clockPin(starliteBooth)));
       signedNote(b,halfMoon.stamps.length===4?"Four stops on one slip. Used to take me until lunch to do that. Keep it, kid.":"Get off my bus at a different stop and I’ll put another moon in it.","Marta Leal");
       b.append(makeButton("Fold the transfer","Keep it in your pocket.","Back to the city",closePanel));
     }else if(next==="minute-book"){title="On the Minute";kicker="Marisol Vale · Shore timing book";minuteBook(b);}
@@ -88003,6 +88154,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(ev.code==="Tab"){const controls=[...$("panel").querySelectorAll("button:not(:disabled),select:not(:disabled),[tabindex='0']")];if(!controls.length)return;
         if((ev.shiftKey&&document.activeElement===controls[0])||(!ev.shiftKey&&document.activeElement===controls.at(-1))){ev.preventDefault();controls[ev.shiftKey?controls.length-1:0].focus();}}
       return;
+    }
+    if(theatre.run?.dub&&!["Escape","KeyM","KeyJ","KeyR"].includes(ev.code)){
+      ev.preventDefault();if(!ev.repeat)starliteKey(ev.code);return;
     }
     if(apronInput(ev)){ev.preventDefault();return;}
     if(ev.code==="KeyF"&&!ev.repeat&&swim&&!active&&!heat){

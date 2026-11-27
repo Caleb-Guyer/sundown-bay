@@ -5010,7 +5010,7 @@
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
   const filmOptions=()=>({valeRelease:valeReel==="luna",soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
-    deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
+    moonPier:halfMoon.take?halfMoon.pier:null,moonTake:halfMoon.take,deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   function adaCopy(){
     return room?.kind==="cinema"&&room.ada&&!room.reader&&!room.transition&&
       dist(room,BayCineRoom.adaChair)<2.35?pavement.forAda():null;
@@ -5783,7 +5783,23 @@
     sound.cue("street-sidearm");if(r.rounds===2)addHeat(1);
     note("Romy Vale","That one's backing off. "+r.rounds+" left.",2);lastHud=-10;
   }
-  function theatreFilm(projectedWidth){return theatre.frame(filmOptions(),save.starlite.booked,projectedWidth);}
+  function theatreFilm(projectedWidth,overhead=false){
+    return theatre.frame(filmOptions(),save.starlite.booked,projectedWidth,overhead);
+  }
+  let lastDubPlace=null,lastDubTime=-1;
+  function playDub(place,time){
+    if(lastDubPlace===place&&time>=lastDubTime&&time-lastDubTime<.6&&halfMoon.take){
+      halfMoon.take.forEach((mark,i)=>{if(lastDubTime<mark/100&&time>=mark/100)sound.cue(i?"ticket-punch":"watch-bell");});
+    }
+    lastDubTime=time;lastDubPlace=place;
+  }
+  function startDub(){
+    if(halfMoon.stage!==5||!atProjectionBooth())return;
+    closePanel();releaseMouse();keys.clear();theatre.visit=null;
+    theatre.run={id:"last-boat",dub:new BayLastBoat.Dub(halfMoon.pier),done:false};
+    gaugeStamp=-1;lastHud=-10;
+    speak("Ada Soler","I shot this without sound. You take the bell. Keep Marta’s punch in your other hand.");
+  }
   function theatreShirt(lead){return BayThreadsArt.colors[worn(lead)]||BayCourtPlayers.kitColors[worn(lead)]||(lead==="guest"?personColors[0][1]:BayExposureArt.palette[1]);}
   function setTheatreSeats(){
     const shared=windowRide?.vehicle===spider,driver=shared||otherCar===spider?unit.other:car===spider&&(!transfer||transfer.exiting)?unit.lead:null;
@@ -5792,6 +5808,7 @@
   }
   function starliteHint(){
     const r=theatre.run;
+    if(r?.dub)return r.dub.hint();
     if(r)return r.done?["F","Pick another print · E leave the booth"]:[r.started?"F":"Space",r.started?"Second cue dot · open the shutter":"First cue dot · start the right-hand motor"];
     if(theatre.visit)return ["F","Unclip speaker "+theatre.visit.bay+" · "+theatre.show(BayCineProgram.describe(filmOptions()),save.starlite.booked).reel.title];
     if(atProjectionBooth())return ["F","Ada Soler · Starlite projection booth"];
@@ -5799,14 +5816,24 @@
     return null;
   }
   function drawTheatreGauge(){
-    const r=theatre.run,canvas=$("starliteGauge");canvas.hidden=!r;
-    if(!r)return;
+    const r=theatre.run,canvas=$("starliteGauge");canvas.hidden=!r||!!r.dub;
+    if(canvas.hidden)return;
     const frame=Math.floor(theatre.clock*12);
     if(gaugeStamp===frame)return;
     gaugeStamp=frame;BayStarliteBooth.draw(canvas,r,theatre.clock);
   }
   function boothResult(r){
     if(!r)return;
+    if(r.dub){
+      const kept=halfMoon.keepDub(r.dub);
+      if(kept){
+        syncProgress(readSave());save.starlite.booked=r.id;save.starlite.rev++;persist();
+        theatre.onScreen=r.id;theatre.playFrom=theatre.clock;
+      }
+      speak("Ada Soler",kept?(r.dub.pier==="north"?"There. Hear that bell? Luis could tell you exactly where he was standing on that deck.":"There. Luis used to say he could hear the bell all the way back to the motel."):"Run it back. Watch my two pencil marks. When they cross, make the sound.");
+      note("The Last Boat at Six",kept?"Take scored "+r.dub.score+"/100. Your best soundtrack is on the Starlite and Cine Luna bills.":"Take missed. Watch the bell tongue and the jaws of the punch, then try again.",7);
+      lastHud=-10;return;
+    }
     syncProgress(readSave());
     const book=save.starlite,best=book.best[r.id]||0,paid=r.switched&&best<70;
     book.best[r.id]=Math.max(best,r.score);
@@ -5825,8 +5852,9 @@
   function starliteKey(code){
     const r=theatre.run;
     if(r){
-      if(code==="KeyE"){theatre.run=null;$("starliteGauge").hidden=true;cameraSnap();keys.clear();lastHud=-10;return true;}
+      if(code==="KeyE"){if(r.dub?.done&&halfMoon.take)theatre.playFrom=theatre.clock;theatre.run=null;$("starliteGauge").hidden=true;cameraSnap();keys.clear();lastHud=-10;return true;}
       if(r.done&&code==="KeyF"){theatre.run=null;$("starliteGauge").hidden=true;openPanel("starlite-booth");return true;}
+      if(r.dub){const cue=r.dub.input(code);if(cue){sound.cue(cue);lastHud=-10;}return !["Escape","KeyM","KeyJ","KeyR"].includes(code);}
       if(code==="Space"||code==="KeyF"){boothResult(theatre.input(code));lastHud=-10;return true;}
       return !["Escape","KeyM","KeyJ","KeyR"].includes(code);
     }
@@ -5853,6 +5881,12 @@
     BayStarlite.fold(spider,dt);
     if(theatre.run&&!starliteFree()){theatre.run=null;lastHud=-10;}
     boothResult(theatre.step(dt));drawTheatreGauge();
+    if(halfMoon.take&&!room){
+      if(!theatre.run&&dist(pos(),starliteSite)<19){
+        const show=theatre.show(BayCineProgram.describe(filmOptions()),save.starlite.booked);
+        playDub(show.reel.id==="last-boat"?"starlite":null,show.reel.id==="last-boat"?show.time:-1);
+      }else if(lastDubPlace)playDub(null,-1);
+    }
     const v=theatre.visit;if(!v)return;
     if(car!==v.v||!starliteFree()||BayStarlite.bay(car)!==v.bay){theatre.visit=null;cameraSnap();lastHud=-10;return;}
     const reel=theatre.show(BayCineProgram.describe(filmOptions()),save.starlite.booked).reel;
@@ -5886,6 +5920,7 @@
       return;
     }
     const print=save.featurePrint;
+    if(halfMoon.stage===5)body.append(makeButton("The Last Boat at Six",halfMoon.take?"Your best Foley take scored "+BayLastBoat.sync(halfMoon.pier,halfMoon.take)+"/100.":"Ada has a silent print of Dalia’s departure. H rings the bell. Space works Marta’s punch.","Record live sound",startDub));
     body.append(makeButton("Before the Feature",print.last?"Fastest handoff "+print.best.toFixed(1)+" s · "+print.first+" first shows · "+print.late+" late shows":"Romy has twelve frames to get to Cine Luna before the trailers end.",print.last?"Drive again":"Talk to Ada",startFeaturePrint));
     if(print.last)body.append(makeButton(print.last==="first"?"Before the trailers":"Hold the house","The last screening at Cine Luna","Watch ending",()=>enterFilm(print.last==="first"?"printFirst":"printLate",true)));
     if(print.last)body.append(makeButton("The laundry gate","Marlin Steam Laundry · Frames 183–194","Project print",()=>enterFilm("printArchive",true)));
@@ -11021,6 +11056,7 @@
     $("palmGuide").hidden=true;
     if(room){
       const cinema=room.kind==="cinema",show=cinema?BayCineProgram.frame(room.reader?gateTime(t):t-projectionStart,filmOptions()):null;
+      if(halfMoon.take)playDub(show?.id==="last-boat"?"luna":null,show?.id==="last-boat"?show.elapsed:-1);
       if(!cinema){room.slip=!wakeBook.ring&&wakeBook.by===unit.lead&&!!wakeBook.message;room.subscriberCopy=!!save.houseCopies.last;}
       if(cinema)room.projectionist=cabs.people.some(p=>p.phase==="booth");
       if(top){
@@ -13167,6 +13203,7 @@
     skateProof=null;
     if(next==="half-moon"&&halfMoon.stage===5){
       title="Marta’s transfer";kicker="Ocean Loop / Lost property";BayHalfMoon.ticket(b,halfMoon);
+      b.append(makeButton("Ada’s silent print","Bring the punch to Ada’s projection booth at the Starlite on Gantry Street.","Mark Starlite",()=>clockPin(starliteBooth)));
       signedNote(b,halfMoon.stamps.length===4?"Four stops on one slip. Used to take me until lunch to do that. Keep it, kid.":"Get off my bus at a different stop and I’ll put another moon in it.","Marta Leal");
       b.append(makeButton("Fold the transfer","Keep it in your pocket.","Back to the city",closePanel));
     }else if(next==="minute-book"){title="On the Minute";kicker="Marisol Vale · Shore timing book";minuteBook(b);}
@@ -13897,6 +13934,9 @@
       if(ev.code==="Tab"){const controls=[...$("panel").querySelectorAll("button:not(:disabled),select:not(:disabled),[tabindex='0']")];if(!controls.length)return;
         if((ev.shiftKey&&document.activeElement===controls[0])||(!ev.shiftKey&&document.activeElement===controls.at(-1))){ev.preventDefault();controls[ev.shiftKey?controls.length-1:0].focus();}}
       return;
+    }
+    if(theatre.run?.dub&&!["Escape","KeyM","KeyJ","KeyR"].includes(ev.code)){
+      ev.preventDefault();if(!ev.repeat)starliteKey(ev.code);return;
     }
     if(apronInput(ev)){ev.preventDefault();return;}
     if(ev.code==="KeyF"&&!ev.repeat&&swim&&!active&&!heat){
