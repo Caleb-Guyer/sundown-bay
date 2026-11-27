@@ -7,7 +7,7 @@ module.exports=async function twoAprons({js,send,waitFor,tap,key,mode,errors}){
   }
   await js(`window.q={};const advance=BayApronGoal.Game.prototype.step;
     BayApronGoal.Game.prototype.step=function(dt,e){
-      q.g=this;q.h=e.hero;q.car=e.car;q.cars=e.traffic;
+      q.g=this;q.h=e.hero;q.car=e.car;q.cars=e.traffic;q.free=e.free;
       const result=advance.call(this,dt,e);
       if(result==="returned")q.returned=true;
       // Release the same keys at the same game-time markers on both renderers.
@@ -22,8 +22,17 @@ module.exports=async function twoAprons({js,send,waitFor,tap,key,mode,errors}){
   await waitFor("q.cars?.length>0");
   await js("q.v=q.cars[0];const d=BayDriving.world(q.v,-2.2,0);Object.assign(q.h,d);true");
   await tap("KeyE");await waitFor("q.car===q.v",25000);
-  await js("Object.assign(q.v,{x:146.5,z:-24,yaw:Math.PI});BayDriving.settle(q.v);true");
-  await key("keyDown","KeyW");try{await waitFor("q.g.phase==='loose'",18000);}finally{await key("keyUp","KeyW");}
+  // Use the correct side of Ocean Drive and leave accelerating distance ahead.
+  await js(`(()=>{for(const [x,yaw] of [[141.5,Math.PI],[146.5,0],[139,Math.PI],[148,0]]){
+    const dir=Math.cos(yaw);
+    for(const gap of [20,16,12,9]){
+      const start=BayApronGoal.mark.z-dir*gap;
+      if(Array.from({length:9},(_,i)=>start+dir*i).some(z=>q.cars.some(o=>o!==q.v&&Math.abs(o.x-x)<2.25&&Math.abs(o.z-z)<4.8)))continue;
+      Object.assign(q.v,{x,z:start,yaw});BayDriving.settle(q.v);return true;
+    }}throw Error("No open approach on Ocean Drive");})()`);
+  await key("keyDown","KeyW");try{await waitFor("q.g.phase==='loose'",18000);}
+  catch(e){console.log("Apron approach",await js("({x:q.v.x,z:q.v.z,speed:q.v.speed,yaw:q.v.yaw,free:q.free,trigger:q.g.approach,phase:q.g.phase})"));throw e;}
+  finally{await key("keyUp","KeyW");}
   await shot("road");
   await js("Object.assign(q.v,{x:149,z:-22.8,yaw:0});BayDriving.settle(q.v);true");await tap("KeyE");
   await waitFor("!q.car&&Math.hypot(q.g.ball.vx,q.g.ball.vz)<.05");
