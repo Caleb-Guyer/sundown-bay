@@ -12,9 +12,9 @@ module.exports=async function beatWake({js,send,tap,key,waitFor,mode,errors}){
     BayLocals.animatePeople=function(people,dt,car,cars){q.car=car;q.cars=cars;return locals.apply(this,arguments);};
     const race=BayWakeClock.Run.prototype.step;
     BayWakeClock.Run.prototype.step=function(){q.r=this;return race.apply(this,arguments);};
-    q.at=(p,x,z,yaw=0)=>Object.assign(p,{x,z,y:.12,yaw});
+    q.at=(p,x,z,yaw=0)=>{Object.assign(p,{x,z,y:.12,yaw});};
     q.d=BayWakeClock.clocks;`);
-  await waitFor("q.h&&q.cars");
+  await waitFor("!!q.h&&q.cars?.length>0");
   await js("q.v=q.cars[0];const door=BayDriving.world(q.v,-2.2,0);q.at(q.h,door.x,door.z)");
   await tap("KeyE");await waitFor("q.car===q.v",25000);
   await js("q.at(q.v,143.4,q.d[0].line.z);BayDriving.settle(q.v)");
