@@ -10,6 +10,10 @@ on:
         description: Run the two-thread, 4 GiB walk, drive and pursuit
         type: boolean
         default: false
+      automatic_only:
+        description: Only exercise the automatic camera on software graphics
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: [.github/workflows/compare-drives.yml, render.js, atlas.js, player-motion.js, street-space.js]
@@ -57,10 +61,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        view: [street, overhead]
-        build: [public, candidate]
-        include:
-          - build: candidate
+        view: ${{ fromJSON(inputs.automatic_only && '["automatic"]' || '["street","overhead","automatic"]') }}
+        build: ${{ fromJSON(inputs.automatic_only && '["candidate"]' || '["public","candidate"]') }}
+        exclude:
+          - build: public
             view: automatic
     steps:
       - uses: actions/checkout@v4

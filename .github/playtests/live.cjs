@@ -164,10 +164,9 @@ async function run() {
     assert.equal(overhead,mode==="overhead"||mode==="automatic");
     if(chromebook){
       if(mode==="automatic"){
-        assert(await js("Boolean(document.querySelector('#world').getContext('webgl'))"),"Software WebGL is available");
         await tap("Escape");
         const camera="Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('Camera view'))";
-        assert((await js(camera+".innerText")).includes("software graphics"));
+        assert((await js(camera+".innerText")).includes("hardware-accelerated 3D"));
         await tap("Escape");await waitFor("document.querySelector('#panel').hidden");
       }
       await require("../benchmarks/chromebook.cjs")({js,send,tap,waitFor,mode:overhead?"overhead":"street",asset});

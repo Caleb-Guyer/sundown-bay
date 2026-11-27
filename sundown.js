@@ -847,13 +847,18 @@
   const SUNVERT=LIGHT+`attribute vec3 pos;void main(){gl_Position=vec4(lightClip(pos),1.);}`;
   const SUNFRAG=PRECISION+`void main(){vec2 rg=fract(gl_FragCoord.z*vec2(1.,255.));rg.x-=rg.y/255.;gl_FragColor=vec4(rg,0.,1.);}`;
   class View {
-    constructor(canvas) {
+    constructor(canvas,hardwareOnly=false) {
       this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();this.actors=new Map();
       this.scale=1; this.maxWidth=1180; this.maxHeight=760; this.lost=false;
       try {
-        this.gl=canvas.getContext("webgl",{alpha:true,depth:true,stencil:true,antialias:false,powerPreference:"low-power",preserveDrawingBuffer:false});
+        this.gl=canvas.getContext("webgl",{alpha:true,depth:true,stencil:true,antialias:false,powerPreference:"low-power",preserveDrawingBuffer:false,failIfMajorPerformanceCaveat:hardwareOnly});
+        if(hardwareOnly&&this.gl&&/SwiftShader|llvmpipe|softpipe|Software Rasterizer/i.test(BayFrameCheck.device(this.gl,""))){
+          this.gl.getExtension("WEBGL_lose_context")?.loseContext();this.gl=null;
+        }
         if(this.gl) this.setup();
       } catch { this.gl=null; }
+      this.softwareFallback=hardwareOnly&&!this.gl;
+      if(this.softwareFallback)return;
       canvas.addEventListener("webglcontextlost",e=>{e.preventDefault();this.lost=true;});
       canvas.addEventListener("webglcontextrestored",()=>{this.lost=false;this.models.clear();try{this.setup();for(const [name,data] of this.cpu)this.upload(name,data);}catch{this.gl=null;}});
     }
@@ -74764,11 +74769,14 @@ window.buildBayCity = function buildBayCity(g,water) {
   };
   const deltaText=d=>Math.abs(d)<.005?"Level with best":Math.abs(d).toFixed(2)+" s "+(d<0?"ahead":"behind");
   const course=BayBeachDash.gates;
-  const view=new BayView($("world"));
   const hardware=globalThis.navigator;
   const smallDevice=hardware?.hardwareConcurrency>0&&hardware.hardwareConcurrency<=2&&
     (hardware.deviceMemory===undefined||hardware.deviceMemory<=4);
-  const softwareOverhead=smallDevice&&!!view.gl&&/SwiftShader|llvmpipe|softpipe|Software Rasterizer/i.test(BayFrameCheck.device(view.gl,hardware.userAgent||""));
+  let cameraPrefs={};
+  try{cameraPrefs=JSON.parse(localStorage.getItem("sundownBay.camera")||"{}")||{};}catch{}
+  const explicitStreet=cameraPrefs.overhead===false&&cameraPrefs.automaticView!==true;
+  const view=new BayView($("world"),!!smallDevice&&!explicitStreet);
+  const softwareOverhead=view.softwareFallback;
   if(softwareOverhead){
     // When WebGL itself runs on the CPU, keep the 2D street and its source
     // sheets in CPU memory too. Copying them through software GL is expensive.
@@ -75338,7 +75346,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   let automaticView=true;
   manualTop=!!softwareOverhead;
   try{
-    const prefs=JSON.parse(localStorage.getItem("sundownBay.camera")||"{}");
+    const prefs=cameraPrefs;
     if(Number.isFinite(prefs.zoom))cameraRig.zoom=clamp(prefs.zoom,.68,1.65);
     if([.72,1,1.38].includes(prefs.sensitivity))cameraRig.sensitivity=prefs.sensitivity;
     automaticView=prefs.automaticView===true||typeof prefs.overhead!=="boolean";
@@ -88831,7 +88839,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(halfMoon.stage===5)moonBoard(b,BayTransit.stops[0]);
       if(campaign.book.trips)b.append(makeButton("Room Tone",campaign.book.cut?"Sol FM master · "+BayRoomTone.lines[campaign.book.cut.who][0]+". Tune 88.3 in a car, or return to cut another edition.":"Mara has her field reel under the lid of the Sol FM case.","Locate van",()=>{closePanel();clockPin({...BayRoomTone.site});}));
       const autoOverhead=automaticView&&softwareOverhead;
-      const gfx=makeButton("Camera view",!view.gl||view.lost?"Lightweight overhead rendering is active.":autoOverhead?"Overhead is active because the browser uses software graphics. Select Street to try 3D.":"Third-person street view or the overhead map.",isTop()?"Overhead":"Street",()=>{automaticView=false;manualTop=!manualTop;if(manualTop)motos.cockpit=false;saveCamera();openPanel("pause",true);});gfx.disabled=!view.gl||view.lost;
+      const gfx=makeButton("Camera view",autoOverhead?"Overhead is active because the browser has no hardware-accelerated 3D.":!view.gl||view.lost?"Lightweight overhead rendering is active.":"Third-person street view or the overhead map.",isTop()?"Overhead":"Street",()=>{automaticView=false;manualTop=!manualTop;if(manualTop)motos.cockpit=false;saveCamera();openPanel("pause",true);});gfx.disabled=!view.gl||view.lost;
       const assist=makeButton("Driving camera",cameraRig.assist?"Eases toward the road after you look around.":"Holds your mouse direction. Press X to face the road.",cameraRig.assist?"Follow":"Free look",()=>{cameraRig.assist=!cameraRig.assist;saveCamera();openPanel("pause",true);});
       const sensitivity=makeButton("Mouse sensitivity","Adjust horizontal and vertical look speed.",cameraRig.sensitivity<1?"Low":cameraRig.sensitivity>1?"High":"Normal",()=>{cameraRig.sensitivity=cameraRig.sensitivity===1?1.38:(cameraRig.sensitivity>1 ? .72 : 1);saveCamera();openPanel("pause",true);});
       b.append(gfx,assist,sensitivity);

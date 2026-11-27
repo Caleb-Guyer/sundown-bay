@@ -846,13 +846,18 @@
   const SUNVERT=LIGHT+`attribute vec3 pos;void main(){gl_Position=vec4(lightClip(pos),1.);}`;
   const SUNFRAG=PRECISION+`void main(){vec2 rg=fract(gl_FragCoord.z*vec2(1.,255.));rg.x-=rg.y/255.;gl_FragColor=vec4(rg,0.,1.);}`;
   class View {
-    constructor(canvas) {
+    constructor(canvas,hardwareOnly=false) {
       this.canvas=canvas; this.gl=null; this.models=new Map(); this.cpu=new Map(); this.animated=new Set();this.actors=new Map();
       this.scale=1; this.maxWidth=1180; this.maxHeight=760; this.lost=false;
       try {
-        this.gl=canvas.getContext("webgl",{alpha:true,depth:true,stencil:true,antialias:false,powerPreference:"low-power",preserveDrawingBuffer:false});
+        this.gl=canvas.getContext("webgl",{alpha:true,depth:true,stencil:true,antialias:false,powerPreference:"low-power",preserveDrawingBuffer:false,failIfMajorPerformanceCaveat:hardwareOnly});
+        if(hardwareOnly&&this.gl&&/SwiftShader|llvmpipe|softpipe|Software Rasterizer/i.test(BayFrameCheck.device(this.gl,""))){
+          this.gl.getExtension("WEBGL_lose_context")?.loseContext();this.gl=null;
+        }
         if(this.gl) this.setup();
       } catch { this.gl=null; }
+      this.softwareFallback=hardwareOnly&&!this.gl;
+      if(this.softwareFallback)return;
       canvas.addEventListener("webglcontextlost",e=>{e.preventDefault();this.lost=true;});
       canvas.addEventListener("webglcontextrestored",()=>{this.lost=false;this.models.clear();try{this.setup();for(const [name,data] of this.cpu)this.upload(name,data);}catch{this.gl=null;}});
     }

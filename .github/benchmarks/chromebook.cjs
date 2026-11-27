@@ -13,6 +13,27 @@ module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
   await waitFor("Boolean(walkTest.hero&&walkTest.beat&&walkTest.rig)");
   // Start beside the Marlin. Only movement keys move the walker during timing.
   await js("Object.assign(walkTest.hero,{x:162.8,z:-42});walkTest.rig.reset(walkTest.hero);true");
+  if(process.argv[2]==="automatic"){
+    await js(`(async()=>{
+      const game=document.getElementById("game"),paint=drawBayMap,rows=[];
+      for(const stage of ["street","skip paint","hide layers"]){
+        let mapMs=0,frames=0;
+        window.drawBayMap=(ctx,state)=>{
+          if(stage!=="street")return;
+          const start=performance.now();try{return paint(ctx,state);}finally{mapMs+=performance.now()-start;}
+        };
+        game.style.visibility=stage==="hide layers"?"hidden":"";
+        const start=performance.now();
+        await new Promise(done=>requestAnimationFrame(function sample(t){
+          frames++;if(t-start>1800)done();else requestAnimationFrame(sample);
+        }));
+        const ms=performance.now()-start;rows.push({stage,hz:frames*1000/ms,paintMs:mapMs/frames});
+      }
+      game.style.visibility="";window.drawBayMap=paint;walkTest.diagnosis=rows;
+    })();true`);
+    await waitFor("Boolean(walkTest.diagnosis)",30000);
+    console.log("PERF software map diagnosis",JSON.stringify(await js("walkTest.diagnosis")));
+  }
   await tap("Escape");
   await js("Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('One-minute frame check')).click()");
   await waitFor("document.getElementById('panel').hidden");
