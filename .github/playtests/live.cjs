@@ -60,7 +60,8 @@ async function run() {
   const root=path.resolve(__dirname,"../..",(compare||chromebook)&&process.argv.includes("--baseline")?"baseline-release":".");
   const html = fs.readFileSync(path.join(root,"index.html"), "utf8");
   const asset = html.match(/<script src="(sundown\.js\?v=[a-f0-9]+)"/)[1];
-  const server = !compare&&!chromebook&&await liveRelease(html,45000) ? null : await serveCheckout(html,root);
+  const published=process.env.GITHUB_REF_NAME==="main";
+  const server = published&&!compare&&!chromebook&&await liveRelease(html,45000) ? null : await serveCheckout(html,root);
   const site = server ? "http://127.0.0.1:" + server.address().port + "/" : publicSite;
   console.log("Playtesting " + (server ? "runner checkout" : "GitHub Pages") + " · " + asset);
   const profile = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP, "bay-wire-"));
@@ -188,7 +189,7 @@ async function run() {
     if(halfMoon){
       await require("./half-moon.cjs")({js,send,waitFor,tap,key,mode});
       assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
-      assert(await liveRelease(html,180000),"Half Moon build did not reach Pages");
+      if(published)assert(await liveRelease(html,180000),"Half Moon build did not reach Pages");
       console.log("PASS Half Moon",mode,"dive, drawer handoff and pocket transfer after reload. No audio starts or pointer capture.");
       return;
     }
@@ -220,7 +221,7 @@ async function run() {
     assert.equal(await js("!!document.pointerLockElement"), false);
     assert.equal(await js("audioStarts"), 0);
     assert.equal(await js("cursorRequests"), mouseLook?2:0);
-    if(server){
+    if(server&&published){
       console.log("Verified runner checkout " + asset);
       // The short mouse test can finish while Pages is still deploying this commit.
       assert(await liveRelease(html,180000),"Pages has not published the tested release");
@@ -228,7 +229,7 @@ async function run() {
       assert(response.ok);
       assert(fs.readFileSync(path.join(__dirname,"../../sundown.js")).equals(Buffer.from(await response.arrayBuffer())));
     }
-    console.log("Verified public bundle " + asset);
+    console.log((published?"Verified public bundle ":"Verified branch bundle ") + asset);
   } finally {
     server?.close();
     if (chrome.exitCode === null) chrome.kill();

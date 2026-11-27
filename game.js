@@ -14529,7 +14529,7 @@
   const overheadQuality={scale:smallDevice ? .62 : 1,compact:!!smallDevice};
   class SceneResolution {
     constructor(target,floor,adaptiveWidth=false){this.target=target;this.floor=floor;this.adaptiveWidth=adaptiveWidth;this.reset();}
-    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;this.detailTime=0;}
+    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;this.detailTime=0;this.roughWindows=0;}
     sample(seconds){
       if(!(seconds>0)||seconds>2){this.reset();return;}
       // Judge a stretch of play. An occasional upload or texture decode should
@@ -14538,20 +14538,24 @@
       if(seconds>1/28)this.late++;
       if(this.time<1.25)return;
       const mean=this.time/this.frames,late=this.late/this.frames,scale=this.target.scale;
+      // A run of 50 ms frames is visible in a turn even when most other frames
+      // take 16.7 ms. Require two rough windows so one upload won't resize it.
+      this.roughWindows=late>.055&&this.late>=3?this.roughWindows+1:0;
       if(scale<=.66&&late>=.2){
         this.detailTime+=this.time;
         if(this.detailTime>=2.5)this.target.compact=true;
       }else this.detailTime=0;
-      if(mean>1/28&&late>=.4&&scale>this.floor){
+      if((mean>1/28&&late>=.4||this.roughWindows>=2)&&scale>this.floor){
         const step=mean>1/21?.14:.08;
         this.target.scale=Math.max(this.floor,Math.round((scale-step)*100)/100);
+        this.roughWindows=0;
       }
       const width=this.target.widthScale??1;
       if(this.adaptiveWidth&&scale===this.floor&&mean>1/25&&late>=.55){
         this.slowTime+=this.time;
         if(this.slowTime>=2.5){this.target.widthScale=width>.84?.84:.72;this.slowTime=0;}
       }else this.slowTime=0;
-      this.headroom=mean<1/43&&late<.08?this.headroom+this.time:0;
+      this.headroom=mean<1/43&&late<.025?this.headroom+this.time:0;
       if(this.headroom>=6&&(width<1||scale<1)){
         if(width<1)this.target.widthScale=width<.84?.84:1;
         else this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);
