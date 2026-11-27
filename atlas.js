@@ -964,7 +964,7 @@
     if(opt.motos&&(!atlas||!opt.marina?.bayChart&&!opt.countyChart))BayCoastCamera.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.engineCompany){
       const e=opt.engineCompany,house=BayEngineSeven.house;
-      if(street&&visible(px(house.x),py(house.z),s*10))BayEngineHouseArt.overhead(ctx,px,py,s,house,streetTime,e.phase!=="standby",e.bayLamp);
+      if(street&&visible(px(house.x),py(house.z),s*10))BayEngineHouseArt.overhead(ctx,px,py,s,house,streetTime,e.phase!=="standby",e.bayLamp,opt.lowDetail);
       if(atlas){disc(ctx,px(house.x),py(house.z),3.3*ui,"#aa4c3e");ctx.save();ctx.fillStyle="#633e32";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.textAlign="center";ctx.fillText("STN 7",px(house.x),py(house.z)-5*ui);ctx.restore();}
       for(const place of BayEngineSeven.calls){
         const live=place===e.call&&e.burning;

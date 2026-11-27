@@ -20,6 +20,10 @@ module.exports=function compareStreetScenery(){
     results.push({name,scale,bearing,ink:Math.round(ink),overlap:shared/union,error:error/(3*ink),from:old.calls,to:now.calls});
   }
   for(const [scale,bearing,open] of [[4,.35,false],[9,-1.1,true]]){
+    for(const lamp of [0,1,2]){
+      const house=BayEngineSeven.house;
+      compare("Station Seven lamp "+lamp,scale,bearing,(c,lowDetail)=>BayEngineHouseArt.overhead(c,x=>(x-house.x)*scale,z=>(house.z-z)*scale,scale,house,0,open,lamp,lowDetail));
+    }
     const station={mode:"street",player:open?BayBrisas.site.nico:{x:100,z:15},brisas:{lights:open?[1,0,1]:[]}};
     compare("Brisas",scale,bearing,(c,lowDetail)=>BayBrisas.map(c,{...station,lowDetail},x=>(x-120)*scale,z=>(57-z)*scale,scale,()=>true));
     const service={completed:open?3:0,mags:{id:"mags",x:173.8,z:106.07,yaw:0,phase:"punch",phaseAge:open?1.44:.07},people:[]};

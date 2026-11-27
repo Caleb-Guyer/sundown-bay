@@ -23,12 +23,7 @@
     colors.forEach((s,i)=>g.addColorStop(i/(colors.length-1),s));return g;
   }
   /* A bent coconut palm. Each frond carries staggered lance-shaped leaflets. */
-  function palm(c,x,ground,length,bend,color,lit){
-    const cx=x+bend,cy=ground-length,s=length/97;
-    c.save();c.translate(cx,cy);c.scale(s,s);
-    const b=bend/s;
-    path(c,[-b-3.7,97,-b+2,65,-b*.45,28,-1,0,1.5,.4,-b*.42+2,30,-b+7,65,-b+5,97],color);
-    if(lit)path(c,[-b+3,94,-b+4,66,-b*.38+1,31,.7,4],lit,1);
+  function fronds(c,color){
     for(const [dx,dy,lift] of [[-40,14,27],[-34,-1,23],[-18,-11,14],[7,-13,12],[30,-7,21],[43,10,24],[25,25,16],[-16,28,17]]){
       const points=[];
       for(let j=0;j<=9;j++){
@@ -41,7 +36,18 @@
         path(c,[px,py,px+sign*leaf*.58,py+leaf*.40,px+sign*leaf,py+leaf*1.27,px+sign*2,py+3],color);
       }
     }
-    c.restore();
+  }
+  const crowns=new Map();
+  function printedFronds(c,color){
+    let crown=crowns.get(color);
+    if(!crown){crown=BayMapSheet(-52,-29,107,68,1,ink=>fronds(ink,color));crowns.set(color,crown);}
+    crown(c);
+  }
+  function palm(c,x,ground,length,bend,color,drawFronds){
+    const s=length/97,b=bend/s;
+    c.save();c.translate(x+bend,ground-length);c.scale(s,s);
+    path(c,[-b-3.7,97,-b+2,65,-b*.45,28,-1,0,1.5,.4,-b*.42+2,30,-b+7,65,-b+5,97],color);
+    drawFronds(c,color);c.restore();
   }
   function wheel(c,x,y,theta){
     oval(c,x,y,14.2,14.2,"#34383c");oval(c,x,y,10.6,10.6,"#c5ab82");oval(c,x,y,8.7,8.7,"#485354");
@@ -98,11 +104,11 @@
     path(c,[-46,-7,51,-7],"#ece1b3",1.7);path(c,[43,-31,44,-35,49,-36],"#d6ceb0",1.3);
     oval(c,49,-36,3.1,1.6,"#797f75");c.restore();
   }
-  function motelier(c,t){
+  function motelier(c,t,drawFronds){
     const pan=t*3.5;
     rect(c,-3,-3,422,242,wash(c,-2,120,["#a59bac","#e7aa9b","#f4c593"]));
     oval(c,342-pan*.26,69,23,23,"#f6cf9a");
-    for(let i=0;i<6;i++)palm(c,14+i*86-pan*.5,124,52+i%3*9,i%2?9:-6,"#9c8e85");
+    for(let i=0;i<6;i++)palm(c,14+i*86-pan*.5,124,52+i%3*9,i%2?9:-6,"#9c8e85",drawFronds);
     rect(c,0,143,416,92,wash(c,143,236,["#caac89","#b28e77","#987b73"]));
     c.save();c.translate(-pan,0);
     // A shallow sawtooth gallery and turquoise room doors cut across the coral stucco.
@@ -152,7 +158,7 @@
       path(c,[19,58,88,58],"#fff0bf",1);letter(c,"1983",95,61,"bold 10px","#fff0bf",sans);c.restore();
     }
   }
-  function ocean(c,t){
+  function ocean(c,t,drawFronds){
     rect(c,-3,-3,422,242,wash(c,0,130,["#828ca4","#d59d94","#f5c68e"]));
     oval(c,292-t*1.4,84,29,29,"#ffda9d");
     for(let i=0;i<8;i++){
@@ -174,7 +180,7 @@
       const x=wrap(i*110-t*14,550)-52;
       path(c,[x-25,149,x-13,146,x-5,146,x-1,144,x+9,148,x+21,147,x+28,151,x+38,152,x+40,155,x-26,155],"#a09d82");
     }
-    for(let i=0;i<3;i++){const x=wrap(i*181+94-t*21,543)-50;palm(c,x,152,82+i%2*11,i%2?15:-11,"#6c8178");}
+    for(let i=0;i<3;i++){const x=wrap(i*181+94-t*21,543)-50;palm(c,x,152,82+i%2*11,i%2?15:-11,"#6c8178",drawFronds);}
     rect(c,0,157,416,78,wash(c,157,234,["#908a85","#8b827e","#837679"]));
     path(c,[0,156,416,156],"#ddbd94",3);path(c,[0,162,416,162],"#af9983",2);
     for(let j=0;j<6;j++){const x=wrap(j*106-t*71,636)-105;
@@ -207,10 +213,10 @@
     path(c,[-5,-12,5,-12],"#646e64",1.2);
     path(c,[-55,-10,-48,-7,46,-7,55,-10],"#d1c9a8",3.5);c.restore();
   }
-  function starlite(c,t){
+  function starlite(c,t,drawFronds){
     rect(c,-3,-3,422,242,wash(c,0,136,["#565674","#9c7c88","#d69d86"]));
     for(const [x,y]of [[22,22],[71,12],[123,33],[175,16],[350,23],[396,39],[97,55]])oval(c,x,y,.8,.8,"#dfc8ae");
-    for(let i=0;i<8;i++)palm(c,i*61-13,126,48+i%3*13,i%2?8:-4,"#646c70");
+    for(let i=0;i<8;i++)palm(c,i*61-13,126,48+i%3*13,i%2?8:-4,"#646c70",drawFronds);
     path(c,[0,110,30,107,58,109,93,105,146,109,188,104,235,109,295,100,340,106,377,100,416,106,416,134,0,134],"#515d60");
     rect(c,0,126,416,110,wash(c,126,235,["#937f77","#796d6c","#5d5962"]));
     const sx=247,sy=41,sw=138,sh=72;
@@ -222,7 +228,7 @@
     rect(c,sx,sy+sh*.60,sw,sh*.4,"#96aaa1");
     for(let i=0;i<9;i++){const x=sx+wrap(i*36-t*2,155)-13,y=sy+sh*.62+(i%4)*4;path(c,[x,y,x+16,y],"#d6d5b5",1);}
     path(c,[sx-2,sy+sh-3,sx+23,sy+sh-11,sx+61,sy+sh-6,sx+74,sy+sh,sx-2,sy+sh],"#8d9a88");
-    palm(c,sx+19-t*.6,sy+sh-8,34,5,"#7a9289");
+    palm(c,sx+19-t*.6,sy+sh-8,34,5,"#7a9289",drawFronds);
     for(let i=0;i<3;i++){const x=sx+70+i*13+t*1.7,y=sy+17-i*2+Math.sin(t*2+i);
       path(c,[x-4,y-1,x,y+.5,x+3,y-2],"#8f9b92",.9);}
     c.restore();
@@ -262,7 +268,8 @@
     const c=canvas.getContext("2d");if(!c)return false;
     const t=wrap(Number.isFinite(elapsedSeconds)?elapsedSeconds:0,16),frame=Math.floor(t*16);
     c.save();c.setTransform(width/w,0,0,height/h,0,0);c.globalAlpha=1;c.lineCap="round";c.lineJoin="round";
-    if(t<5.15)motelier(c,t);else if(t<10.5)ocean(c,t-5.15);else starlite(c,t-10.5);
+    const drawFronds=width<w&&window.BayMapSheet?printedFronds:fronds;
+    if(t<5.15)motelier(c,t,drawFronds);else if(t<10.5)ocean(c,t-5.15,drawFronds);else starlite(c,t-10.5,drawFronds);
     // Sparse emulsion specks stay under one film pixel; neither grain nor cuts flash the screen.
     let seed=frame+8127;
     for(let i=0;i<36;i++){

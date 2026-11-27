@@ -7,6 +7,24 @@ for(const file of JSON.parse(fs.readFileSync(path.join(root,"index.html"),"utf8"
   const code=fs.readFileSync(path.join(root,file),"utf8");
   vm.runInThisContext(file==="render.js"?code.replace("window.BayView=View;","window.BayView=View;window.CityIndicesForTest=CityIndexList;"):code,{filename:file});
 }
+{
+  const grid=new BayLaneSpace(),cars=[];
+  for(let z=-120;z<=120;z+=22)for(let x=-120;x<=120;x+=19)cars.push({x,z});
+  grid.rebuild(cars,[],null);
+  let probes=0,candidates=0;
+  for(const car of cars){
+    const old=grid.key(car);
+    car.x+=26;car.z-=25;grid.moved(car,old);
+    for(const offset of [-11,0,11]){
+      const x=car.x+offset,z=car.z-offset;
+      const close=v=>Math.abs(v.x-x)<=11&&Math.abs(v.z-z)<=11;
+      const nearby=grid.carsNear(x,z,11);
+      assert.deepEqual(new Set(nearby.filter(close)),new Set(cars.filter(close)));
+      candidates+=nearby.length;probes++;
+    }
+  }
+  console.log("PASS traffic swerve candidates matched the fleet across cell edges",probes,"probes, average",Math.round(candidates/probes),"of",cars.length);
+}
 let bound,actual=0,full=0,drawn=0;
 const gl={ARRAY_BUFFER:1,ELEMENT_ARRAY_BUFFER:2,UNSIGNED_INT:4,UNSIGNED_SHORT:2,
   createBuffer:()=>({}),bindBuffer(target,b){bound=b;},

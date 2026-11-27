@@ -4,6 +4,14 @@ module.exports=function driveInProjection(){
     const w=Math.ceil(displayed),h=Math.round(displayed*.37);
     const outputs=[0,1].map(()=>new OffscreenCanvas(w,h).getContext("2d",{willReadFrequently:true}));
     const projectors=[new BayStarlite.Theatre(),new BayStarlite.Theatre()],times=[[],[]];
+    const paths=[0,0];
+    projectors.forEach((p,i)=>{
+      p.canvas=document.createElement("canvas");
+      const c=p.canvas.getContext("2d");
+      for(const method of ["fill","stroke"]){
+        const draw=c[method];c[method]=function(...args){paths[i]++;return draw.apply(this,args);};
+      }
+    });
     let error=0,channels=0,distinct=0,previous=null;
     for(let i=0;i<36;i++){
       const frames=[];
@@ -20,7 +28,7 @@ module.exports=function driveInProjection(){
     const p=projectors[1],widths=projectors.map(t=>t.canvas.width),version=p.version;
     p.frame({},"coast",displayed);const reused=p.version===version;
     p.visit={bay:2};const seated=p.frame({},"coast",displayed).width;
-    results.push({displayed,widths,seated,reused,distinct,meanError:error/channels,ms:times.map(a=>{
+    results.push({displayed,widths,seated,reused,distinct,paths,meanError:error/channels,ms:times.map(a=>{
       a.sort((x,y)=>x-y);return [a[a.length>>1],a[Math.floor(a.length*.95)]];})});
   }
   return results;

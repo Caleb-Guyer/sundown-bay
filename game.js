@@ -2741,6 +2741,7 @@
     if(c.water)BayEngineSceneArt.water(list,model,c.water.from,c.water.to,t);
   }
 
+  const busTraffic=[transit.bus],bikeLeaders=[cars,busTraffic,motos.all],bikeObstacles=[cars,motos.all,busTraffic,patrol];
   const motoEnv={
     hero,site:studio,floor:footLevel,say:speak,save:persist,
     change(){lastHud=lastMap=-10;},
@@ -2786,15 +2787,16 @@
           if(along>-.65&&along<13&&Math.abs(side)<2.9)return side<-.12?2.85:-2.85;
         }
       }
-      for(const v of cars.concat(transit.bus,motos.all)){if(b===v||dist(v,b)>15)continue;
-        const along=(v.x-b.x)*-rightZ+(v.z-b.z)*rightX,side=(v.x-probe.x)*rightX+(v.z-probe.z)*rightZ;
+      for(const group of bikeLeaders)for(const v of group){
+        const dx=v.x-b.x,dz=v.z-b.z;if(b===v||dx*dx+dz*dz>225)continue;
+        const along=dx*-rightZ+dz*rightX,side=(v.x-probe.x)*rightX+(v.z-probe.z)*rightZ;
         if(along>-.4&&along<11&&Math.abs(side)<2.25)return side<-.12?2.23:-2.23;
       }return 0;
     },
     obstacle(b,q){
       if(boatTrailerBlocks(q,b))return "trailer";
       if(!fitsCar(b,q.x,q.z,q.yaw)||BaySwimming.water(q.x,q.z)&&!(q.z>181&&BayCut.land(q.x,q.z,.35)))return "curb";
-      for(const v of cars.concat(motos.all,transit.bus,patrol)){
+      for(const group of bikeObstacles)for(const v of group){
         if(v===b||Math.abs(q.x-v.x)>7||Math.abs(q.z-v.z)>7)continue;
         const hit=BayDriving.contact(q,v);if(!hit)continue;
         const before=BayDriving.contact(b,v);if(!before||hit.depth>before.depth+.00001)return v;
@@ -8861,7 +8863,8 @@
     if(boatTrailerBlocks(probe,v))return false;
     if(dist(probe,transit.bus)<8&&BayDriving.contact(probe,transit.bus)||motos.all.some(b=>dist(probe,b)<5&&BayDriving.contact(probe,b)))return false;
     if(backup.roadblock?.units.some(u=>BayDriving.contact(probe,u)))return false;
-    for(const other of cars){
+    const nearby=indexedTraffic?laneSpace.carsNear(x,z,11):cars;
+    for(const other of nearby){
       if(other===v||(other===car&&!checkPlayer)||Math.abs(other.x-x)>11||Math.abs(other.z-z)>11)continue;
       const travel=other.path?other.speed*ahead:0;
       const at=travel?{kind:other.kind,x:other.x+Math.sin(other.yaw)*travel,z:other.z+Math.cos(other.yaw)*travel,yaw:other.yaw}:other;
@@ -8925,6 +8928,7 @@
   }
   let nextJunctionScan=-1;
   const laneSpace=new BayLaneSpace();
+  let indexedTraffic=false;
   function slideClear(v,x,z,yaw){
     if(!fitsCar(v,x,z,yaw))return false;
     const next={kind:v.kind,x,z,yaw};
@@ -8955,6 +8959,7 @@
       const p=homeWalk.jules;laneSpace.cell(laneSpace.key(p)).walkers.push(p);
     }
     let previous=null,previousCell;
+    indexedTraffic=true;
     for(const v of cars){
       // Later drivers must see the final position of the preceding vehicle,
       // including a sliding or reversing car that crossed a cell boundary.
@@ -9119,6 +9124,7 @@
       }
       if(response&&!evading&&Math.abs(offset)<.09)v.reaction=null;
     }
+    indexedTraffic=false;
     if(roadDrivers.size)stepRoadDrivers(dt);
     if(play){
       owners.step(dt,motorEnv);

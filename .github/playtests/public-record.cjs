@@ -180,6 +180,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       console.log("PERF drive-by projection",JSON.stringify(projection));
       for(const p of projection){
         assert.deepEqual(p.widths,[416,p.displayed===48?144:208]);assert.equal(p.seated,416);
+        assert(p.paths[1]<p.paths[0]*.65,"Distant palm geometry "+JSON.stringify(p.paths));
         assert(p.reused&&p.distinct===35&&p.meanError<12,"Roadside projection "+JSON.stringify(p));
       }
       const lamps=await js("("+require("./traffic-prints.cjs").toString()+")()");

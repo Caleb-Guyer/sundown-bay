@@ -1418,7 +1418,7 @@
   // Moving traffic uses its own grid. A driver only needs the thin strip of
   // road from its bumper to its stopping horizon, including on diagonal bends.
   class LaneSpace {
-    constructor(){this.cells=new Map();this.used=[];}
+    constructor(){this.cells=new Map();this.used=[];this.nearbyCars=[];}
     direction(v,from,to){
       const dx=to.x-from.x,dz=to.z-from.z,d=v.roadTangent??={};
       if(dx!==d.dx||dz!==d.dz){
@@ -1444,6 +1444,16 @@
       const key=this.key(car);if(key===from)return;
       const cars=this.cells.get(from).cars;
       cars.splice(cars.indexOf(car),1);this.cell(key).cars.push(car);
+    }
+    carsNear(x,z,radius){
+      // This list is consumed synchronously before the next traffic probe.
+      const nearby=this.nearbyCars;nearby.length=0;
+      const right=Math.floor((x+radius)/24),north=Math.floor((z+radius)/24);
+      for(let i=Math.floor((x-radius)/24);i<=right;i++)for(let j=Math.floor((z-radius)/24);j<=north;j++){
+        const cell=this.cells.get(i*65536+j);
+        if(cell)for(const v of cell.cars)nearby.push(v);
+      }
+      return nearby;
     }
     ahead(v,ux,uz,driver,skip){
       const endX=v.x+20*ux,endZ=v.z+20*uz;
@@ -16129,7 +16139,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(opt.motos&&(!atlas||!opt.marina?.bayChart&&!opt.countyChart))BayCoastCamera.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.engineCompany){
       const e=opt.engineCompany,house=BayEngineSeven.house;
-      if(street&&visible(px(house.x),py(house.z),s*10))BayEngineHouseArt.overhead(ctx,px,py,s,house,streetTime,e.phase!=="standby",e.bayLamp);
+      if(street&&visible(px(house.x),py(house.z),s*10))BayEngineHouseArt.overhead(ctx,px,py,s,house,streetTime,e.phase!=="standby",e.bayLamp,opt.lowDetail);
       if(atlas){disc(ctx,px(house.x),py(house.z),3.3*ui,"#aa4c3e");ctx.save();ctx.fillStyle="#633e32";ctx.font="bold "+Math.round(9*ui)+"px sans-serif";ctx.textAlign="center";ctx.fillText("STN 7",px(house.x),py(house.z)-5*ui);ctx.restore();}
       for(const place of BayEngineSeven.calls){
         const live=place===e.call&&e.burning;
@@ -67319,12 +67329,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     colors.forEach((s,i)=>g.addColorStop(i/(colors.length-1),s));return g;
   }
   /* A bent coconut palm. Each frond carries staggered lance-shaped leaflets. */
-  function palm(c,x,ground,length,bend,color,lit){
-    const cx=x+bend,cy=ground-length,s=length/97;
-    c.save();c.translate(cx,cy);c.scale(s,s);
-    const b=bend/s;
-    path(c,[-b-3.7,97,-b+2,65,-b*.45,28,-1,0,1.5,.4,-b*.42+2,30,-b+7,65,-b+5,97],color);
-    if(lit)path(c,[-b+3,94,-b+4,66,-b*.38+1,31,.7,4],lit,1);
+  function fronds(c,color){
     for(const [dx,dy,lift] of [[-40,14,27],[-34,-1,23],[-18,-11,14],[7,-13,12],[30,-7,21],[43,10,24],[25,25,16],[-16,28,17]]){
       const points=[];
       for(let j=0;j<=9;j++){
@@ -67337,7 +67342,18 @@ window.buildBayCity = function buildBayCity(g,water) {
         path(c,[px,py,px+sign*leaf*.58,py+leaf*.40,px+sign*leaf,py+leaf*1.27,px+sign*2,py+3],color);
       }
     }
-    c.restore();
+  }
+  const crowns=new Map();
+  function printedFronds(c,color){
+    let crown=crowns.get(color);
+    if(!crown){crown=BayMapSheet(-52,-29,107,68,1,ink=>fronds(ink,color));crowns.set(color,crown);}
+    crown(c);
+  }
+  function palm(c,x,ground,length,bend,color,drawFronds){
+    const s=length/97,b=bend/s;
+    c.save();c.translate(x+bend,ground-length);c.scale(s,s);
+    path(c,[-b-3.7,97,-b+2,65,-b*.45,28,-1,0,1.5,.4,-b*.42+2,30,-b+7,65,-b+5,97],color);
+    drawFronds(c,color);c.restore();
   }
   function wheel(c,x,y,theta){
     oval(c,x,y,14.2,14.2,"#34383c");oval(c,x,y,10.6,10.6,"#c5ab82");oval(c,x,y,8.7,8.7,"#485354");
@@ -67394,11 +67410,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     path(c,[-46,-7,51,-7],"#ece1b3",1.7);path(c,[43,-31,44,-35,49,-36],"#d6ceb0",1.3);
     oval(c,49,-36,3.1,1.6,"#797f75");c.restore();
   }
-  function motelier(c,t){
+  function motelier(c,t,drawFronds){
     const pan=t*3.5;
     rect(c,-3,-3,422,242,wash(c,-2,120,["#a59bac","#e7aa9b","#f4c593"]));
     oval(c,342-pan*.26,69,23,23,"#f6cf9a");
-    for(let i=0;i<6;i++)palm(c,14+i*86-pan*.5,124,52+i%3*9,i%2?9:-6,"#9c8e85");
+    for(let i=0;i<6;i++)palm(c,14+i*86-pan*.5,124,52+i%3*9,i%2?9:-6,"#9c8e85",drawFronds);
     rect(c,0,143,416,92,wash(c,143,236,["#caac89","#b28e77","#987b73"]));
     c.save();c.translate(-pan,0);
     // A shallow sawtooth gallery and turquoise room doors cut across the coral stucco.
@@ -67448,7 +67464,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       path(c,[19,58,88,58],"#fff0bf",1);letter(c,"1983",95,61,"bold 10px","#fff0bf",sans);c.restore();
     }
   }
-  function ocean(c,t){
+  function ocean(c,t,drawFronds){
     rect(c,-3,-3,422,242,wash(c,0,130,["#828ca4","#d59d94","#f5c68e"]));
     oval(c,292-t*1.4,84,29,29,"#ffda9d");
     for(let i=0;i<8;i++){
@@ -67470,7 +67486,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const x=wrap(i*110-t*14,550)-52;
       path(c,[x-25,149,x-13,146,x-5,146,x-1,144,x+9,148,x+21,147,x+28,151,x+38,152,x+40,155,x-26,155],"#a09d82");
     }
-    for(let i=0;i<3;i++){const x=wrap(i*181+94-t*21,543)-50;palm(c,x,152,82+i%2*11,i%2?15:-11,"#6c8178");}
+    for(let i=0;i<3;i++){const x=wrap(i*181+94-t*21,543)-50;palm(c,x,152,82+i%2*11,i%2?15:-11,"#6c8178",drawFronds);}
     rect(c,0,157,416,78,wash(c,157,234,["#908a85","#8b827e","#837679"]));
     path(c,[0,156,416,156],"#ddbd94",3);path(c,[0,162,416,162],"#af9983",2);
     for(let j=0;j<6;j++){const x=wrap(j*106-t*71,636)-105;
@@ -67503,10 +67519,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     path(c,[-5,-12,5,-12],"#646e64",1.2);
     path(c,[-55,-10,-48,-7,46,-7,55,-10],"#d1c9a8",3.5);c.restore();
   }
-  function starlite(c,t){
+  function starlite(c,t,drawFronds){
     rect(c,-3,-3,422,242,wash(c,0,136,["#565674","#9c7c88","#d69d86"]));
     for(const [x,y]of [[22,22],[71,12],[123,33],[175,16],[350,23],[396,39],[97,55]])oval(c,x,y,.8,.8,"#dfc8ae");
-    for(let i=0;i<8;i++)palm(c,i*61-13,126,48+i%3*13,i%2?8:-4,"#646c70");
+    for(let i=0;i<8;i++)palm(c,i*61-13,126,48+i%3*13,i%2?8:-4,"#646c70",drawFronds);
     path(c,[0,110,30,107,58,109,93,105,146,109,188,104,235,109,295,100,340,106,377,100,416,106,416,134,0,134],"#515d60");
     rect(c,0,126,416,110,wash(c,126,235,["#937f77","#796d6c","#5d5962"]));
     const sx=247,sy=41,sw=138,sh=72;
@@ -67518,7 +67534,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     rect(c,sx,sy+sh*.60,sw,sh*.4,"#96aaa1");
     for(let i=0;i<9;i++){const x=sx+wrap(i*36-t*2,155)-13,y=sy+sh*.62+(i%4)*4;path(c,[x,y,x+16,y],"#d6d5b5",1);}
     path(c,[sx-2,sy+sh-3,sx+23,sy+sh-11,sx+61,sy+sh-6,sx+74,sy+sh,sx-2,sy+sh],"#8d9a88");
-    palm(c,sx+19-t*.6,sy+sh-8,34,5,"#7a9289");
+    palm(c,sx+19-t*.6,sy+sh-8,34,5,"#7a9289",drawFronds);
     for(let i=0;i<3;i++){const x=sx+70+i*13+t*1.7,y=sy+17-i*2+Math.sin(t*2+i);
       path(c,[x-4,y-1,x,y+.5,x+3,y-2],"#8f9b92",.9);}
     c.restore();
@@ -67558,7 +67574,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     const c=canvas.getContext("2d");if(!c)return false;
     const t=wrap(Number.isFinite(elapsedSeconds)?elapsedSeconds:0,16),frame=Math.floor(t*16);
     c.save();c.setTransform(width/w,0,0,height/h,0,0);c.globalAlpha=1;c.lineCap="round";c.lineJoin="round";
-    if(t<5.15)motelier(c,t);else if(t<10.5)ocean(c,t-5.15);else starlite(c,t-10.5);
+    const drawFronds=width<w&&window.BayMapSheet?printedFronds:fronds;
+    if(t<5.15)motelier(c,t,drawFronds);else if(t<10.5)ocean(c,t-5.15,drawFronds);else starlite(c,t-10.5,drawFronds);
     // Sparse emulsion specks stay under one film pixel; neither grain nor cuts flash the screen.
     let seed=frame+8127;
     for(let i=0;i<36;i++){
@@ -68134,8 +68151,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return [block(-4.27,-2.06,3.82,6.40,3.42),block(-3.76,1.44,2.39,.61,1.12),
       block(3.13,-3,.22,3.56,1.87),...posts.map(([x,z])=>block(x,z,.48,.48,4.02))];
   }
-  function overhead(c,px,py,scale,site,t,away,lamp=0){
-    c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
+  function paintHouse(c){
     const rect=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
     const path=(p,col,w)=>{c.beginPath();c.moveTo(...p[0]);for(let i=1;i<p.length;i++)c.lineTo(...p[i]);c.strokeStyle=col;c.lineWidth=w;c.stroke();};
     rect(-6.38,-3.63,10.01,9.12,"#ac9f87");
@@ -68153,13 +68169,22 @@ window.buildBayCity = function buildBayCity(g,water) {
     rect(-6.02,3.65,.54,.51,shadow);c.fillStyle=green;c.beginPath();c.arc(-5.75,3.93,.24,0,Math.PI*2);c.fill();
     rect(-6.25,-1.37,3.98,.29,rust);rect(-5.73,-1.49,2.93,.18,ivory);rect(-5.06,-1.57,1.59,.13,green);
     rect(-4.98,-1.81,2.43,.40,wood);rect(-3.66,-1.62,.32,.20,paper);
-    rect(-5.79,-1.57,.39,.40,brass);rect(-5.85,-1.85,.72,.18,away?rust:green);
+    rect(-5.79,-1.57,.39,.40,brass);
     c.save();c.translate(-4.2,1.57);c.rotate(-.027);c.strokeStyle="#d2ae85";c.lineWidth=.105;
     for(let i=0;i<=6;i++){const a=(i-3)*.285;c.beginPath();c.moveTo(0,.28);c.lineTo(.63*Math.sin(a),.28-.64*Math.cos(a));c.stroke();}
     c.restore();
     rect(-2.33,-2.90,5.70,.20,green);rect(-1.26,-3.22,3.57,.39,ivory);
-    if(scale>3){c.fillStyle=rust;c.textAlign="center";c.textBaseline="middle";c.font="bold .27px sans-serif";c.fillText("ENGINE 7",.53,-3.015);}
     rect(lampX-.28,-lampZ+.15,.56,.80,iron);
+  }
+  let houseSheet=null;
+  function overhead(c,px,py,scale,site,t,away,lamp=0,lowDetail=false){
+    c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
+    if(lowDetail&&scale<=16){
+      houseSheet??=BayMapSheet(-6.6,-3.9,10.5,9.7,24,paintHouse);
+      houseSheet(c);
+    }else paintHouse(c);
+    c.fillStyle=away?rust:green;c.fillRect(-5.85,-1.85,.72,.18);
+    if(scale>3){c.fillStyle=rust;c.textAlign="center";c.textBaseline="middle";c.font="bold .27px sans-serif";c.fillText("ENGINE 7",.53,-3.015);}
     for(const [offset,col] of [[.37,lamp===1?amber:"#7c6647"],[.74,lamp===2?go:"#4c6759"]]){
       c.fillStyle=col;c.beginPath();c.arc(lampX,-lampZ+offset,.154,0,Math.PI*2);c.fill();
     }
@@ -76004,6 +76029,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(c.water)BayEngineSceneArt.water(list,model,c.water.from,c.water.to,t);
   }
 
+  const busTraffic=[transit.bus],bikeLeaders=[cars,busTraffic,motos.all],bikeObstacles=[cars,motos.all,busTraffic,patrol];
   const motoEnv={
     hero,site:studio,floor:footLevel,say:speak,save:persist,
     change(){lastHud=lastMap=-10;},
@@ -76049,15 +76075,16 @@ window.buildBayCity = function buildBayCity(g,water) {
           if(along>-.65&&along<13&&Math.abs(side)<2.9)return side<-.12?2.85:-2.85;
         }
       }
-      for(const v of cars.concat(transit.bus,motos.all)){if(b===v||dist(v,b)>15)continue;
-        const along=(v.x-b.x)*-rightZ+(v.z-b.z)*rightX,side=(v.x-probe.x)*rightX+(v.z-probe.z)*rightZ;
+      for(const group of bikeLeaders)for(const v of group){
+        const dx=v.x-b.x,dz=v.z-b.z;if(b===v||dx*dx+dz*dz>225)continue;
+        const along=dx*-rightZ+dz*rightX,side=(v.x-probe.x)*rightX+(v.z-probe.z)*rightZ;
         if(along>-.4&&along<11&&Math.abs(side)<2.25)return side<-.12?2.23:-2.23;
       }return 0;
     },
     obstacle(b,q){
       if(boatTrailerBlocks(q,b))return "trailer";
       if(!fitsCar(b,q.x,q.z,q.yaw)||BaySwimming.water(q.x,q.z)&&!(q.z>181&&BayCut.land(q.x,q.z,.35)))return "curb";
-      for(const v of cars.concat(motos.all,transit.bus,patrol)){
+      for(const group of bikeObstacles)for(const v of group){
         if(v===b||Math.abs(q.x-v.x)>7||Math.abs(q.z-v.z)>7)continue;
         const hit=BayDriving.contact(q,v);if(!hit)continue;
         const before=BayDriving.contact(b,v);if(!before||hit.depth>before.depth+.00001)return v;
@@ -82124,7 +82151,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(boatTrailerBlocks(probe,v))return false;
     if(dist(probe,transit.bus)<8&&BayDriving.contact(probe,transit.bus)||motos.all.some(b=>dist(probe,b)<5&&BayDriving.contact(probe,b)))return false;
     if(backup.roadblock?.units.some(u=>BayDriving.contact(probe,u)))return false;
-    for(const other of cars){
+    const nearby=indexedTraffic?laneSpace.carsNear(x,z,11):cars;
+    for(const other of nearby){
       if(other===v||(other===car&&!checkPlayer)||Math.abs(other.x-x)>11||Math.abs(other.z-z)>11)continue;
       const travel=other.path?other.speed*ahead:0;
       const at=travel?{kind:other.kind,x:other.x+Math.sin(other.yaw)*travel,z:other.z+Math.cos(other.yaw)*travel,yaw:other.yaw}:other;
@@ -82188,6 +82216,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   let nextJunctionScan=-1;
   const laneSpace=new BayLaneSpace();
+  let indexedTraffic=false;
   function slideClear(v,x,z,yaw){
     if(!fitsCar(v,x,z,yaw))return false;
     const next={kind:v.kind,x,z,yaw};
@@ -82218,6 +82247,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const p=homeWalk.jules;laneSpace.cell(laneSpace.key(p)).walkers.push(p);
     }
     let previous=null,previousCell;
+    indexedTraffic=true;
     for(const v of cars){
       // Later drivers must see the final position of the preceding vehicle,
       // including a sliding or reversing car that crossed a cell boundary.
@@ -82382,6 +82412,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       if(response&&!evading&&Math.abs(offset)<.09)v.reaction=null;
     }
+    indexedTraffic=false;
     if(roadDrivers.size)stepRoadDrivers(dt);
     if(play){
       owners.step(dt,motorEnv);

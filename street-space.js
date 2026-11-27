@@ -17,7 +17,7 @@
   // Moving traffic uses its own grid. A driver only needs the thin strip of
   // road from its bumper to its stopping horizon, including on diagonal bends.
   class LaneSpace {
-    constructor(){this.cells=new Map();this.used=[];}
+    constructor(){this.cells=new Map();this.used=[];this.nearbyCars=[];}
     direction(v,from,to){
       const dx=to.x-from.x,dz=to.z-from.z,d=v.roadTangent??={};
       if(dx!==d.dx||dz!==d.dz){
@@ -43,6 +43,16 @@
       const key=this.key(car);if(key===from)return;
       const cars=this.cells.get(from).cars;
       cars.splice(cars.indexOf(car),1);this.cell(key).cars.push(car);
+    }
+    carsNear(x,z,radius){
+      // This list is consumed synchronously before the next traffic probe.
+      const nearby=this.nearbyCars;nearby.length=0;
+      const right=Math.floor((x+radius)/24),north=Math.floor((z+radius)/24);
+      for(let i=Math.floor((x-radius)/24);i<=right;i++)for(let j=Math.floor((z-radius)/24);j<=north;j++){
+        const cell=this.cells.get(i*65536+j);
+        if(cell)for(const v of cell.cars)nearby.push(v);
+      }
+      return nearby;
     }
     ahead(v,ux,uz,driver,skip){
       const endX=v.x+20*ux,endZ=v.z+20*uz;

@@ -190,8 +190,7 @@
     return [block(-4.27,-2.06,3.82,6.40,3.42),block(-3.76,1.44,2.39,.61,1.12),
       block(3.13,-3,.22,3.56,1.87),...posts.map(([x,z])=>block(x,z,.48,.48,4.02))];
   }
-  function overhead(c,px,py,scale,site,t,away,lamp=0){
-    c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
+  function paintHouse(c){
     const rect=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
     const path=(p,col,w)=>{c.beginPath();c.moveTo(...p[0]);for(let i=1;i<p.length;i++)c.lineTo(...p[i]);c.strokeStyle=col;c.lineWidth=w;c.stroke();};
     rect(-6.38,-3.63,10.01,9.12,"#ac9f87");
@@ -209,13 +208,22 @@
     rect(-6.02,3.65,.54,.51,shadow);c.fillStyle=green;c.beginPath();c.arc(-5.75,3.93,.24,0,Math.PI*2);c.fill();
     rect(-6.25,-1.37,3.98,.29,rust);rect(-5.73,-1.49,2.93,.18,ivory);rect(-5.06,-1.57,1.59,.13,green);
     rect(-4.98,-1.81,2.43,.40,wood);rect(-3.66,-1.62,.32,.20,paper);
-    rect(-5.79,-1.57,.39,.40,brass);rect(-5.85,-1.85,.72,.18,away?rust:green);
+    rect(-5.79,-1.57,.39,.40,brass);
     c.save();c.translate(-4.2,1.57);c.rotate(-.027);c.strokeStyle="#d2ae85";c.lineWidth=.105;
     for(let i=0;i<=6;i++){const a=(i-3)*.285;c.beginPath();c.moveTo(0,.28);c.lineTo(.63*Math.sin(a),.28-.64*Math.cos(a));c.stroke();}
     c.restore();
     rect(-2.33,-2.90,5.70,.20,green);rect(-1.26,-3.22,3.57,.39,ivory);
-    if(scale>3){c.fillStyle=rust;c.textAlign="center";c.textBaseline="middle";c.font="bold .27px sans-serif";c.fillText("ENGINE 7",.53,-3.015);}
     rect(lampX-.28,-lampZ+.15,.56,.80,iron);
+  }
+  let houseSheet=null;
+  function overhead(c,px,py,scale,site,t,away,lamp=0,lowDetail=false){
+    c.save();c.translate(px(site.x),py(site.z));c.rotate(site.yaw||0);c.scale(scale,scale);
+    if(lowDetail&&scale<=16){
+      houseSheet??=BayMapSheet(-6.6,-3.9,10.5,9.7,24,paintHouse);
+      houseSheet(c);
+    }else paintHouse(c);
+    c.fillStyle=away?rust:green;c.fillRect(-5.85,-1.85,.72,.18);
+    if(scale>3){c.fillStyle=rust;c.textAlign="center";c.textBaseline="middle";c.font="bold .27px sans-serif";c.fillText("ENGINE 7",.53,-3.015);}
     for(const [offset,col] of [[.37,lamp===1?amber:"#7c6647"],[.74,lamp===2?go:"#4c6759"]]){
       c.fillStyle=col;c.beginPath();c.arc(lampX,-lampZ+offset,.154,0,Math.PI*2);c.fill();
     }
