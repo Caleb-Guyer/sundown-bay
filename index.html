@@ -162,6 +162,13 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 #objectiveText {font-size:.91rem;font-weight:640}
 #wageEnvelopes:not([hidden]) {display:block;width:min(218px,100%);height:auto;margin:5px 0 2px;border-radius:2px}
 #voiceMeter:not([hidden]) {display:block;width:min(225px,100%);height:auto;margin:6px 0 2px}
+#wakeTiming:not([hidden]){display:grid;gap:2px;margin:6px 0 2px}
+#wakeTiming label{display:grid;grid-template-columns:4ch 1fr;gap:8px;align-items:center;font:bold 10px monospace;color:#f3ddb1}
+#wakeTiming progress{width:100%;height:6px;accent-color:#e5ad65}
+#wakeTiming label+label progress{accent-color:#78bab2}
+#wakeBadge:not([hidden]){position:absolute;right:19%;bottom:5%;transform:rotate(-3deg);border:2px ridge #cead71;border-radius:3px;padding:4px 8px;background:#8b693b;color:#fff0cd;font:bold 11px monospace;letter-spacing:.04em;pointer-events:none}
+#overhead:not([hidden]) ~ #wakeBadge{right:18px;bottom:91px}
+#game.in-chapter #wakeBadge{visibility:hidden}
 #julesPhone:not([hidden]){display:grid;gap:3px;width:fit-content;max-width:100%;margin:.45rem 0 .12rem;padding:.36rem .55rem;border-left:3px solid #69775d;border-radius:2px;background:#bfcca2;color:#233328;text-shadow:none;font:650 .77rem/1.18 "IBM Plex Mono",Consolas,monospace}
 #julesCaller{font-size:.69rem;letter-spacing:.035em;text-transform:uppercase}
 #objective:has(#julesPhone:not([hidden]))~#speech{left:auto;right:2%;bottom:19%;transform:none;box-sizing:border-box;max-width:min(430px,44vw);text-align:left}
@@ -570,6 +577,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
     <canvas id="palmGuide" aria-hidden="true" hidden></canvas>
     <canvas id="scoutFinder" aria-label="Frankie’s location finder" hidden></canvas>
     <canvas id="driverGlass" aria-hidden="true" hidden></canvas>
+    <span id="wakeBadge" hidden></span>
     <section id="pinCab" aria-label="Needle Drop pinball" hidden>
       <div class="pin-case"><canvas id="pinGlass" width="600" height="840" aria-label="Pinball playfield with three record bumpers"></canvas></div>
       <div class="pin-card">
@@ -623,6 +631,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
       <button id="miniButton" class="radar" title="Open city map (M)" aria-label="Open city map"><canvas id="mini" width="200" height="200"></canvas><span class="north" id="radarNorth">N</span><span class="map-key">M</span></button>
       <div id="objective" hidden><span id="objectiveTag"></span><b id="objectiveText"></b><small id="roadTurn"></small>
         <canvas id="voiceMeter" width="258" height="83" aria-label="Interview recorder level and tape progress" hidden></canvas>
+        <div id="wakeTiming" hidden><label>ROAD <progress id="wakeRoad" max="1"></progress></label><label>LUZ <progress id="wakeWater" max="1"></progress></label></div>
         <div id="julesPhone" role="status" hidden><strong id="julesCaller"></strong><span id="julesAnswer"></span></div>
         <canvas id="wageEnvelopes" width="278" height="105" aria-label="Jules gathering the loose wage envelopes in the passenger footwell" hidden></canvas>
         <div id="ferryMeter" role="progressbar" aria-label="Steady alongside the ferry" aria-valuemin="0" aria-valuemax="100" hidden><i></i></div></div>
@@ -1010,8 +1019,9 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "home-walk.js",
   "feature-print.js",
   "house-copies.js",
+  "wake-clock.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=5ff714da648d8744"></script>
+  <script src="sundown.js?v=712f5e2ffe399da4"></script>
 </body>
 </html>

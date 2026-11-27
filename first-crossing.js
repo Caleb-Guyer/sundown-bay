@@ -16,6 +16,7 @@
   const point=(v,x,z,y)=>({...BayDriving.world(v,x,z),y:v.y+y});
   const span=34;
   class Service {
+    get crossingTime(){return span;}
     constructor(book){
       this.book=book;this.at=book.berth;this.phase="berth";this.clock=0;this.rider=null;this.wake=[];
       this.halfWidth=1.65;this.halfLength=4.35;this.replied=0;this.prompted=false;this.departure=0;
@@ -220,6 +221,7 @@
   }
   function map(c,s,px,py,scale,visible,street){
     if(!s?.book.pass)return;
+    if(BayWakeClock.unlocked(s.book))BayWakeClock.map(c,px,py,scale,visible,street);
     for(let i=0;i<2;i++){const p=stop(i);if(!visible(px(p.x),py(p.z),12))continue;
       c.fillStyle=teal;c.fillRect(px(p.x)-2,py(p.z)-2,4,4);
       if(street){const k=cleat(i);c.fillStyle=ink;c.fillRect(px(k.x)-.13*scale,py(k.z)-.33*scale,.26*scale,.66*scale);}}

@@ -26783,6 +26783,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const point=(v,x,z,y)=>({...BayDriving.world(v,x,z),y:v.y+y});
   const span=34;
   class Service {
+    get crossingTime(){return span;}
     constructor(book){
       this.book=book;this.at=book.berth;this.phase="berth";this.clock=0;this.rider=null;this.wake=[];
       this.halfWidth=1.65;this.halfLength=4.35;this.replied=0;this.prompted=false;this.departure=0;
@@ -26987,6 +26988,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function map(c,s,px,py,scale,visible,street){
     if(!s?.book.pass)return;
+    if(BayWakeClock.unlocked(s.book))BayWakeClock.map(c,px,py,scale,visible,street);
     for(let i=0;i<2;i++){const p=stop(i);if(!visible(px(p.x),py(p.z),12))continue;
       c.fillStyle=teal;c.fillRect(px(p.x)-2,py(p.z)-2,4,4);
       if(street){const k=cleat(i);c.fillStyle=ink;c.fillRect(px(k.x)-.13*scale,py(k.z)-.33*scale,.26*scale,.66*scale);}}
@@ -73285,6 +73287,118 @@ window.buildBayCity = function buildBayCity(g,water) {
 })();
 
 ;
+/* wake-clock.js */
+/* Dalia's two shore clocks time the same crossing as the public ferry. */
+(() => {
+  const clocks=BayMarina.docks.slice(0,2).map(d=>({
+    name:d.name, line:{x:144,z:d.z,name:d.name+" · Ocean Drive stripe"},
+    post:{x:150.1,z:d.z,name:d.name+" · road clock"},
+    punch:{x:d.footX+1.6,z:d.z,name:d.name+" · pier time punch"}
+  }));
+  const key="sundownBay.wakeClock.v1";
+  const distance=(p,q)=>Math.hypot(p.x-q.x,p.z-q.z);
+  const time=cc=>(cc/100).toFixed(2)+" s";
+  const valid=cc=>Number.isSafeInteger(cc)&&cc>0;
+  function read(){
+    let data;
+    try{data=JSON.parse(localStorage.getItem(key));}catch{}
+    const best=[0,1].map(i=>valid(data?.best?.[i])?data.best[i]:null);
+    const badges=new Map();
+    for(const [plate,cc] of Object.entries(data?.badges||{}))if(valid(cc))badges.set(plate,cc);
+    return {best,badges};
+  }
+  let book=read();
+  addEventListener("storage",e=>{if(e.key===key||e.key===null)book=read();});
+  const unlocked=b=>b.pass&&b.trips>0;
+  const near=(p,part,r)=>clocks.findIndex(c=>distance(p,c[part])<=r);
+  function save(run){
+    if(run.road===null||run.water===null)return;
+    const latest=read(),i=run.from,plate=run.car.garageKey;
+    for(const [id,cc] of book.badges)latest.badges.set(id,Math.min(cc,latest.badges.get(id)??Infinity));
+    for(let j=0;j<2;j++)if(book.best[j])latest.best[j]=Math.min(book.best[j],latest.best[j]??Infinity);
+    latest.best[i]=Math.min(run.road,latest.best[i]??Infinity);
+    if(run.road<run.water)latest.badges.set(plate,Math.min(run.road,latest.badges.get(plate)??Infinity));
+    book=latest;
+    try{localStorage.setItem(key,JSON.stringify({best:book.best,badges:Object.fromEntries(book.badges)}));}catch{}
+  }
+  class Run{
+    constructor(from,car,boat){
+      this.from=from;this.to=1-from;this.car=car;this.phase="line";
+      this.seenBerth=boat.phase==="berth"&&boat.at===from;
+      this.elapsed=0;this.water=this.road=null;
+    }
+    get target(){return this.phase==="line"?clocks[this.from].line:this.phase==="road"?clocks[this.to].line:clocks[this.to].punch;}
+    step(dt,boat,driver){
+      if(this.phase==="line"){
+        if(driver!==this.car||distance(driver,clocks[this.from].line)>12)return "scratch";
+        if(boat.phase==="berth"){
+          if(boat.at===this.from)this.seenBerth=true;
+          // Request a crossing through the timetable, including the passenger gangway.
+          boat.call(boat.at===this.from?this.to:this.from);
+        }else if(this.seenBerth&&boat.departure===this.from){
+          this.phase="road";this.elapsed=boat.clock;return "start";
+        }
+        return;
+      }
+      this.elapsed+=dt;
+      if(this.water===null){
+        if(boat.phase==="sail"&&boat.departure===this.from)this.elapsed=boat.clock;
+        else if(boat.phase==="berth"&&boat.at===this.to)this.water=Math.round(100*boat.crossingTime);
+      }
+      if(this.phase==="road"&&driver===this.car&&Math.abs(driver.z-clocks[this.to].line.z)<13&&driver.x>=133&&driver.x<clocks[this.to].punch.x+3){
+        this.phase="pier";return "park";
+      }
+      if(this.road!==null&&this.water!==null)return "result";
+    }
+    stamp(hero){
+      if(this.phase!=="pier"||distance(hero,clocks[this.to].punch)>2.5)return false;
+      this.road=Math.max(1,Math.round(100*this.elapsed));this.phase="punched";return true;
+    }
+    result(){
+      const delta=this.water-this.road;
+      return delta>0?"Road wins by "+time(delta):delta<0?"Luz wins by "+time(-delta):"Dead heat";
+    }
+  }
+  function world(model,list,see,ground){
+    for(const dock of clocks){
+      if(see(dock.line,48)){
+        model("wake-clock/stripe",g=>{
+          for(let j=-5;j<=5;j++)g.box(j*.82,0,j%2?.10:-.10,.74,.012,.20,"#d2c5a5");
+        });
+        list.push(["wake-clock/stripe",dock.line.x,.036,dock.line.z,0]);
+      }
+      for(const [site,p] of [["road",dock.post],["pier",dock.punch]]){
+      if(!see(p,65))continue;
+      const mesh="wake-clock/"+site;
+      model(mesh,g=>{
+        const teal="#38685e",ink="#302e2c",cream="#f4e0b2",brass="#c49453";
+        g.box(0,.78,0,.14,1.56,.16,teal);g.box(0,1.55,0,.29,.91,.85,ink);g.box(0,1.56,0,.32,.79,.73,brass);
+        g.box(0,1.62,0,.34,.54,.58,cream);g.box(0,1.72,0,.36,.20,.035,ink);
+        g.box(0,1.62,.078,.36,.034,.18,ink);g.box(0,1.28,0,.35,.092,.54,teal);
+        if(site==="pier"){g.box(-.16,1.04,0,.51,.08,.66,teal);g.box(-.27,1.095,0,.25,.027,.35,cream);}
+        else for(let j=0;j<4;j++)g.box(0,2.1,(j-1.5)*.21,.18,.14,.21,j%2?cream:ink);
+      });
+      list.push([mesh,p.x,ground(p.x,p.z),p.z,0]);
+      }
+    }
+  }
+  function map(c,px,py,scale,visible,street){
+    for(const d of clocks){
+      if(street&&visible(px(d.line.x),py(d.line.z),6*scale)){
+        c.fillStyle="#d2c5a5";for(let j=-5;j<=5;j++)c.fillRect(px(d.line.x+j*.82),py(d.line.z+(j%2?.10:-.10)),.70*scale,Math.max(1,.2*scale));
+      }
+      for(const p of [d.post,d.punch]){
+      const x=px(p.x),y=py(p.z);if(!visible(x,y,9))continue;
+      const r=Math.max(2.3,Math.min(6,.65*scale));c.fillStyle="#393831";c.beginPath();c.arc(x,y,r+1,0,Math.PI*2);c.fill();
+      c.fillStyle="#e8c788";c.beginPath();c.arc(x,y,r,0,Math.PI*2);c.fill();
+      c.strokeStyle="#343f37";c.lineWidth=1;c.beginPath();c.moveTo(x,y-r*.72);c.lineTo(x,y);c.lineTo(x+r*.68,y);c.stroke();
+      }
+    }
+  }
+  window.BayWakeClock={clocks,unlocked,near,time,save,Run,world,map,badge:plate=>book.badges.get(plate),best:i=>book.best[i]};
+})();
+
+;
 /* game.js */
 (() => {
   "use strict";
@@ -79687,7 +79801,56 @@ window.buildBayCity = function buildBayCity(g,water) {
       campaign.write();resetFeet();cameraSnap();saveCrewPlace();
       if(filed){enterFilm(hearing.draft==="clinic"?"landingClinic":"landingShift");return;}
       if(luz.book.trips===1&&!luz.book.cut){waypoint={...BayRoomTone.site};speak("Mara Vega · voicemail","Bring your ears to the Sol van. I caught the first boat on tape.");}
-      note("Luz · "+bay.docks[luz.at].name,"Pass punched · Crossing "+luz.book.trips+(r.clean?" · First-throw catch":""),4.6);}
+      note("Luz · "+bay.docks[luz.at].name,"Pass punched · Crossing "+luz.book.trips+(r.clean?" · First-throw catch":"")+(luz.book.trips===1?" · Bring a car to the brass clock on Ocean Drive.":""),luz.book.trips===1?7:4.6);}
+  }
+  function wakeAction(){
+    if(!play||!BayWakeClock.unlocked(luz.book)||transfer||room||luz.rider||campaign.scene||campaign.table)return null;
+    const run=active?.wake;
+    if(run){
+      if(run.phase==="pier"&&onStreetFeet()&&BayWakeClock.near(hero,"punch",2.5)===run.to)return {key:"N",label:"Punch your road time",run};
+      return null;
+    }
+    if(active||heat||cabs.booking||watchCrew.towing||transit.aboard||windowRide||voiceTake||projector)return null;
+    if(car?.garageKey&&Math.abs(car.speed)<1.1){
+      const i=BayWakeClock.near(car,"line",8);
+      if(i>=0)return {key:"H",label:"Beat the Wake · sound your horn to enter",i};
+    }else if(onStreetFeet()){
+      let i=BayWakeClock.near(hero,"punch",2.8);if(i<0)i=BayWakeClock.near(hero,"post",3);
+      if(i>=0)return {key:"N",label:"Read the shore times and mark the starting stripe",i};
+    }
+    return null;
+  }
+  function wakeInput(ev){
+    if(ev.code!=="KeyH"&&ev.code!=="KeyN")return false;
+    const a=wakeAction();if(!a||ev.code!=="Key"+a.key)return false;
+    if(ev.repeat)return true;
+    if(a.run){
+      if(a.run.stamp(hero)){sound.cue("luz-cast");note("ROAD · "+BayWakeClock.time(a.run.road),a.run.water===null?"Your card is punched. Watch the channel for Luz.":"Both times are in.",4);}
+    }else if(a.key==="H"){
+      const r=new BayWakeClock.Run(a.i,car,luz);sound.cue("horn",car);
+      active={job:{id:"wake",name:"Beat the Wake",by:"Dalia Cruz"},wake:r,stops:[r.target],index:0,clock:0};
+      const luis=luz.book.morning?.luis;
+      speak("Dalia Cruz · shore clock",luis==="aboard"?"Remember when I held that gate for Luis? Today you move when his boat moves.":luis==="ashore"?"Luis timed us from the pavement that morning. Reckon you can beat his boat from here?":"One clock on the road, one on the pier. When Luz casts off, go.");
+    }else{
+      const t=BayWakeClock.best(a.i),other=BayWakeClock.clocks[1-a.i];
+      waypoint={...BayWakeClock.clocks[a.i].line,kind:"wake-clock"};
+      note("Beat the Wake · to "+other.name,(t?"Road record "+BayWakeClock.time(t)+". ":"First card’s still blank. ")+"Stop on Ocean Drive by the brass clock and press H. Finish on foot at the far pier.",7);
+    }
+    lastHud=lastMap=-10;return true;
+  }
+  function stepWake(dt){
+    const r=active.wake,event=r.step(dt,luz,car);
+    if(event==="scratch"){dropJob();note("Beat the Wake","Car left the stripe before Luz. Come back for the next boat.",4);}
+    if(event==="start"){sound.cue("luz-cast");speak("Dalia Cruz","There goes her stern line! I’ll see which card gets punched first.");}
+    if(event==="park")note("Beat the Wake","Park and run to the brass punch at the foot of the pier.",4);
+    if(event==="result"){
+      BayWakeClock.save(r);dropJob();
+      const win=r.road<r.water;
+      speak("Dalia Cruz",win?"Look at that. Give me the dash a second. Two screws and everybody knows whose car beat Luz.":"Captain wants to know if you’d like a lift back.");
+      note(r.result(),"Road "+BayWakeClock.time(r.road)+" · Luz "+BayWakeClock.time(r.water)+(win?" · Brass clock badge earned":""),8);
+    }
+    if(active?.wake)active.stops[0]=r.target;
+    if(event)lastHud=lastMap=-10;
   }
   const wheelFare=()=>boardwalk.price()?cash(boardwalk.price()):"on the house";
   const byWindow=()=>onStreetFeet()&&dist(hero,ticketWindow)<2.7&&hero.z>=107.7;
@@ -81481,6 +81644,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     sound.cue("paid");note("Last Collection","+"+cash(amount)+(clean?" · Clean getaway":""),10);
   }
   function advanceJob(dt){
+    if(active?.wake){stepWake(dt);return;}
     if(active?.meter){stepMeterRun(dt);return;}
     if(active?.homeWalk)return;
     if(active?.featurePrint){stepFeaturePrint(dt);return;}
@@ -83893,7 +84057,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(const item of canopies)view.draw(...item);
   }
   function seatOverlay(top,t){
-    const canvas=$("driverGlass");canvas.hidden=!insideSeat()||!!room;if(canvas.hidden||!canvas.getContext)return;
+    const canvas=$("driverGlass");canvas.hidden=!insideSeat()||!!room;
+    const badge=$("wakeBadge"),record=!canvas.hidden&&BayWakeClock.badge(car?.garageKey);
+    badge.hidden=!record;if(record){const label="BEAT THE WAKE · "+BayWakeClock.time(record);if(badge.textContent!==label)badge.textContent=label;}
+    if(canvas.hidden||!canvas.getContext)return;
     const w=innerWidth,h=innerHeight,ratio=Math.min(1,1200/w,820/h);
     if(canvas.width!==Math.round(w*ratio)||canvas.height!==Math.round(h*ratio)){canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);}
     const g=canvas.getContext("2d");g.setTransform(canvas.width/w,0,0,canvas.height/h,0,0);g.clearRect(0,0,w,h);
@@ -84292,6 +84459,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(play&&see(BayLastTransfer.stand,56)){const s=BayLastTransfer.stand;model("transfer/telegraph",BayLastTransfer.telegraph);visible.push(["transfer/telegraph",s.x,s.y,s.z,0]);}
     if(play&&campaign.book.transfer&&see(BayLastTransfer.clip,45)){const p=BayLastTransfer.clip;model("transfer/ticket-clip",BayLastTransfer.ticketClip);visible.push(["transfer/ticket-clip",p.x,p.y,p.z,0]);}
     if(play&&luz.book.pass)BayFirstCrossing.world(view,model,visible,see,luz,t,personSkin);
+    if(play&&BayWakeClock.unlocked(luz.book))BayWakeClock.world(model,visible,see,footLevel);
     if(play&&campaign.book.trips&&see(BayRoomTone.site,62))BayRoomTone.world(model,visible);
     if(play&&see(gateCrew,70)&&["return","filed"].includes(campaign.book.stage)){
       const p=gateCrew,k="dalia-cruz";
@@ -84917,6 +85085,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     $("airLeg").textContent=leg;$("airGuide").textContent=guide;contextHint(label,hint);return true;
   }
   function hud(){
+    $("wakeTiming").hidden=!active?.wake;
     $("voiceMeter").hidden=!voiceTake;if(voiceTake)BaySecondVoice.meter($("voiceMeter"),voiceTake);
     const envelopes=active?.payroll?.aboard&&car===active.payroll.car?active.payroll.envelopes:null;
     const payrollCall=active?.payroll?.aboard&&car===active.payroll.car&&!transfer?active.payroll.call:null;
@@ -85293,7 +85462,21 @@ window.buildBayCity = function buildBayCity(g,water) {
     $("jobKey").hidden=!!luz.rider;
     const hailed=active?.meter&&fareHint();
     const coneHint=countyCrew.site&&countyFeet()&&countyCrew.hint(hero),loosePay=seatAction();
-    if(voiceTake){
+    const wake=active?.wake,clockAction=wakeAction();
+    if(wake){
+      const origin=BayWakeClock.clocks[wake.from],dest=BayWakeClock.clocks[wake.to],phase=wake.phase;
+      $("objective").hidden=false;$("objectiveTag").textContent="Beat the Wake · "+dest.name;
+      $("objectiveText").textContent=phase==="line"?"Hold the stripe until Luz casts off":phase==="road"?"Drive to the "+dest.name+" approach":phase==="pier"?"Punch the clock on foot at "+dest.name:"Road card punched · Waiting for Luz";
+      const underway=phase!=="line",road=clamp((wake.car.z-origin.line.z)/(dest.line.z-origin.line.z),0,1);
+      $("wakeRoad").value=wake.road!==null?1:phase==="pier" ? .94 : underway?road*.9:0;
+      $("wakeWater").value=wake.water!==null?1:underway?Math.abs(luz.u-wake.from):0;
+      $("roadTurn").textContent=underway?"Road "+BayWakeClock.time(wake.road??Math.round(100*wake.elapsed))+" · "+(wake.water===null?"Luz underway":"Luz tied up at "+BayWakeClock.time(wake.water)):luz.at===wake.from&&luz.phase==="berth"?"Captain is clearing the gangway":"Waiting for the boat to return";
+      if(clockAction)contextHint(clockAction.key,clockAction.label);
+      else if(phase==="pier")contextHint(car?"E":"Shift",car?"Stop, then get out":"Sprint to the brass clock");
+      else if(phase==="road"&&car!==wake.car)contextHint("E","Return to the car that entered");
+      else contextHint("",phase==="line"?"Stay in your car on the stripe":phase==="road"?"Choose your route up the waterfront":"Your time is on the card");
+    }else if(clockAction)contextHint(clockAction.key,clockAction.label);
+    else if(voiceTake){
       const take=voiceTake;$("objective").hidden=false;$("objectiveTag").textContent="The Second Voice";
       $("objectiveText").textContent=take.venue.neighbors[take.credit.witness]+" · "+(take.done?"Both lines on tape":"Line "+(take.beat+1)+" of 2");
       $("roadTurn").textContent=take.done?"Their credit will follow Mara’s slide.":"“"+take.words[take.beat]+"”";
@@ -86868,6 +87051,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       return;
     }
     if(voiceTake&&voiceInput(ev))return;
+    if(wakeInput(ev)){ev.preventDefault();return;}
     if(ev.code==="KeyN"&&!ev.repeat&&takeSeatAction()){ev.preventDefault();return;}
     if(room?.ada&&ev.code==="KeyN"){
       const copy=adaCopy();if(copy){ev.preventDefault();if(!ev.repeat)showAdaCopy(copy);return;}

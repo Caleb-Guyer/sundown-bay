@@ -28,6 +28,7 @@ jobs:
         with:
           persist-credentials: false
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --mouse-look
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --beat-wake --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --press-run --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --feature-print --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --on-green --manual --frames

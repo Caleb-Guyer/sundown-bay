@@ -1,0 +1,41 @@
+const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
+module.exports=async function beatWake({js,send,tap,key,waitFor,mode,errors}){
+  const snap=async name=>{
+    const {data}=await send("Page.captureScreenshot",{format:"jpeg",quality:87});
+    const dir=path.join(__dirname,"curb-wire-proof");fs.mkdirSync(dir,{recursive:true});
+    fs.writeFileSync(path.join(dir,mode+"-wake-"+name+".jpg"),Buffer.from(data,"base64"));
+  };
+  await js(`window.wakeQA={};const q=wakeQA;
+    const service=BayFirstCrossing.Service.prototype.step;
+    BayFirstCrossing.Service.prototype.step=function(dt,t,h){q.h=h;q.boat=this;return service.apply(this,arguments);};
+    const locals=BayLocals.animatePeople;
+    BayLocals.animatePeople=function(people,dt,car,cars){q.car=car;q.cars=cars;return locals.apply(this,arguments);};
+    const race=BayWakeClock.Run.prototype.step;
+    BayWakeClock.Run.prototype.step=function(){q.r=this;return race.apply(this,arguments);};
+    q.at=(p,x,z,yaw=0)=>Object.assign(p,{x,z,y:.12,yaw});
+    q.d=BayWakeClock.clocks;`);
+  await waitFor("q.h&&q.cars");
+  await js("q.v=q.cars[0];const door=BayDriving.world(q.v,-2.2,0);q.at(q.h,door.x,door.z)");
+  await tap("KeyE");await waitFor("q.car===q.v",25000);
+  await js("q.at(q.v,143.4,q.d[0].line.z);BayDriving.settle(q.v)");
+  await tap("KeyH");await waitFor("q.r?.phase==='road'",140000);
+  await key("keyDown","KeyW");try{await waitFor("q.v.speed>4",20000);}finally{await key("keyUp","KeyW");}
+  await waitFor("!document.querySelector('#wakeTiming').hidden&&document.querySelector('#wakeWater').value>0");
+  assert.equal(await js("q.boat.phase"),"sail");await snap("road");
+  await js("q.at(q.v,143.4,92);BayDriving.settle(q.v)");await waitFor("q.r.phase==='pier'");
+  await tap("KeyE");await waitFor("!q.car",20000);
+  await js("q.at(q.h,q.d[1].punch.x-1,q.d[1].punch.z)");
+  await tap("KeyN");await waitFor("q.r.road!==null");await snap("punch");
+  await waitFor("BayWakeClock.badge(q.v.garageKey)>0",115000);
+  const result=await js("({road:q.r.road,water:q.r.water,plate:q.v.garageKey})");
+  assert(result.road<result.water);assert.equal(result.water,3400);
+  assert.equal(await js("BayWakeClock.badge(q.cars[1].garageKey)||0"),0);
+  await js("const side=BayDriving.world(q.v,-2.2,0);q.at(q.h,side.x,side.z)");
+  await tap("KeyE");await waitFor("q.car===q.v",20000);
+  if(await js("document.querySelector('#driverGlass').hidden"))await tap("KeyZ");
+  await waitFor("!document.querySelector('#wakeBadge').hidden");await snap("brass");
+  await send("Page.reload");await waitFor("!window.wakeQA&&typeof BayWakeClock==='object'");
+  assert.equal(await js("BayWakeClock.badge("+JSON.stringify(result.plate)+")"),result.road);
+  assert.equal(await js("BayWakeClock.best(0)"),result.road);assert.deepEqual(errors,[]);
+  console.log("PASS Beat the Wake",mode,"actual ferry departure, accelerated in traffic, parked exit, punch, return to free roam, winning car badge after reload",JSON.stringify(result));
+};
