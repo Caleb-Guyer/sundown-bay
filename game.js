@@ -10735,6 +10735,23 @@
       houseCopies:play&&modeName==="street"?save.houseCopies:null,courier:modeName==="street"&&save.houseCopies.run?paperCarrier():null,flyingCopy,copyReaction,
       signals:BayStreetArt.signals,streetActors:modeName==="street"?BayStreetArt.overview(streetTime):[],cameraYaw:isTop()?(take?.lookYaw??cameraRig.yaw+cameraRig.lookBack):cam.yaw};
   }
+  const cpuMapSheets=new WeakMap();
+  function paintStreetMap(canvas,state){
+    const screen=canvas.getContext("2d",state.mode==="street"?{alpha:false}:undefined);
+    if(!softwareOverhead||!overheadQuality.copyPixels){drawBayMap(screen,state);return;}
+    // Submit one bitmap to a software compositor. Keeping the vector commands
+    // on a detached CPU canvas avoids replaying the whole street in the compositor.
+    let sheet=cpuMapSheets.get(canvas);
+    if(!sheet){
+      const surface=document.createElement("canvas");
+      sheet={surface,ink:surface.getContext("2d",{alpha:false,willReadFrequently:true})};
+      cpuMapSheets.set(canvas,sheet);
+    }
+    const {surface,ink}=sheet;
+    if(surface.width!==canvas.width||surface.height!==canvas.height){surface.width=canvas.width;surface.height=canvas.height;}
+    drawBayMap(ink,state);
+    screen.putImageData(ink.getImageData(0,0,surface.width,surface.height),0,0);
+  }
   let radarCar=null,radarYaw=0,radarLead=0,radarTime=0;
   function drawMini(){
     if(room)return;
@@ -10756,7 +10773,7 @@
       north.style.top=(50-45*Math.cos(yaw)).toFixed(2)+"%";
     }
     radarCar=driving?car:null;radarTime=elapsed;
-    drawBayMap(c.getContext("2d"),state);
+    paintStreetMap(c,state);
   }
   function atlasFrame(){return chartMode==="cut"?{cx:188,cz:254,span:265}:chartMode==="bay"?{cx:309,cz:0,span:463}:{cx:13,cz:0,span:448};}
   function paintAtlas(){
@@ -11422,7 +11439,7 @@
         state.cx+=(behind.x-state.cx)*Math.abs(a);state.cz+=(behind.z-state.cz)*Math.abs(a);
       }
       addVisibleWalkers(state,w,h);
-      drawBayMap(map.getContext("2d",{alpha:false}),state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
+      paintStreetMap(map,state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
       if(projector&&!projector.showing){
         const p=projection(projector.venue);if(p)BayPavementShow.monitor(map,p.canvas);
       }
@@ -14554,6 +14571,7 @@
       if(scale<=.66&&late>=.2){
         this.detailTime+=this.time;
         if(this.detailTime>=2.5)this.target.compact=true;
+        if(this.detailTime>=2.5&&softwareOverhead&&this.target===overheadQuality)this.target.copyPixels=true;
       }else this.detailTime=0;
       if((mean>1/28&&late>=.4||this.roughWindows>=2)&&scale>this.floor){
         const step=mean>1/21?.14:.08;

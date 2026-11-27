@@ -120,4 +120,8 @@ module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
   console.log("PERF constrained pursuit",asset,JSON.stringify(chase));
   assert(walk.seconds>=60&&walk.metres>=30,"Walk must cover the street");
   assert(chase.seconds>5&&chase.frames>20&&chase.metres>20&&chase.airFrames>0&&chase.patrol>0,"A moving five-star sample is required");
+  const scenarios={walk,drive,chase};
+  const misses=Object.entries(scenarios).filter(([,s])=>s.fps<30||s.slowestSecond<30||s.p95>33.45).map(([name])=>name);
+  console.log("PERF 30 FPS budget",misses.length?"missed in "+misses.join(", "):"met in all measured scenarios");
+  if(process.argv[2]==="automatic")assert.deepEqual(misses,[],"Automatic two-thread camera must sustain 30 FPS");
 };
