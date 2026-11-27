@@ -81,6 +81,17 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await send("Page.reload");await ready();await send("Page.removeScriptToEvaluateOnNewDocument",{identifier:before.identifier});
     await js("document.querySelector('#play').click()");
   }
+  async function checkReturningPin(point,name){
+    await loadFootAt(point);
+    const objective="document.getElementById('objectiveText').textContent.includes("+JSON.stringify(name)+")";
+    await waitFor(objective);
+    await tap("Escape");
+    const locate="[...document.querySelectorAll('#panelBody button')].find(b=>b.innerText.includes('Locate story'))";
+    await waitFor(locate);
+    assert((await js(locate+".innerText")).includes(name));
+    await js(locate+".click()");await waitFor("document.getElementById('panel').hidden&&"+objective);
+    console.log("PASS returning Play and Locate story both mark",name,mode);
+  }
   try{
     await waitFor("!document.querySelector('#chapterFilm').hidden");
     await js(`window.recQA={frames:[],held:new Set(),now:0,points:[],samples:false};
@@ -615,6 +626,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await tap("KeyF");await waitFor("document.querySelector('#chapterWho').textContent==='Dalia’s departure book'");
     assert.equal((await js(book)).morning.luis,aboard?"aboard":"ashore");await tap("Escape");
     await require("./last-transfer.cjs")({js,tap,waitFor,snap,mode,book,loadFootAt});
+    await checkReturningPin({x:-151.1,z:-74},"Dalia Cruz · First Crossing");
     await loadFootAt({x:-151.1,z:-86.6});await waitFor("document.querySelector('#context').innerText.includes('Dalia Cruz')");
     await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').innerText==='First Crossing'",30000);
     await waitFor("!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterWho').textContent==='Dalia Cruz'");await snap("ticket");await tap("Enter");
@@ -658,6 +670,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     for(const [i,n] of ownCall.gaps.entries())assert(Math.abs(stamps[i+1]-stamps[i]-n/100)<.055);
     console.log("PASS After-watch bell",mode,credit,"echoed, composed, reloaded and answered by Coach 608",JSON.stringify(ownCall));
     const voice=credit==="crew"?"luis":"dalia";
+    await checkReturningPin({x:157,z:103},"Room Tone · Mara at Sol FM");
     await loadFootAt(await js("BayRoomTone.site"));await waitFor("document.querySelector('#context').innerText.includes('Room Tone')");
     await js("const wind=BayRoomTone.Edit.prototype.move;BayRoomTone.Edit.prototype.move=function(...a){window.reelTest=this;return wind.apply(this,a);};");
     await tap("KeyF");await waitFor("document.querySelector('#chapterTitle').textContent==='Room Tone'");await snap("van");

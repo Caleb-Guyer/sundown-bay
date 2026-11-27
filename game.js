@@ -906,13 +906,21 @@
   function note(head,line,seconds=3.2){
     $("toast").children[0].textContent=head;$("toast").children[1].textContent=line;$("toast").hidden=false;toastTill=elapsed+seconds;
   }
+  function luzLanding(){
+    return BayFirstCrossing.stop(luz.phase==="sail"?1-luz.at:luz.at);
+  }
   function chapterTarget(){
+    const book=campaign.book;
     if(luz.regular?.carrying)return luz.regular.marker();
-    if(BayLandingOrder.charter(campaign.book))return {...BayLotNegative.notice,kind:"chapter",name:"Lot 14 · Public landing order"};
-    if(campaign.book.airings&&!campaign.book.hearing)return {...gateCrew,kind:"chapter",name:"Dalia Cruz · Port hearing"};
-    if(campaign.book.pass)return BayFirstCrossing.stop(luz.phase==="sail"?1-luz.at:luz.at);
-    const end=campaign.book.stage==="return"||campaign.book.stage==="filed";
-    return {...(end?recordGate:BayExposure.pickup),kind:"chapter",name:end?"Lot 14 · Ferry timetable":"Mara Vega · Marlin Motel"};
+    if(BayLandingOrder.charter(book))return {...BayLotNegative.notice,kind:"chapter",name:"Lot 14 · Public landing order"};
+    if(book.hearing)return luzLanding();
+    if(book.airings)return {x:gateCrew.x,z:gateCrew.z,kind:"chapter",name:"Dalia Cruz · Port hearing"};
+    if(book.cut)return {...BayMarlinRoom.outside,kind:"chapter-radio",name:"Room 14 · Sol FM 88.3"};
+    if(book.trips)return {...BayRoomTone.site};
+    if(book.pass)return luzLanding();
+    if(book.stage==="filed")return {x:gateCrew.x,z:gateCrew.z,kind:"chapter",name:"Dalia Cruz · First Crossing"};
+    if(book.stage==="return")return {...recordGate,kind:"chapter",name:"Lot 14 · Ferry timetable"};
+    return {...BayExposure.pickup,kind:"chapter",name:"Mara Vega · Marlin Motel"};
   }
   function setFilmPage(){
     const b=campaign.beat(),table=campaign.table;
@@ -1471,7 +1479,7 @@
         "My own voice came on the kitchen radio. Burnt my toast. The port clerk wants us aboard Luz.":
         "Luis heard the bit about the lunch tins. Now the port clerk wants us aboard Luz.");
       note("The Public Slip","Ride Luz with the clerk. The town is deciding what goes in the deed.",5);return;}
-    if(act==="service"){waypoint=chapterTarget();speak("Dalia Cruz",campaign.book.trips?
+    if(act==="service"){waypoint=luzLanding();speak("Dalia Cruz",campaign.book.trips?
       "I’ve got "+campaign.book.trips+" crossing"+(campaign.book.trips===1?"":"s")+" beside your name. Luz is on the board again.":"Hold on to that green ticket. The crew’s expecting you.");return;}
     if(act==="luz"){
       if(luz.board(luz.near(hero),hero)){keys.clear();resetPointer();if(waypoint?.kind==="crossing")waypoint=null;
@@ -1507,8 +1515,8 @@
     if(!active&&save.rescue.laundry&&save.rescue.laundry.stage!=="filed"){startLaundryOrder();return;}
     if(!active&&save.rescue.laundry?.prints?.pocket)waypoint={...BayKeyPrint.sites.laundry};
     if(!active&&!waypoint&&meterCar())waypoint=save.meterCopy.spent?meterPin(meterCar()):{...BayCab.stops.marlin.stand,kind:"meter-rank",name:"Marlin cab stand · Mina's slip"};
-    if(!active&&!waypoint&&campaign.book.pass&&!campaign.book.trips)waypoint=chapterTarget();
-    if(!active&&!waypoint&&["ride","negative","return"].includes(campaign.book.stage))waypoint=chapterTarget();
+    if(!active&&!waypoint&&!BayLandingOrder.charter(campaign.book)&&
+      (campaign.book.morning||campaign.book.pass||["ride","negative","return","filed"].includes(campaign.book.stage)))waypoint=chapterTarget();
     if(!active&&wakeBook.mark&&wakeBook.by===unit.lead)waypoint={...wakeLead(wakeBook.mark).pin,wakeCall:wakeBook.mark};
     if(!active&&save.houseCopies.run)markHouseCopy();
     if(!active&&wakeBook.inside===unit.lead){
@@ -8774,7 +8782,7 @@
       if(waypoint?.kind==="june"){waypoint.x=band.june.x;waypoint.z=band.june.z;}
       if(waypoint?.kind==="neighbor"){const who=neighbors.byId(waypoint.id);if(who){waypoint.x=who.x;waypoint.z=who.z;}}
       if(waypoint?.kind==="neighbor-place"&&onStreetFeet()&&dist(hero,waypoint)<2.55&&neighbors.known(unit.lead,neighbors.byId(waypoint.id),"visited"))waypoint=null;
-    if(waypoint&&!["cheap-seats","house-copy","dive-site","neighbor","neighbor-place","street-response","shift-print","meter-car","seat-car","flower-call","unit-four"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
+    if(waypoint&&!["cheap-seats","house-copy","dive-site","neighbor","neighbor-place","street-response","shift-print","meter-car","seat-car","flower-call","unit-four","chapter-radio"].includes(waypoint.kind)&&!(waypoint.kind==="surf-tower"&&save.shore.carried)&&dist(p,waypoint)<5){
         if(waypoint.kind!=="garage"||!car?.flatSide)note("City map","Waypoint reached.",1.7);
         if(waypoint.wakeCall===wakeBook.mark&&wakeBook.mark){wakeBook.mark=null;BayMarlinRoom.saveWake(wakeBook);}
         waypoint=null;
@@ -9968,7 +9976,7 @@
     const desk=broadcastDesk,tuned=desk.device&&desk.station==="sol"&&!desk.mix&&!onAir&&!band.tape&&!skateTape.active&&!active?.take;
     if(tuned&&!ferryRadio.station)sound.warmReel();
     if(ferryRadio.step(dt,tuned,campaign.book)){campaign.book.airings++;campaign.write();desk.nextNews=elapsed+14;
-      if(campaign.book.airings===1&&!campaign.book.hearing){note("Message from Dalia","The port clerk heard your broadcast. Meet me at Lot 14.",5);if(!waypoint)waypoint=chapterTarget();}}
+      if(campaign.book.airings===1&&!campaign.book.hearing){note("Message from Dalia","The port clerk heard your broadcast. Meet me at Lot 14.",5);if(!waypoint||waypoint.kind==="chapter-radio")waypoint=chapterTarget();}}
     sound.reel(ferryRadio.clip,ferryRadio.at);
   }
   function windowListener(){
@@ -12345,6 +12353,11 @@
       const guide=roadGuide(tar);
       const meters=Math.round(guide?.meters??dist(p,tar));
       $("objectiveText").textContent=destination+(ferry&&meters<10?"":"  ·  "+meters+" m");
+      if(tar.kind==="chapter-radio"){
+        const receiver=receiverId();
+        $("objectiveText").textContent=!receiver?"Tune to Sol FM 88.3 in any car or in Room 14  ·  "+meters+" m":
+          BayAirwaves.stationFor(receiver)==="sol"?"Stay on 88.3 for Mara’s broadcast":"Tune to Sol FM 88.3 with [ or ]";
+      }
       $("roadTurn").textContent=guide?.turn||(ferry?.phase==="water"?(meters>30?ferry.ship.route.name+"  ·  Port side":"Paloma "+Math.round(ferry.ship.speed*1.944)+" kn  ·  You "+Math.round(Math.abs(skiff?.speed||0)*1.944)+" kn"):"");
       if(story?.coachTape&&story.phase==="port"&&!story.field&&car&&car===story.ride)$("roadTurn").textContent=heat?"Lose the patrol to resume the interview":story.coachTape.hint(car);
       if(story?.pressAvailable()&&!story.field&&car===story.ride){
