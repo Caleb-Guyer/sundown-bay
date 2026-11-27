@@ -911,6 +911,7 @@
     upload(name,data){
       const gl=this.gl,buf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buf);
       const dynamic=this.animated.has(name),rig=this.actors.get(name);
+      if(rig?.skinPending)rig.skin();
       const poseIndices=this.poseIndices?.get(name);
       const packed=poseIndices?{vertices:data,indices:poseIndices}:rig?indexActor(data,rig,this.largeIndices):dynamic?null:indexGeometry(data,this.largeIndices);
       gl.bufferData(gl.ARRAY_BUFFER,packed?.vertices||data,dynamic?gl.DYNAMIC_DRAW:gl.STATIC_DRAW);
@@ -1022,6 +1023,9 @@
     }
     updateAnimated(name,deferUpload=false){
       const model=this.models.get(name);if(!model||this.lost)return;
+      if(model.actor){
+        const rig=this.actors.get(name);if(rig.skinPending)rig.skin();
+      }
       // A crowd pose enters the low-resolution street batch directly from CPU memory.
       // Its own GPU buffer is needed only if a shadow or individual draw uses it.
       if(deferUpload){model.needsUpload=true;return;}

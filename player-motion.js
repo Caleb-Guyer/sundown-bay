@@ -240,7 +240,7 @@
       if(y>1.43)return bind(this.chest,this.head,smooth(1.43,1.54,y));
       return bind(this.pelvis,this.chest,smooth(.958,1.32,y));
     }
-    update(motion){
+    update(motion,deferSkin=false){
       if(this.lastRevision===motion.revision)return false;
       this.lastRevision=motion.revision;
       const w=motion.weight,run=motion.run,t=motion.phase*tau,ride=motion.ride;
@@ -307,7 +307,10 @@
           const h=motion.handTarget;reachFor(limb,h.x,h.y,h.z,h.weight);
         }
       }
-      this.skin();return true;
+      // A gesture or sports pose can change the joints again before this
+      // character is drawn. Transform the clothing once at the final pose.
+      if(deferSkin)this.skinPending=true;else this.skin();
+      return true;
     }
     startle(r){
       const guard=r.guard,air=r.air,bend=r.bend,at=this.pivot;
@@ -336,6 +339,7 @@
       return plan;
     }
     skin(){
+      this.skinPending=false;
       const dst=this.vertices,src=this.rest;
       if(!this.bindings.length)return;
       const plan=this.skinPlan();

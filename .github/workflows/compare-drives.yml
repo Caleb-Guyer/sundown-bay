@@ -5,10 +5,10 @@ on:
       baseline:
         description: Earlier game revision
         required: true
-        default: 1b0a504fdb92f079fe4d6716f083c3b3318ea75b
+        default: a344662dc784d57e0384ba4d97569786496caea6
   push:
     branches: [main]
-    paths: [.github/workflows/compare-drives.yml]
+    paths: [.github/workflows/compare-drives.yml, render.js, atlas.js, player-motion.js]
 permissions:
   contents: read
 jobs:
@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.baseline || '1b0a504fdb92f079fe4d6716f083c3b3318ea75b' }}
+          ref: ${{ inputs.baseline || github.event.before }}
           path: baseline-release
           persist-credentials: false
       - name: Earlier, current, current, earlier

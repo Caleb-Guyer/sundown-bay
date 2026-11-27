@@ -876,7 +876,7 @@
       const rear=BayMercadoArt.receiving;
       if(visible(px(rear.x-8),py(rear.z),18*s))BayMercadoArt.receivingMap(ctx,px,py,s,streetTime);
       const bay=BayMotelParking.bay;
-      if(visible(px(bay.x),py(bay.z),6*s))BayMotelParking.map(ctx,px,py,s);
+      if(visible(px(bay.x),py(bay.z),6*s))BayMotelParking.map(ctx,px,py,s,opt.lowDetail);
     }
     if(opt.neon&&visible(px(117),py(-36),54*s)){
       BayMarlinRoofArt.map(ctx,opt,px,py,s,visible);BayMarlinNeonArt.map(ctx,opt,px,py,s,visible);
@@ -1205,7 +1205,7 @@
         if(car.beatCar)BayOceanBeatArt.carMap(ctx,car,x,y,s,streetTime,car.beatLights);
         if(car.greenId)BayOnGreenArt.carMap(ctx,px,py,s,car,car.greenGesture||0);
         if(car===opt.luggage?.lid)BayLuggageBootArt.map(ctx,px,py,s,car,opt.luggage.amount,opt.luggage.items);
-        if(car.soil)BayRoadGlass.map(ctx,car,x,y,s,streetTime);
+        if(car.soil)BayRoadGlass.map(ctx,car,x,y,s,streetTime,opt.lowDetail);
         if(car===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,car,opt.campana.open,opt.campana.bell,streetTime);
         if(car.kind!=="caleta"&&opt.crew?.afternoon?.seated&&opt.crew.afternoon.vehicle===car){
           const seat=bayCarLayout(car.kind),p=BayDriving.world(car,seat.seatX,seat.seatZ+.28);
@@ -1379,7 +1379,7 @@
             ctx.translate(x,y);ctx.scale(1+lift*.048,1+lift*.048);ctx.translate(-x,-y-lift*s*.47);
           }
           carSprite(ctx,v,x,y,s,streetTime);
-          if(opt.streetCar){BayStreetCars.map(ctx,v,x,y,s,streetTime,v.mainBeam);BayRoadGlass.map(ctx,v,x,y,s,streetTime);if(v===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,v,opt.campana.open,opt.campana.bell,streetTime);}
+          if(opt.streetCar){BayStreetCars.map(ctx,v,x,y,s,streetTime,v.mainBeam);BayRoadGlass.map(ctx,v,x,y,s,streetTime,opt.lowDetail);if(v===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,v,opt.campana.open,opt.campana.bell,streetTime);}
           ctx.restore();
         }
         if(player.driving&&opt.streetCar&&player.neighborPose)BayNeighborGestures.mapDriver(ctx,px,py,s,opt.streetCar,player.neighborPose,player.skin,player.shirt);

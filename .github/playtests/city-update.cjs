@@ -14,6 +14,30 @@ const gl={ARRAY_BUFFER:1,ELEMENT_ARRAY_BUFFER:2,UNSIGNED_INT:4,UNSIGNED_SHORT:2,
   bufferSubData(target,offset,data){bound.data.set(new Uint8Array(data.buffer,data.byteOffset,data.byteLength),offset);actual+=data.byteLength;},
   drawElements(type,count){drawn=count;}};
 const view=Object.assign(Object.create(BayView.prototype),{gl,models:new Map(),actors:new Map(),animated:new Set(),largeIndices:true,scale:.60});
+// Compare every coordinate and paint channel after both the base motion and
+// the gesture have run. Include an ordinary walk where the base pose is final.
+{
+  const rigs=[false,true].map(()=>new BayPlayerMesh(BayCourtPlayers.colors.nikki,"local"));
+  const skins=[0,0],motion=new BayPlayerMotion();
+  view.cpu=new Map();
+  for(const [i,rig] of rigs.entries()){
+    BayCourtPlayers.dress(rig,"nikki");view.add("athlete"+i,rig,true);
+    const original=rig.skin;rig.skin=function(){skins[i]++;original.call(this);};
+  }
+  for(let frame=0;frame<84;frame++){
+    motion.step(1/30,.07+(frame%8)*.01,.015);
+    const player={motion,action:frame%2?"dribble":"gather",side:frame%3?1:-1,phase:(frame%30)/30,beat:(frame%12)/12};
+    for(const [i,rig] of rigs.entries()){
+      rig.update(motion,i===1);
+      if(frame%4!==0)BayCourtPlayers.pose(rig,player,frame/30);
+      view.updateAnimated("athlete"+i);
+      assert(!rig.skinPending);
+    }
+    assert.deepEqual(rigs[0].vertices,rigs[1].vertices);
+  }
+  assert.deepEqual(skins,[147,84]);
+  console.log("PASS one clothing transform per frame across 84 walking, dribbling and gathering poses; all corners match,",skins,"skin passes");
+}
 const mesh=new BayMesh(),city=buildBayCity(mesh,new BayMesh());const data=new Float32Array(mesh.vertices);
 view.upload("city",data);const model=view.models.get("city");view.prepareDistanceMesh(model,data);
 const list=new CityIndicesForTest(view,model,data),ref=new model.indices.constructor(model.count);

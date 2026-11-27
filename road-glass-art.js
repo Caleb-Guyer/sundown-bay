@@ -278,8 +278,8 @@
   }
   function mapBody(v,soil,rinse){
     const key=v.soil||v.rinse,prior=sprites.get(key),p=profile(v.kind),color=v.color||p.s.paint;
-    const cells=cellStamp(v.washCells);
-    if(prior&&prior.soil===soil&&prior.rinse===rinse&&prior.color===color&&prior.kind===v.kind&&prior.cells===cells)return prior;
+    const cells=cellStamp(v.washCells),dents=dentStamp(v.damage);
+    if(prior&&prior.soil===soil&&prior.rinse===rinse&&prior.color===color&&prior.kind===v.kind&&prior.cells===cells&&prior.damage===dents)return prior;
     const truck=p.truck,van=v.kind==="van",dealer=!!window.bayCoachwork?.(v.kind);
     const l=dealer?p.s.halfLength:truck?2.78:van?2.32:v.kind==="hatch"?1.82:2.16,b=dealer?p.s.track:truck?1:van?.97:.91;
     const paint=pigment(color),parts=Array.from({length:3},()=>[]),damage=v.damage||{};
@@ -343,16 +343,25 @@
         add(0,pale,splashDots);add(0,muck,sandDots);add(0,tone(paint,water,.5),rivulets);
       }
     }
-    const result={soil,rinse,cells,color,kind:v.kind,parts,damage:dentStamp(damage)};
+    const result={soil,rinse,cells,color,kind:v.kind,parts,damage:dents,width:b+.12,length:l+.12,seenClosed:false};
     sprites.set(key,result);return result;
   }
-  function map(ctx,v,x,y,scale,t){
+  function map(ctx,v,x,y,scale,t,lowDetail=false){
     if(scale<2.2||!v.soil&&!v.rinse||typeof Path2D==="undefined")return;
     const soil=stamp(v.soil),rinse=stamp(v.rinse);if(!soil&&!rinse)return;
-    const cached=sprites.get(v.soil||v.rinse);
-    if(cached&&cached.damage!==dentStamp(v.damage))sprites.delete(v.soil||v.rinse);
     const rec=mapBody(v,soil,rinse),s=bayCarLayout(v.kind);
     ctx.save();ctx.translate(x,y);ctx.rotate(v.yaw||0);ctx.scale(scale,-scale);
+    if(lowDetail&&scale<=16&&!(v.doorAngle>.008||v.passengerDoor>.008)){
+      // Moving cars carry the same salt lines through many frames. Wait for
+      // a second showing so an active hose needn't rasterize every new mark.
+      if(rec.seenClosed){
+        rec.sheet??=BayMapSheet(-rec.width,-rec.length,2*rec.width,2*rec.length,32,ink=>{
+          for(const part of rec.parts)for(const [shape,color] of part){ink.fillStyle=color;ink.fill(shape);}
+        });
+        rec.sheet(ctx);ctx.restore();return;
+      }
+      rec.seenClosed=true;
+    }
     for(let i=0;i<3;i++){
       if(!rec.parts[i].length)continue;
       ctx.save();

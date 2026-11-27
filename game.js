@@ -6471,11 +6471,12 @@
     for(const g of courts){
       if(!see(g.site,80))continue;
       for(const p of [g.keeper,...g.locals]){
+        if(!streetGroupVisible(performerBounds,p,p.y+p.lift))continue;
         const keeper=p===g.keeper,art=keeper?BayCourtBench:BayCourtPlayers,key="court-local/"+p.id;
         if(!p.mesh){p.mesh=new BayPlayerMesh(art.colors[p.id],art.roles[p.id]);art.dress(p.mesh,p.id);view.add(key,p.mesh,true);}
         const distance=dist(cam,p),interval=distance<24?0:distance<48?.055:.105;
         if(p.skinTime===undefined||t-p.skinTime>=interval){
-          const changed=p.mesh.update(p.motion),posed=keeper?art.pose(p,g,t):art.pose(p.mesh,p,t);
+          const changed=p.mesh.update(p.motion,true),posed=keeper?art.pose(p,g,t):art.pose(p.mesh,p,t);
           if(changed||posed)view.updateAnimated(key);p.skinTime=t;
         }
         list.push([key,p.x,p.y+p.lift,p.z,p.yaw]);
@@ -10329,7 +10330,7 @@
     for(const p of [boardwalk.mags,...boardwalk.people]){
       if(!see(p,67)||!streetGroupVisible(performerBounds,p,p.y+p.motion.lift))continue;const key="wheel-regular/"+p.id;
       if(!p.mesh){p.mesh=new BayPlayerMesh(BayBoardwalkArt.colors[p.id],BayBoardwalkArt.roles[p.id]);BayBoardwalkArt.dress(p.mesh,p.id);view.add(key,p.mesh,true);}
-      const changed=p.mesh.update(p.motion),posed=BayBoardwalkArt.pose(p,t);if(changed||posed)view.updateAnimated(key);
+      const changed=p.mesh.update(p.motion,true),posed=BayBoardwalkArt.pose(p,t);if(changed||posed)view.updateAnimated(key);
       list.push([key,p.x,p.y+p.motion.lift,p.z,p.yaw]);
     }
     BayBoardwalkArt.world(list,see,t,hours,boardwalk);
@@ -10517,11 +10518,12 @@
   function drawRoadCrew(list,see,t){
     if(!play)return;
     for(const p of motoristsNear(see,1/60)){
+      if(!streetGroupVisible(performerBounds,p,p.y+p.motion.lift))continue;
       const key="motorist/"+(p.id.startsWith("road")?p.car.id:p.id);
       if(!p.mesh){p.mesh=new BayPlayerMesh(BayMotorists.colors[p.id],BayMotorists.roles[p.id]);BayMotorists.dress(p.mesh,p.id);view.add(key,p.mesh,true);}
       const cabin=p.phase==="drive"||p.phase==="arrive";
       if(!cabin||t>=(p.skinAt||0)){
-        const moved=p.mesh.update(p.motion),posed=BayMotorists.pose(p.mesh,p,t);
+        const moved=p.mesh.update(p.motion,true),posed=BayMotorists.pose(p.mesh,p,t);
         const partner=p===valet.staff&&valet.staffJob;
         const exchange=partner&&BayMotorists.partnerPose(p.mesh,p,partner,t);
         if(moved||posed||exchange)view.updateAnimated(key);
@@ -10538,7 +10540,7 @@
         model(key,g=>{for(const end of [-1,1])for(const side of [-1,1])g.box(side*(s.track-.145),.59,end*(s.halfLength-.08),.19,.095,.12,"#ffbf57");});
         list.push([key,v.x,footLevel(v.x,v.z)+.008,v.z,v.yaw]);
       }
-      if(p.id||!see(p,66))continue;
+      if(p.id||!see(p,66)||!streetGroupVisible(performerBounds,p,p.y+p.motion.lift))continue;
       const key="road-driver/"+v.id;
       if(!p.mesh){p.mesh=new BayPlayerMesh(personColors[p.style]);view.add(key,p.mesh,true);}
       if(p.mesh.update(p.motion))view.updateAnimated(key);
@@ -10546,7 +10548,7 @@
     }
     if(!recoveryArtReady){BayRecoveryArt.install(model);BayWreckerArt.install(model);recoveryArtReady=true;}
     for(const p of [recovery.della,...recovery.people]){
-      if(!see(p,72))continue;
+      if(!see(p,72)||!streetGroupVisible(performerBounds,p,p.y+p.motion.lift))continue;
       const key="recovery-local/"+p.id;
       if(!p.mesh){
         p.mesh=new BayPlayerMesh(BayRecoveryArt.colors[p.id],BayRecoveryArt.roles[p.id]);

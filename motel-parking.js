@@ -46,11 +46,19 @@
       g.box(.61,.282,halfLength+.12,.23,.03,.12,"#cf9d68");
     });
   }
-  function map(ctx,px,py,scale){
-    ctx.save();ctx.translate(px(bay.x),py(bay.z));ctx.scale(scale,scale);
+  function paintBay(ctx){
     ctx.strokeStyle="#e5d6aa";ctx.lineWidth=.095;ctx.strokeRect(-halfWidth,-halfLength,2*halfWidth,2*halfLength);
     ctx.fillStyle="#c1b497";ctx.fillRect(-.85,-halfLength-.23,1.70,.19);
-    ctx.fillStyle="#f2dfa8";ctx.textAlign="center";ctx.font="bold .77px sans-serif";ctx.fillText("14",0,-2.25);ctx.restore();
+    ctx.fillStyle="#f2dfa8";ctx.textAlign="center";ctx.font="bold .77px sans-serif";ctx.fillText("14",0,-2.25);
+  }
+  let baySheet;
+  function map(ctx,px,py,scale,lowDetail=false){
+    ctx.save();ctx.translate(px(bay.x),py(bay.z));ctx.scale(scale,scale);
+    if(lowDetail&&scale<=16){
+      baySheet??=BayMapSheet(-1.8,-3.8,3.6,7.4,32,paintBay);
+      baySheet(ctx);
+    }else paintBay(ctx);
+    ctx.restore();
   }
   window.BayMotelParking={bay,stop,inside,read,write,release,install,map};
 })();
