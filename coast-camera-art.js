@@ -371,9 +371,54 @@
     }
     return sources.some(Boolean)?sheet:null;
   }
-  function prints(view,model,records,see){
+  const wheelFrame={u:2.55,y:1.035,d:-.046,tilt:.09,width:1.52,height:.64};
+  let wheelSheet=null;
+  function wheelCard(canvas,book){
+    const g=canvas.getContext("2d");
+    g.save();g.setTransform(canvas.width/640,0,0,canvas.height/270,0,0);
+    g.fillStyle="#ede0bc";g.fillRect(0,0,640,270);g.fillStyle="#264d4e";g.fillRect(0,0,640,55);
+    g.fillStyle="#fff0c8";g.font="italic bold 33px Georgia";g.fillText("One Wheel",22,38);
+    g.font="bold 13px monospace";g.fillText("COAST CAMERA & CYCLE",447,33);
+    for(const [i,kind] of ["paloma","heron"].entries()){
+      const run=book[kind],s=BayMotorcyclesArt.specs[kind],x=22+316*i;
+      g.fillStyle="#294542";g.font="bold 18px Georgia";g.fillText(s.name,x,83);
+      g.fillStyle="#755b47";g.font="13px monospace";g.fillText("SHOP MARK  "+BaySecondSeat.marks[kind]+" m",x+140,82);
+      g.save();g.translate(x+70,179);const r=16;g.strokeStyle="#9e8e68";g.lineWidth=1.5;
+      g.beginPath();g.moveTo(-54,r);g.lineTo(186,r);g.stroke();
+      g.rotate(-(run?.peak||0));const base=s.wheelbase*61;
+      g.lineWidth=5;g.strokeStyle="#313b39";for(const u of [0,base]){g.beginPath();g.arc(u,0,r,0,tau);g.stroke();}
+      const stick=(points,col,w)=>{g.strokeStyle=col;g.lineWidth=w;g.beginPath();points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.stroke();};
+      g.lineJoin="round";g.lineCap="round";stick([[0,0],[31,-12],[base-8,-23],[base,0]],s.paint,6);
+      stick([[14,-26],[40,-26],[base-8,-20]],"#455555",6);stick([[base-8,-23],[base-13,-34],[base-20,-34]],"#566966",3);
+      stick([[27,-46],[20,-29],[45,-19],[36,-5]],"#3f514e",6);stick([[26,-45],[44,-35],[base-20,-34]],"#526a62",4);
+      g.fillStyle="#844938";g.beginPath();g.arc(31,-52,8,0,tau);g.fill();g.restore();
+      g.fillStyle="#754738";g.font="bold 26px monospace";g.fillText(run?run.metres.toFixed(1)+" m":"—",x,226);
+      g.fillStyle="#425753";g.font="14px monospace";g.fillText(run?run.street:"Open entry",x,251,286);
+    }
+    g.fillStyle="#b6a78a";g.fillRect(318,67,1,188);g.restore();
+  }
+  function wheelStock(book){
+    if(!book?.heron&&!book?.paloma)return null;
+    const stamp=(book.paloma?.metres||0)+"/"+(book.heron?.metres||0);
+    if(wheelSheet?.stamp!==stamp){
+      const canvas=wheelSheet?.canvas||paperCanvas(640,270);
+      if(!canvas?.getContext?.("2d"))return null;
+      wheelCard(canvas,book);wheelSheet={canvas,stamp,revision:1+(wheelSheet?.revision||0)};
+    }
+    return wheelSheet;
+  }
+  function prints(view,model,records,see,book){
     const eye=view.basis?.camera;
     if(!view.drawPrint||!records||!see(site.prints,43)||eye&&eye.x>front+.17)return;
+    const wheel=wheelStock(book);
+    if(wheel){
+      model("coast-camera-one-wheel",g=>{
+        for(const [u,v] of [[0,1],[1,1],[1,0],[0,1],[1,0],[0,0]]){
+          g.vertices.push(...onPrint(wheelFrame,(u-.5)*wheelFrame.width,(.5-v)*wheelFrame.height),u,v,0);
+        }
+      });
+      view.drawPrint("coast-camera-one-wheel",wheel.canvas,wheel.revision,0,0,0,0);
+    }
     const q=stock(records);if(!q?.decoded.some(Boolean))return;
     model("coast-camera-window-prints",filmMesh);
     view.drawPrint("coast-camera-window-prints",q.canvas,q.revision,0,0,0,0);
@@ -428,15 +473,16 @@
   function occludesActor(actor,player){
     return !!actor&&actor.x>front+.09&&actor.x<front+3.02&&actor.z>16.03&&actor.z<25.31&&!interiorVisible(player);
   }
-  function mapPrints(g,records){
-    const q=stock(records);if(!q?.decoded.some(Boolean))return;
+  function mapPrints(g,records,book){
+    const q=stock(records),wheel=wheelStock(book);
     const projection=([x,y,z])=>[x+leanX*y,z+leanZ*y];
-    for(let i=0;i<frames.length;i++){
-      if(!q.decoded[i])continue;
-      const b=frames[i],hw=b.width/2,hh=b.height/2;
+    for(let i=0;i<=frames.length;i++){
+      const board=i===frames.length;if(board?!wheel:!q?.decoded[i])continue;
+      const b=board?wheelFrame:frames[i],hw=b.width/2,hh=b.height/2;
       const [x,y]=projection(onPrint(b,-hw,hh)),[rx,ry]=projection(onPrint(b,hw,hh)),[bx,by]=projection(onPrint(b,-hw,-hh));
       g.save();g.transform((rx-x)/320,(ry-y)/320,(bx-x)/240,(by-y)/240,x,y);
-      g.drawImage(q.canvas,8+i*344,8,320,240,0,0,320,240);g.restore();
+      if(board)g.drawImage(wheel.canvas,0,0,320,240);
+      else g.drawImage(q.canvas,8+i*344,8,320,240,0,0,320,240);g.restore();
     }
   }
   function pin(g,atlas,ui){
@@ -459,12 +505,12 @@
     if(street&&cut){
       const night=opt.weather?.night||0;
       if(night>.08){ctx.save();ctx.globalAlpha=.39*night;ctx.fillStyle="#eac580";ctx.fillRect(155.18,17.06,.16,7.27);ctx.restore();}
-      mapPrints(ctx,opt.motoPrints||opt.motos?.prints);
+      mapPrints(ctx,opt.motoPrints||opt.motos?.prints,opt.motos?.saved?.wheel);
     }
     ctx.restore();
     if(street)return;
     const min=ctx.canvas?Math.min(ctx.canvas.width,ctx.canvas.height):192,ui=Math.max(.72,Math.min(1.64,min/(atlas?370:165)));
     ctx.save();ctx.translate(px(site.counter.x),py(site.counter.z));pin(ctx,atlas,ui);ctx.restore();
   }
-  window.BayCoastCamera={site,frames,blocks,cameraBlocks,floor,occludesActor,install,world,prints,map};
+  window.BayCoastCamera={site,frames,blocks,cameraBlocks,floor,occludesActor,install,world,prints,map,wheelCard};
 })();

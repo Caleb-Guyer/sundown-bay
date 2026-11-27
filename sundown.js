@@ -15397,7 +15397,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const left=centerX-halfX,right=centerX+halfX,top=centerZ+halfZ,bottom=centerZ-halfZ;
     const w=(right-left)*density,h=(top-bottom)*density;
     if(w*h>1400000)return null;
-    const canvas=patch?.canvas||mapSurface(w,h);
+    const canvas=patch?.spare||mapSurface(w,h);
     if(!canvas)return null;
     if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;
     const c=canvas.getContext("2d"),px=x=>(x-left)*density,py=z=>(top-z)*density;
@@ -15410,8 +15410,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       draw(roofs);
       if(signals)for(const sig of signals)if(sig.x+10>=l&&sig.x-10<=r&&sig.z+10>=b&&sig.z-10<=t)BayCrosswalkArt.mapPaint(c,px,py,density,sig);
     };
-    // Copy the unchanged map when the driver crosses a block. Rasterize the
-    // new strips only. A plain canvas has no immutable snapshot to copy from.
+    // Alternate two backing surfaces. The old block can supply the overlap
+    // while the other surface receives new strips, also on a plain canvas.
     const l=Math.max(left,patch?.left??right),r=Math.min(right,patch?.right??left);
     const b=Math.max(bottom,patch?.bottom??top),t=Math.min(top,patch?.top??bottom);
     if(l<r&&b<t&&patch.image!==canvas&&patch.key===key&&patch.signals===signals&&patch.density===density&&patch.base===base&&patch.roofs===roofs){
@@ -15422,8 +15422,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         paint(x0,z0,x1,z1);c.restore();
       }
     }else paint(left,bottom,right,top);
-    patch?.image.close?.();
-    patch={canvas,image:freezeSurface(canvas),base,roofs,key,density,signals,light,opacity,left,right,top,bottom};
+    patch={spare:patch?.image,image:canvas,base,roofs,key,density,signals,light,opacity,left,right,top,bottom};
     streetGround.set(opt.solids,patch);return patch;
   }
   function castBuildings(c,solids,light,px,py,s,visible,opacity){
@@ -21620,6 +21619,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     gate:{x:-152.55,z:-88.1},live:{x:153,z:118},print:{x:8,z:54.8},reel:BayRoomTone.mara};
   const stages=["arrival","meet","ride","negative","return","filed"];
   const camera={
+    cameraCounter:["ride",[-4.5,1.58,-2.45],[-3.30,1.65,-1.76],[.2,1.56,0],1.44,13],
     boothDoor:["starlite",[3.3,1.70,-4.2],[2.0,1.55,-3.5],[-.6,1.38,.1],1.52,12],
     palmBeam:["palmClock",[-3.9,1.20,-3.7],[-2.4,1.12,-2.1],[0,1.34,0],1.47,15],
     clinicDoor:["receiving",[.55,1.68,3.72],[.32,1.62,2.8],[0,1.30,-.65],1.42,13],
@@ -21649,6 +21649,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    twoPockets:[
+      {dur:4.6,shot:"cameraCounter",slug:"COAST CAMERA & CYCLE   /   OCEAN DRIVE",title:"Two Pockets",who:"Inés Vidal",line:"Remy came in to check the board. Stood here a full minute with his helmet on. I could see him doing the sums."},
+      {dur:5.4,art:"twoPockets",who:"Inés Vidal",line:"He took my chalk. I said, what do you want the chalk for? He said, you’ve still got the other side of the window."}
+    ],
     dashInsert:[
       {dur:8,art:"glovebox",slug:"MARA’S CAMERA NOTES   /   MARLIN MOTEL",title:"The Sticking Latch",who:"Mara Vega",line:"I left the close-up long. Watch the string when the door drops. That’s how I spotted the tag."}
     ],
@@ -52623,8 +52627,17 @@ window.buildBayCity = function buildBayCity(g,water) {
   const sub=(a,b)=>a.map((v,i)=>v-b[i]),add=(a,b)=>a.map((v,i)=>v+b[i]);
   const worldGround=(b,value,x=b.x,z=b.z)=>typeof value==="function"?value(x,z):value??b.y??0;
   function foundation(b,ground){
-    return {x:b.x,y:worldGround(b,ground)+(b.air||0),z:b.z,yaw:b.yaw||0,
+    const f={x:b.x,y:worldGround(b,ground)+(b.air||0),z:b.z,yaw:b.yaw||0,
       tilt:-(b.pitch||0),lean:-(b.lean||0)+.095*clamp(b.stand||0,0,1)};
+    if(b.wheelLift){
+      // Rotate around the rear hub so the tyre stays planted on the same patch of road.
+      const s=spec(b),z=s.axles[0],r=s.radii[0],a=f.tilt,next=a-b.wheelLift;
+      const dc=Math.cos(a)-Math.cos(next),ds=Math.sin(a)-Math.sin(next);
+      const dy=r*dc-z*ds,dz=r*ds+z*dc,dx=-Math.sin(f.lean)*dy;
+      f.x+=Math.cos(f.yaw)*dx+Math.sin(f.yaw)*dz;f.z+=Math.cos(f.yaw)*dz-Math.sin(f.yaw)*dx;
+      f.y+=Math.cos(f.lean)*dy;f.tilt=next;
+    }
+    return f;
   }
   function basis(yaw,tilt,lean){
     const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(tilt),sp=Math.sin(tilt),cr=Math.cos(lean),sr=Math.sin(lean);
@@ -53651,7 +53664,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const pelvisPan=turn*shift+studied*hipTurn;
     mesh.pelvis.place(at,tilt*shift+.060*shift+.045*swing,pelvisPan,roll*shift-.035*side*swing);
     mesh.pelvis.map(mesh.chest.pivot,mesh.pivot);
-    const pitch=pilot?(heron?.31:.16)+stretch*.10:-.16+studied*.235;
+    const pitch=pilot?(heron?.31:.16)+stretch*.10+(b.wheelLift||0)*.55:-.16+studied*.235;
     mesh.chest.place(mesh.pivot,.019+shift*(tilt+pitch)+.142*swing+rest,turn*shift+studied*(pan-.45*Math.sin(pan))+scan*1.4,
       roll*shift*.92-leanPast*.53-side*.103*swing);
     mesh.chest.map(mesh.head.pivot,mesh.pivot);
@@ -54266,9 +54279,54 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     return sources.some(Boolean)?sheet:null;
   }
-  function prints(view,model,records,see){
+  const wheelFrame={u:2.55,y:1.035,d:-.046,tilt:.09,width:1.52,height:.64};
+  let wheelSheet=null;
+  function wheelCard(canvas,book){
+    const g=canvas.getContext("2d");
+    g.save();g.setTransform(canvas.width/640,0,0,canvas.height/270,0,0);
+    g.fillStyle="#ede0bc";g.fillRect(0,0,640,270);g.fillStyle="#264d4e";g.fillRect(0,0,640,55);
+    g.fillStyle="#fff0c8";g.font="italic bold 33px Georgia";g.fillText("One Wheel",22,38);
+    g.font="bold 13px monospace";g.fillText("COAST CAMERA & CYCLE",447,33);
+    for(const [i,kind] of ["paloma","heron"].entries()){
+      const run=book[kind],s=BayMotorcyclesArt.specs[kind],x=22+316*i;
+      g.fillStyle="#294542";g.font="bold 18px Georgia";g.fillText(s.name,x,83);
+      g.fillStyle="#755b47";g.font="13px monospace";g.fillText("SHOP MARK  "+BaySecondSeat.marks[kind]+" m",x+140,82);
+      g.save();g.translate(x+70,179);const r=16;g.strokeStyle="#9e8e68";g.lineWidth=1.5;
+      g.beginPath();g.moveTo(-54,r);g.lineTo(186,r);g.stroke();
+      g.rotate(-(run?.peak||0));const base=s.wheelbase*61;
+      g.lineWidth=5;g.strokeStyle="#313b39";for(const u of [0,base]){g.beginPath();g.arc(u,0,r,0,tau);g.stroke();}
+      const stick=(points,col,w)=>{g.strokeStyle=col;g.lineWidth=w;g.beginPath();points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.stroke();};
+      g.lineJoin="round";g.lineCap="round";stick([[0,0],[31,-12],[base-8,-23],[base,0]],s.paint,6);
+      stick([[14,-26],[40,-26],[base-8,-20]],"#455555",6);stick([[base-8,-23],[base-13,-34],[base-20,-34]],"#566966",3);
+      stick([[27,-46],[20,-29],[45,-19],[36,-5]],"#3f514e",6);stick([[26,-45],[44,-35],[base-20,-34]],"#526a62",4);
+      g.fillStyle="#844938";g.beginPath();g.arc(31,-52,8,0,tau);g.fill();g.restore();
+      g.fillStyle="#754738";g.font="bold 26px monospace";g.fillText(run?run.metres.toFixed(1)+" m":"—",x,226);
+      g.fillStyle="#425753";g.font="14px monospace";g.fillText(run?run.street:"Open entry",x,251,286);
+    }
+    g.fillStyle="#b6a78a";g.fillRect(318,67,1,188);g.restore();
+  }
+  function wheelStock(book){
+    if(!book?.heron&&!book?.paloma)return null;
+    const stamp=(book.paloma?.metres||0)+"/"+(book.heron?.metres||0);
+    if(wheelSheet?.stamp!==stamp){
+      const canvas=wheelSheet?.canvas||paperCanvas(640,270);
+      if(!canvas?.getContext?.("2d"))return null;
+      wheelCard(canvas,book);wheelSheet={canvas,stamp,revision:1+(wheelSheet?.revision||0)};
+    }
+    return wheelSheet;
+  }
+  function prints(view,model,records,see,book){
     const eye=view.basis?.camera;
     if(!view.drawPrint||!records||!see(site.prints,43)||eye&&eye.x>front+.17)return;
+    const wheel=wheelStock(book);
+    if(wheel){
+      model("coast-camera-one-wheel",g=>{
+        for(const [u,v] of [[0,1],[1,1],[1,0],[0,1],[1,0],[0,0]]){
+          g.vertices.push(...onPrint(wheelFrame,(u-.5)*wheelFrame.width,(.5-v)*wheelFrame.height),u,v,0);
+        }
+      });
+      view.drawPrint("coast-camera-one-wheel",wheel.canvas,wheel.revision,0,0,0,0);
+    }
     const q=stock(records);if(!q?.decoded.some(Boolean))return;
     model("coast-camera-window-prints",filmMesh);
     view.drawPrint("coast-camera-window-prints",q.canvas,q.revision,0,0,0,0);
@@ -54323,15 +54381,16 @@ window.buildBayCity = function buildBayCity(g,water) {
   function occludesActor(actor,player){
     return !!actor&&actor.x>front+.09&&actor.x<front+3.02&&actor.z>16.03&&actor.z<25.31&&!interiorVisible(player);
   }
-  function mapPrints(g,records){
-    const q=stock(records);if(!q?.decoded.some(Boolean))return;
+  function mapPrints(g,records,book){
+    const q=stock(records),wheel=wheelStock(book);
     const projection=([x,y,z])=>[x+leanX*y,z+leanZ*y];
-    for(let i=0;i<frames.length;i++){
-      if(!q.decoded[i])continue;
-      const b=frames[i],hw=b.width/2,hh=b.height/2;
+    for(let i=0;i<=frames.length;i++){
+      const board=i===frames.length;if(board?!wheel:!q?.decoded[i])continue;
+      const b=board?wheelFrame:frames[i],hw=b.width/2,hh=b.height/2;
       const [x,y]=projection(onPrint(b,-hw,hh)),[rx,ry]=projection(onPrint(b,hw,hh)),[bx,by]=projection(onPrint(b,-hw,-hh));
       g.save();g.transform((rx-x)/320,(ry-y)/320,(bx-x)/240,(by-y)/240,x,y);
-      g.drawImage(q.canvas,8+i*344,8,320,240,0,0,320,240);g.restore();
+      if(board)g.drawImage(wheel.canvas,0,0,320,240);
+      else g.drawImage(q.canvas,8+i*344,8,320,240,0,0,320,240);g.restore();
     }
   }
   function pin(g,atlas,ui){
@@ -54354,14 +54413,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(street&&cut){
       const night=opt.weather?.night||0;
       if(night>.08){ctx.save();ctx.globalAlpha=.39*night;ctx.fillStyle="#eac580";ctx.fillRect(155.18,17.06,.16,7.27);ctx.restore();}
-      mapPrints(ctx,opt.motoPrints||opt.motos?.prints);
+      mapPrints(ctx,opt.motoPrints||opt.motos?.prints,opt.motos?.saved?.wheel);
     }
     ctx.restore();
     if(street)return;
     const min=ctx.canvas?Math.min(ctx.canvas.width,ctx.canvas.height):192,ui=Math.max(.72,Math.min(1.64,min/(atlas?370:165)));
     ctx.save();ctx.translate(px(site.counter.x),py(site.counter.z));pin(ctx,atlas,ui);ctx.restore();
   }
-  window.BayCoastCamera={site,frames,blocks,cameraBlocks,floor,occludesActor,install,world,prints,map};
+  window.BayCoastCamera={site,frames,blocks,cameraBlocks,floor,occludesActor,install,world,prints,map,wheelCard};
 })();
 
 ;
@@ -54384,6 +54443,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       ask:"My aunt sold tickets at Luna. Take the marquee from across the street. A passing car makes it look like Saturday again.",arrival:"That long gold canopy. Come back with the whole thing on the negative.",credit:"Cine Luna, Neon Mile"}
   ];
   const find=id=>briefs.find(c=>c.id===id),kinds=["paloma","heron"];
+  const marks={paloma:18,heron:30};
+  const bothMarks=book=>kinds.every(k=>book[k]?.metres>=marks[k]);
   const handling={paloma:{top:21.5,power:6.3,brake:10.9,grip:8.6,steer:.65,lean:.53,drag:.0099},heron:{top:38.4,power:10.6,brake:14.8,grip:11.4,steer:.61,lean:.70,drag:.0038}};
   function read(raw){
     const count={},best={},parked={};
@@ -54391,14 +54452,44 @@ window.buildBayCity = function buildBayCity(g,water) {
       best[c.id]=Number.isSafeInteger(raw?.best?.[c.id])?clamp(raw.best[c.id],0,100):0;}
     for(const k of kinds){const p=raw?.parked?.[k];if(p&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&Number.isFinite(p.yaw)&&
       p.x>=-184&&p.x<=210&&p.z>=-182&&p.z<=405)parked[k]={x:p.x,z:p.z,yaw:p.yaw};}
-    return {count,best,parked,last:typeof raw?.last==="string"?raw.last.slice(0,60):"",distance:Number.isFinite(raw?.distance)?clamp(raw.distance,0,1e9):0};
+    const wheel={};
+    for(const k of kinds){
+      const r=raw?.wheel?.[k];
+      if(r&&Number.isFinite(r.metres)&&r.metres>=3&&r.metres<=1e7&&Number.isFinite(r.peak)&&r.peak>=.22&&r.peak<=1.13&&Number.isFinite(r.seconds)&&r.seconds>0&&r.seconds<=1e6)
+        wheel[k]={metres:r.metres,peak:r.peak,seconds:r.seconds,street:typeof r.street==="string"?r.street.slice(0,64):""};
+    }
+    return {count,best,parked,wheel,last:typeof raw?.last==="string"?raw.last.slice(0,60):"",distance:Number.isFinite(raw?.distance)?clamp(raw.distance,0,1e9):0};
   }
   function motorcycle(kind,start,id=kind){
     const s=BayMotorcyclesArt.specs[kind];return {...start,kind,id,name:s.name,footprint:s.footprint,color:id==="remy"?"#76a186":s.paint,
       y:0,speed:0,vx:0,vz:0,yawRate:0,lean:0,pitch:0,steer:0,stand:1,wheelSpin:0,gear:1,rpm:.08,brakes:0,throttle:0,indicator:0,impact:0,pass:0,mount:0};
   }
   const local=(role,name,p)=>({...p,name,role,motion:new BayPlayerMotion(),yaw:p.yaw||0,y:p.y||.077,chair:null,path:[],action:"idle"});
-  function settle(b){b.speed=b.vx=b.vz=b.yawRate=b.throttle=0;b.brakes=1;}
+  function settle(b){b.speed=b.vx=b.vz=b.yawRate=b.throttle=0;b.brakes=1;b.oneWheel=null;b.wheelLift=0;}
+  function balanceWheel(b,dt,input,env,metres){
+    if(!input.lift)b.liftHeld=false;
+    let run=b.oneWheel;
+    if(!run){
+      if(!input.lift||b.liftHeld||!input.gas||b.speed<4.2||input.brake||input.rear||b.impact>0)return;
+      b.liftHeld=true;run=b.oneWheel={angle:.012,rate:.13,metres:0,peak:0,seconds:0,over:false};
+    }
+    const scooter=b.kind==="paloma",speed=Math.max(0,b.speed),pull=input.lift&&input.gas&&!input.brake&&!input.rear&&speed>3;
+    for(let left=dt;left>.000001;left-=1/90){
+      const step=Math.min(left,1/90);
+      const target=run.over?-1.65:pull?(scooter?.53:.69)+.38*run.angle:input.rear||input.brake?-1.44:-.78;
+      run.rate=damp(run.rate,target,run.over?6:4,step);
+      run.angle=clamp(run.angle+run.rate*step,0,1.13);
+      run.peak=Math.max(run.peak,run.angle);run.seconds+=step;
+      if(run.angle>.12)run.metres+=metres*step/dt;
+      if(run.angle>1.01||Math.abs(b.lean)>.5&&run.angle>.42)run.over=true;
+      if(run.angle<=0){
+        b.oneWheel=null;b.wheelLift=0;b.liftHeld=!!input.lift;
+        if(run.peak>=.22&&run.metres>=3)env.touchdown?.(b,run);
+        return;
+      }
+    }
+    b.wheelLift=run.angle;
+  }
   function runGear(b,dt,pace,load){
     const scooter=b.kind==="paloma",gears=scooter?[21.5]:[7.0,13.5,21.1,29.8,39];
     let g=b.gear||1;b.shift=Math.max(0,(b.shift||0)-dt);
@@ -54427,7 +54518,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     b.speed=clamp(old+accel*dt,-1.1,top);
     const bar=h.steer/(1+.075*n+.0013*n*n),lock=clamp(input.steer,-1,1);
     b.steer=damp(b.steer,bar*lock,7.2,dt);
-    const yawRate=clamp(b.speed*Math.tan(b.steer)/s.wheelbase,-g/Math.max(2.4,n),g/Math.max(2.4,n));
+    const contact=1-.74*Math.min(1,(b.wheelLift||0)/.7);
+    const yawRate=clamp(b.speed*Math.tan(b.steer)*contact/s.wheelbase,-g/Math.max(2.4,n),g/Math.max(2.4,n));
     b.yawRate=damp(b.yawRate,yawRate*(input.rear?1.24:1),5.4/wheel,dt);
     const yaw=b.yaw+b.yawRate*dt,lean=clamp(Math.atan2(b.speed*b.yawRate,9.81),-h.lean,h.lean);
     b.lean=damp(b.lean,lean,5.0,dt);
@@ -54436,7 +54528,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     const q={x:b.x+b.vx*dt,z:b.z+b.vz*dt,yaw,kind:b.kind,footprint:b.footprint},hit=env.obstacle(b,q);
     if(hit){if(!b.impact&&n>4)env.bump(b,hit,n);b.impact=.55;settle(b);b.lean=damp(b.lean,0,8,dt);}
     else{b.x=q.x;b.z=q.z;b.yaw=yaw;}
-    suspension(b,dt,old,env);return gap(q,b)<.01?n*dt:0;
+    suspension(b,dt,old,env);
+    const travelled=hit?0:Math.hypot(b.vx,b.vz)*dt;
+    if(!hit&&!partner&&(input.lift||b.oneWheel||b.liftHeld))balanceWheel(b,dt,input,env,travelled);
+    return travelled;
   }
   function automatic(b,route,dt,env,waiting=false){
     const line=route.line,at=route.at,remaining=line.length-at,f=line.sample(at),next=line.sample(at+7.5),old=b.speed;
@@ -54746,7 +54841,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(this.partner?.stage==="ride")Object.assign(this.ines,BayMotoRiders.placement(b,this.partner.seat,this.partner.side,1,b.y));
     }
   }
-  window.BaySecondSeat={Fleet,read,briefs,find,handling,ride,automatic,autoRoute,motorcycle,settle};
+  window.BaySecondSeat={Fleet,read,briefs,find,marks,bothMarks,handling,ride,automatic,autoRoute,motorcycle,settle};
 })();
 
 ;
@@ -73022,6 +73117,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    if(latest?.moto?.wheel){
+      const incoming=BaySecondSeat.read(latest.moto).wheel;
+      for(const [kind,run] of Object.entries(incoming))if(run.metres>(save.moto.wheel[kind]?.metres||0))save.moto.wheel[kind]=run;
+    }
     const film=latest?.featurePrint;
     const storedPair=film?.pair,localPair=save.featurePrint.pair;
     const latestPair=BayFeaturePrint.validPair(storedPair)&&storedPair.rev>(localPair?.rev||0)?storedPair:localPair;
@@ -73568,6 +73667,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
     }
     if(b?.art==="gatePrint")BayFeaturePrint.frame($("chapterInsert"),0,true);
+    if(b?.art==="twoPockets")BayCoastCamera.wheelCard($("chapterInsert"),save.moto.wheel);
     if(b?.art==="timingCarbon"){
       const ink=save.green.cards.ocean.autograph,shot=campaign.scene.index;
       BayOnGreenArt.fridge($("chapterInsert"),ink,shot);
@@ -75290,7 +75390,18 @@ window.buildBayCity = function buildBayCity(g,water) {
     message(text){note("Coast Camera",text,3.3);},
     input(aim){
       return {gas:!aim&&held("KeyW","ArrowUp"),brake:!aim&&held("KeyS","ArrowDown"),
-        rear:aim||held("Space"),steer:aim?0:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"))};
+        lift:!aim&&!active&&!heat&&held("ShiftLeft","ShiftRight"),rear:aim||held("Space"),steer:aim?0:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"))};
+    },
+    touchdown(b,run){
+      if(run.over||heat||active){
+        note("One Wheel","Rough landing · The run stays off the board.",2.5);return;
+      }
+      const metres=Math.floor(run.metres*10)/10,old=save.moto.wheel[b.kind]?.metres||0;
+      if(metres>old){
+        save.moto.wheel[b.kind]={metres,seconds:run.seconds,peak:run.peak,street:BayStreetNames.through(b,b.yaw)||district(b)};persist();
+      }
+      const best=save.moto.wheel[b.kind].metres;
+      note("One Wheel · "+metres.toFixed(1)+" m",metres===best&&best>old?(BaySecondSeat.bothMarks(save.moto.wheel)?"Both shop marks beaten · Inés left a note in the print window":"New "+b.name+" record · Coast Camera print window"):"Best on the "+b.name+" · "+best.toFixed(1)+" m",4);
     },
     grip(b){return (b.z>181?BayCut.surface(b.x,b.z):b.x>166.45?.56:nearStreet(b.x,b.z)?1:.83)*(1-.17*hours.wet);},
     road(b){const q=chase.road(b),curb=BayCab.streetStop(b,q);return curb&&{...curb,x:q.vertical?q.x+(curb.dir===0?2.48:-2.48):b.x,z:q.vertical?b.z:q.z+(curb.dir===1?-2.48:2.48)};},
@@ -75418,6 +75529,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       else if(j?.stage==="return"&&dist(b,studio.counter)<15)contextHint("F","Park for the film counter");
       else if(j&&motos.nearPhoto()&&j.stage==="out")contextHint("F","Raise the rangefinder   ·   G trade seats when stopped");
       else if(j)contextHint("G","Trade seats when stopped   ·   E step off");
+      else if(b.oneWheel){
+        const run=b.oneWheel;
+        contextHint("Shift",run.over?"Past the balance point · Coming down":run.metres.toFixed(1)+" m  ·  "+(run.angle>.74?"Ease off to lower the front":run.angle>.30?"Feather Shift to balance":"Hold to lift"));
+      }else if(!heat)contextHint("Shift",Math.abs(b.speed)>4?"One Wheel · Hold with throttle to lift, release to land":"Roll on W, then Shift to lift  ·  E step off");
       else contextHint("E","Step off when stopped   ·   Space rear brake"+(isTop()?"":"   ·   V rider view"));
       return true;
     }
@@ -75429,7 +75544,12 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function motoGallery(body){
     const photos=Object.values(motos.prints);
-    if(!photos.length){signedNote(body,"Three clips in the window. Bring me a roll and we'll fill the first one.","Inés Vidal");return;}
+    const wheel=save.moto.wheel;
+    const card=document.createElement("canvas");card.width=640;card.height=270;card.className="night-edition";
+    card.setAttribute("aria-label","One Wheel distances. "+["paloma","heron"].map(k=>BayMotorcyclesArt.specs[k].name+" · "+(wheel[k]?wheel[k].metres.toFixed(1)+" metres":"open entry")).join(". "));
+    BayCoastCamera.wheelCard(card,wheel);body.append(card);
+    if(BaySecondSeat.bothMarks(wheel))body.append(makeButton("Two Pockets","Inés left something on the back of your card.","Turn over",()=>enterFilm("twoPockets",true)));
+    if(!photos.length){signedNote(body,"I used to mark the long ones on my shop apron. Two bikes, two pockets. This is easier to read.","Inés Vidal");return;}
     const wall=document.createElement("div");wall.className="coast-prints";
     for(const c of BaySecondSeat.briefs){const p=motos.prints[c.id];if(!p)continue;
       const print=document.createElement("figure"),img=document.createElement("img"),cap=document.createElement("figcaption");
@@ -75447,6 +75567,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       b.append(makeButton("Bring a bike to the window",motos.returning?"Inés is riding back. You can find the other loaner on the map.":"Both loaners are out. The map has the closest set of keys.",v.name,()=>clockPin({...v,name:v.name})));return;
     }
     signedNote(b,"My dad used to work this strip with a camera under the seat. Pick a corner. We can take turns at the bars.","Inés Vidal");
+    b.append(makeButton("One Wheel","Take either loaner out solo. Hold Shift with the throttle to lift the front wheel, then ease it down. Inés keeps the distances in the print window.","See records",()=>openPanel("moto-prints")));
     const box=document.createElement("div");b.append(box);
     const choose=c=>{
       box.replaceChildren();signedNote(box,c.ask,"Second Seat · "+c.place);
@@ -77593,6 +77714,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return seat&&!freshFlowerChair&&onStreetFeet()&&!projector&&!active&&!heat&&dist(hero,seat)<1.65;
   }
   function flowerSubject(){
+    if(campaign.scene?.id==="twoPockets")return {x:studio.counter.x,z:studio.counter.z,yaw:0};
     if((campaign.scene?.id==="lastCone"||campaign.scene?.id==="countyAlone")&&countyCrew.site){
       const scene=campaign.scene,shot=campaign.beat().shot;
       if(scene.countyAngle?.shot===shot)return scene.countyAngle;
@@ -83727,7 +83849,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       BayDriversSeat.draw(view,model,body,ground,{night:dusk,time:t,headlights:seatLights(),kit:worn(),greet:helloPose});
     }
     if(marketArtReady)BayMercadoArt.light(view,see,hours);
-    if(play){BayTakePoster.world(view,model,save.stunt,see);BayCoastCamera.prints(view,model,motos.prints,see);}
+    if(play){BayTakePoster.world(view,model,save.stunt,see);BayCoastCamera.prints(view,model,motos.prints,see,save.moto.wheel);}
     BayStreetArt.draw(view,streetTime,cam);
     for(const v of cars){
       const pulse=BayStreetReactions.hornPulse(v,streetTime);
@@ -85616,7 +85738,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(save.band.met)b.append(makeButton("June Mora",band.june.state==="shell"?"At the Sound Shell.":"Find June on her route.","Set waypoint",()=>clockPin({x:band.june.x,z:band.june.z,kind:"june",id:"june",name:"June Mora"})));
       }
       if(car)for(const [id,master] of Object.entries(save.band.best))b.append(makeButton(BaySessions.byId(id).name,"Your Sound Shell recording  ·  "+master.score+"%","Play in car",()=>cueTape(id)));
-      if(Object.keys(motos.prints).length)b.append(makeButton("Coast Camera prints","Your photographs from Second Seat.","Open prints",()=>openPanel("moto-prints")));
+      if(Object.keys(motos.prints).length||Object.keys(save.moto.wheel).length)b.append(makeButton("Coast Camera prints","Your Second Seat photographs and One Wheel records.","Open prints",()=>openPanel("moto-prints")));
       if(skateReel)b.append(skateReelButton());if(printAvailable())b.append(airLedgerButton());
       if(save.campana.met&&!active)b.prepend(makeButton("La Campana · Nina Rojas",campana.phase==="route"?"On the way to "+BayCampana.stops[campana.next].name:"At "+campana.station.name,"Track truck",()=>clockPin({...campana.counter,kind:"campana-track",name:"La Campana"})));
       if(save.threads.met)b.append(makeButton("Cora Vidal · Low Tide Exchange","Fitting mirror and window commissions on Ocean Drive.","Mark stall",()=>clockPin(threads.counter)));

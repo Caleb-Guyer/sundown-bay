@@ -291,7 +291,7 @@
     const left=centerX-halfX,right=centerX+halfX,top=centerZ+halfZ,bottom=centerZ-halfZ;
     const w=(right-left)*density,h=(top-bottom)*density;
     if(w*h>1400000)return null;
-    const canvas=patch?.canvas||mapSurface(w,h);
+    const canvas=patch?.spare||mapSurface(w,h);
     if(!canvas)return null;
     if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;
     const c=canvas.getContext("2d"),px=x=>(x-left)*density,py=z=>(top-z)*density;
@@ -304,8 +304,8 @@
       draw(roofs);
       if(signals)for(const sig of signals)if(sig.x+10>=l&&sig.x-10<=r&&sig.z+10>=b&&sig.z-10<=t)BayCrosswalkArt.mapPaint(c,px,py,density,sig);
     };
-    // Copy the unchanged map when the driver crosses a block. Rasterize the
-    // new strips only. A plain canvas has no immutable snapshot to copy from.
+    // Alternate two backing surfaces. The old block can supply the overlap
+    // while the other surface receives new strips, also on a plain canvas.
     const l=Math.max(left,patch?.left??right),r=Math.min(right,patch?.right??left);
     const b=Math.max(bottom,patch?.bottom??top),t=Math.min(top,patch?.top??bottom);
     if(l<r&&b<t&&patch.image!==canvas&&patch.key===key&&patch.signals===signals&&patch.density===density&&patch.base===base&&patch.roofs===roofs){
@@ -316,8 +316,7 @@
         paint(x0,z0,x1,z1);c.restore();
       }
     }else paint(left,bottom,right,top);
-    patch?.image.close?.();
-    patch={canvas,image:freezeSurface(canvas),base,roofs,key,density,signals,light,opacity,left,right,top,bottom};
+    patch={spare:patch?.image,image:canvas,base,roofs,key,density,signals,light,opacity,left,right,top,bottom};
     streetGround.set(opt.solids,patch);return patch;
   }
   function castBuildings(c,solids,light,px,py,s,visible,opacity){

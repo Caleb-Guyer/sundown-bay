@@ -255,7 +255,7 @@
     const pelvisPan=turn*shift+studied*hipTurn;
     mesh.pelvis.place(at,tilt*shift+.060*shift+.045*swing,pelvisPan,roll*shift-.035*side*swing);
     mesh.pelvis.map(mesh.chest.pivot,mesh.pivot);
-    const pitch=pilot?(heron?.31:.16)+stretch*.10:-.16+studied*.235;
+    const pitch=pilot?(heron?.31:.16)+stretch*.10+(b.wheelLift||0)*.55:-.16+studied*.235;
     mesh.chest.place(mesh.pivot,.019+shift*(tilt+pitch)+.142*swing+rest,turn*shift+studied*(pan-.45*Math.sin(pan))+scan*1.4,
       roll*shift*.92-leanPast*.53-side*.103*swing);
     mesh.chest.map(mesh.head.pivot,mesh.pivot);

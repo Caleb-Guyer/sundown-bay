@@ -28,7 +28,7 @@ module.exports=function groundWindow(groundPatch){
       total+=worst;if(worst>8)changed++;
     }
     results.push({dusk,pixels:a.length/4,changed,meanError:total/(a.length/4)});
-    warm.image.close();cold.image.close();
+    warm.image.close?.();cold.image.close?.();
   }
   base.close();roofs.close();return results;
 };

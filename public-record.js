@@ -5,6 +5,7 @@
     gate:{x:-152.55,z:-88.1},live:{x:153,z:118},print:{x:8,z:54.8},reel:BayRoomTone.mara};
   const stages=["arrival","meet","ride","negative","return","filed"];
   const camera={
+    cameraCounter:["ride",[-4.5,1.58,-2.45],[-3.30,1.65,-1.76],[.2,1.56,0],1.44,13],
     boothDoor:["starlite",[3.3,1.70,-4.2],[2.0,1.55,-3.5],[-.6,1.38,.1],1.52,12],
     palmBeam:["palmClock",[-3.9,1.20,-3.7],[-2.4,1.12,-2.1],[0,1.34,0],1.47,15],
     clinicDoor:["receiving",[.55,1.68,3.72],[.32,1.62,2.8],[0,1.30,-.65],1.42,13],
@@ -34,6 +35,10 @@
   };
   // Each insert is a physical thing in this story. All other shots use the live city.
   const scenes={
+    twoPockets:[
+      {dur:4.6,shot:"cameraCounter",slug:"COAST CAMERA & CYCLE   /   OCEAN DRIVE",title:"Two Pockets",who:"Inés Vidal",line:"Remy came in to check the board. Stood here a full minute with his helmet on. I could see him doing the sums."},
+      {dur:5.4,art:"twoPockets",who:"Inés Vidal",line:"He took my chalk. I said, what do you want the chalk for? He said, you’ve still got the other side of the window."}
+    ],
     dashInsert:[
       {dur:8,art:"glovebox",slug:"MARA’S CAMERA NOTES   /   MARLIN MOTEL",title:"The Sticking Latch",who:"Mara Vega",line:"I left the close-up long. Watch the string when the door drops. That’s how I spotted the tag."}
     ],

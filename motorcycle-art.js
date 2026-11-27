@@ -27,8 +27,17 @@
   const sub=(a,b)=>a.map((v,i)=>v-b[i]),add=(a,b)=>a.map((v,i)=>v+b[i]);
   const worldGround=(b,value,x=b.x,z=b.z)=>typeof value==="function"?value(x,z):value??b.y??0;
   function foundation(b,ground){
-    return {x:b.x,y:worldGround(b,ground)+(b.air||0),z:b.z,yaw:b.yaw||0,
+    const f={x:b.x,y:worldGround(b,ground)+(b.air||0),z:b.z,yaw:b.yaw||0,
       tilt:-(b.pitch||0),lean:-(b.lean||0)+.095*clamp(b.stand||0,0,1)};
+    if(b.wheelLift){
+      // Rotate around the rear hub so the tyre stays planted on the same patch of road.
+      const s=spec(b),z=s.axles[0],r=s.radii[0],a=f.tilt,next=a-b.wheelLift;
+      const dc=Math.cos(a)-Math.cos(next),ds=Math.sin(a)-Math.sin(next);
+      const dy=r*dc-z*ds,dz=r*ds+z*dc,dx=-Math.sin(f.lean)*dy;
+      f.x+=Math.cos(f.yaw)*dx+Math.sin(f.yaw)*dz;f.z+=Math.cos(f.yaw)*dz-Math.sin(f.yaw)*dx;
+      f.y+=Math.cos(f.lean)*dy;f.tilt=next;
+    }
+    return f;
   }
   function basis(yaw,tilt,lean){
     const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(tilt),sp=Math.sin(tilt),cr=Math.cos(lean),sr=Math.sin(lean);

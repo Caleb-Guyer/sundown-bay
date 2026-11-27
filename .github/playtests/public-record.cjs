@@ -156,6 +156,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     console.log("PERF",mode,JSON.stringify(perf));
     if(mode==="overhead"){
       const atlas=fs.readFileSync(path.join(__dirname,"../../atlas.js"),"utf8");
+      const tiles=atlas.replace("  function castBuildings(","  window.tiles={patch:groundPatch,image:staticImage};\n  function castBuildings(");
+      const snapshots=tiles.replace("patch?.spare||mapSurface","patch?.canvas||mapSurface").replace("patch={spare:patch?.image,image:canvas,","patch?.image.close?.();patch={canvas,image:freezeSurface(canvas),");
+      const factory=s=>"(function(window){"+s+";return window.tiles;})({})";
+      const blocks=await js("("+require("./ground-drive.cjs").toString()+")("+factory(snapshots)+","+factory(tiles)+",recQA.map)");
+      console.log("PERF ground drive snapshots versus canvases",JSON.stringify(blocks));
+      assert(blocks.maxError===0&&blocks.painted>1e6&&blocks.builds[0]>6&&blocks.builds[0]===blocks.builds[1]);
       const expose=atlas.replace("  function castBuildings(","  window.patch=groundPatch;\n  function castBuildings(");
       const ground=await js("("+require("./ground-window.cjs").toString()+")((function(window){"+expose+";return window.patch;})({}))");
       console.log("PERF overhead block pixels",JSON.stringify(ground));

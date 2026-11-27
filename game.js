@@ -389,6 +389,10 @@
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    if(latest?.moto?.wheel){
+      const incoming=BaySecondSeat.read(latest.moto).wheel;
+      for(const [kind,run] of Object.entries(incoming))if(run.metres>(save.moto.wheel[kind]?.metres||0))save.moto.wheel[kind]=run;
+    }
     const film=latest?.featurePrint;
     const storedPair=film?.pair,localPair=save.featurePrint.pair;
     const latestPair=BayFeaturePrint.validPair(storedPair)&&storedPair.rev>(localPair?.rev||0)?storedPair:localPair;
@@ -935,6 +939,7 @@
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
     }
     if(b?.art==="gatePrint")BayFeaturePrint.frame($("chapterInsert"),0,true);
+    if(b?.art==="twoPockets")BayCoastCamera.wheelCard($("chapterInsert"),save.moto.wheel);
     if(b?.art==="timingCarbon"){
       const ink=save.green.cards.ocean.autograph,shot=campaign.scene.index;
       BayOnGreenArt.fridge($("chapterInsert"),ink,shot);
@@ -2657,7 +2662,18 @@
     message(text){note("Coast Camera",text,3.3);},
     input(aim){
       return {gas:!aim&&held("KeyW","ArrowUp"),brake:!aim&&held("KeyS","ArrowDown"),
-        rear:aim||held("Space"),steer:aim?0:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"))};
+        lift:!aim&&!active&&!heat&&held("ShiftLeft","ShiftRight"),rear:aim||held("Space"),steer:aim?0:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"))};
+    },
+    touchdown(b,run){
+      if(run.over||heat||active){
+        note("One Wheel","Rough landing · The run stays off the board.",2.5);return;
+      }
+      const metres=Math.floor(run.metres*10)/10,old=save.moto.wheel[b.kind]?.metres||0;
+      if(metres>old){
+        save.moto.wheel[b.kind]={metres,seconds:run.seconds,peak:run.peak,street:BayStreetNames.through(b,b.yaw)||district(b)};persist();
+      }
+      const best=save.moto.wheel[b.kind].metres;
+      note("One Wheel · "+metres.toFixed(1)+" m",metres===best&&best>old?(BaySecondSeat.bothMarks(save.moto.wheel)?"Both shop marks beaten · Inés left a note in the print window":"New "+b.name+" record · Coast Camera print window"):"Best on the "+b.name+" · "+best.toFixed(1)+" m",4);
     },
     grip(b){return (b.z>181?BayCut.surface(b.x,b.z):b.x>166.45?.56:nearStreet(b.x,b.z)?1:.83)*(1-.17*hours.wet);},
     road(b){const q=chase.road(b),curb=BayCab.streetStop(b,q);return curb&&{...curb,x:q.vertical?q.x+(curb.dir===0?2.48:-2.48):b.x,z:q.vertical?b.z:q.z+(curb.dir===1?-2.48:2.48)};},
@@ -2785,6 +2801,10 @@
       else if(j?.stage==="return"&&dist(b,studio.counter)<15)contextHint("F","Park for the film counter");
       else if(j&&motos.nearPhoto()&&j.stage==="out")contextHint("F","Raise the rangefinder   ·   G trade seats when stopped");
       else if(j)contextHint("G","Trade seats when stopped   ·   E step off");
+      else if(b.oneWheel){
+        const run=b.oneWheel;
+        contextHint("Shift",run.over?"Past the balance point · Coming down":run.metres.toFixed(1)+" m  ·  "+(run.angle>.74?"Ease off to lower the front":run.angle>.30?"Feather Shift to balance":"Hold to lift"));
+      }else if(!heat)contextHint("Shift",Math.abs(b.speed)>4?"One Wheel · Hold with throttle to lift, release to land":"Roll on W, then Shift to lift  ·  E step off");
       else contextHint("E","Step off when stopped   ·   Space rear brake"+(isTop()?"":"   ·   V rider view"));
       return true;
     }
@@ -2796,7 +2816,12 @@
   }
   function motoGallery(body){
     const photos=Object.values(motos.prints);
-    if(!photos.length){signedNote(body,"Three clips in the window. Bring me a roll and we'll fill the first one.","Inés Vidal");return;}
+    const wheel=save.moto.wheel;
+    const card=document.createElement("canvas");card.width=640;card.height=270;card.className="night-edition";
+    card.setAttribute("aria-label","One Wheel distances. "+["paloma","heron"].map(k=>BayMotorcyclesArt.specs[k].name+" · "+(wheel[k]?wheel[k].metres.toFixed(1)+" metres":"open entry")).join(". "));
+    BayCoastCamera.wheelCard(card,wheel);body.append(card);
+    if(BaySecondSeat.bothMarks(wheel))body.append(makeButton("Two Pockets","Inés left something on the back of your card.","Turn over",()=>enterFilm("twoPockets",true)));
+    if(!photos.length){signedNote(body,"I used to mark the long ones on my shop apron. Two bikes, two pockets. This is easier to read.","Inés Vidal");return;}
     const wall=document.createElement("div");wall.className="coast-prints";
     for(const c of BaySecondSeat.briefs){const p=motos.prints[c.id];if(!p)continue;
       const print=document.createElement("figure"),img=document.createElement("img"),cap=document.createElement("figcaption");
@@ -2814,6 +2839,7 @@
       b.append(makeButton("Bring a bike to the window",motos.returning?"Inés is riding back. You can find the other loaner on the map.":"Both loaners are out. The map has the closest set of keys.",v.name,()=>clockPin({...v,name:v.name})));return;
     }
     signedNote(b,"My dad used to work this strip with a camera under the seat. Pick a corner. We can take turns at the bars.","Inés Vidal");
+    b.append(makeButton("One Wheel","Take either loaner out solo. Hold Shift with the throttle to lift the front wheel, then ease it down. Inés keeps the distances in the print window.","See records",()=>openPanel("moto-prints")));
     const box=document.createElement("div");b.append(box);
     const choose=c=>{
       box.replaceChildren();signedNote(box,c.ask,"Second Seat · "+c.place);
@@ -4960,6 +4986,7 @@
     return seat&&!freshFlowerChair&&onStreetFeet()&&!projector&&!active&&!heat&&dist(hero,seat)<1.65;
   }
   function flowerSubject(){
+    if(campaign.scene?.id==="twoPockets")return {x:studio.counter.x,z:studio.counter.z,yaw:0};
     if((campaign.scene?.id==="lastCone"||campaign.scene?.id==="countyAlone")&&countyCrew.site){
       const scene=campaign.scene,shot=campaign.beat().shot;
       if(scene.countyAngle?.shot===shot)return scene.countyAngle;
@@ -11094,7 +11121,7 @@
       BayDriversSeat.draw(view,model,body,ground,{night:dusk,time:t,headlights:seatLights(),kit:worn(),greet:helloPose});
     }
     if(marketArtReady)BayMercadoArt.light(view,see,hours);
-    if(play){BayTakePoster.world(view,model,save.stunt,see);BayCoastCamera.prints(view,model,motos.prints,see);}
+    if(play){BayTakePoster.world(view,model,save.stunt,see);BayCoastCamera.prints(view,model,motos.prints,see,save.moto.wheel);}
     BayStreetArt.draw(view,streetTime,cam);
     for(const v of cars){
       const pulse=BayStreetReactions.hornPulse(v,streetTime);
@@ -12983,7 +13010,7 @@
         if(save.band.met)b.append(makeButton("June Mora",band.june.state==="shell"?"At the Sound Shell.":"Find June on her route.","Set waypoint",()=>clockPin({x:band.june.x,z:band.june.z,kind:"june",id:"june",name:"June Mora"})));
       }
       if(car)for(const [id,master] of Object.entries(save.band.best))b.append(makeButton(BaySessions.byId(id).name,"Your Sound Shell recording  ·  "+master.score+"%","Play in car",()=>cueTape(id)));
-      if(Object.keys(motos.prints).length)b.append(makeButton("Coast Camera prints","Your photographs from Second Seat.","Open prints",()=>openPanel("moto-prints")));
+      if(Object.keys(motos.prints).length||Object.keys(save.moto.wheel).length)b.append(makeButton("Coast Camera prints","Your Second Seat photographs and One Wheel records.","Open prints",()=>openPanel("moto-prints")));
       if(skateReel)b.append(skateReelButton());if(printAvailable())b.append(airLedgerButton());
       if(save.campana.met&&!active)b.prepend(makeButton("La Campana · Nina Rojas",campana.phase==="route"?"On the way to "+BayCampana.stops[campana.next].name:"At "+campana.station.name,"Track truck",()=>clockPin({...campana.counter,kind:"campana-track",name:"La Campana"})));
       if(save.threads.met)b.append(makeButton("Cora Vidal · Low Tide Exchange","Fitting mirror and window commissions on Ocean Drive.","Mark stall",()=>clockPin(threads.counter)));

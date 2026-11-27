@@ -16,6 +16,8 @@
       ask:"My aunt sold tickets at Luna. Take the marquee from across the street. A passing car makes it look like Saturday again.",arrival:"That long gold canopy. Come back with the whole thing on the negative.",credit:"Cine Luna, Neon Mile"}
   ];
   const find=id=>briefs.find(c=>c.id===id),kinds=["paloma","heron"];
+  const marks={paloma:18,heron:30};
+  const bothMarks=book=>kinds.every(k=>book[k]?.metres>=marks[k]);
   const handling={paloma:{top:21.5,power:6.3,brake:10.9,grip:8.6,steer:.65,lean:.53,drag:.0099},heron:{top:38.4,power:10.6,brake:14.8,grip:11.4,steer:.61,lean:.70,drag:.0038}};
   function read(raw){
     const count={},best={},parked={};
@@ -23,14 +25,44 @@
       best[c.id]=Number.isSafeInteger(raw?.best?.[c.id])?clamp(raw.best[c.id],0,100):0;}
     for(const k of kinds){const p=raw?.parked?.[k];if(p&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&Number.isFinite(p.yaw)&&
       p.x>=-184&&p.x<=210&&p.z>=-182&&p.z<=405)parked[k]={x:p.x,z:p.z,yaw:p.yaw};}
-    return {count,best,parked,last:typeof raw?.last==="string"?raw.last.slice(0,60):"",distance:Number.isFinite(raw?.distance)?clamp(raw.distance,0,1e9):0};
+    const wheel={};
+    for(const k of kinds){
+      const r=raw?.wheel?.[k];
+      if(r&&Number.isFinite(r.metres)&&r.metres>=3&&r.metres<=1e7&&Number.isFinite(r.peak)&&r.peak>=.22&&r.peak<=1.13&&Number.isFinite(r.seconds)&&r.seconds>0&&r.seconds<=1e6)
+        wheel[k]={metres:r.metres,peak:r.peak,seconds:r.seconds,street:typeof r.street==="string"?r.street.slice(0,64):""};
+    }
+    return {count,best,parked,wheel,last:typeof raw?.last==="string"?raw.last.slice(0,60):"",distance:Number.isFinite(raw?.distance)?clamp(raw.distance,0,1e9):0};
   }
   function motorcycle(kind,start,id=kind){
     const s=BayMotorcyclesArt.specs[kind];return {...start,kind,id,name:s.name,footprint:s.footprint,color:id==="remy"?"#76a186":s.paint,
       y:0,speed:0,vx:0,vz:0,yawRate:0,lean:0,pitch:0,steer:0,stand:1,wheelSpin:0,gear:1,rpm:.08,brakes:0,throttle:0,indicator:0,impact:0,pass:0,mount:0};
   }
   const local=(role,name,p)=>({...p,name,role,motion:new BayPlayerMotion(),yaw:p.yaw||0,y:p.y||.077,chair:null,path:[],action:"idle"});
-  function settle(b){b.speed=b.vx=b.vz=b.yawRate=b.throttle=0;b.brakes=1;}
+  function settle(b){b.speed=b.vx=b.vz=b.yawRate=b.throttle=0;b.brakes=1;b.oneWheel=null;b.wheelLift=0;}
+  function balanceWheel(b,dt,input,env,metres){
+    if(!input.lift)b.liftHeld=false;
+    let run=b.oneWheel;
+    if(!run){
+      if(!input.lift||b.liftHeld||!input.gas||b.speed<4.2||input.brake||input.rear||b.impact>0)return;
+      b.liftHeld=true;run=b.oneWheel={angle:.012,rate:.13,metres:0,peak:0,seconds:0,over:false};
+    }
+    const scooter=b.kind==="paloma",speed=Math.max(0,b.speed),pull=input.lift&&input.gas&&!input.brake&&!input.rear&&speed>3;
+    for(let left=dt;left>.000001;left-=1/90){
+      const step=Math.min(left,1/90);
+      const target=run.over?-1.65:pull?(scooter?.53:.69)+.38*run.angle:input.rear||input.brake?-1.44:-.78;
+      run.rate=damp(run.rate,target,run.over?6:4,step);
+      run.angle=clamp(run.angle+run.rate*step,0,1.13);
+      run.peak=Math.max(run.peak,run.angle);run.seconds+=step;
+      if(run.angle>.12)run.metres+=metres*step/dt;
+      if(run.angle>1.01||Math.abs(b.lean)>.5&&run.angle>.42)run.over=true;
+      if(run.angle<=0){
+        b.oneWheel=null;b.wheelLift=0;b.liftHeld=!!input.lift;
+        if(run.peak>=.22&&run.metres>=3)env.touchdown?.(b,run);
+        return;
+      }
+    }
+    b.wheelLift=run.angle;
+  }
   function runGear(b,dt,pace,load){
     const scooter=b.kind==="paloma",gears=scooter?[21.5]:[7.0,13.5,21.1,29.8,39];
     let g=b.gear||1;b.shift=Math.max(0,(b.shift||0)-dt);
@@ -59,7 +91,8 @@
     b.speed=clamp(old+accel*dt,-1.1,top);
     const bar=h.steer/(1+.075*n+.0013*n*n),lock=clamp(input.steer,-1,1);
     b.steer=damp(b.steer,bar*lock,7.2,dt);
-    const yawRate=clamp(b.speed*Math.tan(b.steer)/s.wheelbase,-g/Math.max(2.4,n),g/Math.max(2.4,n));
+    const contact=1-.74*Math.min(1,(b.wheelLift||0)/.7);
+    const yawRate=clamp(b.speed*Math.tan(b.steer)*contact/s.wheelbase,-g/Math.max(2.4,n),g/Math.max(2.4,n));
     b.yawRate=damp(b.yawRate,yawRate*(input.rear?1.24:1),5.4/wheel,dt);
     const yaw=b.yaw+b.yawRate*dt,lean=clamp(Math.atan2(b.speed*b.yawRate,9.81),-h.lean,h.lean);
     b.lean=damp(b.lean,lean,5.0,dt);
@@ -68,7 +101,10 @@
     const q={x:b.x+b.vx*dt,z:b.z+b.vz*dt,yaw,kind:b.kind,footprint:b.footprint},hit=env.obstacle(b,q);
     if(hit){if(!b.impact&&n>4)env.bump(b,hit,n);b.impact=.55;settle(b);b.lean=damp(b.lean,0,8,dt);}
     else{b.x=q.x;b.z=q.z;b.yaw=yaw;}
-    suspension(b,dt,old,env);return gap(q,b)<.01?n*dt:0;
+    suspension(b,dt,old,env);
+    const travelled=hit?0:Math.hypot(b.vx,b.vz)*dt;
+    if(!hit&&!partner&&(input.lift||b.oneWheel||b.liftHeld))balanceWheel(b,dt,input,env,travelled);
+    return travelled;
   }
   function automatic(b,route,dt,env,waiting=false){
     const line=route.line,at=route.at,remaining=line.length-at,f=line.sample(at),next=line.sample(at+7.5),old=b.speed;
@@ -378,5 +414,5 @@
       if(this.partner?.stage==="ride")Object.assign(this.ines,BayMotoRiders.placement(b,this.partner.seat,this.partner.side,1,b.y));
     }
   }
-  window.BaySecondSeat={Fleet,read,briefs,find,handling,ride,automatic,autoRoute,motorcycle,settle};
+  window.BaySecondSeat={Fleet,read,briefs,find,marks,bothMarks,handling,ride,automatic,autoRoute,motorcycle,settle};
 })();
