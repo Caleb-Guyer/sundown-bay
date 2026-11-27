@@ -9,7 +9,7 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
   }
   async function observe(){
     await js(`window.wheelQA={};const q=wheelQA,step=BaySecondSeat.Fleet.prototype.step;
-      BaySecondSeat.Fleet.prototype.step=function(dt,e){q.f=this;q.hero=e.hero;return step.apply(this,arguments);};`);
+      BaySecondSeat.Fleet.prototype.step=function(dt,e){q.f=this;q.hero=e.hero;q.env=e;return step.apply(this,arguments);};`);
     await waitFor("wheelQA.hero");
   }
   try{
@@ -20,25 +20,34 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
         await js("document.querySelector('#play').click()");
       }
       await observe();
-      await js(`q.b=q.f.bikes.find(b=>b.kind===${JSON.stringify(kind)});Object.assign(q.b,{x:9,z:-2.52,yaw:Math.PI/2});
+      await js(`q.b=q.f.bikes.find(b=>b.kind===${JSON.stringify(kind)});
+        const start=[1,-71,-143].find(x=>{
+          let from={...q.b,x,z:-2.52,yaw:Math.PI/2};
+          if(!q.env.foot(x,from.z+1.1,q.b))return false;
+          for(let m=1;m<=64;m++){const next={...from,x:x+m};if(q.env.obstacle(from,next))return false;from=next;}
+          return true;
+        });
+        if(start==null)throw Error('No clear Tideway block for a solo run');
+        Object.assign(q.b,{x:start,z:-2.52,yaw:Math.PI/2});
         Object.assign(q.hero,BayMotoRiders.placement(q.b,"pilot",1,0,q.b.y));true`);
       await waitFor("document.querySelector('#context').textContent.includes('Ride the')");await tap("KeyE");await waitFor("q.f.pilot");
-      await key("keyDown","KeyW");await waitFor("q.b.speed>5");await key("keyDown","ShiftLeft");
-      await js(`q.pulling=true;q.landed=false;q.sampling=true;
+      await js(`q.pulling=false;q.landed=false;
         function pull(wanted){if(q.pulling!==wanted){dispatchEvent(new KeyboardEvent(wanted?'keydown':'keyup',{code:'ShiftLeft',bubbles:true,cancelable:true}));q.pulling=wanted;}}
         function feather(){
           const run=q.b.oneWheel;
           if(run){
             q.peak=Math.max(q.peak||0,run.angle);
-            if(q.allowLand&&!q.landing&&run.metres>34){
+            if(!q.landing&&run.metres>=32){
               q.landing=true;dispatchEvent(new KeyboardEvent('keyup',{code:'KeyW',bubbles:true}));
             }
             if(q.landing||run.angle>.62)pull(false);else if(run.angle<.43)pull(true);
-          }else if(q.peak){pull(false);q.landed=true;return;}
-          if(q.sampling)requestAnimationFrame(feather);
+          }else if(q.peak){pull(false);q.landed=true;dispatchEvent(new KeyboardEvent('keydown',{code:'Space',bubbles:true}));return;}
+          else if(q.b.speed>4.5)pull(true);
+          requestAnimationFrame(feather);
         }feather();`);
+      await key("keyDown","KeyW");
       await waitFor("q.peak>.43&&q.b.oneWheel?.metres>4");
-      if(kind==="heron")await snap("balance");await js("q.allowLand=true");
+      if(kind==="heron")await snap("balance");
       await waitFor("q.landed",20000);await key("keyUp","ShiftLeft");await key("keyUp","KeyW");
       await key("keyDown","Space");await waitFor("q.b.speed<.25");await key("keyUp","Space");
       await tap("KeyE");await waitFor("!q.f.player");
