@@ -20,7 +20,8 @@
   const hardware=globalThis.navigator;
   const smallDevice=hardware?.hardwareConcurrency>0&&hardware.hardwareConcurrency<=2&&
     (hardware.deviceMemory===undefined||hardware.deviceMemory<=4);
-  if(smallDevice){view.scale=.55;view.compact=true;}
+  const softwareOverhead=smallDevice&&!!view.gl&&/SwiftShader|llvmpipe|softpipe|Software Rasterizer/i.test(BayFrameCheck.device(view.gl,hardware.userAgent||""));
+  if(smallDevice)view.scale=.62;
   const frameCheck=new BayFrameCheck();
   // The overhead map needs street geometry for collisions, but its land and
   // buildings are painted by the atlas. Build triangles only for a 3D view.
@@ -579,14 +580,17 @@
     const record=storedPoster();if(record&&(!save.stunt||record.distance>save.stunt.distance))save.stunt=record;
     else if(record&&save.stunt&&record.distance<save.stunt.distance)try{localStorage.setItem(posterKey,JSON.stringify(save.stunt));}catch{}
   });
+  let automaticView=true;
+  manualTop=!!softwareOverhead;
   try{
     const prefs=JSON.parse(localStorage.getItem("sundownBay.camera")||"{}");
     if(Number.isFinite(prefs.zoom))cameraRig.zoom=clamp(prefs.zoom,.68,1.65);
     if([.72,1,1.38].includes(prefs.sensitivity))cameraRig.sensitivity=prefs.sensitivity;
-    cameraRig.assist=prefs.assist===true;manualTop=prefs.overhead===true;driverSeat.enabled=prefs.seat===true;
+    automaticView=prefs.automaticView===true||typeof prefs.overhead!=="boolean";
+    cameraRig.assist=prefs.assist===true;manualTop=automaticView?!!softwareOverhead:prefs.overhead===true;driverSeat.enabled=prefs.seat===true;
     if(["auto","on","off"].includes(prefs.wipers))driverSeat.mode=prefs.wipers;
   }catch{/* The session can still use all camera controls. */}
-  function saveCamera(){try{localStorage.setItem("sundownBay.camera",JSON.stringify({zoom:cameraRig.zoom,sensitivity:cameraRig.sensitivity,assist:cameraRig.assist,overhead:manualTop,seat:driverSeat.enabled,wipers:driverSeat.mode}));}catch{}}
+  function saveCamera(){try{localStorage.setItem("sundownBay.camera",JSON.stringify({zoom:cameraRig.zoom,sensitivity:cameraRig.sensitivity,assist:cameraRig.assist,automaticView,overhead:manualTop,seat:driverSeat.enabled,wipers:driverSeat.mode}));}catch{}}
   function model(name,build){if(rideScenery.collecting)rideScenery.remember(name,build);if(!view.gl||models.has(name))return;const g=new BayMesh();build(g);view.add(name,g);models.add(name);}
   function carSkin(kind,color){const key=kind+color;model(key,g=>buildBayCar(g,kind,color));return key;}
   const vehicleRigs=new Map();
@@ -14071,7 +14075,8 @@
       b.append(makeButton("Back to the city","Resume free roam or your current job.","Resume",closePanel));
       if(halfMoon.stage===5)moonBoard(b,BayTransit.stops[0]);
       if(campaign.book.trips)b.append(makeButton("Room Tone",campaign.book.cut?"Sol FM master · "+BayRoomTone.lines[campaign.book.cut.who][0]+". Tune 88.3 in a car, or return to cut another edition.":"Mara has her field reel under the lid of the Sol FM case.","Locate van",()=>{closePanel();clockPin({...BayRoomTone.site});}));
-      const gfx=makeButton("Camera view",!view.gl||view.lost?"Lightweight overhead rendering is active.":"Third-person street view or the overhead map.",isTop()?"Overhead":"Street",()=>{manualTop=!manualTop;if(manualTop)motos.cockpit=false;saveCamera();openPanel("pause",true);});gfx.disabled=!view.gl||view.lost;
+      const autoOverhead=automaticView&&softwareOverhead;
+      const gfx=makeButton("Camera view",!view.gl||view.lost?"Lightweight overhead rendering is active.":autoOverhead?"Overhead is active because the browser uses software graphics. Select Street to try 3D.":"Third-person street view or the overhead map.",isTop()?"Overhead":"Street",()=>{automaticView=false;manualTop=!manualTop;if(manualTop)motos.cockpit=false;saveCamera();openPanel("pause",true);});gfx.disabled=!view.gl||view.lost;
       const assist=makeButton("Driving camera",cameraRig.assist?"Eases toward the road after you look around.":"Holds your mouse direction. Press X to face the road.",cameraRig.assist?"Follow":"Free look",()=>{cameraRig.assist=!cameraRig.assist;saveCamera();openPanel("pause",true);});
       const sensitivity=makeButton("Mouse sensitivity","Adjust horizontal and vertical look speed.",cameraRig.sensitivity<1?"Low":cameraRig.sensitivity>1?"High":"Normal",()=>{cameraRig.sensitivity=cameraRig.sensitivity===1?1.38:(cameraRig.sensitivity>1 ? .72 : 1);saveCamera();openPanel("pause",true);});
       b.append(gfx,assist,sensitivity);

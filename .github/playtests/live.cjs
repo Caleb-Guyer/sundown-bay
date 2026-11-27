@@ -54,7 +54,7 @@ async function serveCheckout(html, root) {
 async function run() {
   assert.equal(process.platform, "linux", "Browser playtests run on GitHub's Linux machines");
   assert.equal(process.env.GITHUB_ACTIONS, "true", "Use a hosted runner for browser tests");
-  assert(["overhead", "street"].includes(mode));
+  assert(["overhead", "street"].includes(mode)||mode==="automatic"&&process.argv.includes("--chromebook"));
   const compare=process.argv.includes("--compare-drive");
   const chromebook=process.argv.includes("--chromebook");
   const root=path.resolve(__dirname,"../..",(compare||chromebook)&&process.argv.includes("--baseline")?"baseline-release":".");
@@ -68,7 +68,7 @@ async function run() {
     "--headless", "--mute-audio", chromebook?"--window-size=1366,768":"--window-size=1024,640", "--no-first-run",
     "--disable-sync", "--disable-extensions", "--disable-background-networking",
     "--remote-debugging-pipe", "--user-data-dir=" + profile,
-    ...(mode === "street" ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : ["--disable-webgl"]),
+    ...(mode !== "overhead" ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : ["--disable-webgl"]),
     "about:blank"
   ], { stdio: ["ignore", "ignore", "inherit", "pipe", "pipe"] });
   const pending = new Map(), errors = [];
@@ -136,6 +136,7 @@ async function run() {
     await send("Page.addScriptToEvaluateOnNewDocument", { source: `
       window.audioStarts = window.cursorRequests = 0;
       localStorage.setItem("sundownBay.audio", "off");
+      if(${mode==="street"}&&!localStorage.getItem("sundownBay.camera"))localStorage.setItem("sundownBay.camera",JSON.stringify({overhead:false}));
       if(${!process.argv.includes("--public-record")}&&!localStorage.getItem("sundownBay.publicRecord.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"meet",morning:${halfMoon||pickupShot?JSON.stringify({luis:mode==="street"?"aboard":"ashore",second:21604}):"null"}}));
       if(${beatWake}&&!localStorage.getItem("sundownBay.wakeClock.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"filed",pass:true,trips:1,berth:0}));
       for (const name of ["requestPointerLock", "webkitRequestPointerLock", "mozRequestPointerLock"]) {
@@ -158,9 +159,18 @@ async function run() {
     assert.equal(await js("document.querySelectorAll('#intro button').length"), 1);
     await js("document.querySelector('#play').click()");
     await waitFor("!document.querySelector('#hud').hidden");
-    assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
+    const overhead=await js("document.querySelector('#world').hidden");
+    assert.equal(overhead,mode==="overhead"||mode==="automatic");
     if(chromebook){
-      await require("../benchmarks/chromebook.cjs")({js,send,tap,waitFor,mode,asset});
+      if(mode==="automatic"){
+        assert(await js("Boolean(document.querySelector('#world').getContext('webgl'))"),"Software WebGL is available");
+        await tap("Escape");
+        const camera="Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('Camera view'))";
+        assert((await js(camera+".innerText")).includes("software graphics"));
+        await js(camera+".click()");await tap("Escape");await waitFor("!document.querySelector('#world').hidden");
+        await tap("Escape");await js(camera+".click()");await tap("Escape");await waitFor("document.querySelector('#world').hidden");
+      }
+      await require("../benchmarks/chromebook.cjs")({js,send,tap,waitFor,mode:overhead?"overhead":"street",asset});
       assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
       return;
     }

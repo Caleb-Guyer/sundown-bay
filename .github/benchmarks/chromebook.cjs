@@ -41,7 +41,18 @@ module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
 
   // Stage a five-star dispatch, then leave the police and vehicle physics live.
   // Measure only while the player is driving and wanted. A bust ends the sample.
-  await js(`const report=walkTest.beat;for(let i=0;i<5;i++)report.call();
+  await js(`const report=walkTest.beat,lead=report.driver();
+    const others=pair.map.cars.concat(pair.map.transit?.bus||[],pair.map.motos?.all||[]).filter(c=>c!==lead);
+    let launch;
+    for(const at of [38,98,156,218,272,344,423,510]){
+      const p=BayCoastCup.sample(at,1.7);
+      if(others.every(c=>{const s=BayDriving.local(p,c.x,c.z);return Math.abs(s.x)>3||s.z< -6||s.z>21;})){launch=p;break;}
+    }
+    if(!launch)throw Error("No open start for the pursuit");
+    Object.assign(lead,{x:launch.x,z:launch.z,yaw:launch.yaw});BayDriving.settle(lead);
+    Object.assign(lead,{speed:15,vx:15*Math.sin(lead.yaw),vz:15*Math.cos(lead.yaw)});
+    for(const name of Object.keys(memory))delete memory[name];memory.cruise=false;
+    for(let i=0;i<5;i++)report.call();
     if(report.wanted()!==5)throw Error("Five-star dispatch failed");
     const pursuit={times:[],air:0,units:0,start:performance.now(),last:null,metres:0};
     pair.stop=false;requestAnimationFrame(driver);
@@ -65,5 +76,5 @@ module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
   const chase=await js("walkTest.chase");
   console.log("PERF constrained pursuit",asset,JSON.stringify(chase));
   assert(walk.seconds>=60&&walk.metres>=30,"Walk must cover the street");
-  assert(chase.seconds>2&&chase.frames>12,"A moving wanted sample is required");
+  assert(chase.seconds>5&&chase.frames>20&&chase.metres>20&&chase.airFrames>0&&chase.patrol>0,"A moving five-star sample is required");
 };

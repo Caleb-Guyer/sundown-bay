@@ -31,7 +31,7 @@ if __name__ == "__main__":
             print("PERF proxy peak bytes", (group / "memory.peak").read_text().strip(), flush=True)
     else:
         view, build = sys.argv[1:]
-        assert view in ("street", "overhead") and build in ("public", "candidate")
+        assert view in ("street", "overhead", "automatic") and build in ("public", "candidate")
         command = [
             "sudo", "systemd-run", "--quiet", "--wait", "--pipe", "--collect",
             f"--uid={os.getuid()}", f"--gid={os.getgid()}", f"--working-directory={Path.cwd()}",
