@@ -13111,10 +13111,11 @@
     readout.className="edition-copy";
     const previous=stuntRelease&&JSON.stringify(stuntRelease.film)===JSON.stringify(film)?stuntRelease.at:null;
     const v=spliceBench={film,canvas,scrub,readout,play,at:0,cut:previous,playing:false,previous:0,frame:-1};
-    const mark=makeButton("Splice here","Switch from the curb to the truck at the frame in the viewer.","Mark cut",()=>{
+    const mark=document.createElement("button"),print=document.createElement("button");
+    mark.textContent="Splice here";mark.addEventListener("click",()=>{
       v.cut=Math.round(v.at);v.frame=-1;print.disabled=false;drawSpliceBench(performance.now());
     });
-    const print=makeButton("Send this cut upstairs","The projectionist will run your edit before the feature.","Make print",()=>{
+    print.textContent="Send this cut upstairs";print.addEventListener("click",()=>{
       if(v.cut===null)return;
       stuntRelease={film,at:v.cut};const stored=cut.print(film,v.cut);closePanel();
       const matched=cut.matched(film,v.cut);
@@ -13124,8 +13125,11 @@
     print.disabled=previous===null;
     play.addEventListener("click",()=>{if(v.at>=cut.end(film))v.at=0;v.playing=!v.playing;v.previous=performance.now();drawSpliceBench(v.previous);});
     scrub.addEventListener("input",()=>{v.playing=false;v.at=Number(scrub.value);drawSpliceBench(performance.now());});
-    signedNote(b,cut.brief(film),"Jules · camera report, take "+film.take);
-    controls.append(play,scrub);b.append(canvas,controls,readout,mark,print);drawSpliceBench(performance.now());
+    const desk=document.createElement("div"),viewer=document.createElement("div"),notes=document.createElement("aside");
+    desk.className="splice-desk";viewer.className="splice-view";notes.className="splice-notes";
+    controls.append(play,scrub);viewer.append(canvas,controls,readout);
+    signedNote(notes,cut.brief(film),"Jules · camera report, take "+film.take);
+    notes.append(mark,print);desk.append(viewer,notes);b.append(desk);drawSpliceBench(performance.now());
   }
   function drawSpliceBench(now){
     const v=spliceBench;if(!v)return;

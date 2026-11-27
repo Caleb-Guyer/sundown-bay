@@ -37,12 +37,16 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   try{await waitFor("q.run?.phase==='landed'||q.run?.phase==='miss'",32000);}finally{await key("keyUp","KeyW");}
   assert.equal(await js("q.run.phase"),"landed",await js("q.run.reason"));
   await click("Wrap the shoot");await tap("KeyF");await click("Jules’s cutting bench");
+  assert(await js(`[...document.querySelectorAll('#panelBody button,#panelBody input')].every(el=>{
+    const r=el.getBoundingClientRect(),p=document.querySelector('#panel').getBoundingClientRect();
+    return r.width>0&&r.left>=p.left&&r.right<=p.right&&r.top>=p.top&&r.bottom<=Math.min(p.bottom,innerHeight);
+  })`),"Every editing control fits on the initial screen");
   const negative=await js("BayTakeSplice.negative()");assert.equal(negative.pier,mode==="street"?"aboard":"ashore");
   const t=await js("BayTakeSplice.target(BayTakeSplice.negative())");
   await js(`q.seek=n=>{const s=document.querySelector('#panelBody input[type=range]');s.value=n;s.dispatchEvent(new Event('input'));};
     q.seek(${negative.lip});`);
-  const wide=await js(surface+".toDataURL()");await snap("curb");
-  await js("q.seek("+t+")");await click("Splice here");const close=await js(surface+".toDataURL()");
+  await snap("curb");await js("q.seek("+t+")");const wide=await js(surface+".toDataURL()");
+  await click("Splice here");const close=await js(surface+".toDataURL()");
   await js("q.seek("+negative.frames.at(-1)[0]+")");await snap("truck");assert.notEqual(wide,close);
   await click("Send this cut upstairs");assert.equal(await js("BayTakeSplice.release().at"),t);
   await send("Page.reload",{ignoreCache:true});await waitFor("document.readyState==='complete'&&!!window.BayTakeSplice");
@@ -50,7 +54,7 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   await js("Object.assign(q.hero,BayCab.cinema)");await tap("KeyF");await waitFor("!!q.room");
   await js("Object.assign(q.room,BayCineRoom.points.program)");await tap("KeyF");await click("Thread your cut");
   await js("Object.assign(q.room,BayCineRoom.points.aisle)");await tap("KeyF");
-  await waitFor("q.room.seated&&!q.room.transition&&q.id==='stunt'&&q.age>.4",15000);await snap("house");
+  await waitFor("q.room.seated&&!q.room.transition&&q.id==='stunt'&&q.age>BayTakeSplice.negative().lip/BayTakeSplice.speed",22000);await snap("house");
   await tap("KeyF");await waitFor("!q.room.seated&&!q.room.transition");
   await js("Object.assign(q.room,BayCineRoom.points.exit)");await tap("KeyF");
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);

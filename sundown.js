@@ -28309,21 +28309,36 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function deck(c,p,pier){
     const [cx,cz,h,pitch,yaw,tx,tz,truckYaw]=p;
-    box(c,0,0,416,106,"#d5baab");box(c,0,94,416,140,"#807e76");
     const eye=tz+5.4,ground=83,focus=199;
+    const sky=c.createLinearGradient(0,9,0,ground);sky.addColorStop(0,"#93aca9");sky.addColorStop(1,"#f1c6a4");
+    box(c,0,0,416,ground,sky);box(c,0,ground,416,234-ground,"#827c71");
     const project=(x,y,z)=>{
       const dx=x-tx,dz=eye-z,depth=Math.max(.8,dz*Math.cos(truckYaw)-dx*Math.sin(truckYaw));
       return [208-(dx*Math.cos(truckYaw)+dz*Math.sin(truckYaw))*focus/depth,ground+(3.05-y)*focus/depth];
     };
     const face=(vertices,col)=>poly(c,vertices.map(v=>project(...v)),col);
+    const facade=["#d4987f","#b3ac94","#d8b38c","#93aaa1"];
     for(const side of [-1,1]){
+      const outer=72+side*18,curb=72+side*5.9;
+      face([[outer,0,-95],[curb,.12,-95],[curb,.12,eye-2],[outer,0,eye-2]],"#cdbca0");
       for(let i=0;i<8;i++){
-        const z=-35+i*12;if(z>eye-5)continue;
+        const z=-35+i*12;if(z+7>eye-2)continue;
         const wx=72+side*(8+i%3),height=3+i%4;
-        face([[wx,0,z],[wx,height,z],[wx,height,z+6],[wx,0,z+6]],i%2?"#a09682":"#9c8680");
-        face([[wx,height-.6,z],[wx,height-.9,z],[wx,height-.9,z+6],[wx,height-.6,z+6]],"#e6bc94");
+        const wall=(a,b,l,r,color)=>face([[wx,a,z+l],[wx,b,z+l],[wx,b,z+r],[wx,a,z+r]],color);
+        wall(0,height,0,7,facade[(i+(side>0?1:0))%4]);
+        face([[wx,0,z+7],[wx,height,z+7],[wx+side*6,height,z+7],[wx+side*6,0,z+7]],"#b29781");
+        wall(height-.27,height,0,7,"#f3d8ae");
+        for(let k=0;k<3;k++){
+          const a=.65+k*2.1;
+          wall(.56,2.17,a,a+1.45,"#546c6a");wall(1.89,2.1,a,a+1.45,"#93a6a0");
+          if(height>4)wall(3.1,4.05,a,a+1.15,"#708480");
+        }
+        face([[wx,2.65,z+.25],[wx,2.65,z+6.8],[wx-side*.85,2.30,z+6.8],[wx-side*.85,2.30,z+.25]],i%2?"#657f78":"#a75f50");
       }
-      face([[72+side*5.5,0,-65],[72+side*5.42,0,-65],[tx+side*5.42,0,eye-3],[tx+side*5.5,0,eye-3]],"#d8c8a6");
+      for(let z=-50;z<eye-5;z+=9){
+        const stripe=72+side*2.9;
+        face([[stripe,0,z],[stripe+.11,0,z],[stripe+.11,0,z+3],[stripe,0,z+3]],"#bfb69b");
+      }
     }
     const ramp=BayTake.ramp;
     face([[70,0,ramp.toe],[74,0,ramp.toe],[74,2.4,ramp.lip],[70,2.4,ramp.lip]],"#b29a72");
@@ -28338,15 +28353,33 @@ window.buildBayCity = function buildBayCity(g,water) {
       return [cx+x*Math.cos(yaw)+along*Math.sin(yaw),h+lift,cz-x*Math.sin(yaw)+along*Math.cos(yaw)];
     };
     const panel=(pts,col)=>face(pts.map(v=>vehicle(...v)),col);
+    const fascia=(x0,x1,y0,y1,z,col)=>panel([[x0,y0,z],[x1,y0,z],[x1,y1,z],[x0,y1,z]],col);
+    for(const side of [-1,1]){
+      fascia(side*.95,side*.69,.03,.47,1.57,"#343938");
+      fascia(side*1.10,side*.92,.85,.92,.79,"#984b3d");
+      fascia(side*1.20,side*1.03,.89,1.00,.77,"#c86a53");
+    }
     panel([[-.86,1.27,-.76],[.86,1.27,-.76],[.87,1.35,.51],[-.87,1.35,.51]],"#b84f3d");
     panel([[-.86,1.35,.51],[.86,1.35,.51],[.96,.87,1.07],[-.96,.87,1.07]],"#40585a");
-    panel([[0,1.29,.56],[.69,1.29,.56],[.83,.93,1.01],[.11,.93,1.01]],"#819d9a");
+    panel([[-.75,1.30,.54],[.75,1.30,.54],[.86,.91,1.03],[-.86,.91,1.03]],"#526c6c");
+    panel([[-.51,1.17,.75],[-.37,1.19,.74],[-.30,1.13,.80],[-.32,1.00,.95],[-.46,.98,.96],[-.53,1.06,.86]],"#bb825f");
+    panel([[-.55,1.10,.83],[-.52,1.21,.69],[-.36,1.23,.67],[-.29,1.15,.77],[-.39,1.17,.75],[-.49,1.11,.82]],"#493d38");
+    panel([[-.68,.90,1.04],[-.60,1.00,.95],[-.45,1.02,.93],[-.33,1.00,.95],[-.26,.90,1.04]],"#334846");
+    panel([[.02,1.30,.55],[.72,1.30,.55],[.82,1.15,.73],[.10,1.04,.88]],"#92aaa4");
     panel([[-.96,.87,1.07],[.96,.87,1.07],[1,.70,2.09],[-1,.70,2.09]],"#cb614b");
-    panel([[-1,.70,2.09],[1,.70,2.09],[.96,.27,2.11],[-.96,.27,2.11]],"#8f4439");
     for(const side of [-1,1]){
-      const a=side*.95,b=side*.62;
-      panel([[a,.63,2.12],[b,.63,2.12],[b,.49,2.12],[a,.49,2.12]],"#e5cc96");
-      panel([[a,.27,1.70],[b,.27,1.70],[b,.04,1.70],[a,.04,1.70]],"#353938");
+      panel([[side*.76,.86,1.10],[side*.80,.86,1.10],[side*.88,.71,2.04],[side*.83,.71,2.04]],"#e38968");
+      panel([[side*.55,.86,1.10],[side*.58,.86,1.10],[side*.69,.73,1.90]],"#ae5344");
+    }
+    panel([[-1,.70,2.09],[1,.70,2.09],[.96,.27,2.11],[-.96,.27,2.11]],"#8f4439");
+    fascia(-.97,.97,.31,.39,2.12,"#494e49");fascia(-.92,.92,.385,.41,2.12,"#c9b99e");
+    fascia(-.51,.51,.48,.62,2.13,"#383f3b");fascia(-.49,.49,.54,.555,2.14,"#84918a");
+    fascia(-.17,.17,.285,.38,2.14,"#e7d4a7");fascia(-.11,.10,.32,.337,2.15,"#5b7168");
+    for(const side of [-1,1]){
+      fascia(side*.96,side*.54,.455,.647,2.13,"#543f36");
+      fascia(side*.92,side*.55,.49,.61,2.14,"#f2daaa");
+      fascia(side*.93,side*.98,.48,.60,2.14,"#d9964f");
+      fascia(side*.74,side*.76,.49,.61,2.15,"#b6a388");
     }
     if(pier==="aboard")pail(c,54,220,2.0);
   }
@@ -87490,10 +87523,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     readout.className="edition-copy";
     const previous=stuntRelease&&JSON.stringify(stuntRelease.film)===JSON.stringify(film)?stuntRelease.at:null;
     const v=spliceBench={film,canvas,scrub,readout,play,at:0,cut:previous,playing:false,previous:0,frame:-1};
-    const mark=makeButton("Splice here","Switch from the curb to the truck at the frame in the viewer.","Mark cut",()=>{
+    const mark=document.createElement("button"),print=document.createElement("button");
+    mark.textContent="Splice here";mark.addEventListener("click",()=>{
       v.cut=Math.round(v.at);v.frame=-1;print.disabled=false;drawSpliceBench(performance.now());
     });
-    const print=makeButton("Send this cut upstairs","The projectionist will run your edit before the feature.","Make print",()=>{
+    print.textContent="Send this cut upstairs";print.addEventListener("click",()=>{
       if(v.cut===null)return;
       stuntRelease={film,at:v.cut};const stored=cut.print(film,v.cut);closePanel();
       const matched=cut.matched(film,v.cut);
@@ -87503,8 +87537,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     print.disabled=previous===null;
     play.addEventListener("click",()=>{if(v.at>=cut.end(film))v.at=0;v.playing=!v.playing;v.previous=performance.now();drawSpliceBench(v.previous);});
     scrub.addEventListener("input",()=>{v.playing=false;v.at=Number(scrub.value);drawSpliceBench(performance.now());});
-    signedNote(b,cut.brief(film),"Jules · camera report, take "+film.take);
-    controls.append(play,scrub);b.append(canvas,controls,readout,mark,print);drawSpliceBench(performance.now());
+    const desk=document.createElement("div"),viewer=document.createElement("div"),notes=document.createElement("aside");
+    desk.className="splice-desk";viewer.className="splice-view";notes.className="splice-notes";
+    controls.append(play,scrub);viewer.append(canvas,controls,readout);
+    signedNote(notes,cut.brief(film),"Jules · camera report, take "+film.take);
+    notes.append(mark,print);desk.append(viewer,notes);b.append(desk);drawSpliceBench(performance.now());
   }
   function drawSpliceBench(now){
     const v=spliceBench;if(!v)return;
