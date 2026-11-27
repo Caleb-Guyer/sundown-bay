@@ -147,7 +147,7 @@
       mesh.sides[i].forearm.map(mesh.sides[i].handPivot,hand);
       const at=BayDriving.world(l,hand[0],hand[2]);list.push([i?"watch/tin/blue":"watch/tin/green",at.x,l.y+hand[1]-.21,at.z,l.yaw]);
     }
-    for(const a of list)view.draw(...a);
+    view.drawOpaque(list);
   }
   window.BaySixSharp={Watch,read,time,street,passengers,crewSeats,clothes,faces};
 })();

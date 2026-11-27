@@ -259,7 +259,7 @@
   if(save.edition&&BayExposure.routes[save.edition]&&campaign.book.stage!=="filed"){
     campaign.book.route=save.edition;campaign.advance("return");
   }
-  let filmPage=null,filmCountyVoice=null,lastFilmPaint=-Infinity,filmReplay=false;
+  let filmPage=null,filmCountyVoice=null,lastFilmPaint=-Infinity,nextFilmPaint=0,filmReplay=false;
   let jumpPage=jumps.sites[0];
   locations.push(luggage.counter,threads.counter,starliteBooth,BayEngineSeven.desk);
   const rainWalk=new BayRainWalk.Walk(),negatives=new BayWindowSeat.Negatives();
@@ -14614,8 +14614,9 @@
   document.addEventListener("visibilitychange",()=>{if(document.hidden){keys.clear();sound.reel(null);if(play)saveTime();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");}});
   let last=performance.now(),lastIntroPaint=0,lastMenuPaint=0;
   const cpuCount=globalThis.navigator?.hardwareConcurrency,ramGiB=globalThis.navigator?.deviceMemory;
-  const smallOverhead=cpuCount>0&&cpuCount<=2&&(ramGiB==null||ramGiB<=4);
-  const overheadQuality={scale:smallOverhead?.70:1,maxScale:smallOverhead?.75:1};
+  const smallDevice=cpuCount>0&&cpuCount<=2&&(ramGiB==null||ramGiB<=4);
+  const overheadQuality={scale:smallDevice ? .70 : 1,maxScale:smallDevice ? .75 : 1};
+  if(smallDevice)view.scale=.65;
   class SceneResolution {
     constructor(target,floor,adaptiveWidth=false){this.target=target;this.floor=floor;this.adaptiveWidth=adaptiveWidth;this.reset();}
     reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;this.roughWindows=0;}
@@ -14650,6 +14651,15 @@
     }
   }
   const streetResolution=new SceneResolution(view,.46,true),overheadResolution=new SceneResolution(overheadQuality,.52);
+  // Keep the film on its thirty-frame clock across displays with different
+  // refresh rates. A late callback can pass several deadlines. Paint only once.
+  function filmFrameDue(now){
+    const period=1000/30;
+    if(lastFilmPaint===-Infinity||now-lastFilmPaint>250)nextFilmPaint=now;
+    if(now+1<nextFilmPaint)return false;
+    nextFilmPaint+=period*(1+Math.floor((now+1-nextFilmPaint)/period));
+    return true;
+  }
   function frameCheckId(){
     const travel=canUseSeat()?"drive":onStreetFeet()||freeFeet()&&motion.jumpTime>=0?"walk":"";
     return travel?(isTop()?"Overhead ":"Street ")+travel:"";
@@ -14714,15 +14724,17 @@
         campaign.rub(delta,Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),held("Space"));
         if(before<.92&&campaign.table.cover>=.92)setFilmPage();
       }
-      if(now-lastFilmPaint<1000/30-1)return;
+      const drawsWorld=campaign.scene&&(filmPage?.pilot||filmPage?.watch||!filmPage?.art);
+      if(drawsWorld)(isTop()?overheadResolution:streetResolution).sample(delta);
+      if(!filmFrameDue(now))return;
       const d=Math.min(.12,Math.max(0,(now-lastFilmPaint)/1000));lastFilmPaint=now;
       const art=campaign.table?"rubbing":filmPage?.art;
       if(filmPage?.pilot){
         const p=campaign.pilot,top=isTop(),beat=filmPage.pilot;
         $("world").hidden=top;$("overhead").hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
-        if(top)BayLastTransfer.overhead($("overhead"),p,beat);
+        if(top)BayLastTransfer.overhead($("overhead"),p,beat,overheadQuality.scale);
         else{
-          const eye=p.eye(beat);streetResolution.sample(delta);
+          const eye=p.eye(beat);
           view.begin(eye,p.sun.night,p.sun);skyPainter.draw(view,eye,p.age,p.sun.night,p.sun);view.drawCityAndWater(p.age);
           BayLastTransfer.street(p,view,model,personSkin,BaySixSharp.passengers);
         }
@@ -14740,9 +14752,9 @@
       else if(filmPage?.watch){
         const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;
         scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
-        if(top)BaySixSharpArt.overhead(map,w,beat);
+        if(top)BaySixSharpArt.overhead(map,w,beat,overheadQuality.scale);
         else{
-          streetResolution.sample(delta);const eye=w.eye(beat);
+          const eye=w.eye(beat);
           view.begin(eye,w.sun.night,w.sun);skyPainter.draw(view,eye,w.age,w.sun.night,w.sun);view.drawCityAndWater(w.age);
           BaySixSharp.street(w,view,model,personSkin);
         }
@@ -14755,7 +14767,6 @@
       }else if(art)BayRecordArt.show($("chapterInsert"),art,campaign.scene?.age||0,campaign.table,art==="driverPrint"?campaign.windowPrint:art==="negative"?(maraFilm.pending||maraFilm.published):null);
       else{
         if(campaign.scene?.id==="opening"){streetTime+=d;traffic(d);}
-        (isTop()?overheadResolution:streetResolution).sample(delta);
         renderWorld(d,streetTime);
       }
       return;

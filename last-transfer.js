@@ -197,10 +197,10 @@
           list.push(["transfer/heaving-line",bow.x+dx*t,.92-.26*(1-run.landingAge/2.25)*Math.sin(t*Math.PI),bow.z+dz*t,Math.atan2(dx,dz),0,0,length/n]);}
       }
     }
-    for(const a of list)view.draw(...a);
+    view.drawOpaque(list);
   }
-  function overhead(canvas,r,beat){
-    const width=Math.round(Math.min(innerWidth,960)),h=Math.max(1,Math.round(width*innerHeight/innerWidth));
+  function overhead(canvas,r,beat,quality=1){
+    const width=Math.max(1,Math.round(Math.min(innerWidth,960)*quality)),h=Math.max(1,Math.round(width*innerHeight/innerWidth));
     if(canvas.width!==width||canvas.height!==h){canvas.width=width;canvas.height=h;}
     const c=canvas.getContext("2d"),v=r.boat,wide=beat==="helm",landingShot=beat==="land",rider=r.passenger();
     const s=wide?Math.min(width/94,h/68):landingShot?Math.min(width/12,h/7.2):Math.min(width/27,h/17);

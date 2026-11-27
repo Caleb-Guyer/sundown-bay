@@ -1,0 +1,30 @@
+name: Compare opening ferry shots
+on:
+  push:
+    branches: [perf/pier-frame-pacing]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  opening:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        view: [street, overhead]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 69f2d51cd5b54ce1ef2ed3222677f98057dad910
+          path: baseline-release
+          persist-credentials: false
+      - name: Compare fresh profiles on two CPUs with 4 GiB
+        env:
+          VIEW: ${{ matrix.view }}
+        run: |
+          python3 .github/benchmarks/chromebook-runner.py "$VIEW" public
+          python3 .github/benchmarks/chromebook-runner.py "$VIEW" candidate

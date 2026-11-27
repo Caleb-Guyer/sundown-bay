@@ -13,6 +13,7 @@ const pavement = process.argv.includes("--pavement");
 const starlite = process.argv.includes("--starlite");
 const engineSeven = process.argv.includes("--engine-seven");
 const pickupShot=process.argv.includes("--pickup-shot");
+const pierCheck=process.argv.includes("--pier-check");
 const play = require(pickupShot ? "./pickup-shot.cjs" : junction ? "./junction.cjs" : engineSeven ? "./engine-seven.cjs" : starlite ? "./starlite.cjs" : pavement ? "./pavement.cjs" : partnerDrive ? "./partner-drive.cjs" : neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
 
 const mode = process.argv[2];
@@ -56,15 +57,15 @@ async function run() {
   assert.equal(process.env.GITHUB_ACTIONS, "true", "Use a hosted runner for browser tests");
   assert(["overhead", "street"].includes(mode));
   const compare=process.argv.includes("--compare-drive");
-  const root=path.resolve(__dirname,"../..",compare&&process.argv.includes("--baseline")?"baseline-release":".");
+  const root=path.resolve(__dirname,"../..",(pierCheck||compare)&&process.argv.includes("--baseline")?"baseline-release":".");
   const html = fs.readFileSync(path.join(root,"index.html"), "utf8");
   const asset = html.match(/<script src="(sundown\.js\?v=[a-f0-9]+)"/)[1];
-  const server = !compare&&await liveRelease(html,45000) ? null : await serveCheckout(html,root);
+  const server = !pierCheck&&!compare&&await liveRelease(html,45000) ? null : await serveCheckout(html,root);
   const site = server ? "http://127.0.0.1:" + server.address().port + "/" : publicSite;
   console.log("Playtesting " + (server ? "runner checkout" : "GitHub Pages") + " · " + asset);
   const profile = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP, "bay-wire-"));
   const chrome = spawn("google-chrome", [
-    "--headless", "--mute-audio", "--window-size=1024,640", "--no-first-run",
+    "--headless", "--mute-audio", pierCheck?"--window-size=1366,768":"--window-size=1024,640", "--no-first-run",
     "--disable-sync", "--disable-extensions", "--disable-background-networking",
     "--remote-debugging-pipe", "--user-data-dir=" + profile,
     ...(mode === "street" ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : ["--disable-webgl"]),
@@ -128,10 +129,14 @@ async function run() {
       || await send("Target.createTarget", { url: "about:blank" }, "", 75000);
     session = (await send("Target.attachToTarget", { targetId: page.targetId, flatten: true }, "", 75000)).sessionId;
     await send("Page.enable"); await send("Runtime.enable");
+    if(pierCheck){
+      await send("Emulation.setHardwareConcurrencyOverride",{hardwareConcurrency:2});
+      await send("Page.addScriptToEvaluateOnNewDocument",{source:"Object.defineProperty(navigator,'deviceMemory',{get:()=>4})"});
+    }
     await send("Page.addScriptToEvaluateOnNewDocument", { source: `
       window.audioStarts = window.cursorRequests = 0;
       localStorage.setItem("sundownBay.audio", "off");
-      if(${!process.argv.includes("--public-record")}&&!localStorage.getItem("sundownBay.publicRecord.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"meet",morning:${halfMoon||pickupShot?JSON.stringify({luis:mode==="street"?"aboard":"ashore",second:21604}):"null"}}));
+      if(${!pierCheck&&!process.argv.includes("--public-record")}&&!localStorage.getItem("sundownBay.publicRecord.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"meet",morning:${halfMoon||pickupShot?JSON.stringify({luis:mode==="street"?"aboard":"ashore",second:21604}):"null"}}));
       if(${beatWake}&&!localStorage.getItem("sundownBay.wakeClock.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"filed",pass:true,trips:1,berth:0}));
       for (const name of ["requestPointerLock", "webkitRequestPointerLock", "mozRequestPointerLock"]) {
         const native=Element.prototype[name];
@@ -149,6 +154,10 @@ async function run() {
       return rect.x===0&&rect.y===0&&rect.width===innerWidth&&rect.height===innerHeight&&
         getComputedStyle(document.querySelector('#sky')).position==='absolute';})()`),"Title and sky fill the viewport");
     assert.deepEqual(await js("performance.getEntriesByType('resource').map(e=>e.name).filter(n=>new URL(n).pathname.endsWith('.js'))"), [site + asset]);
+    if(pierCheck){
+      await require("../benchmarks/pier-frames.cjs")({js,send,waitFor,key,tap,mode,asset});
+      assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);return;
+    }
     if (mode === "overhead") await send("Emulation.setCPUThrottlingRate", { rate: 4 });
     assert.equal(await js("document.querySelectorAll('#intro button').length"), 1);
     await js("document.querySelector('#play').click()");
