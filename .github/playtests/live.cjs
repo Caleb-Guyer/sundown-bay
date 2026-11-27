@@ -111,7 +111,8 @@ async function run() {
   }
   async function waitFor(expression, timeout = 15000) {
     const end = Date.now() + timeout;
-    while (Date.now() < end) { if (await js(expression)) return; await delay(65); }
+    const condition = "Boolean(" + expression + ")";
+    while (Date.now() < end) { if (await js(condition)) return; await delay(65); }
     throw Error("Timed out waiting for " + expression + "\n" + errors.join("\n"));
   }
   function key(type, code) {
