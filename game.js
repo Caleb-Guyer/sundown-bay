@@ -306,6 +306,7 @@
   let bandArtReady=false,kitCam=0;
   let pickup=null,courtArtReady=false;
   const courts=BayCourtPlaces.sites.map(site=>new BayPickup.Court(site,save.courts[site.id],courtEvent));
+  const aprons=new BayApronGoal.Game();
   const courtPins=courts.map(g=>({...BayCourtBench.spot(g.site),id:g.site.id,kind:"pickup-court",name:g.site.name}));
   locations.push(...courtPins);
   function wearKit(id){
@@ -6632,6 +6633,48 @@
     }
     if(pickup){const p=pickup.human;Object.assign(hero,{x:p.x,y:p.y,z:p.z,yaw:p.yaw});}
   }
+  function apronFree(){return !active&&!heat&&!room&&!transfer&&!campaign.scene&&!campaign.table&&!pickup&&!unit.transition&&!watchCrew.towing&&!windowRide&&!afternoon.photo&&!voiceTake&&!projector;}
+  function apronOffer(){return aprons.nearby(hero)&&onStreetFeet()&&apronFree()?aprons.action(hero):"";}
+  function apronEvent(e){
+    if(!e)return;
+    if(e==="loose")speak("Paz Melo","Ball! If it stops by you, knock it back. I've got sauce on both hands.");
+    else if(e==="returned")speak("Paz Melo","Thanks. Those aprons are the posts. Fancy three before the kitchen calls us back?");
+    else if(e==="blocked")note("Two Aprons","Come around to the open side.",2);
+    else if(e==="strike")sound.cue("apron-kick");
+    else if(e==="finished"){const s=aprons.book.scores[unit.lead];
+      speak("Tess Rocha",["Next break, I'll give you the sunny end.","One went past me. I know which one.","Two. I'm moving those crates in tomorrow.","Three. My turn on the dishes, then."][s.last]);
+      note("Two Aprons",s.last+" of 3 · "+BaySecondUnit.names[unit.lead]+"’s best "+s.best+"/3 · F at the spot for a rematch",5);
+    }else if(BayApronGoal.words[e]){sound.cue(e==="crate"?"apron-post":"apron-kick");note("Two Aprons",BayApronGoal.words[e],1.2);}
+    lastHud=-10;
+  }
+  function stepAprons(dt){
+    const p=pos();if(!aprons.nearby(p)&&!aprons.round&&aprons.approach&&aprons.phase==="passing"){motion.ballSwing=0;return;}
+    if((aprons.round||aprons.phase==="collect")&&(!apronFree()||!onStreetFeet())){aprons.reset();motion.ballSwing=0;return;}
+    motion.ballSwing=aprons.kick>0?.38*Math.sin(Math.PI*.5*aprons.kick/.38):
+      aprons.round?.phase==="stride"?-.22*Math.sin(aprons.round.age/.20*Math.PI):0;
+    apronEvent(aprons.step(dt,{p,car,hero,motion,free:apronFree(),traffic:homeTraffic||cars,floor:footLevel,move:tryMove,
+      axis:aprons.round?Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")):0}));
+  }
+  function apronInput(ev){
+    const a=aprons.round;
+    if(aprons.phase==="collect"&&ev.code!=="Escape"&&ev.code!=="KeyM"&&ev.code!=="KeyR")return true;
+    if(!a){
+      if(ev.code!=="KeyF"||ev.repeat)return false;
+      const offer=apronOffer();if(!offer)return false;
+      if(offer==="pass"){
+        const b=aprons.ball;hero.yaw=Math.atan2(BayApronGoal.cook.x-b.x,BayApronGoal.cook.z-b.z);
+        aprons.pass();
+      }else{
+        streetAction.equip(0);keys.clear();aprons.start(unit.lead);cameraRig.recenter(Math.PI/2,elapsed);
+        speak("Tess Rocha",aprons.book.scores[unit.lead]?"Back already? Pick a corner. I'm watching your feet this time.":"Three from the chalk. Keep it under my belt. Paz gets to call anything off a crate.");
+      }
+    }else if(ev.code==="KeyE"){keys.clear();aprons.reset();aprons.phase="invited";resetFeet();}
+    else if(ev.code==="Escape"||ev.code==="KeyM")openPanel(ev.code==="Escape"?"pause":"map");
+    else if(ev.code==="KeyR"&&!ev.repeat)radioToggle();
+    else if(["KeyA","KeyD","ArrowLeft","ArrowRight"].includes(ev.code))keys.add(ev.code);
+    else if(ev.code==="Space"&&!ev.repeat)aprons.charge();
+    lastHud=-10;return true;
+  }
   function drawCourts(list,see,t){
     if(!courts.some(g=>see(g.site,150)))return;
     BayCourtPlaces.world(list,see,t,hours,courts,true);
@@ -9202,6 +9245,8 @@
         if(front>.10&&front<20&&Math.abs(rx*uz-rz*ux)<width)clearance=Math.min(clearance,Math.max(0,front-gap));
       };
       if(!roofs.raised||p!==hero||p.y<2.4)ahead(p,car?1.95:1.55,car?4.65:3.1);
+      if(aprons.phase==="loose"&&Math.abs(v.z-aprons.ball.z)<17&&Math.abs(v.x-aprons.ball.x)<6)
+        ahead(aprons.ball,1.65,halfLength+1.05);
       const zone=countyCrew.site;
       const working=zone&&Math.abs(zone.rack.x-v.x)<23&&Math.abs(zone.rack.z-v.z)<23&&!BayLastCone.done(zone);
       if(working)ahead(countyCrew.worker,1.62,halfLength+1.35);
@@ -10409,6 +10454,7 @@
       field:active?.field,countyChart:chartMode==="cut",cars:take?allTraffic.filter(v=>!BayTake.onSet(v)):allTraffic,peds,outsideCopies:outsideCases.mounted,
       slideProjection:play&&modeName==="street"?projection:null,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       meterFare:active?.meter,fareLedger,
+      aprons:play&&modeName==="street"?aprons:null,
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
       minuteRun:play?active?.minute:null,publicBoat:play&&luz.book.pass?luz:null,record:play&&modeName==="street"?campaign.book:null,sandBeach:play&&modeName==="street"?sandBeach:null,rankPhones:play?rankPhones:null,linenParcel:play&&modeName==="street"?linenParcel():null,roadLights:modeName==="street"?roadLights:null,arcadeSong:play&&modeName==="street"&&dist(p,BayNeedle.site)<85?needleSong().r:null,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,houseMark:houseLights.mark,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
@@ -11050,6 +11096,9 @@
         const f=trunkFrame.mix,v=trunkFrame.v,aim=BayDriving.world(v,0,bootArt.slots(v.kind)[0].z-.3);
         state.cx+=(aim.x-state.cx)*f;state.cz+=(aim.z-state.cz)*f;state.scale+=(h/(5.6*cameraRig.zoom)-state.scale)*f;
       }
+      if(aprons.round){
+        state.cx=(BayApronGoal.mark.x+BayApronGoal.line)*.5;state.cz=BayApronGoal.mark.z;state.scale=h/(14*cameraRig.zoom);
+      }
       if(pickup){
         const ball=BayCourtPlaces.mapPoint(pickup.ball,pickup.site),focus=pickup.at(0,3.35);
         state.cx=focus.x*.50+hero.x*.32+ball.x*.18;state.cz=focus.z*.50+hero.z*.32+ball.z*.18;
@@ -11175,6 +11224,7 @@
     if(play&&see(BayLastTransfer.stand,56)){const s=BayLastTransfer.stand;model("transfer/telegraph",BayLastTransfer.telegraph);visible.push(["transfer/telegraph",s.x,s.y,s.z,0]);}
     if(play&&campaign.book.transfer&&see(BayLastTransfer.clip,45)){const p=BayLastTransfer.clip;model("transfer/ticket-clip",BayLastTransfer.ticketClip);visible.push(["transfer/ticket-clip",p.x,p.y,p.z,0]);}
     if(play&&luz.book.pass)BayFirstCrossing.world(view,model,visible,see,luz,t,personSkin);
+    if(play)BayApronGoal.world(aprons,model,visible,see,footLevel,personSkin);
     if(play&&BayWakeClock.unlocked(luz.book))BayWakeClock.world(model,visible,see,footLevel);
     if(play&&BayWakeClock.hasWinner())BayMinuteCard.world(model,visible,see,active?.minute);
     if(play&&campaign.book.trips&&see(BayRoomTone.site,62))BayRoomTone.world(model,visible);
@@ -12185,7 +12235,15 @@
     const coneHint=countyCrew.site&&countyFeet()&&countyCrew.hint(hero),loosePay=seatAction();
     const wake=active?.wake,clockAction=wakeAction();
     const invitation=minuteOffer();
-    if(timing){
+    const apronAction=apronOffer();
+    if(aprons.round){
+      const a=aprons.round;
+      $("objective").hidden=false;$("objectiveTag").textContent="Two Aprons · "+Math.min(3,a.shots.length+(a.phase==="result"?0:1))+" / 3";
+      $("objectiveText").textContent=a.phase==="result"?BayApronGoal.words[a.shots.at(-1)]:a.phase==="set"?a.charging?"Power "+Math.round(a.power*100)+"%":"Pick your corner":"From the chalk";
+      $("roadTurn").textContent=a.shots.map(k=>k==="goal"?"●":"×").concat(Array(3-a.shots.length).fill("·")).join("  ")+"    Tess in goal";
+      contextHint("A / D","Aim · Hold Space for power, release to kick · E leave");
+    }else if(apronAction)contextHint("F",apronAction==="pass"?"Pass the ball back to Paz":"Two Aprons · Take three penalties against Tess");
+    else if(timing){
       const r=timing,g=r.gates?.[r.leg],out=car!==r.vehicle&&r.phase!=="pin";
       $("objective").hidden=false;$("objectiveTag").textContent="On the Minute"+(r.route?" · "+BayMinuteCard.names[r.route]:"");
       $("objectiveText").textContent=out?"Return to the badged car":r.phase==="boarding"?(r.ride.blocked?"Leave room at the passenger door":"Pick Romy up at the road clock"):r.phase==="choose"?"Choose Marisol’s route card":r.phase==="ready"?"Pull away toward the Ocean Drive chalk":r.phase==="running"?g.name+" · "+Math.round(dist(r.vehicle,g))+" m":r.phase==="park"?"Park beside the receiving road clock":"Romy is pinning your card";
@@ -13005,6 +13063,7 @@
   function airLedgerButton(){return makeButton("Pelican Air · Signed mail","Delivery slips, recorded routes and water landings.","Open ledger",()=>openPanel("air-book"));}
   let pickingRidePin=false;
   function openPanel(next,redraw=false){
+    if(aprons.round?.charging){aprons.round.charging=false;aprons.round.power=0;aprons.round.commit=null;}
     countyCrew.charge=null;
     if(next==="pause"&&needle?.phase==="ready"&&needle.held)needle.serve();
     if(next==="fare-window"&&(!active?.meter||fareLedger.stage!=="offer"||!fareHint()||active.meter.deskBound))return;
@@ -13789,6 +13848,7 @@
         if((ev.shiftKey&&document.activeElement===controls[0])||(!ev.shiftKey&&document.activeElement===controls.at(-1))){ev.preventDefault();controls[ev.shiftKey?controls.length-1:0].focus();}}
       return;
     }
+    if(apronInput(ev)){ev.preventDefault();return;}
     if(bellInput(ev)){ev.preventDefault();return;}
     if(voiceTake&&voiceInput(ev))return;
     if(minuteInput(ev)){ev.preventDefault();return;}
@@ -14065,6 +14125,7 @@
     else if(["Equal","NumpadAdd","Minus","NumpadSubtract"].includes(ev.code)){cameraRig.changeZoom(["Equal","NumpadAdd"].includes(ev.code)?-.12:.12);saveCamera();}
   });
   addEventListener("keyup",ev=>{
+    if(ev.code==="Space"&&aprons.round){keys.delete(ev.code);if(!panel)aprons.release();return;}
     if(ev.code==="KeyL"&&countyCrew.charge!==null){if(countyFeet())countyCrew.release(hero);else countyCrew.charge=null;}
     if(ev.code==="KeyL"&&active?.laundry)endLinenCall();
     if(ev.code==="Backslash"&&active?.county)active.hold=0;
@@ -14241,9 +14302,11 @@
         stepSummer(d);stepSpur(d);campana.step(d,paletaEnv);radioStep(d);stepButtonwood(d);stepBridge(d);stepNeon(d);stepAir(d);stepRescue(d);sevenStep(d);brisasStep(d);palmUpdate(d);gull.step(d,gullEnv);stepMotorcycles(d);stepSkate(d);transit.step(d,transitEnv);
         if(luz.book.pass)stepLuz(d);
         const onBoardwalk=!!(boardwalk.player||cycles.riding);stepCourts(d);boardwalkStep(d);
+        stepAprons(d);
         if(car!==wrecker&&tow.busy)tow.step(d,towClear,recoveryEvent);
         if(room){walkRoom(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);continue;}
-        if(voiceTake)stepVoice(d);
+        if(aprons.round||aprons.phase==="collect"){/* The run-up moves the player's planted feet. */}
+        else if(voiceTake)stepVoice(d);
         else if(projector)stepProjector(d);
         else if(needle){
           const score=needle.score,banks=needle.banks;

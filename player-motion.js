@@ -68,6 +68,9 @@
       const stride=2.38+1.42*this.run;
       this.sampleFoot(this.feet[0],this.phase,stride);
       this.sampleFoot(this.feet[1],(this.phase+.5)%1,stride);
+      if(this.ballSwing){
+        const f=this.feet[1],s=this.ballSwing;f.z+=s;f.y+=Math.abs(s)*.45;f.pitch-=s*.66;
+      }
       this.revision++;
     }
     sampleFoot(foot,t,stride){

@@ -53,6 +53,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --two-aprons --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --admission --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --clean-through --frames
       - if: ${{ !cancelled() }}

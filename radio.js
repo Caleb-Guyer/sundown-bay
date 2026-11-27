@@ -749,6 +749,10 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="apron-kick"||name==="apron-post"){
+      const wood=name==="apron-post";tone(effects,wood?206:123,at,.085,.084,"sine",wood?162:58,.003);
+      waterNoise(effects,at,.055,.035,wood?1340:880,205);return;
+    }
     if(name==="front-tyre"){
       const force=Math.max(.2,Math.min(1.6,source.force||.7));
       tone(effects,106,at,.085,.039*force,"sine",46,.003);

@@ -958,6 +958,7 @@
       if(visible(x,y,5)){disc(ctx,x,y,.36*s,"#556a60");rect(ctx,x-.29*s,y-.1*s,.58*s,.2*s,"#d9bc7b");}}
     if(street&&opt.record?.transfer){const p=BayLastTransfer.clip;if(visible(px(p.x),py(p.z),4))BayLastTransfer.mapClip(ctx,px(p.x),py(p.z),s);}
     if(opt.publicBoat)BayFirstCrossing.map(ctx,opt.publicBoat,px,py,s,visible,street);
+    if(opt.aprons)BayApronGoal.map(ctx,opt.aprons,px,py,s,visible);
     if(opt.publicBoat&&BayWakeClock.hasWinner())BayMinuteCard.map(ctx,opt.minuteRun,px,py,s,visible);
     if(opt.brisas)BayBrisas.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.palmHouse)BayPalmRoom.furniture(ctx,opt,px,py,s,visible,streetTime);
