@@ -159,6 +159,7 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 #objectiveTag {display:block;font-size:.68rem;color:#ffc883;margin-bottom:3px}
 #objectiveText {font-size:.91rem;font-weight:640}
 #wageEnvelopes:not([hidden]) {display:block;width:min(218px,100%);height:auto;margin:5px 0 2px;border-radius:2px}
+#voiceMeter:not([hidden]) {display:block;width:min(225px,100%);height:auto;margin:6px 0 2px}
 #julesPhone:not([hidden]){display:grid;gap:3px;width:fit-content;max-width:100%;margin:.45rem 0 .12rem;padding:.36rem .55rem;border-left:3px solid #69775d;border-radius:2px;background:#bfcca2;color:#233328;text-shadow:none;font:650 .77rem/1.18 "IBM Plex Mono",Consolas,monospace}
 #julesCaller{font-size:.69rem;letter-spacing:.035em;text-transform:uppercase}
 #objective:has(#julesPhone:not([hidden]))~#speech{left:auto;right:2%;bottom:19%;transform:none;box-sizing:border-box;max-width:min(430px,44vw);text-align:left}
@@ -619,6 +620,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
       </div>
       <button id="miniButton" class="radar" title="Open city map (M)" aria-label="Open city map"><canvas id="mini" width="200" height="200"></canvas><span class="north" id="radarNorth">N</span><span class="map-key">M</span></button>
       <div id="objective" hidden><span id="objectiveTag"></span><b id="objectiveText"></b><small id="roadTurn"></small>
+        <canvas id="voiceMeter" width="258" height="83" aria-label="Interview recorder level and tape progress" hidden></canvas>
         <div id="julesPhone" role="status" hidden><strong id="julesCaller"></strong><span id="julesAnswer"></span></div>
         <canvas id="wageEnvelopes" width="278" height="105" aria-label="Jules gathering the loose wage envelopes in the passenger footwell" hidden></canvas>
         <div id="ferryMeter" role="progressbar" aria-label="Steady alongside the ferry" aria-valuemin="0" aria-valuemax="100" hidden><i></i></div></div>
@@ -831,6 +833,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "lot-negative.js",
   "outside-copy.js",
   "pavement-show.js",
+  "second-voice.js",
   "county-audio.js",
   "room-audio.js",
   "room-voices.js",
@@ -1006,6 +1009,6 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "house-copies.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=60d27abfc4e60953"></script>
+  <script src="sundown.js?v=f02ffcbf3bb3bdd5"></script>
 </body>
 </html>

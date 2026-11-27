@@ -22,8 +22,11 @@ module.exports=async function mouseLook({js,send,waitFor,tap,mode,errors}){
   assert(orbit>Math.PI*2,"Continuous turn from stationary screen coordinates");
   await tap("KeyM");await waitFor("!document.pointerLockElement&&!document.querySelector('#panel').hidden");
   await tap("Escape");await waitFor("document.querySelector('#panel').hidden");
-  assert.equal(await js("cursorRequests"),1);await clickGame();await tap("Escape");
+  assert.equal(await js("cursorRequests"),1);await tap("Digit1");await clickGame();
+  await waitFor("document.querySelector('#streetWeapon').textContent.includes('8 / 8')");
+  await clickGame();await waitFor("document.querySelector('#streetWeapon').textContent.includes('7 / 8')");
+  await tap("Escape");
   await waitFor("document.pointerLockElement===null");assert.equal(await js("cursorRequests"),2);
   assert.equal(await js("audioStarts"),0);assert.deepEqual(errors,[]);
-  console.log("PASS native click-to-capture",mode,"turned",Math.round(orbit*180/Math.PI),"degrees, map releases, resume stays free, second click captures and Escape releases");
+  console.log("PASS native click-to-capture",mode,"turned",Math.round(orbit*180/Math.PI),"degrees, map releases, armed capture preserves ammo, next click fires, Escape releases");
 };

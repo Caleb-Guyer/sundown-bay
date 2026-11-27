@@ -157,8 +157,7 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await tap("Space");await waitFor("!!impactQA.p.down&&impactQA.marksDrawn");
   assert(await js("document.querySelector('#streetWeapon').textContent.includes('7 / 8')"));
   await snap("street-impact");await tap("Digit2");
-  await send("Input.dispatchMouseEvent",{type:"mousePressed",x:506,y:315,button:"left",clickCount:1});
-  await send("Input.dispatchMouseEvent",{type:"mouseReleased",x:506,y:315,button:"left",clickCount:1});
+  await tap("Space");
   await waitFor("document.querySelector('#streetWeapon').textContent.includes('2 / 3')");await tap("Digit0");
   await js("q.parked=q.cars.find(c=>c.kind==='coupe'&&c.upgrades?.scanner);q.door=BayDriving.world(q.parked,-bayCarLayout(q.parked.kind).track-1,0);q.at(q.h,q.door.x,q.door.z);q.rig.reset(q.h);true");
   await tap("KeyE");await waitFor("impactQA.car===impactQA.parked",22000);

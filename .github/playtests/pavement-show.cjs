@@ -58,5 +58,38 @@ module.exports=async function playProjection({js,tap,key,waitFor,snap,mode,route
   await loadFootAt(back);await waitFor("document.querySelector('#context').innerText.includes("+JSON.stringify(v.neighbors[1])+")");
   await tap("KeyF");await waitFor("document.querySelector('#speech span').textContent===BayPavementShow.backRow("+stored+")");
   assert.deepEqual(await js(stored),print);
+  await tap("KeyH");await waitFor("!document.querySelector('#voiceMeter').hidden");
+  await tap("KeyE");await waitFor("document.querySelector('#voiceMeter').hidden");
+  assert.equal(await js("localStorage.getItem(BaySecondVoice.key)"),null);
+  await tap("KeyH");await waitFor("document.querySelector('#mode').textContent==='Field recorder'");
+  // Read the deck's meter and send normal controls, including lifting the record key between lines.
+  await js(`window.deckQA={};const turnDeck=BaySecondVoice.Take.prototype.step;
+    BaySecondVoice.Take.prototype.step=function(...args){
+      const out=turnDeck.apply(this,args);deckQA.take=this;
+      if(deckQA.trim&&Math.abs(this.level()-.565)<.025){
+        dispatchEvent(new KeyboardEvent('keyup',{code:deckQA.trim,bubbles:true}));deckQA.trim='';
+      }return out;
+    };
+    const title=BaySecondVoice.Credits.prototype.atScreen;
+    BaySecondVoice.Credits.prototype.atScreen=function(...a){const plate=title.apply(this,a);if(plate)deckQA.title=plate.canvas;return plate;};`);
+  if(mode==="street")await js("const light=BayView.prototype.drawPrint;BayView.prototype.drawPrint=function(n,p,...a){if(n==='slide/light'&&p===deckQA.title)deckQA.shown=true;return light.call(this,n,p,...a);};");
+  else await js("const light=BayPavementShow.map;BayPavementShow.map=function(g,x,y,s,v,p){if(p&&p.canvas===deckQA.title)deckQA.shown=true;return light.apply(this,arguments);};");
+  await waitFor("!!deckQA.take");
+  for(let line=0;line<2;line++){
+    const trim=await js("deckQA.trim=deckQA.take.level()<.565?'KeyD':'KeyA'");
+    await key("keyDown",trim);await waitFor("deckQA.trim===''",10000);await key("keyUp",trim);
+    if(!line)await snap("second-voice-meter");
+    await key("keyDown","Space");
+    try{await waitFor("deckQA.take.beat>"+line,12000);}finally{await key("keyUp","Space");}
+  }
+  const words=await js("deckQA.take.words.join(' ')");await tap("KeyF");
+  await waitFor("!!deckQA.shown&&document.querySelector('#voiceMeter').hidden",12000);
+  await snap("second-voice-slide");
+  const streetCase=await js("BayOutsideCopy.sites.find(s=>s.route==="+JSON.stringify(route)+")");
+  await loadFootAt({x:streetCase.x-1.2,z:streetCase.z});
+  await waitFor("document.querySelector('#context').innerText.includes('outside copy')");await tap("KeyF");
+  await waitFor("document.querySelector('#panelBody').innerText.includes("+JSON.stringify(words)+")");
+  assert.equal(await js("new BaySecondVoice.Credits().at["+JSON.stringify(route)+"].witness"),1);
+  console.log("PASS The Second Voice",mode,v.name,"recorded two lines, projected the signed card and found the whole account at the window after reload");
   console.log("PASS walked from the case to the projector, focused and screened "+selected.frame+", heard both neighbors and reloaded the exact captioned crop at "+v.name);
 };
