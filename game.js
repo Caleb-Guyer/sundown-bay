@@ -17,6 +17,10 @@
   const deltaText=d=>Math.abs(d)<.005?"Level with best":Math.abs(d).toFixed(2)+" s "+(d<0?"ahead":"behind");
   const course=BayBeachDash.gates;
   const view=new BayView($("world"));
+  const hardware=globalThis.navigator;
+  const smallDevice=hardware?.hardwareConcurrency>0&&hardware.hardwareConcurrency<=2&&
+    (hardware.deviceMemory===undefined||hardware.deviceMemory<=4);
+  if(smallDevice){view.scale=.55;view.compact=true;}
   const frameCheck=new BayFrameCheck();
   // The overhead map needs street geometry for collisions, but its land and
   // buildings are painted by the atlas. Build triangles only for a 3D view.
@@ -11275,6 +11279,7 @@
       const offset=besideTicket?w*.14/scale:0;
       const state=collectMap("street",p.x+Math.sin(yaw)*ahead-offset,p.z+Math.cos(yaw)*ahead,scale,true);
       state.lowDetail=overheadQuality.scale<=.8;
+      state.compact=overheadQuality.compact;
       rainWalk.zoom=ease(rainWalk.zoom||0,rainWalk.trip?1:0,4,dt);
       if(rainWalk.zoom>.003){
         state.scale+=(h/(13*cameraRig.zoom)-state.scale)*rainWalk.zoom;
@@ -11403,7 +11408,7 @@
         state.cx+=(behind.x-state.cx)*Math.abs(a);state.cz+=(behind.z-state.cz)*Math.abs(a);
       }
       addVisibleWalkers(state,w,h);
-      drawBayMap(map.getContext("2d"),state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
+      drawBayMap(map.getContext("2d",{alpha:false}),state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
       if(projector&&!projector.showing){
         const p=projection(projector.venue);if(p)BayPavementShow.monitor(map,p.canvas);
       }
@@ -11434,7 +11439,13 @@
     view.begin(eye,dusk,hours,run?.subject()||car);
     skyPainter.draw(view,eye,t,dusk,hours);
     view.drawCityAndWater(t);
-    const see=(o,limit)=>Math.abs(o.x-eye.x)<limit&&Math.abs(o.z-eye.z)<limit;
+    // The city mesh supplies the skyline. Build street furniture and animate
+    // local performers on the surrounding blocks as the camera reaches them.
+    const detailReach=view.compact?Math.max(49,Math.min(125,49+Math.max(0,eye.y-5)*1.5)):Infinity;
+    const see=(o,limit)=>{
+      const reach=Math.min(limit,Math.max(detailReach,limit*.58));
+      return Math.abs(o.x-eye.x)<reach&&Math.abs(o.z-eye.z)<reach;
+    };
     if(see(recordGate,85))BayRecordArt.world(view,model,campaign.book);
     if(!motorArtReady){BayStreetCars.install(model);BayMotorists.install(model);BayValetPlaces.install(model);motorArtReady=true;}
     if(!bandArtReady){BayBandPlayers.install(model);BaySoundShell.install(model);bandArtReady=true;}
@@ -11644,7 +11655,7 @@
       const ground=footLevel(v.x,v.z)+.008+serviceLift(v)+(v.towLift||0);
       const closed=view.scale<=.74&&v!==owned&&v!==story?.ride&&!v.damage&&!v.doorAngle&&!v.passengerDoor&&
         !v.hydraulic&&!v.serviceCar&&!v.cupNumber&&!v.greenId&&v!==surfWagon&&v!==iceVan&&trafficShells.has(v.kind);
-      const shell=closed&&view.scale<=.65&&Math.hypot(eye.x-v.x,eye.z-v.z)>25;
+      const shell=closed&&view.scale<=.65&&Math.hypot(eye.x-v.x,eye.z-v.z)>(view.compact?15:25);
       if(shell&&!view.trafficVisible(v.x,ground,v.z))continue;
       const body=roadBody(v);
       if(shell){
@@ -14510,10 +14521,10 @@
   addEventListener("blur",()=>{keys.clear();resetPointer();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");});
   document.addEventListener("visibilitychange",()=>{if(document.hidden){keys.clear();sound.reel(null);if(play)saveTime();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");}});
   let last=performance.now(),lastIntroPaint=0,lastMenuPaint=0;
-  const overheadQuality={scale:1};
+  const overheadQuality={scale:smallDevice ? .62 : 1,compact:!!smallDevice};
   class SceneResolution {
     constructor(target,floor,adaptiveWidth=false){this.target=target;this.floor=floor;this.adaptiveWidth=adaptiveWidth;this.reset();}
-    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;}
+    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;this.detailTime=0;}
     sample(seconds){
       if(!(seconds>0)||seconds>2){this.reset();return;}
       // Judge a stretch of play. An occasional upload or texture decode should
@@ -14522,6 +14533,10 @@
       if(seconds>1/28)this.late++;
       if(this.time<1.25)return;
       const mean=this.time/this.frames,late=this.late/this.frames,scale=this.target.scale;
+      if(scale<=.66&&late>=.2){
+        this.detailTime+=this.time;
+        if(this.detailTime>=2.5)this.target.compact=true;
+      }else this.detailTime=0;
       if(mean>1/28&&late>=.4&&scale>this.floor){
         const step=mean>1/21?.14:.08;
         this.target.scale=Math.max(this.floor,Math.round((scale-step)*100)/100);
@@ -14535,6 +14550,7 @@
       if(this.headroom>=6&&(width<1||scale<1)){
         if(width<1)this.target.widthScale=width<.84?.84:1;
         else this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);
+        if(!smallDevice&&this.target.scale>=.8)this.target.compact=false;
         this.headroom=0;
       }
       this.time=this.frames=this.late=0;

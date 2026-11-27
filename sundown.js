@@ -550,7 +550,8 @@
       const depth=((x-v.camera.x)*v.sn+(z-v.camera.z)*v.cs)*v.cp+(y-v.camera.y)*v.sp;
       const near=depth-b.r-Math.hypot(b.x,b.y,b.z);
       const pitch=near/(view.canvas.height*.5*v.f*1.733*Math.max(v.xMargin,v.yMargin));
-      const cell=pitch>=.24?.24:pitch>=.12?.12:pitch>=.055?.055:0;
+      const footprint=view.compact?pitch*3:pitch;
+      const cell=footprint>=.48&&view.compact?.48:footprint>=.24?.24:footprint>=.12?.12:footprint>=.055?.055:0;
       if(!cell)return null;
       const tiers=model.detailLevels??={};
       if(Object.hasOwn(tiers,cell))return tiers[cell];
@@ -1052,7 +1053,8 @@
     farFromCamera(b,x=0,y=0,z=0,yaw=0){
       const eye=this.basis.camera,c=Math.cos(yaw),s=Math.sin(yaw);
       const dx=x+c*b.x+s*b.z-eye.x,dy=y+b.y-eye.y,dz=z+c*b.z-s*b.x-eye.z;
-      return dx*dx+dy*dy+dz*dz>(55+b.r)*(55+b.r);
+      const threshold=(this.compact?24:55)+b.r;
+      return dx*dx+dy*dy+dz*dz>threshold*threshold;
     }
     updateAnimated(name,deferUpload=false){
       const model=this.models.get(name);if(!model||this.lost)return;
@@ -1093,7 +1095,7 @@
         elementType:indices.BYTES_PER_ELEMENT===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT};
     }
     prepareSun(){
-      const gl=this.gl,sz=Math.min(1024,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
+      const gl=this.gl,sz=Math.min(this.compact?512:1024,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.shadowTexture);
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,sz,sz,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
       const fbo=gl.createFramebuffer(),rb=gl.createRenderbuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.bindRenderbuffer(gl.RENDERBUFFER,rb);
@@ -1237,6 +1239,9 @@
       x-=v.camera.x;y-=v.camera.y;z-=v.camera.z;
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
       const side=x*v.cs-z*v.sn,up=y*v.cp-along*v.sp;
+      // Drop isolated details under two pixels across at the actual scene
+      // resolution. Keep all close interaction props and the whole silhouette.
+      if(this.compact&&!this.casting&&depth-r>18&&r*this.canvas.height*v.f<2*(depth-r))return false;
       if(depth+r<.13||depth-r>1100||Math.abs(side)>depth*v.horizontal+r*v.xMargin||
         Math.abs(up)>depth*v.vertical+r*v.yMargin)return false;
       let hw=r,hh=r,hd=r;
@@ -16082,6 +16087,29 @@ window.buildBayCity = function buildBayCity(g,water) {
   window.drawBayTimingCar=(ctx,v,x,y,s)=>{
     carSprite(ctx,v,x,y,s,0);BayStreetCars.map(ctx,v,x,y,s,0);
   };
+  // A band member occupies only a few pixels in a wide overhead shot. Keep
+  // the painted pose for a short interval, placing it at the live coordinates
+  // on every frame. Vehicle doors and player-controlled shots use live poses.
+  const bandPortraits=new WeakMap();
+  function bandPerformer(ctx,p,x,y,s,t,opt){
+    if(!opt.compact||s>9||p.motion?.ride||p===opt.band.player){
+      BayBandPlayers.mapActor(ctx,p,x,y,s,t,opt.band);return;
+    }
+    const density=12,size=48;
+    let pose=bandPortraits.get(p);
+    if(!pose){
+      const surface=mapSurface(size,size),brush=surface?.getContext("2d");
+      if(!brush){BayBandPlayers.mapActor(ctx,p,x,y,s,t,opt.band);return;}
+      pose={surface,brush,time:-Infinity};bandPortraits.set(p,pose);
+    }
+    if(t<pose.time||t-pose.time>=.12||pose.work!==p.work||pose.kit!==p.kit||Math.abs((p.yaw||0)-pose.yaw)>.12){
+      pose.brush.clearRect(0,0,size,size);
+      BayBandPlayers.mapActor(pose.brush,p,size/2,size/2,density,t,opt.band);
+      pose.time=t;pose.work=p.work;pose.kit=p.kit;pose.yaw=p.yaw||0;
+    }
+    const span=size*s/density;
+    ctx.drawImage(pose.surface,x-span/2,y-span/2,span,span);
+  }
   window.drawBayMap=function drawBayMap(ctx,opt) {
     const w=ctx.canvas.width,h=ctx.canvas.height,s=opt.scale;
     if(!(w>0 && h>0 && s>0)) return;
@@ -16687,7 +16715,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         }
         if(player.driving&&opt.streetCar&&player.neighborPose)BayNeighborGestures.mapDriver(ctx,px,py,s,opt.streetCar,player.neighborPose,player.skin,player.shirt);
         for(const a of opt.motorists||empty)if(visible(px(a.x),py(a.z),4*s))BayMotorists.mapActor(ctx,a,px(a.x),py(a.z),s,streetTime,a===opt.valet?.staff?opt.valet.staffJob:null);
-        if(opt.band)for(const p of opt.band.performers)if(visible(px(p.x),py(p.z),3*s))BayBandPlayers.mapActor(ctx,p,px(p.x),py(p.z),s,streetTime,opt.band);
+        if(opt.band)for(const p of opt.band.performers)if(visible(px(p.x),py(p.z),3*s))bandPerformer(ctx,p,px(p.x),py(p.z),s,streetTime,opt);
         if(opt.cabService)for(const p of opt.cabService.people){
           if(!p.ride||p.seat<=.55||!visible(px(p.x),py(p.z)))continue;
           const rider=BayDriving.world(p.ride,bayCarLayout(p.ride.kind).seatX,.36);
@@ -74727,6 +74755,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   const deltaText=d=>Math.abs(d)<.005?"Level with best":Math.abs(d).toFixed(2)+" s "+(d<0?"ahead":"behind");
   const course=BayBeachDash.gates;
   const view=new BayView($("world"));
+  const hardware=globalThis.navigator;
+  const smallDevice=hardware?.hardwareConcurrency>0&&hardware.hardwareConcurrency<=2&&
+    (hardware.deviceMemory===undefined||hardware.deviceMemory<=4);
+  if(smallDevice){view.scale=.55;view.compact=true;}
   const frameCheck=new BayFrameCheck();
   // The overhead map needs street geometry for collisions, but its land and
   // buildings are painted by the atlas. Build triangles only for a 3D view.
@@ -85985,6 +86017,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const offset=besideTicket?w*.14/scale:0;
       const state=collectMap("street",p.x+Math.sin(yaw)*ahead-offset,p.z+Math.cos(yaw)*ahead,scale,true);
       state.lowDetail=overheadQuality.scale<=.8;
+      state.compact=overheadQuality.compact;
       rainWalk.zoom=ease(rainWalk.zoom||0,rainWalk.trip?1:0,4,dt);
       if(rainWalk.zoom>.003){
         state.scale+=(h/(13*cameraRig.zoom)-state.scale)*rainWalk.zoom;
@@ -86113,7 +86146,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         state.cx+=(behind.x-state.cx)*Math.abs(a);state.cz+=(behind.z-state.cz)*Math.abs(a);
       }
       addVisibleWalkers(state,w,h);
-      drawBayMap(map.getContext("2d"),state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
+      drawBayMap(map.getContext("2d",{alpha:false}),state);if(unit.eye)scoutDevelop(map,null,scoutMapProject(state,w,h));if(insideSeat())seatOverlay(true,t);$("targetTag").hidden=true;
       if(projector&&!projector.showing){
         const p=projection(projector.venue);if(p)BayPavementShow.monitor(map,p.canvas);
       }
@@ -86144,7 +86177,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     view.begin(eye,dusk,hours,run?.subject()||car);
     skyPainter.draw(view,eye,t,dusk,hours);
     view.drawCityAndWater(t);
-    const see=(o,limit)=>Math.abs(o.x-eye.x)<limit&&Math.abs(o.z-eye.z)<limit;
+    // The city mesh supplies the skyline. Build street furniture and animate
+    // local performers on the surrounding blocks as the camera reaches them.
+    const detailReach=view.compact?Math.max(49,Math.min(125,49+Math.max(0,eye.y-5)*1.5)):Infinity;
+    const see=(o,limit)=>{
+      const reach=Math.min(limit,Math.max(detailReach,limit*.58));
+      return Math.abs(o.x-eye.x)<reach&&Math.abs(o.z-eye.z)<reach;
+    };
     if(see(recordGate,85))BayRecordArt.world(view,model,campaign.book);
     if(!motorArtReady){BayStreetCars.install(model);BayMotorists.install(model);BayValetPlaces.install(model);motorArtReady=true;}
     if(!bandArtReady){BayBandPlayers.install(model);BaySoundShell.install(model);bandArtReady=true;}
@@ -86354,7 +86393,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const ground=footLevel(v.x,v.z)+.008+serviceLift(v)+(v.towLift||0);
       const closed=view.scale<=.74&&v!==owned&&v!==story?.ride&&!v.damage&&!v.doorAngle&&!v.passengerDoor&&
         !v.hydraulic&&!v.serviceCar&&!v.cupNumber&&!v.greenId&&v!==surfWagon&&v!==iceVan&&trafficShells.has(v.kind);
-      const shell=closed&&view.scale<=.65&&Math.hypot(eye.x-v.x,eye.z-v.z)>25;
+      const shell=closed&&view.scale<=.65&&Math.hypot(eye.x-v.x,eye.z-v.z)>(view.compact?15:25);
       if(shell&&!view.trafficVisible(v.x,ground,v.z))continue;
       const body=roadBody(v);
       if(shell){
@@ -89220,10 +89259,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   addEventListener("blur",()=>{keys.clear();resetPointer();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");});
   document.addEventListener("visibilitychange",()=>{if(document.hidden){keys.clear();sound.reel(null);if(play)saveTime();if(play&&!panel&&!campaign.scene&&!campaign.table)openPanel("pause");}});
   let last=performance.now(),lastIntroPaint=0,lastMenuPaint=0;
-  const overheadQuality={scale:1};
+  const overheadQuality={scale:smallDevice ? .62 : 1,compact:!!smallDevice};
   class SceneResolution {
     constructor(target,floor,adaptiveWidth=false){this.target=target;this.floor=floor;this.adaptiveWidth=adaptiveWidth;this.reset();}
-    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;}
+    reset(){this.time=0;this.frames=0;this.late=0;this.headroom=0;this.slowTime=0;this.detailTime=0;}
     sample(seconds){
       if(!(seconds>0)||seconds>2){this.reset();return;}
       // Judge a stretch of play. An occasional upload or texture decode should
@@ -89232,6 +89271,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(seconds>1/28)this.late++;
       if(this.time<1.25)return;
       const mean=this.time/this.frames,late=this.late/this.frames,scale=this.target.scale;
+      if(scale<=.66&&late>=.2){
+        this.detailTime+=this.time;
+        if(this.detailTime>=2.5)this.target.compact=true;
+      }else this.detailTime=0;
       if(mean>1/28&&late>=.4&&scale>this.floor){
         const step=mean>1/21?.14:.08;
         this.target.scale=Math.max(this.floor,Math.round((scale-step)*100)/100);
@@ -89245,6 +89288,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(this.headroom>=6&&(width<1||scale<1)){
         if(width<1)this.target.widthScale=width<.84?.84:1;
         else this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);
+        if(!smallDevice&&this.target.scale>=.8)this.target.compact=false;
         this.headroom=0;
       }
       this.time=this.frames=this.late=0;

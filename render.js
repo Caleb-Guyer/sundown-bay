@@ -549,7 +549,8 @@
       const depth=((x-v.camera.x)*v.sn+(z-v.camera.z)*v.cs)*v.cp+(y-v.camera.y)*v.sp;
       const near=depth-b.r-Math.hypot(b.x,b.y,b.z);
       const pitch=near/(view.canvas.height*.5*v.f*1.733*Math.max(v.xMargin,v.yMargin));
-      const cell=pitch>=.24?.24:pitch>=.12?.12:pitch>=.055?.055:0;
+      const footprint=view.compact?pitch*3:pitch;
+      const cell=footprint>=.48&&view.compact?.48:footprint>=.24?.24:footprint>=.12?.12:footprint>=.055?.055:0;
       if(!cell)return null;
       const tiers=model.detailLevels??={};
       if(Object.hasOwn(tiers,cell))return tiers[cell];
@@ -1051,7 +1052,8 @@
     farFromCamera(b,x=0,y=0,z=0,yaw=0){
       const eye=this.basis.camera,c=Math.cos(yaw),s=Math.sin(yaw);
       const dx=x+c*b.x+s*b.z-eye.x,dy=y+b.y-eye.y,dz=z+c*b.z-s*b.x-eye.z;
-      return dx*dx+dy*dy+dz*dz>(55+b.r)*(55+b.r);
+      const threshold=(this.compact?24:55)+b.r;
+      return dx*dx+dy*dy+dz*dz>threshold*threshold;
     }
     updateAnimated(name,deferUpload=false){
       const model=this.models.get(name);if(!model||this.lost)return;
@@ -1092,7 +1094,7 @@
         elementType:indices.BYTES_PER_ELEMENT===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT};
     }
     prepareSun(){
-      const gl=this.gl,sz=Math.min(1024,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
+      const gl=this.gl,sz=Math.min(this.compact?512:1024,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.shadowTexture);
       gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,sz,sz,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
       const fbo=gl.createFramebuffer(),rb=gl.createRenderbuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.bindRenderbuffer(gl.RENDERBUFFER,rb);
@@ -1236,6 +1238,9 @@
       x-=v.camera.x;y-=v.camera.y;z-=v.camera.z;
       const along=x*v.sn+z*v.cs,depth=along*v.cp+y*v.sp;
       const side=x*v.cs-z*v.sn,up=y*v.cp-along*v.sp;
+      // Drop isolated details under two pixels across at the actual scene
+      // resolution. Keep all close interaction props and the whole silhouette.
+      if(this.compact&&!this.casting&&depth-r>18&&r*this.canvas.height*v.f<2*(depth-r))return false;
       if(depth+r<.13||depth-r>1100||Math.abs(side)>depth*v.horizontal+r*v.xMargin||
         Math.abs(up)>depth*v.vertical+r*v.yMargin)return false;
       let hw=r,hh=r,hd=r;

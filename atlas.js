@@ -789,6 +789,29 @@
   window.drawBayTimingCar=(ctx,v,x,y,s)=>{
     carSprite(ctx,v,x,y,s,0);BayStreetCars.map(ctx,v,x,y,s,0);
   };
+  // A band member occupies only a few pixels in a wide overhead shot. Keep
+  // the painted pose for a short interval, placing it at the live coordinates
+  // on every frame. Vehicle doors and player-controlled shots use live poses.
+  const bandPortraits=new WeakMap();
+  function bandPerformer(ctx,p,x,y,s,t,opt){
+    if(!opt.compact||s>9||p.motion?.ride||p===opt.band.player){
+      BayBandPlayers.mapActor(ctx,p,x,y,s,t,opt.band);return;
+    }
+    const density=12,size=48;
+    let pose=bandPortraits.get(p);
+    if(!pose){
+      const surface=mapSurface(size,size),brush=surface?.getContext("2d");
+      if(!brush){BayBandPlayers.mapActor(ctx,p,x,y,s,t,opt.band);return;}
+      pose={surface,brush,time:-Infinity};bandPortraits.set(p,pose);
+    }
+    if(t<pose.time||t-pose.time>=.12||pose.work!==p.work||pose.kit!==p.kit||Math.abs((p.yaw||0)-pose.yaw)>.12){
+      pose.brush.clearRect(0,0,size,size);
+      BayBandPlayers.mapActor(pose.brush,p,size/2,size/2,density,t,opt.band);
+      pose.time=t;pose.work=p.work;pose.kit=p.kit;pose.yaw=p.yaw||0;
+    }
+    const span=size*s/density;
+    ctx.drawImage(pose.surface,x-span/2,y-span/2,span,span);
+  }
   window.drawBayMap=function drawBayMap(ctx,opt) {
     const w=ctx.canvas.width,h=ctx.canvas.height,s=opt.scale;
     if(!(w>0 && h>0 && s>0)) return;
@@ -1394,7 +1417,7 @@
         }
         if(player.driving&&opt.streetCar&&player.neighborPose)BayNeighborGestures.mapDriver(ctx,px,py,s,opt.streetCar,player.neighborPose,player.skin,player.shirt);
         for(const a of opt.motorists||empty)if(visible(px(a.x),py(a.z),4*s))BayMotorists.mapActor(ctx,a,px(a.x),py(a.z),s,streetTime,a===opt.valet?.staff?opt.valet.staffJob:null);
-        if(opt.band)for(const p of opt.band.performers)if(visible(px(p.x),py(p.z),3*s))BayBandPlayers.mapActor(ctx,p,px(p.x),py(p.z),s,streetTime,opt.band);
+        if(opt.band)for(const p of opt.band.performers)if(visible(px(p.x),py(p.z),3*s))bandPerformer(ctx,p,px(p.x),py(p.z),s,streetTime,opt);
         if(opt.cabService)for(const p of opt.cabService.people){
           if(!p.ride||p.seat<=.55||!visible(px(p.x),py(p.z)))continue;
           const rider=BayDriving.world(p.ride,bayCarLayout(p.ride.kind).seatX,.36);
