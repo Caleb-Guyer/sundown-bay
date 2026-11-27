@@ -22,6 +22,7 @@ module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
     await waitFor("care.framed");
   }
   await js(`window.careQA={};const care=careQA;
+    const green=BayOnGreen.Club.prototype.step;BayOnGreen.Club.prototype.step=function(){care.surf=this.sites[0].v;return green.apply(this,arguments);};
     const work=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,env){
       care.service=this;care.hero=env.hero;care.floor=env.ground;return work.apply(this,arguments);};
     const people=BayLocals.animatePeople;BayLocals.animatePeople=function(list){care.people=list;return people.apply(this,arguments);};
@@ -87,9 +88,11 @@ module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
   finally{await key("keyUp","KeyL");}
   const order="JSON.parse(localStorage.getItem('sundownBay.v1')).rescue.laundry";
   await waitFor(order+".stage==='collect'");
-  await js("care.p=BayClinicLaundry.targets.collect;care.at(care.hero,care.p.x-3.3,care.p.z);care.rig.reset(care.hero)");
-  await waitFor("document.querySelector('#context').textContent.includes('Take the parcel from Romy')");await tap("KeyF");
+  await js("care.p=BayClinicLaundry.targets.collect;care.at(care.hero,care.p.x-3.3,care.p.z);care.rig.reset(care.hero);care.surfBay={x:care.surf.x,z:care.surf.z};Object.assign(care.surf,{x:151.6,z:-31})");
+  await waitFor("document.querySelector('#context kbd')?.textContent==='F' && document.querySelector('#context').textContent.includes('Take the parcel from Romy  ·  E  Take SURF 13')");
+  await snap("linen-curb");await tap("KeyF");
   await waitFor(order+".stage==='return'");await snap("linen-parcel");
+  assert.equal(await js("care.surf.owner.phase"),"drive");await js("Object.assign(care.surf,care.surfBay)");
   await send("Page.reload");await waitFor("!window.careQA&&document.readyState==='complete'&&typeof BayRescue==='object'");
   await js(`window.linenQA={};const old=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,e){linenQA.h=e.hero;return old.apply(this,arguments);};
     document.querySelector('#play').click();`);
@@ -110,7 +113,7 @@ module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
   await waitFor("doorQA.hatch&&doorQA.hero");
   assert.equal(await js("doorQA.hatch.plate"),"SURF 13");
   assert(await js("BayDriving.clearance(doorQA.hatch,BayClinicLaundry.targets.collect)>4"));
-  await js("Object.assign(doorQA.hero,BayDriving.world(doorQA.hatch,-1.65,-.2))");await tap("KeyE");
+  await js("Object.assign(doorQA.hatch,{x:151.6,z:-31});Object.assign(doorQA.hero,{x:150.5,z:-30.6})");await tap("KeyE");
   await waitFor("doorQA.hatch.owner.phase==='out'");await snap("surf-door");
   await waitFor("doorQA.driver===doorQA.hatch&&doorQA.hatch.owner.displaced&&!doorQA.hatch.owner.ride",20000);
   const at=await js("doorQA.hatch.z");await key("keyDown","KeyW");
