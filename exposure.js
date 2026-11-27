@@ -16,6 +16,8 @@
     {kind:"notice",x:-154.3,z:-91,yaw:Math.PI/2,w:.25,d:2.24,top:2.19}
   ];
   const liveTime=105;
+  const relayDuration=1.1;
+  const pressSpeed=value=>Number.isInteger(value)&&value>=5&&value<=140?value:0;
   // Approach from the south to put both east-facing subjects at Mara's window.
   const photoRuns={
     wheel:{name:"Coast Wheel",lead:{x:146,z:74,name:"Ocean Drive · northbound approach"},frame:{x:146,z:113,name:"Coast Wheel · passenger window"},
@@ -33,6 +35,7 @@
       this.offeredSleeve=false;
       this.photoRoad="";this.onApproach=false;
       this.field="";this.quote="";
+      this.press=null;this.trackPress=false;this.passAge=0;this.pressMPH=0;
     }
     markRoad(id){this.photoRoad=Object.hasOwn(photoRuns,id)?id:"";this.onApproach=false;this.finder=null;}
     target(car){
@@ -40,6 +43,7 @@
       if(this.ride&&this.ride!==car)return {x:this.ride.x,z:this.ride.z,name:"Mara’s car"};
       if(this.phase==="pickup"||this.phase==="approach"||this.phase==="board")return pickup;
       if(this.phase==="port"&&this.photoRoad){const road=photoRuns[this.photoRoad];return this.onApproach?road.frame:road.lead;}
+      if(this.trackPress&&this.pressAvailable())return {x:this.press.x,z:this.press.z,name:"Sol FM · press van"};
       return routes[this.route]||dock;
     }
     objective(car){
@@ -50,7 +54,7 @@
         case "approach":case "board":return "Wait for Mara to get in";
         case "port":return this.photoRoad?(this.onApproach?"Frame "+photoRuns[this.photoRoad].name+" from Mara’s window":"Take Mara past "+photoRuns[this.photoRoad].name):"Park by the Lot 14 notice at Port Sol";
         case "choice":return "Decide where to take the photograph";
-        case "delivery":return "Take Mara to "+routes[this.route].name;
+        case "delivery":return this.pressMPH?"Take Mara’s caption to Sol FM":this.trackPress&&this.pressAvailable()?"Catch the Sol FM press van":"Take Mara to "+routes[this.route].name;
         default:return "Wait for Mara to make the handoff";
       }
     }
@@ -65,6 +69,40 @@
     expose(){if(this.phase!=="port"||!this.focus())return false;this.phase="choice";return true;}
     choose(route){if(this.phase!=="choice"||!Object.hasOwn(routes,route))return false;
       this.route=route;this.remaining=route==="live"?liveTime:0;this.phase="delivery";return true;}
+    pressAvailable(){return this.phase==="delivery"&&this.route==="live"&&!this.pressMPH&&this.press?.path&&this.press!==this.ride;}
+    relayHint(car){
+      if(!car||car!==this.ride||this.field||!this.pressAvailable()||distance(car,this.press)>17)return "";
+      if(this.passAge)return "Hold alongside until Mara lets go";
+      const van=this.press,seat=bayCarLayout(car.kind),other=bayCarLayout(van.kind);
+      if(Math.cos(car.yaw-van.yaw)<.94)return "Turn to travel with the van";
+      const window=BayDriving.world(van,-other.track,other.seatZ),q=BayDriving.local(car,window.x,window.z);
+      if(q.x<seat.track-.12||q.x>seat.track+1.38)return "Put the van on Mara’s right";
+      if(Math.abs(q.z-seat.seatZ)>1.05)return "Line up the two front windows";
+      if(Math.min(car.speed,van.speed)<2.2)return "Wait until both cars are rolling";
+      if(Math.abs(car.speed-van.speed)>2.25)return "Match the van’s speed";
+      return "Pass the film";
+    }
+    signal(car){
+      const hint=this.relayHint(car);
+      if(hint==="Pass the film")this.passAge=.001;
+      return hint;
+    }
+    advancePass(dt,car,transfer){
+      // Recheck the moving windows throughout the exchange. A missed pass costs only time.
+      const age=this.passAge;this.passAge=0;
+      if(transfer||this.relayHint(car)!=="Pass the film")return "missed-pass";
+      this.passAge=age+dt;
+      if(this.passAge<relayDuration)return;
+      this.passAge=0;this.pressMPH=Math.round(car.speed*2.237);this.trackPress=false;return "desk-hold";
+    }
+    canister(){
+      if(!this.passAge)return null;
+      const v=this.ride,p=this.press,a=bayCarLayout(v.kind),b=bayCarLayout(p.kind);
+      const start=BayDriving.world(v,a.track-.18,a.seatZ),end=BayDriving.world(p,-b.track+.13,b.seatZ);
+      const t=Math.min(1,this.passAge/relayDuration),f=t*t*(3-2*t);
+      return {x:start.x+(end.x-start.x)*f,z:start.z+(end.z-start.z)*f,
+        y:a.glass[4]+.22+(b.glass[4]-a.glass[4])*f+.12*Math.sin(Math.PI*t)};
+    }
     dispose(){if(this.ride)this.ride.passengerDoor=0;}
     leaveForPicture(car,plan){
       if(this.field||this.phase!=="port"||!this.atDock(car)||!plan(car,true,this.mara,1))return false;
@@ -108,6 +146,9 @@
       const raised=this.progress===1&&(this.finder||this.onApproach||this.shutterHold>0);
       r.windowLift=(r.windowLift||0)+((raised?1:0)-(r.windowLift||0))*-Math.expm1(-7*dt);
       r.windowPan=this.finder?.pan||0;r.windowTilt=this.finder?.tilt||0;
+      if(this.passAge){const reach=Math.sin(Math.PI*Math.min(1,this.passAge/relayDuration));
+        r.coverArm={x:.43+.39*reach,y:bayCarLayout(this.ride.kind).glass[4]+.19,z:.13,weight:Math.min(1,reach*3)};
+      }else r.coverArm=null;
     }
     step(dt,car,transfer,doorPlan,ground){
       if(this.field)return this.fieldStep(dt,ground);
@@ -140,9 +181,10 @@
           this.remarked=true;return "docks";
         }
         if(this.phase!=="delivery")return;
-        if(this.route==="live"){
+        if(this.route==="live"&&!this.pressMPH){
           this.remaining=Math.max(0,this.remaining-dt);
-          if(!this.remaining){this.route="print";return "late";}
+          if(!this.remaining){this.route="print";this.passAge=0;this.trackPress=false;return "late";}
+          if(this.passAge)return this.advancePass(dt,car,transfer);
         }
         const drop=routes[this.route];
         if(car!==this.ride||transfer||!stopped(car)||distance(car,drop)>7.5)return;
@@ -151,5 +193,5 @@
       }
     }
   }
-  window.BayExposure={job,dock,pickup,routes,props,liveTime,photoRuns,Run};
+  window.BayExposure={job,dock,pickup,routes,props,liveTime,photoRuns,pressSpeed,Run};
 })();

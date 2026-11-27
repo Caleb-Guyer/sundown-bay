@@ -225,6 +225,7 @@
       result.fieldQueue=BayCutTape.read(raw.fieldQueue);
       if(BayFerry.routes.some(r=>r.id===raw.ferryLine))result.ferryLine=raw.ferryLine;
       if(Object.hasOwn(BayExposure.routes,raw.edition))result.edition=raw.edition;
+      result.pressMPH=BayExposure.pressSpeed(raw.pressMPH);
       if(raw.resprays&&typeof raw.resprays==="object"&&!Array.isArray(raw.resprays)){
         result.resprays=Object.fromEntries(Object.entries(raw.resprays).filter(([,color])=>finishes.some(f=>f.color===color)));
       }
@@ -242,6 +243,7 @@
   const save=readSave(),houseLights=new BayHouseLights.Book();
   let flyingCopy=null,copyReaction=null;
   const campaign=new BayPublicRecord.Story();
+  campaign.pressMPH=save.pressMPH||0;
   const maraFilm=new BayLotNegative.Archive();
   const outsideCases=new BayOutsideCopy.Cases();
   const shows=new BayPavementShow.Shows();let projector=null;
@@ -726,9 +728,11 @@
   addCar("coupe",paints[3],12,77.1,Math.PI/2);addCar("van",paints[5],-66.8,-118,0);
   addCar("hatch",paints[2],139,123,Math.PI);addCar("cab","#eeb452",-21,-149,Math.PI/2);
   const loops=[[2,2,2,1,false],[3,1,1,2,true],[1,2,2,2,false],[0,0,2,2,true],[0,2,2,1,true],[1,0,3,1,false],[0,1,1,3,false],[1,1,2,1,false],[2,0,2,2,true],[1,3,3,1,false],[0,0,4,4,true]];
+  let pressVan;
   loops.forEach(([ix,iz,w,d,rev],i)=>{
     const path=laneLoop(ix,iz,w,d,rev),j=i%4,k=(j+1)%4,f=.15+(i%5)*.14,a=path[j],b=path[k],kind=["hatch","coupe","cab","van"][i%4];
     const v=addCar(kind,kind==="cab"?"#edb758":paints[(i+1)%6],a.x+(b.x-a.x)*f,a.z+(b.z-a.z)*f,Math.atan2(b.x-a.x,b.z-a.z),path,5+(i%5)*.55);v.corner=k;
+    if(i===3)pressVan=v;
   });
   // Stagger opposite lanes at the beachfront. The first intersection is already in use when you arrive.
   const rushHour=[[3,1,1,2,true,1,.72,"cab"],[3,1,1,2,false,1,.22,"hatch"],[2,2,2,1,false,0,.65,"van"],
@@ -4894,6 +4898,8 @@
   }
   function honk(){
     if(elapsed<hornReady)return;hornReady=elapsed+.67;car.hornAt=streetTime;sound.cue("horn");
+    const pass=active?.story?.signal(car);
+    if(pass){if(pass!=="Pass the film")note("Mara Vega",pass,2);lastHud=-10;return;}
     if(!active&&askForGap())return;
     if(cupEntry())return;
     if(beat.start("check",car,beatEnv))return;
@@ -7618,6 +7624,13 @@
     if(event==="driver-back"){keys.clear();lastHud=lastMap=-10;cameraRig.recenter(car.yaw,elapsed);
       note("Back at the wheel",story.phase==="delivery"?story.target(car).name+" · Mara has the negative.":"Pull around if Mara needs a clearer angle.",4);return;}
     if(story.field)return;
+    if(event==="missed-pass"){speak("Mara Vega","Still got it. Bring my window back alongside hers.");lastHud=-10;return;}
+    if(event==="desk-hold"){
+      if(campaign.book.stage==="negative"){campaign.book.deskHold=story.pressMPH;campaign.write();}
+      speak("Sol FM · mobile desk","I’ve got the film. I’ll hold the bulletin. Bring Mara in to read the names.");
+      note("Bulletin held","Film passed at "+story.pressMPH+" mph · Take Mara’s caption to Sol FM",5);
+      lastHud=lastMap=-10;return;
+    }
     if(wasMarked&&!story.photoRoad){campaign.book.photoRoad="";campaign.write();lastHud=lastMap=-10;}
     if(event==="approaching-frame"||event==="missed-frame"){
       if(!heat)speak("Mara Vega",event==="missed-frame"?"We went past. Another lap, or take me down to the pier.":story.photoRoad==="wheel"?"See the red gondola? Keep rolling. Give me the nod when it clears the palms.":"There’s the box office. Hold this side of the street. Give me the nod under the gold letters.");
@@ -7627,7 +7640,7 @@
       if(car!==story.ride||!car||!["port","delivery"].includes(story.phase)||elapsed<speechTill)return;
       if(heat&&!story.warnedHeat){story.warnedHeat=true;speak("Mara Vega","Those lights for us? I’m putting the film in my sock.");}
       else if(car.flatSide&&!story.warnedFlat){story.warnedFlat=true;speak("Mara Vega","Feel that pull? Portside Tire can put a fresh one on.");}
-      else if(story.route==="live"&&story.remaining<16&&!story.warnedClock){story.warnedClock=true;speak("Mara Vega","That’s the station van with the dish. The bulletin’s almost on.");}
+      else if(story.route==="live"&&!story.pressMPH&&story.remaining<16&&!story.warnedClock){story.warnedClock=true;speak("Mara Vega","That’s the station van with the dish. The bulletin’s almost on.");}
       else if(story.phase==="port"&&!heat&&!campaign.book.sleeve&&!story.offeredSleeve&&!story.remarked&&dist(car,BayExposure.pickup)>22){
         story.offeredSleeve=true;story.sleeveCall=elapsed;speak("Mara Vega","Look what fell out of Dad’s camera bag. Pull up a second if you want to see it.");
       }
@@ -7636,12 +7649,16 @@
     lastHud=lastMap=-10;
     if(event==="boarded"&&campaign.book.intro){
       if(campaign.book.stage==="negative"){
-        story.phase="choice";story.regrouped=true;openPanel("contact");
+        story.phase="choice";story.regrouped=true;
+        if(campaign.book.deskHold){story.choose("live");story.pressMPH=campaign.book.deskHold;
+          note("Sol FM is holding","The mobile desk has the film. Take Mara in to read her caption.",5);}
+        else openPanel("contact");
       }else enterFilm("boarded");
       return;
     }
     if(event==="complete"){
       const route=BayExposure.routes[story.route];save.wallet+=route.pay;save.paid++;save.edition=story.route;
+      save.pressMPH=story.pressMPH;campaign.pressMPH=story.pressMPH;campaign.book.deskHold=0;campaign.write();
       maraFilm.deliver(hours.day+1);persist();dropJob();sound.cue("paid");speak("Mara Vega",save.edition==="live"?"Hear that? Top of the hour. That’s our pier.":"Front row’s on me. Wait till they see what’s on that screen.");
       note("Last Exposure complete","+"+cash(route.pay)+"  ·  Read Bay Wire on your phone (J)",5.4);
       if(campaign.book.stage!=="filed"){
@@ -10055,7 +10072,7 @@
     }
     return {mode:modeName,countyCrew:play&&countyCrew.site?countyCrew:null,walkerIndex,romyHome:modeName==="street"&&play?(romyOutside()||(campaign.scene?.id==="walkHomeDoor"?homeWalk:null)):null,payroll:modeName==="street"?(active?.featurePrint?.ride||active?.payroll||payrollReceipt||printAftermath||lastPayroll()):null,streetAction:play&&modeName==="street"?streetAction:null,cx,cz,scale,solids,threads:play?{site:threads.site,strip:modeName==="street"&&dist(pos(),threads.site)<80?featuredStrip():null}:null,coffee:play?coffee:null,curbWire:play?curbWire:null,wireTV:play&&modeName==="street"?updateWireTV(streetTime):null,campana:play?campana:null,paletaHeld:play&&paletaOnFoot()?campanaHeld():null,gutters:play?gutters:null,crew:play?{lead:unit.lead,otherLook:worn(unit.other),other:otherBody,afternoon,ride:otherCar,finder:!!unit.eye,met:unit.met,desk:scoutDesk,outing:windowRide,print:scoutHouseCard()}:null,rainWalk:play?rainWalk:null,buttonwood:play?works:null,brisas:play?club:null,palmHouse:play?palm:null,palmDiner:play?BayPalmRoom.frameState(palm,pos()):null,
       palmPeople:play&&modeName==="street"?BayPalmRoom.nearPeople(palm,hero).map(a=>({a,opts:BayPalmRoom.poseOptions(palm,a,worn(),personColors)})):null,motorSales:play?gull.render:null,dealerCrew:play?gull:null,gullPeople:play&&modeName==="street"?gullActors.concat(gull.exchange?.ready?[hero]:[]).map(a=>({a,opts:gullPose(a)})):null,motos:play?motos:null,rescue:play?rescue:null,airLine:play?airLine:null,airCrew,airCarried:save.airmail.bag&&onStreetFeet()?hero:null,courts,pickup,valet,skate:play?skate:null,deckHand:skateCarried()?hero:null,deckSeat:stowedDeck(),keyMapActor:exchangingKey()?keyMapActor:null,streetCar:car,motorists:modeName==="street"&&play?motoristsNear(q=>Math.abs(q.x-cx)<88&&Math.abs(q.z-cz)<88,.05):[],player:{x:p.x,y:p.y,z:p.z,yaw:p.yaw,kit:worn(),lead:unit.lead,neighborPose:helloPose,skin:unit.lead==="guest"?personColors[0][0]:BayExposureArt.palette[0],shirt:BayThreadsArt.colors[worn()]||BayCourtPlayers.kitColors[worn()]||(unit.lead==="guest"?personColors[0][1]:BayExposureArt.palette[1]),driving,kind:car?.kind,color:displayCar?.color||"#99ebc6",motion,damage:car?.damage,towRig:car?.towRig,
-      steer:car?.steer,brakes:car?.brakes,handbrake:car?.handbrake,reversing:car?.reversing,flatSide:car?.flatSide,passengerDoor:car?.passengerDoor,inCabin:!!windowRide?.held&&windowRide.seat>.54||!!airLine.player&&!airLine.transfer||transit.aboard||(!!transfer||cabs.playerHeld)&&(motion.ride?.seat||0)>.54},skids,story:active?.story,
+      steer:car?.steer,brakes:car?.brakes,handbrake:car?.handbrake,reversing:car?.reversing,flatSide:car?.flatSide,passengerDoor:car?.passengerDoor,inCabin:!!windowRide?.held&&windowRide.seat>.54||!!airLine.player&&!airLine.transfer||transit.aboard||(!!transfer||cabs.playerHeld)&&(motion.ride?.seat||0)>.54},skids,story:active?.story,pressVan,
       summerCaps:play?summerCaps:null,portSpur:play?spur:null,redCork:play,angling:active?.angling,coastCup:play?cup:null,oceanBeat:play?beat:null,engineCompany:play?company:null,sevenScene,starlite:play?starliteSite:null,starliteVisit:theatre.visit,starliteFrame:theatreFilm,atProjector:!!theatre.run,starliteLit:cityDusk()>.28,pavement:play?pavement:null,cabService:play?cabs:null,cineSecond:!!save.cab.reel,recovery:play?recovery:null,
       airwaves:play?broadcastDesk.state:null,wheel:boardwalk.wheel,boardwalk,cycles,bridge,roofs,neon,transit:play?transit:null,band:play?band:null,wash:play?wash:null,
       marina:{boats,mantaRide,lead:unit.lead,rival:clubBoat,patrol:harbor.units,player:skiff,race:active?.regatta,bayChart:chartMode==="bay"},aboard:!!skiff&&!deckStep,
@@ -10927,6 +10944,12 @@
       for(const r of shows.crowd(v,t))visible.push([personSkin(r.style,"local",r.pose,r.gesture),r.x,footLevel(r.x,r.z),r.z,r.yaw]);
     }
     const mara=story?.mara||maraOnBreak();
+    if(play&&see(pressVan,68)){
+      model("sol-fm/mobile",BayExposureArt.pressRoof);
+      visible.push(["sol-fm/mobile",pressVan.x,footLevel(pressVan.x,pressVan.z),pressVan.z,pressVan.yaw,pressVan.pitch,pressVan.lean]);
+      const tin=story?.canister();if(tin){model("sol-fm/tin",BayExposureArt.filmTin);
+        visible.push(["sol-fm/tin",tin.x,footLevel(tin.x,tin.z)+tin.y,tin.z,pressVan.yaw]);}
+    }
     const partnerMotion=story?.motion||(mara===BayRoomTone.mara?(mara.motion??=new BayPlayerMotion()):idlePose);
     if(play&&see(mara,95)&&!(hideActor&&car&&story?.ride===car&&story.progress===1)){
       if(mara===BayRoomTone.mara){partnerMotion.handTarget={x:.19,y:1.03+.055*Math.sin(t*1.3),z:.25,weight:.7};partnerMotion.step(dt,0,0);}
@@ -11553,7 +11576,7 @@
       $("speed").innerHTML=Math.round(stunt.subject().speed*2.237)+"<small>MPH</small>";
     }
     if(tar&&!active?.dash&&!active?.regatta&&!stunt){
-      const story=active?.story,deadline=story?.route==="live"&&story.phase==="delivery";
+      const story=active?.story,deadline=story?.route==="live"&&story.phase==="delivery"&&!story.pressMPH;
       $("objectiveTag").textContent=active?active.job.name+(ferry?.phase==="water"?"  /  Last call "+watch(Math.ceil(ferry.remaining)).split(".")[0]:deadline?"  /  On air in "+Math.ceil(story.remaining)+" s":active.job.id==="race"&&active.running?"  /  "+watch(active.clock):""):"Map pin";
       let verb="Reach ";if(active&&active.job.id!=="race")verb=active.index===0?"Pick up at ":"Drop off at ";
       if(active?.job.id==="tape")verb=active.index===0?"Meet Nia at ":"Meet the DJ at ";
@@ -11562,6 +11585,10 @@
       const meters=Math.round(guide?.meters??dist(p,tar));
       $("objectiveText").textContent=destination+(ferry&&meters<10?"":"  ·  "+meters+" m");
       $("roadTurn").textContent=guide?.turn||(ferry?.phase==="water"?(meters>30?ferry.ship.route.name+"  ·  Port side":"Paloma "+Math.round(ferry.ship.speed*1.944)+" kn  ·  You "+Math.round(Math.abs(skiff?.speed||0)*1.944)+" kn"):"");
+      if(story?.pressAvailable()&&!story.field&&car===story.ride){
+        const hint=story.relayHint(car);
+        if(hint)$("roadTurn").textContent=hint==="Pass the film"?"H · Pass the film":hint;
+      }
       if(active?.featurePrint){
         const r=active.featurePrint,left=Math.max(0,Math.ceil(BayFeaturePrint.deadline-r.clock));
         $("objectiveTag").textContent="Before the Feature"+(active.running?(left?" · Curtain in "+left+" s":" · Late show"):"");
@@ -11867,6 +11894,8 @@
     else if(offeredShiftPrint())contextHint("N","Take the night-shift photograph from Jules");
     else if(besideShiftKeeper())contextHint("F","Show Bea the night-shift photograph");
     else if(passengerShot)contextHint("N","Give Mara the shot · "+BayLotNegative.locations[passengerShot.id].name+(active.story.finder?"":" · P to frame it"));
+    else if(active?.story?.pressAvailable()&&car===active.story.ride&&!transfer&&!active.story.field)
+      contextHint("N",active.story.trackPress?"Mark the studio instead":"Mark Jo’s press van");
     else if(windowFinderPlace())contextHint("P",active.story.finder?"Lower Mara’s finder":"Look through Mara’s finder");
     else if(active?.story?.offeredSleeve&&!campaign.book.sleeve&&!heat&&!transfer&&car===active.story.ride&&active.story.phase==="port"&&!active.story.remarked&&(active.story.sleeveStop(car)||elapsed-active.story.sleeveCall<9)){
       if(active.story.sleeveStop(car))contextHint("N","Look at Mara’s contact print"+(canReadRoadMap()?" · Shift + N for her street map":""));
@@ -12428,7 +12457,8 @@
   }
   function chooseExposure(route){
     if(!active?.story?.choose(route))return;
-    closePanel();speak("Mara Vega",route==="live"?"Sol FM’s van is on the North Boardwalk. Get me there before the weather.":"Cine Luna. Pull up by the yellow film slot. They’ll put this on the big screen.");
+    const story=active.story;story.press=pressVan;
+    closePanel();speak("Mara Vega",route==="live"?(story.pressAvailable()?"Jo’s still out in the red-sign van. Match her speed on my side and honk. Or take me straight to the Boardwalk.":"Sol FM’s van is on the North Boardwalk. Get me there before the weather."):"Cine Luna. Pull up by the yellow film slot. They’ll put this on the big screen.");
   }
   function showPartsTicket(body,v){
     body.append($("partsTicket").content.cloneNode(true));
@@ -13035,11 +13065,12 @@
       title="Mara’s camera";kicker="Last Exposure  /  Port Sol";showViewfinder(b,active.story);
     }else if(next==="contact"){
       title="Who gets the picture?";kicker="Last Exposure  /  Frame "+(maraFilm.pending?.frame||"14A");showPhoto(b,maraFilm.pending);
-      b.append(makeButton("Go live","Reach the Sol FM van before its next bulletin. "+BayExposure.liveTime+" seconds.","$425",()=>chooseExposure("live")),
+      b.append(makeButton("Go live","Get to the Boardwalk in "+BayExposure.liveTime+" seconds. Pass the film to Sol FM’s moving van to hold the bulletin.","$425",()=>chooseExposure("live")),
         makeButton("Make a print","Take the negative to Cine Luna for tonight’s screening. No deadline.","$300",()=>chooseExposure("print")));
     }else if(next==="edition"){
       const article=BayExposure.routes[save.edition];title=article.headline;kicker="Bay Wire  /  Evening edition";showPhoto(b,maraFilm.published);
       const copy=document.createElement("p");copy.className="edition-copy";copy.textContent=article.edition;b.append(copy);
+      if(save.edition==="live"&&save.pressMPH)signedNote(b,"Mara passed me the tin at "+save.pressMPH+" mph. She kept her thumb on the lid until I had both fingers under it. The first voice on air was hers.","Jo Bell · Sol FM mobile desk");
       if(maraFilm.windowPrint){
         const f=maraFilm.windowPrint,place=BayLotNegative.locations[f.place],figure=document.createElement("figure"),img=document.createElement("img"),caption=document.createElement("figcaption");
         figure.className="contact-proof";img.src=f.image;img.alt=place.caption;img.style.width="100%";caption.textContent="13  /  "+place.caption+" · "+place.inscription;
@@ -13362,6 +13393,9 @@
     }
     if(room?.ada&&ev.code==="KeyN"){
       const copy=adaCopy();if(copy){ev.preventDefault();if(!ev.repeat)showAdaCopy(copy);return;}
+    }
+    if(ev.code==="KeyN"&&car&&car===active?.story?.ride&&!transfer&&!active.story.field&&active.story.pressAvailable()){
+      ev.preventDefault();if(!ev.repeat){active.story.trackPress=!active.story.trackPress;lastHud=lastMap=-10;}return;
     }
     if(room?.reader&&["KeyA","KeyD","ArrowLeft","ArrowRight","KeyG","Space"].includes(ev.code)){
       ev.preventDefault();if(!ev.repeat||ev.code!=="Space")gateKey(ev.code);return;

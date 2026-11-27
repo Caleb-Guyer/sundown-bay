@@ -238,7 +238,7 @@
     pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
     berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,repairTag:raw?.repairTag===true,
     transfer:BayLastTransfer.read(raw?.transfer),photoRoad:Object.hasOwn(BayExposure.photoRuns,raw?.photoRoad)?raw.photoRoad:"",
-    hearing:BayLandingOrder.read(raw?.hearing),airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
+    deskHold:BayExposure.pressSpeed(raw?.deskHold),hearing:BayLandingOrder.read(raw?.hearing),airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
     constructor(){try{this.book=read(JSON.parse(localStorage.getItem(key)));}catch{this.book=read();}this.scene=null;this.table=null;}
     write(){try{localStorage.setItem(key,JSON.stringify(this.book));}catch{}}
@@ -271,6 +271,10 @@
         return {dur:5.7,art:"driverPrint",who:"Mara Vega",line:place.inscription,slug:"ON THE BACK OF FRAME 13"};
       }
       const index=delivery&&this.windowPrint&&s.index>1?s.index-1:s.index,b=scenes[s.id][index];if(!b)return null;
+      if(s.id==="live"&&index===0&&this.pressMPH){
+        const luis=this.book.morning?.luis;
+        return {...b,who:"Jo Bell · Sol FM mobile desk",line:luis==="aboard"?"Jo Bell here. I’ve got Mara’s film. Luis made the boat that morning. He’s on the phone now, and he wants his brother’s name read too.":luis==="ashore"?"Jo Bell here. Mara’s film came through my window. Luis missed the boat that morning. Today we held the line for him. Luis, you’re on.":"Jo Bell here. This film came through my driver’s window ten minutes ago. Mara’s here to tell us whose landing you’re looking at."};
+      }
       if(s.call&&index===1)return {art:"julesHandset",dur:7,who:"Romy Vale · phone",line:BayPayroll.lastWords(s.call)};
       if(b.watch==="away")return {...b,line:this.watch.departure.luis==="aboard"?"One’s mine. The other’s my brother’s. He’d have had crackers for supper.":"Tell my brother I’ve got his lunch. I’ll catch the next one."};
       const recorded=this.book.morning;

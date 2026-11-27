@@ -390,8 +390,29 @@
     ctx.save();ctx.scale(w/960,h/540);paintHarbor(ctx);ctx.restore();
   }
 
+  function pressRoof(g){
+    g.box(0,2.23,-.50,.65,.07,1.58,ink);
+    g.box(0,2.42,-.50,.19,.34,1.46,oxide);
+    for(const side of [-1,1])paintWord(g,(u,v)=>[side*.098,v,-.5-side*u],"SOL FM",0,2.425,.043,cream);
+    g.box(-.62,2.44,-1.58,.025,.53,.025,metal);
+    g.box(-.62,2.20,-1.58,.12,.08,.12,ink);
+  }
+  function filmTin(g){
+    g.box(0,0,0,.15,.13,.11,ink);g.box(0,.055,0,.16,.035,.12,metal);
+    g.box(0,0,.057,.10,.068,.008,gold);
+  }
+  function drawPress(ctx,van,story,px,py,s){
+    ctx.save();ctx.translate(px(van.x),py(van.z));ctx.rotate(van.yaw);ctx.scale(s,s);
+    ctx.fillStyle=oxide;ctx.fillRect(-.43,-.39,.86,1.65);ctx.fillStyle=cream;
+    ctx.font="bold .49px sans-serif";ctx.textAlign="center";ctx.fillText("FM",0,.67);ctx.restore();
+    const tin=story?.canister();if(!tin)return;
+    const a=bayCarLayout(story.ride.kind),seat=BayDriving.world(story.ride,a.track-.17,a.seatZ);
+    ctx.beginPath();ctx.moveTo(px(seat.x),py(seat.z));ctx.lineTo(px(tin.x),py(tin.z));
+    ctx.strokeStyle="#ab7158";ctx.lineWidth=Math.max(1,s*.12);ctx.stroke();
+    ctx.fillStyle=gold;ctx.fillRect(px(tin.x)-s*.093,py(tin.z)-s*.08,s*.186,s*.16);
+  }
   window.BayExposureArt=Object.freeze({
     palette:Object.freeze(["#ab7158","#dfaa54","#4c5267"]),
-    photoNotice,saleNotice,install,dress,drawMap,drawPhoto
+    photoNotice,saleNotice,install,dress,drawMap,drawPhoto,pressRoof,filmTin,drawPress
   });
 })();

@@ -1449,6 +1449,8 @@
       const bag=BayDriving.world(opt.lastDiner.customer,.40,.12);
       if(visible(px(bag.x),py(bag.z)))rect(ctx,px(bag.x)-s*.14,py(bag.z)-s*.13,s*.28,s*.26,"#c6955e");
     }
+    if(street&&opt.pressVan&&visible(px(opt.pressVan.x),py(opt.pressVan.z),s*3))
+      BayExposureArt.drawPress(ctx,opt.pressVan,opt.story,px,py,s);
     if(street&&opt.story?.progress>=.65){
       const v=opt.story.ride,seat=BayDriving.world(v,bayCarLayout(v.kind).seatX,v.kind==="van"?1.24:.84);
       if(visible(px(seat.x),py(seat.z))){
