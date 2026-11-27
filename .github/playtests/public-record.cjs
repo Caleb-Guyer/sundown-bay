@@ -782,6 +782,13 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await snap("window-screen");
     console.log("PASS kept the driver's print through reload, lent it in the lobby and saw Frame 13 from an aisle seat.");
     assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
+    await loadFootAt(await js("BayTransit.stops.find(s=>s.id==='port')"));
+    await waitFor("document.querySelector('#context').innerText.includes('Marta’s field tape')");await tap("KeyF");
+    assert.deepEqual(await js(book+".coachCopies.port"),coachQuote);
+    const tapeButton="[...document.querySelectorAll('#panelBody button')].find(b=>b.innerText.includes('Side A · Coach 608'))";
+    await waitFor(tapeButton);await snap("six-timetable");await js(tapeButton+".click()");
+    await waitFor("document.querySelector('#speech').textContent.includes('Marta’s note')");
+    assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
     console.log("PASS",mode,"Six Sharp departure, gangway or sailing bell, carbon and Mara callback; Public Record, First Crossing, Room Tone edit, car radio broadcast and Dalia’s response",route,credit);
   }catch(e){
     console.log("Campaign state",await js("JSON.stringify({book:"+book+",who:document.querySelector('#chapterWho').textContent,line:document.querySelector('#chapterLine').textContent,hint:document.querySelector('#context').innerText,at:window.recQA?.hero&&[recQA.hero.x,recQA.hero.z],goal:window.recQA?.goal,panel:document.querySelector('#panelTitle').innerText})"));

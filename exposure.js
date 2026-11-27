@@ -42,6 +42,15 @@
   function interviewCopy(record){
     return {line:questions[record.question][record.morning],stop:BayTransit.stops.find(s=>s.id===record.stop).short};
   }
+  function readCoachCopies(raw,edition){
+    const copies={};
+    for(const stop of BayTransit.stops){
+      const copy=readInterview(raw?.[stop.id]);
+      if(copy?.stop===stop.id)copies[stop.id]=copy;
+    }
+    const issue=readInterview(edition);if(issue)copies[issue.stop]=issue;
+    return copies;
+  }
   // The tape runs only in the wake of the scheduled coach. Traffic lights and missed turns leave the recorded sound intact.
   class CoachTape {
     constructor(line,bed){this.line=line;this.bed=readBed(bed)||[];this.seconds=this.bed.length/2;this.extraStop=null;}
@@ -84,7 +93,7 @@
       this.field="";this.quote="";
       this.press=null;this.trackPress=false;this.passAge=0;this.pressMPH=0;
     }
-    markRoad(id){this.coachTape=null;this.photoRoad=Object.hasOwn(photoRuns,id)?id:"";this.onApproach=false;this.finder=null;}
+    markRoad(id){this.photoRoad=Object.hasOwn(photoRuns,id)?id:"";this.onApproach=false;this.finder=null;}
     target(car){
       if(this.field)return this.phase==="delivery"?{x:this.ride.x,z:this.ride.z,name:"Mara’s passenger door"}:{...BayLotNegative.mark,name:"Lot 14 · Camera mark"};
       if(this.ride&&this.ride!==car)return {x:this.ride.x,z:this.ride.z,name:"Mara’s car"};
@@ -226,7 +235,7 @@
             this.onApproach=false;return "missed-frame";
           }
         }
-        if(this.phase==="port"&&!this.remarked&&distance(this.ride,dock)<53){
+        if(this.phase==="port"&&!this.coachTape&&!this.remarked&&distance(this.ride,dock)<35){
           this.remarked=true;return "docks";
         }
         if(this.phase!=="delivery")return;
@@ -242,5 +251,5 @@
       }
     }
   }
-  window.BayExposure={job,dock,pickup,routes,props,liveTime,photoRuns,pressSpeed,Run,CoachTape,questions,readBed,readInterview,interviewCopy};
+  window.BayExposure={job,dock,pickup,routes,props,liveTime,photoRuns,pressSpeed,Run,CoachTape,questions,readBed,readInterview,interviewCopy,readCoachCopies};
 })();

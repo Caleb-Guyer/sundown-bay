@@ -1263,9 +1263,9 @@
   function takePhotoRoad(id){
     if(campaign.table?.kind!=="roadMap"||!canReadRoadMap())return;
     if(!campaign.table.options.includes(id))return;
-    const s=active.story,previous=s.coachTape;
+    const s=active.story;
     s.markRoad(id);
-    if(id==="bus")s.coachTape=previous||new BayExposure.CoachTape(transit);
+    s.coachTape=id==="bus"?(s.coachTape||new BayExposure.CoachTape(transit)):null;
     campaign.book.coachLead=s.coachTape?(s.coachTape.ready?"stop":"follow"):"";
     campaign.book.coachBed=s.coachTape?.ready?s.coachTape.bed.slice():null;
     campaign.book.photoRoad=s.photoRoad;campaign.write();
@@ -8144,7 +8144,7 @@
       if(heat&&!story.warnedHeat){story.warnedHeat=true;speak("Mara Vega","Those lights for us? I’m putting the film in my sock.");}
       else if(car.flatSide&&!story.warnedFlat){story.warnedFlat=true;speak("Mara Vega","Feel that pull? Portside Tire can put a fresh one on.");}
       else if(story.route==="live"&&!story.pressMPH&&story.remaining<16&&!story.warnedClock){story.warnedClock=true;speak("Mara Vega","That’s the station van with the dish. The bulletin’s almost on.");}
-      else if(story.phase==="port"&&!heat&&!campaign.book.sleeve&&!story.offeredSleeve&&!story.remarked&&dist(car,BayExposure.pickup)>22){
+      else if(story.phase==="port"&&!story.coachTape&&!heat&&!campaign.book.sleeve&&!story.offeredSleeve&&!story.remarked&&dist(car,BayExposure.pickup)>22){
         story.offeredSleeve=true;story.sleeveCall=elapsed;speak("Mara Vega","Look what fell out of Dad’s camera bag. Pull up a second if you want to see it.");
       }
       return;
@@ -8162,6 +8162,7 @@
     if(event==="complete"){
       const route=BayExposure.routes[story.route];save.wallet+=route.pay;save.paid++;save.edition=story.route;
       campaign.book.coachEdition=campaign.book.coachPending;campaign.book.coachPending=null;campaign.book.coachLead="";campaign.book.coachBed=null;
+      if(campaign.book.coachEdition)campaign.book.coachCopies[campaign.book.coachEdition.stop]=campaign.book.coachEdition;
       save.pressMPH=story.pressMPH;campaign.pressMPH=story.pressMPH;campaign.book.deskHold=0;campaign.write();
       maraFilm.deliver(hours.day+1);persist();dropJob();sound.cue("paid");speak("Mara Vega",save.edition==="live"?"Hear that? Top of the hour. That’s our pier.":"Front row’s on me. Wait till they see what’s on that screen.");
       note("Last Exposure complete","+"+cash(route.pay)+"  ·  Read Bay Wire on your phone (J)",5.4);
@@ -12590,7 +12591,10 @@
       else if(r.phase==="wait")contextHint("",luz.regular?.gangway?"Waiting for the gangway to clear":"Scheduled departure in "+Math.max(0,Math.ceil(12-luz.clock))+" s");
       else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(atTimetable())contextHint("F","Route 6 timetable"+(halfMoon.stage===4?" · Lost-property drawer":!halfMoon.stage&&atTimetable().id==="marlin"?" · Marta’s lost-property notice":"")+(transit.docked(atTimetable())?"  ·  E board Coach 608":"")+(canCallCoach()?"  ·  Shift H  Call Marta":""));
+    }else if(atTimetable()){
+      const stop=atTimetable();
+      contextHint("F","Route 6 timetable"+(campaign.book.coachCopies[stop.id]?" · Marta’s field tape":"")+(halfMoon.stage===4?" · Lost-property drawer":!halfMoon.stage&&stop.id==="marlin"?" · Marta’s lost-property notice":"")+(transit.docked(stop)?"  ·  E board Coach 608":"")+(canCallCoach()?"  ·  Shift H  Call Marta":""));
+    }
     else if(canCallCoach())contextHint("Shift H",car?"Sound your Luz call for Coach 608":"Wave to Marta for your Luz call");
     else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card"+(phoneHint?"  ·  L  Payphone":""));
     else if(chapter==="outside-copy"){
@@ -13656,6 +13660,15 @@
       const board=document.createElement("p");board.className="statline";
       board.textContent=here?"Coach 608 · Front door open":"Coach 608 · "+Math.ceil(transit.distanceTo(s))+" m along the line";b.append(board);
       const nextStop=BayTransit.stops[(BayTransit.stops.indexOf(s)+1)%4];
+      const interview=campaign.book.coachCopies[s.id];
+      if(interview){
+        signedNote(b,BayExposure.interviewCopy(interview).line,"Marta’s copy · tucked behind the "+s.short+" timetable");
+        b.append(makeButton("Side A · Coach 608","Mara’s four seconds of engine sound from the drive to this stop.","Play tape",()=>{
+          closePanel();sound.cue("coach-tape",{bed:interview.bed});
+          const mph=interview.bed;note("Marta’s copy","Route 6 · "+mph[0]+" to "+mph.at(-1)+" mph"+(radio?"":" · R turns sound on"),4);
+          speak("Marta’s note",interview.question==="count"?"Alma came by for the paper. She checked my count with her pencil before she took it home.":"Luis came by to hear the tape. He let the motor run all the way out before he handed it back.");
+        }));
+      }
       moonBoard(b,s);
       if(luz.book.bells){
         const log=luz.book.bells,score=log.best.map((n,i)=>n===null?null:bay.docks[i].name+" "+(n/100).toFixed(2)+" s").filter(Boolean);

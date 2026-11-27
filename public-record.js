@@ -249,6 +249,7 @@
     coachLead:["follow","stop"].includes(raw?.coachLead)?raw.coachLead:"",
     coachBed:BayExposure.readBed(raw?.coachBed),
     coachPending:BayExposure.readInterview(raw?.coachPending),coachEdition:BayExposure.readInterview(raw?.coachEdition),
+    coachCopies:BayExposure.readCoachCopies(raw?.coachCopies,raw?.coachEdition),
     deskHold:BayExposure.pressSpeed(raw?.deskHold),hearing:BayLandingOrder.read(raw?.hearing),airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
     constructor(){try{this.book=read(JSON.parse(localStorage.getItem(key)));}catch{this.book=read();}this.scene=null;this.table=null;}
