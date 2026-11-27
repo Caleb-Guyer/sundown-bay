@@ -29,6 +29,54 @@ draw();draw();assert.equal(builds,1);
 view.basis={};draw();assert.equal(builds,2);
 console.log("PASS repeated passes of one camera frame share a single mesh-detail build");
 
+// Resolve every submitted index against the actual bytes of its bound vertex
+// buffer. A stale placement in a recycled slot can otherwise look valid.
+function streetDrive(retain,capacity){
+  const bound=[],pictures=[],writes={vertices:0,indices:0};
+  const gl={ARRAY_BUFFER:0,ELEMENT_ARRAY_BUFFER:1,createBuffer:()=>({}),
+    bindBuffer(target,buffer){bound[target]=buffer;},
+    bufferData(target,bytes){bound[target].bytes=new Uint8Array(bytes);},
+    bufferSubData(target,offset,values){
+      bound[target].bytes.set(new Uint8Array(values.buffer,values.byteOffset,values.byteLength),offset);
+      writes[target===0?"vertices":"indices"]+=values.byteLength;
+    },
+    vertexAttribPointer(){},
+    drawElements(type,count){
+      const vertices=new Uint32Array(bound[0].bytes.buffer),indices=new Uint16Array(bound[1].bytes.buffer);
+      for(let j=0;j<count;j++)for(let k=0;k<6;k++)pictures.push(vertices[indices[j]*6+k]);
+    }};
+  const view={gl,models:new Map(),cpu:new Map(),basis:{},scale:.55,inFrame:()=>true,
+    inStreetList:true,beginStreetSurface:()=>true};
+  const batch=new api.window.StreetBatch(view);batch.residentCapacity=capacity;
+  if(!retain)batch.residentBase=()=>-1;
+  for(let i=0;i<6;i++){
+    const count=96+i*9,name="prop"+i;
+    const positions=Float32Array.from({length:count*6},(_,j)=>j%31===0?-0:((j*13+i*51)%83)/17);
+    const indices=i%2?Uint16Array.from({length:count},(_,j)=>j%48):null;
+    view.models.set(name,{count,indices,vertexCount:indices?48:count});
+    view.cpu.set(name,positions);
+  }
+  const frames=[];
+  for(let f=0;f<42;f++){
+    pictures.length=0;
+    for(let i=0;i<6;i++){
+      const j=f%8<5?i:5-i;
+      const moving=j===4&&f>14;
+      batch.append(["prop"+j,moving?f*.27:j*3,j===2?.7:0,j, j*.07,j===2?.14:0,j===3?-.23:0,
+        j===5?.1:0,j>=4?{speed:moving?8:0}:null]);
+    }
+    batch.flush();frames.push(Uint32Array.from(pictures));
+  }
+  return {frames,writes};
+}
+const streamed=streetDrive(false,16384);
+for(const capacity of [16384,234]){
+  const kept=streetDrive(true,capacity);
+  assert.deepEqual(kept.frames,streamed.frames);
+  if(capacity===16384)assert(kept.writes.vertices<streamed.writes.vertices*.70);
+  console.log("PASS slot-local placements, "+capacity+" resident vertices, exact indices and painted positions for 42 frames; vertex bytes",kept.writes.vertices,"vs",streamed.writes.vertices);
+}
+
 // Geometry generation changes its choice on a second visit. Compare the
 // uploaded words for a single visit, including its standalone draw in order.
 const trace=[],batch={buffers:[{},{},{}],vertexWords:new Uint32Array(12),indices:new Uint16Array(6),

@@ -253,6 +253,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
           if(block>=8){
             q.pixels=comparePixels(this,items,batchDraw);
             q.programs=programs(this,items,batchDraw,freezeStreet,comparePixels);
+            q.placements=(${require("./street-placements.cjs").toString()})(this,items,batchDraw,comparePixels);
             const batch=this.streetBatch,pose=batch.repeatedPose,flush=batch.flush,detail=batch.distanceDetail;
             const indices=[],samplePath=useDetail=>function(list){
               const before=recQA.vertices;recQA.samples=true;
@@ -287,9 +288,10 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
             const models=new Set(props.map(([name])=>this.models.get(name)));
             const sides=[...models].map(m=>[m,m.exterior,m.wantedSide]);
             const resetSides=()=>{for(const [m,exterior,wantedSide] of sides){m.exterior=exterior;m.wantedSide=wantedSide;}};
-            const buildDetail=batch.buildDetail;
+            const buildDetail=batch.buildDetail,residentBase=batch.residentBase;
             try{
               batch.buildDetail=false;
+              batch.residentBase=()=>-1; // Measure CPU pose copies without submitting a GPU batch.
               batch.flush=function(){triIndices+=this.count;this.count=this.used=0;};
               for(let i=0;i<16;i++){
                 const enabled=[0,3].includes(i%4)?1:0;
@@ -298,7 +300,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
                 for(let k=0;k<4;k++){for(const p of props)batch.append(p);batch.flush();}
                 if(i>=4)times[enabled].push((performance.now()-start)/4);counts[enabled]=triIndices/4;
               }
-            }finally{resetSides();batch.buildDetail=buildDetail;batch.flush=flush;batch.repeatedPose=pose;batch.count=batch.used=0;}
+            }finally{resetSides();batch.buildDetail=buildDetail;batch.residentBase=residentBase;batch.flush=flush;batch.repeatedPose=pose;batch.count=batch.used=0;}
             q.poses={props:props.length,hits,bytes:batch.poseBytes,indices:counts,medianMs:times.map(a=>a.sort((x,y)=>x-y)[a.length>>1])};
             return batchDraw.call(this,items);
           }
@@ -316,6 +318,8 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       assert(pair.stream.draws<pair.separate.draws*.85,"street geometry shares submissions");
       const pixels=await js("recQA.compare.pixels");console.log("PERF same-frame pixels",JSON.stringify(pixels));
       const programs=await js("recQA.compare.programs");console.log("PERF street shader changes",JSON.stringify(programs));
+      const places=await js("recQA.compare.placements");console.log("PERF resident scenery",JSON.stringify(places));
+      assert(places.hits>0&&places.pixels.painted>350&&places.pixels.changed===0&&places.streamed.indices===places.retained.indices);
       assert(programs.image.painted>500&&programs.image.changed===0&&programs.restored.every(Boolean));
       assert(programs.binds[1]<programs.binds[0]);
       const sun=await js("recQA.shadowProof");console.log("PERF sunlight geometry",JSON.stringify(sun));

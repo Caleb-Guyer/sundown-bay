@@ -417,19 +417,24 @@
       // Compare the original float bits, including signed zero, on their way to WebGL.
       this.vertexWords=new Uint32Array(this.vertices.buffer);
       this.indices=new Uint16Array(65532);
-      this.linearIndices=Uint16Array.from({length:this.vertices.length/6},(_,i)=>i);
+      // The low addresses hold this draw's moving actors; the upper range keeps
+      // painted vertices at repeated world placements across draws and frames.
+      this.residentStart=this.vertices.length/6;
+      this.residentCapacity=16384;
+      this.residentUpload=new Float32Array(this.residentCapacity*6);
+      this.linearIndices=Uint16Array.from({length:this.residentStart+this.residentCapacity},(_,i)=>i);
       this.indexBases=new WeakMap();this.indexCopies=new Set();this.indexBytes=0;
       this.savedPoses=new Set();this.poseBytes=0;
       this.sourceIds=new WeakMap();this.nextSource=1;
       this.sideHistory=new Map();this.sideBytes=0;
       this.details=new Map();this.detailBytes=0;this.buildDetail=true;
       // Give the GPU time to consume a submitted street batch before the
-      // next upload writes to the same storage. All three pairs total 2.1 MiB.
+      // next upload writes to the same storage. Each slot has its own address book.
       this.buffers=Array.from({length:3},()=>{
         const vertex=gl.createBuffer(),index=gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER,vertex);gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength,gl.STREAM_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER,vertex);gl.bufferData(gl.ARRAY_BUFFER,this.vertices.byteLength+this.residentUpload.byteLength,gl.STREAM_DRAW);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,index);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,this.indices.byteLength,gl.STREAM_DRAW);
-        return {vertex,index,positions:{words:new Uint32Array(this.vertexWords.length),known:0},
+        return {vertex,index,placements:new WeakMap(),residentEnd:0,uploaded:0,recycle:false,positions:{words:new Uint32Array(this.vertexWords.length),known:0},
           topology:{words:new Uint16Array(this.indices.length),known:0}};
       });
       this.nextBuffer=0;
@@ -471,12 +476,28 @@
       prior.set(changed,first);history.known=Math.max(history.known,end);
       return changed.byteLength;
     }
+    residentBase(vertices){
+      const slot=this.buffers[this.nextBuffer],n=vertices.length/6;
+      if(n>this.residentCapacity)return -1;
+      const known=slot.placements.get(vertices);
+      if(known!==undefined)return known;
+      if(slot.residentEnd+n>this.residentCapacity){slot.recycle=true;return -1;}
+      const base=this.residentStart+slot.residentEnd;
+      this.residentUpload.set(vertices,(slot.residentEnd-slot.uploaded)*6);
+      slot.placements.set(vertices,base);slot.residentEnd+=n;
+      return base;
+    }
     flush(){
       if(!this.count)return;
       const view=this.view,gl=view.gl;
       const slot=this.buffers[this.nextBuffer];
       this.nextBuffer=(this.nextBuffer+1)%this.buffers.length;
       gl.bindBuffer(gl.ARRAY_BUFFER,slot.vertex);
+      if(slot.residentEnd>slot.uploaded){
+        const appended=this.residentUpload.subarray(0,(slot.residentEnd-slot.uploaded)*6);
+        gl.bufferSubData(gl.ARRAY_BUFFER,(this.residentStart+slot.uploaded)*24,appended);
+        slot.uploaded=slot.residentEnd;
+      }
       this.uploadStream(gl.ARRAY_BUFFER,this.vertexWords,this.used*6,slot.positions);
       gl.vertexAttribPointer(view.pos,3,gl.FLOAT,false,24,0);
       gl.vertexAttribPointer(view.col,3,gl.FLOAT,false,24,12);
@@ -490,6 +511,9 @@
         if(view.glow!==this.glow){gl.uniform1f(view.u.glow,this.glow);view.glow=this.glow;}
       }
       gl.drawElements(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0);
+      // Earlier indices in this very draw can refer to any old placement.
+      // Reuse its addresses only after their draw command has been submitted.
+      if(slot.recycle){slot.placements=new WeakMap();slot.residentEnd=slot.uploaded=0;slot.recycle=false;}
       if(solid&&!view.inStreetList)gl.useProgram(view.program);
       view.bound=null;this.count=0;this.used=0;
     }
@@ -585,7 +609,13 @@
       const start=this.used*6;
       // The source list changes with distance and the visible sides of a closed
       // model. Only a repeated static placement can admit a pose.
-      const pose=!model.dynamic&&!car&&n>=48?this.repeatedPose(model,sources||data,x,y,z,yaw,tiltX,tiltZ):null;
+      const stationary=!car||!car.speed&&!car.vx&&!car.vz;
+      const pose=!model.dynamic&&stationary&&n>=48?this.repeatedPose(model,sources||data,x,y,z,yaw,tiltX,tiltZ):null;
+      const resident=pose?.vertices?this.residentBase(pose.vertices):-1;
+      if(resident>=0){
+        this.writeIndices(indices,resident,this.count,count,true);
+        this.count+=count;return;
+      }
       if(pose?.vertices)dest.set(pose.vertices,start);
       else{
         const co=Math.cos(yaw),si=Math.sin(yaw),cx=Math.cos(tiltX),sx=Math.sin(tiltX),cz=Math.cos(tiltZ),sz=Math.sin(tiltZ);

@@ -1,9 +1,11 @@
 // Capture one real submission list. Mesh selection can change between two
 // traversals of the same objects when a repeated camera side becomes eligible.
 function freezeStreet(view,items,drawBatch){
-  const b=view.streetBatch,commands=[],draw=view.draw,flush=b.flush;
+  const b=view.streetBatch,commands=[],draw=view.draw,flush=b.flush,resident=b.residentBase;
   const hadDraw=Object.hasOwn(view,"draw");
   try{
+    // Frozen commands must be portable across slots, including a one-buffer replay.
+    b.residentBase=()=>-1;
     b.flush=function(){
       if(!this.count)return;
       commands.push({positions:this.vertexWords.slice(0,this.used*6),indices:this.indices.slice(0,this.count),glow:this.glow});
@@ -12,7 +14,7 @@ function freezeStreet(view,items,drawBatch){
     view.draw=(...args)=>commands.push({args});
     drawBatch.call(view,items);
   }finally{
-    b.flush=flush;if(hadDraw)view.draw=draw;else delete view.draw;
+    b.flush=flush;b.residentBase=resident;if(hadDraw)view.draw=draw;else delete view.draw;
   }
   function replay(){
     for(const cmd of commands){
