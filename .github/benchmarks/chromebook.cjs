@@ -3,7 +3,17 @@ const assert=require("node:assert/strict");
 module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
   const view=mode==="street"?"Street":"Overhead";
   console.log("PERF constrained browser",asset,await js("[innerWidth,innerHeight,navigator.hardwareConcurrency,navigator.deviceMemory]"));
-  await js(`window.walkTest={};
+  await js(`window.walkTest={windows:{}};
+    const frameWindows=(${require("./frame-windows.cjs").toString()});
+    const recordFrame=BayFrameCheck.prototype.frame;
+    BayFrameCheck.prototype.frame=function(now){
+      const run=this.run;
+      if(run?.last!=null && now>run.last && run.ms+(now-run.last)>=60000){
+        const intervals=[...run.samples,now-run.last];
+        walkTest.windows[run.id]=frameWindows(intervals);
+      }
+      return recordFrame.apply(this,arguments);
+    };
     const beatStep=BayOceanBeat.Round.prototype.step;
     BayOceanBeat.Round.prototype.step=function(dt,e){walkTest.beat=e;return beatStep.apply(this,arguments);};
     const rescueStep=BayRescue.Service.prototype.step;
@@ -111,6 +121,7 @@ module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
       pair.stop=true;
       const samples=pursuit.times,ms=samples.reduce((a,b)=>a+b,0),buckets=new Uint32Array(Math.floor(ms/1000));
       let elapsed=0;for(const frame of samples){elapsed+=frame;const i=Math.ceil(elapsed/1000)-1;if(i>=0&&i<buckets.length)buckets[i]++;}
+      walkTest.windows.pursuit=frameWindows(samples);
       samples.sort((a,b)=>a-b);walkTest.chase={seconds:ms/1000,frames:samples.length,fps:1000*samples.length/ms,
         median:samples[Math.ceil(.5*samples.length)-1],p95:samples[Math.ceil(.95*samples.length)-1],
         slowestSecond:buckets.length?Math.min(...buckets):null,metres:pursuit.metres,airFrames:pursuit.air,patrol:pursuit.units};
@@ -121,7 +132,14 @@ module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
   assert(walk.seconds>=60&&walk.metres>=30,"Walk must cover the street");
   assert(chase.seconds>5&&chase.frames>20&&chase.metres>20&&chase.airFrames>0&&chase.patrol>0,"A moving five-star sample is required");
   const scenarios={walk,drive,chase};
-  const misses=Object.entries(scenarios).filter(([,s])=>s.fps<30||s.slowestSecond<30||s.p95>33.45).map(([name])=>name);
+  const windows=await js("walkTest.windows");
+  const rolling={walk:windows[view+" walk"],drive:windows[view+" drive"],chase:windows.pursuit};
+  for(const [name,s] of Object.entries(scenarios)){
+    const w=rolling[name];
+    assert(w && w.rollingLow<=s.slowestSecond && w.p99>=s.p95,"Frame windows must cover the same "+name+" sample");
+    console.log("PERF rolling second",asset,name,JSON.stringify(w));
+  }
+  const misses=Object.entries(scenarios).filter(([name,s])=>s.fps<30||rolling[name].rollingLow<30||s.p95>33.45).map(([name])=>name);
   console.log("PERF 30 FPS budget",misses.length?"missed in "+misses.join(", "):"met in all measured scenarios");
   if(process.argv[2]==="automatic"||mode==="overhead"&&process.argv.includes("--baseline"))
     assert.deepEqual(misses,[],view+" two-thread camera must sustain 30 FPS");
