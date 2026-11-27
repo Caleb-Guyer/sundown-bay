@@ -15523,7 +15523,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   window.BayMapRaster={useCPU(){cpuMaps=true;}};
   function mapSurface(w,h){
     let canvas;
-    if(typeof OffscreenCanvas!=="undefined")canvas=new OffscreenCanvas(w,h);
+    if(!cpuMaps&&typeof OffscreenCanvas!=="undefined")canvas=new OffscreenCanvas(w,h);
     else{
       if(typeof document==="undefined")return null;
       canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
@@ -15741,6 +15741,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     BayStreetCars.map(c,v,x,y,s,t);return true;
   }
   function drawTraffic(c,v,x,y,s,t,lowDetail){
+    if(cpuMaps){carSprite(c,v,x,y,s,t);BayStreetCars.map(c,v,x,y,s,t);return false;}
     if(lowDetail&&v.kind==="solena"&&parkedSolena(c,v,x,y,s,t))return true;
     const movingLamps=v.reversing||v.indicator;
     const separateLamps=movingLamps&&(v.kind==="coupe"||v.kind==="hatch"||v.kind==="cab"||v.kind==="van");
@@ -15801,7 +15802,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.drawImage(print,-half,-half,2*half,2*half);c.restore();return true;
   }
   function personSprite(c,p,x,y,s,hero,bearing=0,ghost=false,low=false) {
-    if(low&&s<=16&&!hero&&!ghost&&!p.down&&!p.startle&&!p.sprayPose&&p.gesture!==4&&(!p.stride||p.shirt)&&Math.abs(p.stride||0)<=1&&pedestrianPrint(c,p,x,y,s))return;
+    if(!cpuMaps&&low&&s<=16&&!hero&&!ghost&&!p.down&&!p.startle&&!p.sprayPose&&p.gesture!==4&&(!p.stride||p.shirt)&&Math.abs(p.stride||0)<=1&&pedestrianPrint(c,p,x,y,s))return;
     c.save();c.translate(x,y);
     if(p.down){
       c.rotate(p.yaw);c.scale(s,s);const roll=Math.sin(BayStreetAction.tilt(p));
@@ -16104,7 +16105,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   // on every frame. Vehicle doors and player-controlled shots use live poses.
   const bandPortraits=new WeakMap();
   function bandPerformer(ctx,p,x,y,s,t,opt){
-    if(!opt.compact||s>9||p.motion?.ride||p===opt.band.player){
+    if(cpuMaps||!opt.compact||s>9||p.motion?.ride||p===opt.band.player){
       BayBandPlayers.mapActor(ctx,p,x,y,s,t,opt.band);return;
     }
     const density=12,size=48;
