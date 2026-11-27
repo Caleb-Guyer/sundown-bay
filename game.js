@@ -391,6 +391,15 @@
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    const receipt=latest?.collection,counts=save.collection;
+    if((receipt?.last==="port"||receipt?.last==="luna")&&Number.isSafeInteger(receipt.port)&&Number.isSafeInteger(receipt.luna)&&
+      receipt.port>=0&&receipt.luna>=0&&receipt.port+receipt.luna>counts.port+counts.luna){
+      counts.port=receipt.port;counts.luna=receipt.luna;counts.last=receipt.last;
+      counts.envelopes=[0,1,2,3].includes(receipt.envelopes)?receipt.envelopes:null;
+      if(Number.isFinite(receipt.best)&&receipt.best>0)counts.best=counts.best?Math.min(counts.best,receipt.best):receipt.best;
+      if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
+      if(Number.isSafeInteger(latest.paid))save.paid=latest.paid;
+    }
     const wages=BayPayroll.readCarbon(latest?.collection?.carbon),own=save.collection.carbon;
     if(wages&&(!own||wages.sale>own.sale||wages.sale===own.sale&&(wages.mask&~own.mask))){
       save.collection.carbon={sale:wages.sale,mask:wages.mask|(wages.sale===own?.sale?own.mask:0)};
@@ -1001,7 +1010,7 @@
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
     if(b?.art==="transferStub")BaySixSharpArt.stub($("chapterInsert"),campaign.pilot.result,campaign.book.transfer);
     if(b?.art==="staffKey")BayWalkHome.keys($("chapterInsert"),homeWalk.accepts);
-    if(b?.art==="blueCarbon")BayPayroll.carbonPaper($("chapterInsert"),save.collection.carbon.sale,save.collection.carbon.mask);
+    if(b?.art==="blueCarbon")BayPayroll.carbonPaper($("chapterInsert"),save.collection.carbon.sale,7,0);
     if(b?.art==="rabbitSleeve")BayWalkHome.sleeve($("chapterInsert"));
     if(b?.art==="fareCarbon")BayMeterRunning.paper($("chapterInsert"),fareLedger);
     if(b?.art==="julesHandset")BayPayroll.handsetInsert($("chapterInsert"),campaign.scene.call);
@@ -1015,6 +1024,7 @@
     filmCountyVoice=voice?{clips:[voice]}:null;lastFilmPaint=-Infinity;
   }
   function enterFilm(id,replay=false){
+    releaseMouse();
     if(panel)closePanel();
     sound.stopCounty?.();
     sound.reel(null);
@@ -3565,6 +3575,7 @@
   }
   function runPalm(style,a=palm.rival,resume=false){
     if(!palmFree()||!palm.start(style,a,palmEnv,resume))return false;
+    releaseMouse();
     active={palm:true,job:palmJob};waypoint=null;keys.clear();closePanel();resetPointer();lastMap=lastHud=-10;return true;
   }
   function invitePalm(id){
@@ -5681,7 +5692,7 @@
     sound.cue("street-sidearm");if(r.rounds===2)addHeat(1);
     note("Romy Vale","That one's backing off. "+r.rounds+" left.",2);lastHud=-10;
   }
-  function theatreFilm(){return theatre.frame(filmOptions(),save.starlite.booked);}
+  function theatreFilm(projectedWidth){return theatre.frame(filmOptions(),save.starlite.booked,projectedWidth);}
   function theatreShirt(lead){return BayThreadsArt.colors[worn(lead)]||BayCourtPlayers.kitColors[worn(lead)]||(lead==="guest"?personColors[0][1]:BayExposureArt.palette[1]);}
   function setTheatreSeats(){
     const shared=windowRide?.vehicle===spider,driver=shared||otherCar===spider?unit.other:car===spider&&(!transfer||transfer.exiting)?unit.lead:null;
@@ -7773,6 +7784,10 @@
     if(!atDoor)return;
     signedNote(body,mask===7?"All three are in. I put the blue sheet in your drawer at the motel.":
       "Vic gave you $460. These three take home exactly that between them. Pick an envelope if you want. I’ve got a shift to do. You know where to find me.","Romy Vale");
+    if(mask===7){
+      body.append(makeButton("The handoff","Romy stamps the night shift’s copy.","Replay scene",()=>enterFilm("blueCarbon",true)));
+      return;
+    }
     for(const [i,w] of BayPayroll.wages.entries()){
       if(mask&(1<<i))continue;
       const button=makeButton(w.name,w.shift+" · Your cash "+cash(save.wallet),"Put in "+cash(w.amount),()=>{
@@ -12631,7 +12646,7 @@
     if(active?.angling?.phase==="wind"){active.angling.phase="ready";active.angling.power=0;}
     if(pickup?.human.shot?.stage==="wind"){const p=pickup.human;p.shot=null;p.wind=0;p.action="dribble";courtMeter();}
     onAir=null;paintPreview=null;$("shade").className=shop?"paint-shade":"";
-    panel=next;keys.clear();resetPointer();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
+    releaseMouse();panel=next;keys.clear();resetPointer();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
     const b=$("panelBody");b.replaceChildren();$("closePanel").focus({preventScroll:true});
     let title="",kicker="";
     if(skate.rider){skate.rider.charging=false;skate.rider.charge=0;}
@@ -13214,7 +13229,11 @@
       const gfx=makeButton("Camera view",!view.gl||view.lost?"Lightweight overhead rendering is active.":"Third-person street view or the overhead map.",isTop()?"Overhead":"Street",()=>{manualTop=!manualTop;if(manualTop)motos.cockpit=false;saveCamera();openPanel("pause",true);});gfx.disabled=!view.gl||view.lost;
       const assist=makeButton("Driving camera",cameraRig.assist?"Eases toward the road after you look around.":"Holds your mouse direction. Press X to face the road.",cameraRig.assist?"Follow":"Free look",()=>{cameraRig.assist=!cameraRig.assist;saveCamera();openPanel("pause",true);});
       const sensitivity=makeButton("Mouse sensitivity","Adjust horizontal and vertical look speed.",cameraRig.sensitivity<1?"Low":cameraRig.sensitivity>1?"High":"Normal",()=>{cameraRig.sensitivity=cameraRig.sensitivity===1?1.38:(cameraRig.sensitivity>1 ? .72 : 1);saveCamera();openPanel("pause",true);});
-      b.append(gfx,assist,sensitivity,radioButton());
+      b.append(gfx,assist,sensitivity);
+      if(lookSurface().requestPointerLock&&!palm.match)b.append(makeButton("Capture mouse","Click the game to turn continuously. Esc releases the mouse.","Capture & resume",()=>{
+        closePanel();captureMouse(lookSurface());
+      }));
+      b.append(radioButton());
       const id=frameCheckId(),running=frameCheck.run;
       const detail=running?running.id+" · "+Math.ceil((60000-running.ms)/1000)+" seconds left. Resume to continue.":
         frameCheck.records[id]?frameCheck.describe(frameCheck.records[id]):
@@ -13234,17 +13253,43 @@
   $("dialKey").onclick=()=>{tuneRadio(1);document.activeElement?.blur();};
   $("audioKey").onclick=()=>{radioToggle();document.activeElement?.blur();};
   $("dashRetry").onclick=()=>{retryDash();document.activeElement?.blur();};
-  const pointer={x:null,y:null,edgeX:0};
+  const pointer={x:null,y:null,edgeX:0,capture:null};
   const lookSurface=()=>isTop()?$("overhead"):$("world");
   function resetPointer(){pointer.x=null;pointer.y=null;pointer.edgeX=0;}
+  function canCapture(surface){
+    return play&&!panel&&!campaign.scene&&!campaign.table&&!document.hidden&&!palm.match&&surface===lookSurface();
+  }
+  function releaseMouse(){
+    pointer.capture=null;
+    const locked=document.pointerLockElement;
+    if(locked&&(locked===$("world")||locked===$("overhead")))document.exitPointerLock();
+  }
+  function captureMouse(surface){
+    if(!canCapture(surface)||document.pointerLockElement||pointer.capture||!surface.requestPointerLock)return;
+    pointer.capture=surface;
+    function denied(){
+      if(pointer.capture!==surface)return;
+      pointer.capture=null;resetPointer();
+      if(canCapture(surface))note("Mouse look","Capture is unavailable. Move the mouse or hold Q / C to turn.",3);
+    }
+    try{surface.requestPointerLock()?.catch(denied);}catch{denied();}
+  }
+  document.addEventListener("pointerlockchange",()=>{
+    const locked=document.pointerLockElement;resetPointer();
+    if(!locked){pointer.capture=null;return;}
+    if(locked!==pointer.capture||!canCapture(locked))releaseMouse();
+  });
+  document.addEventListener("pointerlockerror",()=>{if(!document.pointerLockElement){pointer.capture=null;resetPointer();}});
   document.addEventListener("mousemove",e=>{
     if(!play||panel||document.hidden)return;
     if(e.target!==lookSurface()){resetPointer();return;}
-    const dx=pointer.x===null?0:e.clientX-pointer.x,dy=pointer.y===null?0:e.clientY-pointer.y;
-    pointer.x=e.clientX;pointer.y=e.clientY;
+    const locked=document.pointerLockElement===e.target;
+    const dx=locked?(e.movementX||0):pointer.x===null?0:e.clientX-pointer.x;
+    const dy=locked?(e.movementY||0):pointer.y===null?0:e.clientY-pointer.y;
+    if(!locked){pointer.x=e.clientX;pointer.y=e.clientY;}
     if(company.holding&&held("Space")){pointer.edgeX=0;company.aimX=clamp(company.aimX+dx*.009*cameraRig.sensitivity,-1.8,1.8);return;}
     // Edge turning allows a full orbit with the pointer free to leave the window.
-    const edge=18;pointer.edgeX=e.clientX<edge?-(1-e.clientX/edge):e.clientX>innerWidth-edge?1-(innerWidth-e.clientX)/edge:0;
+    const edge=18;pointer.edgeX=locked?0:e.clientX<edge?-(1-e.clientX/edge):e.clientX>innerWidth-edge?1-(innerWidth-e.clientX)/edge:0;
     if(unit.eye){scoutLook(dx*.003*cameraRig.sensitivity,-dy*.0026*cameraRig.sensitivity);return;}
     if(palmPointer(e))return;
     if(broadcastDesk.mix&&!broadcastDesk.approach){const m=broadcastDesk.mix;m.pan+=clamp(dx,-240,240)*.0035*cameraRig.sensitivity;
@@ -13286,16 +13331,25 @@
   }
   for(const canvas of [$("world"),$("overhead")]){
     canvas.addEventListener("mouseleave",resetPointer);
-    canvas.addEventListener("click",()=>{if(palm.match)return;if(unit.eye)unit.eye.fire=true;else if(motos.finder)motos.captureRequest=true;else shutter();});
+    canvas.addEventListener("click",e=>{
+      if(!canCapture(canvas))return;
+      if(unit.eye)unit.eye.fire=true;
+      else if(motos.finder)motos.captureRequest=true;
+      else if(shooting())shutter();
+      else if(e.isTrusted&&e.button===0&&e.pointerType!=="touch"&&!(streetAction.slot&&actionFeet())&&!wash.hasWand())captureMouse(canvas);
+    });
     canvas.addEventListener("wheel",zoomWheel,{passive:false});
   }
-  $("world").addEventListener("webglcontextlost",resetPointer);
+  $("world").addEventListener("webglcontextlost",()=>{releaseMouse();resetPointer();});
   const handled=new Set(["BracketLeft","BracketRight","KeyK","KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowLeft","ArrowDown","ArrowRight","Space","KeyE","KeyF","KeyG","KeyH","KeyT","KeyV","KeyX","KeyQ","KeyC","KeyM","KeyJ","KeyR","KeyB","Equal","Minus","NumpadAdd","NumpadSubtract","Escape","Enter","ShiftLeft","ShiftRight"]);
   for(const code of ["KeyO","KeyZ","KeyI","KeyU","KeyY","KeyP","KeyL","KeyN","Comma","Period","Slash","Semicolon","Quote"])handled.add(code);
   document.addEventListener("mousedown",e=>{if(e.button===0&&e.target===lookSurface()&&streetFire())return;if(e.button===0&&!panel&&e.target===lookSurface()&&palmPointer(e,true))return;if(e.button===0&&!panel&&e.target===lookSurface()&&wash.hasWand()&&onStreetFeet())hoseButton=true;});
   addEventListener("mouseup",()=>{hoseButton=false;if(!panel&&palm.match?.draw!=null)palm.release(palmEnv);});
   addEventListener("keydown",ev=>{
     if(ev.ctrlKey||ev.metaKey||ev.altKey)return;
+    if(ev.code==="Escape"&&document.pointerLockElement===lookSurface()){
+      ev.preventDefault();releaseMouse();return;
+    }
     if(filmControls(ev))return;
     if(!play){if(ev.code==="Enter"&&!ev.repeat){ev.preventDefault();playStart();}return;}
     if(panel){
@@ -13698,7 +13752,12 @@
         const s=campaign.scene,prompt=$("glovePrompt");
         if(s.tagAt==null&&s.age>=2.8&&prompt.textContent!=="Read the repair tag")prompt.textContent="Read the repair tag";
         BayRecordArt.glovebox($("chapterInsert"),s);
-      }else if(art==="transferStub"||art==="fareCarbon"||art==="blueCarbon")return;
+      }else if(art==="blueCarbon"){
+        const frame=Math.min(45,Math.floor(campaign.scene.age*24));
+        if(campaign.scene.stampFrame!==frame){
+          campaign.scene.stampFrame=frame;BayPayroll.carbonPaper($("chapterInsert"),save.collection.carbon.sale,7,frame/24);
+        }
+      }else if(art==="transferStub"||art==="fareCarbon")return;
       else if(filmPage?.watch){
         const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;
         scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;

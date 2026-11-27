@@ -1019,7 +1019,7 @@
       const site=opt.starlite;
       if(street){
         const screen=BayDriving.world(site,0,opt.starliteVisit||opt.atProjector?7.55:8.67);
-        const film=visible(px(screen.x),py(screen.z),5.4*s+1)?opt.starliteFrame():null;
+        const film=visible(px(screen.x),py(screen.z),5.4*s+1)?opt.starliteFrame(opt.lowDetail?9.04*s:undefined):null;
         if(opt.starliteVisit||opt.atProjector)focusedFilm=film;
         BayStarliteArt.overhead(ctx,px,py,s,site,streetTime,opt.starliteLit,film,opt.starliteVisit,opt.atProjector,opt.lowDetail,!!focusedFilm);
       }

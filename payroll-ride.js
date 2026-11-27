@@ -366,9 +366,9 @@
     if(!Number.isSafeInteger(record?.sale)||record.sale<1||!Number.isInteger(record.mask)||record.mask<1||record.mask>7)return null;
     return {sale:record.sale,mask:record.mask};
   }
-  function carbonPaper(canvas,sale,mask){
-    canvas.width=640;canvas.height=340;
-    canvas.setAttribute("aria-label","Marlin night shift carbon "+sale+". "+wages.map((w,i)=>w.name+", $"+w.amount+", "+(mask&(1<<i)?"in envelope":"outstanding")).join(". "));
+  function carbonPaper(canvas,sale,mask,age=Infinity){
+    if(canvas.width!==640)canvas.width=640;if(canvas.height!==340)canvas.height=340;
+    canvas.setAttribute("aria-label","Marlin night shift carbon "+sale+". "+wages.map((w,i)=>w.name+", $"+w.amount+", "+(mask&(1<<i)?"in envelope":"outstanding")).join(". ")+(mask===7&&age>=.86?". Stamped CASH HELD.":""));
     const c=canvas.getContext("2d");if(!c)return;
     const rect=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
     const label=(t,x,y,font,ink)=>{c.font=font;c.fillStyle=ink;c.fillText(t,x,y);};
@@ -391,7 +391,33 @@
         label("R. Vale",0,1,"italic 22px Georgia","#303f73");c.restore();}
     }
     label("IN ENVELOPES   $"+total+" / $460",-225,108,"bold 15px monospace","#385765");
-    label("office copy",145,113,"italic 16px Georgia","#46656a");c.restore();
+    label("office copy",145,113,"italic 16px Georgia","#46656a");
+    if(mask===7){
+      c.save();c.translate(66,101);c.rotate(-.085);
+      if(age>=.86){
+        c.strokeStyle="#885052";c.lineWidth=2;c.strokeRect(-52,-16,104,30);
+        label("CASH HELD",-46,5,"bold 17px monospace","#885052");
+        rect(-28,-17,3,2,"#aec9cc");rect(27,13,5,2,"#aec9cc");
+      }
+      if(age<1.85){
+        const travel=Math.max(0,Math.min(1,age<.86?(age-.16)/.7:1-(age-1.04)/.81));
+        const lift=1-travel*travel*(3-2*travel);
+        // The shadow closes under the stamp before its rubber face meets the paper.
+        c.translate(lift*112,lift*101);c.rotate(lift*.23);
+        rect(-54+lift*12,-14+lift*11,109,33,"rgba(48,60,58,.29)");
+        rect(-55,-18,110,35,"#434643");rect(-55,-19,110,29,"#886747");rect(-51,-16,101,3,"#b3976b");
+        c.fillStyle="#413f35";c.beginPath();c.ellipse(0,-5,18,13,0,0,Math.PI*2);c.fill();
+        c.lineJoin=c.lineCap="round";
+        function stroke(ink,width,points){c.beginPath();c.strokeStyle=ink;c.lineWidth=width;c.moveTo(...points[0]);
+          for(const p of points.slice(1))c.lineTo(...p);c.stroke();}
+        stroke("#a16d54",34,[[109,84],[61,44],[21,7]]);
+        stroke("#c98c67",21,[[44,25],[17,0],[3,-8],[-6,-4]]);
+        stroke("#d49b76",10,[[19,13],[7,6],[-9,3]]);
+        stroke("#b1644b",43,[[119,91],[78,58]]);
+      }
+      c.restore();
+    }
+    c.restore();
   }
   window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto,footwell,deliveryLine,readCall,lastWords,handsetInsert,wages,readCarbon,carbonPaper};
 })();

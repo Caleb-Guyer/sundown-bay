@@ -143,11 +143,12 @@ module.exports=async function walkHome({js,send,waitFor,tap,key,mode,errors}){
   assert.equal(await js("[...document.querySelectorAll('#panelBody button')].some(b=>b.innerText.includes('Neve Armas'))"),false);
   await click("Marisol Vale");await wait(saved+".wallet===126");await click("Tino Ramos");
   await wait("document.querySelector('#chapterTitle').textContent==='The Blue Carbon'&&!document.querySelector('#chapterFilm').hidden");await shot("wages-door");
-  await wait("document.querySelector('#chapterInsert').getAttribute('aria-label')?.includes('Tino Ramos, $126, in envelope')&&!document.querySelector('#chapterInsert').hidden");
+  await wait("document.querySelector('#chapterInsert').getAttribute('aria-label')?.includes('Stamped CASH HELD')&&!document.querySelector('#chapterInsert').hidden");
   await shot("wages-paid");await tap("Enter");await wait("document.querySelector('#chapterFilm').hidden");
   assert.equal(await js(saved+".wallet"),0);assert.equal(await js(saved+".collection.carbon.mask"),7);
-  await bookAtDoor();assert.equal(await js("document.querySelectorAll('#panelBody button').length"),0);
-  await tap("Escape");
+  await bookAtDoor();assert.equal(await js("document.querySelectorAll('#panelBody button').length"),1);
+  await click("The handoff");await wait("!document.querySelector('#chapterFilm').hidden");await tap("Enter");
+  await wait("document.querySelector('#chapterFilm').hidden");assert.equal(await js(saved+".wallet"),0);
   await js(`for(const [method,index] of [['map',1],['draw',2]]){
     const draw=BayMarlinRoom[method];BayMarlinRoom[method]=function(...args){q.motel=args[index];return draw.apply(this,args);};
   }q.at(q.h,BayMarlinRoom.outside.x,BayMarlinRoom.outside.z);true`);

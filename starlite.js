@@ -65,13 +65,20 @@
       r.cue=Math.abs(r.age-r.motorAt)<=.38?"motor":Math.abs(r.age-r.changeAt)<=.38?"change":"";
       if(r.age>r.changeAt+1.35)return this.finish(r,0,"The tail leader ran through the gate.");
     }
-    frame(options,booked){
+    frame(options,booked,projectedWidth){
       const program=BayCineProgram.describe(options),{reel,time,cue}=this.show(program,booked);
-      const tick=Math.max(0,Math.floor(time*10)),key=reel.id+"/"+tick+"/"+cue;
+      // A drive-by projection can occupy fewer than fifty display pixels.
+      // Sample the same film clock at twice its projected width or greater.
+      const full=this.visit||this.run||!(projectedWidth>0);
+      const width=full||projectedWidth>104?416:projectedWidth>72?208:144,height=width*9/16;
+      const tick=Math.max(0,Math.floor(time*10)),key=reel.id+"/"+tick+"/"+cue+"/"+width;
       if(this.frameKey===key)return this.canvas;
-      if(!this.canvas){this.canvas=document.createElement("canvas");this.canvas.width=416;this.canvas.height=234;}
+      if(!this.canvas)this.canvas=document.createElement("canvas");
+      if(this.canvas.width!==width)this.canvas.width=width;
+      if(this.canvas.height!==height)this.canvas.height=height;
       const c=this.canvas.getContext("2d");
-      if(reel.id==="coast")BayCoastRoadFilm.paint(this.canvas,tick/10);
+      c.save();c.scale(width/416,height/234);
+      if(reel.id==="coast")BayCoastRoadFilm.paint(this.canvas,tick/10,width);
       else if(reel.id==="rabbit")BayWalkHome.movie(c,tick/10);
       else{
         let offset=0;for(const f of program){if(f.id===reel.id)break;offset+=f.seconds;}
@@ -79,7 +86,7 @@
         if(frame.canvas)c.drawImage(frame.canvas,0,0,416,234);
       }
       if(cue){c.save();c.beginPath();c.arc(387,22,8,0,Math.PI*2);c.lineWidth=4;c.strokeStyle="#3a2923";c.stroke();c.lineWidth=2;c.strokeStyle="#ffefc8";c.stroke();c.restore();}
-      this.frameKey=key;this.version++;return this.canvas;
+      c.restore();this.frameKey=key;this.version++;return this.canvas;
     }
   }
   window.BayStarlite={site,booth,coast,read,bay,fold,wheelStop,Theatre};

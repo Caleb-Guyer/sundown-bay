@@ -127,7 +127,10 @@ async function run() {
       localStorage.setItem("sundownBay.audio", "off");
       if(${!process.argv.includes("--public-record")}&&!localStorage.getItem("sundownBay.publicRecord.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"meet"}));
       for (const name of ["requestPointerLock", "webkitRequestPointerLock", "mozRequestPointerLock"]) {
-        Object.defineProperty(Element.prototype, name, {value() { ++window.cursorRequests; throw Error("Cursor lock requested"); }});
+        const native=Element.prototype[name];
+        Object.defineProperty(Element.prototype, name, {value(...args) { ++window.cursorRequests;
+          if(${process.argv.includes("--mouse-look")}&&native)return native.apply(this,args);
+          throw Error("Unexpected cursor capture"); }});
       }
       for (const name of ["AudioContext", "webkitAudioContext"]) if (window[name]) {
         window[name] = class { constructor() { ++window.audioStarts; throw Error("Audio started"); } };
@@ -154,7 +157,7 @@ async function run() {
     const freight = process.argv.includes("--port-spur");
     const caps = process.argv.includes("--summer-caps");
     const lanes = process.argv.includes("--boulevard");
-    const wheel=process.argv.includes("--one-wheel");
+    const wheel=process.argv.includes("--one-wheel"),mouseLook=process.argv.includes("--mouse-look");
     const windows = process.argv.includes("--open-windows");
     const needle = process.argv.includes("--needle-drop");
     const rank = process.argv.includes("--ring-twice");
@@ -169,11 +172,12 @@ async function run() {
     const walkHome=process.argv.includes("--walk-home");
     const airReplay=process.argv.includes("--last-seen");
     const action=process.argv.includes("--street-action"),admission=process.argv.includes("--admission");
-    if (!wheel && !cleanThrough && !walkHome && !airReplay && !featurePrint && !footPursuit && !admission && !action && !campaign && !sand && !lights && !rank && !needle && !windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
+    if (!mouseLook && !wheel && !cleanThrough && !walkHome && !airReplay && !featurePrint && !footPursuit && !admission && !action && !campaign && !sand && !lights && !rank && !needle && !windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
     const activity = needle ? require("./needle-drop.cjs") : windows ? require("./open-windows.cjs") : lanes ? require("./boulevard.cjs") : caps ? require("./summer-caps.cjs") : freight ? require("./port-spur.cjs") : angling ? require("./red-cork.cjs") : bumpers ? require("./bumpers.cjs") : houseLights ? require("./house-lights.cjs") : cup ? require("./coast-cup.cjs") : beat ? require("./ocean-beat.cjs") : carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
-    await (wheel ? require("./one-wheel.cjs") : cleanThrough ? require("./clean-through.cjs") : walkHome ? require("./walk-home.cjs") : airReplay ? require("./last-seen.cjs") : featurePrint ? require("./feature-print.cjs") : footPursuit ? require("./foot-pursuit.cjs") : admission ? require("./street-admission.cjs") : action ? require("./street-action.cjs") : campaign ? require("./public-record.cjs") : sand ? require("./soft-sand.cjs") : lights ? require("./road-lights.cjs") : rank ? require("./ring-twice.cjs") : activity)({ js, send, waitFor, key, tap, errors, mode, local: false });
+    await (mouseLook ? require("./mouse-look.cjs") : wheel ? require("./one-wheel.cjs") : cleanThrough ? require("./clean-through.cjs") : walkHome ? require("./walk-home.cjs") : airReplay ? require("./last-seen.cjs") : featurePrint ? require("./feature-print.cjs") : footPursuit ? require("./foot-pursuit.cjs") : admission ? require("./street-admission.cjs") : action ? require("./street-action.cjs") : campaign ? require("./public-record.cjs") : sand ? require("./soft-sand.cjs") : lights ? require("./road-lights.cjs") : rank ? require("./ring-twice.cjs") : activity)({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
-    assert.equal(await js("audioStarts+cursorRequests"), 0);
+    assert.equal(await js("audioStarts"), 0);
+    assert.equal(await js("cursorRequests"), mouseLook?2:0);
     if(server){
       console.log("Verified runner checkout " + asset);
       assert(await liveRelease(html,30000),"Pages has not published the tested release");

@@ -256,11 +256,12 @@
     for(let j=0;j<4;j++)path(c,[334,168+j*2.5,343,167+j*2.5],"#929781",1);
     c.beginPath();c.moveTo(337,181);c.bezierCurveTo(323,217,348,214,343,191);c.strokeStyle="#44494a";c.lineWidth=1.8;c.stroke();
   }
-  function paint(canvas,elapsedSeconds){
-    if(!canvas)return false;if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;
+  function paint(canvas,elapsedSeconds,width=w){
+    const height=width*h/w;
+    if(!canvas)return false;if(canvas.width!==width)canvas.width=width;if(canvas.height!==height)canvas.height=height;
     const c=canvas.getContext("2d");if(!c)return false;
     const t=wrap(Number.isFinite(elapsedSeconds)?elapsedSeconds:0,16),frame=Math.floor(t*16);
-    c.save();c.setTransform(1,0,0,1,0,0);c.globalAlpha=1;c.lineCap="round";c.lineJoin="round";
+    c.save();c.setTransform(width/w,0,0,height/h,0,0);c.globalAlpha=1;c.lineCap="round";c.lineJoin="round";
     if(t<5.15)motelier(c,t);else if(t<10.5)ocean(c,t-5.15);else starlite(c,t-10.5);
     // Sparse emulsion specks stay under one film pixel; neither grain nor cuts flash the screen.
     let seed=frame+8127;

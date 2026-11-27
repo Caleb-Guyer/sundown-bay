@@ -176,6 +176,12 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       assert(people.ink>1500&&people.fills[0]>200&&!people.fills[1]&&people.overlap>.88&&people.meanError<22&&people.walkingChanges===0);
       const lot=await js("("+require("./starlite-lot.cjs").toString()+")()");
       console.log("PERF Starlite lot",JSON.stringify(lot));
+      const projection=await js("("+require("./drive-in-projection.cjs").toString()+")()");
+      console.log("PERF drive-by projection",JSON.stringify(projection));
+      for(const p of projection){
+        assert.deepEqual(p.widths,[416,p.displayed===48?144:208]);assert.equal(p.seated,416);
+        assert(p.reused&&p.distinct===35&&p.meanError<12,"Roadside projection "+JSON.stringify(p));
+      }
       const lamps=await js("("+require("./traffic-prints.cjs").toString()+")()");
       console.log("PERF traffic lamps",JSON.stringify(lamps));
       assert(lamps.cars===48&&lamps.overlap>.93&&lamps.error<22&&lamps.live);
