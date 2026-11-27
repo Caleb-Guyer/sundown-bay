@@ -79,6 +79,7 @@ jobs:
       - if: matrix.view == 'street'
         run: |
           node .github/playtests/city-update.cjs
+          node .github/playtests/contact.cjs
           node .github/playtests/stream-update.cjs
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --street-action --frames
       - run: node .github/playtests/live.cjs ${{ matrix.view }} --foot-pursuit --frames

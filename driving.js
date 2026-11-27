@@ -201,15 +201,26 @@
     const sa=a.footprint||bayCarLayout(a.kind),sb=b.footprint||bayCarLayout(b.kind);
     const dx=a.x-b.x,dz=a.z-b.z,reach=sa.halfLength+sb.halfLength+.85;
     if(Math.abs(dx)>reach||Math.abs(dz)>reach)return null;
-    const ca=Math.cos(a.yaw),aa=Math.sin(a.yaw),cb=Math.cos(b.yaw),ab=Math.sin(b.yaw);
-    let depth=Infinity,nx=0,nz=0;
-    for(const [x,z] of [[ca,-aa],[aa,ca],[cb,-ab],[ab,cb]]){
-      const extA=(sa.track-.08)*Math.abs(x*ca-z*aa)+(sa.halfLength-.11)*Math.abs(x*aa+z*ca);
-      const extB=(sb.track-.08)*Math.abs(x*cb-z*ab)+(sb.halfLength-.11)*Math.abs(x*ab+z*cb);
-      const d=dx*x+dz*z,overlap=extA+extB-Math.abs(d);if(overlap<=0)return null;
-      if(overlap<depth){depth=overlap;nx=x*(d<0?-1:1);nz=z*(d<0?-1:1);}
-    }
-    return {nx,nz,depth};
+    const ca=Math.cos(a.yaw),saYaw=Math.sin(a.yaw),cb=Math.cos(b.yaw),sbYaw=Math.sin(b.yaw);
+    const widthA=sa.track-.08,lengthA=sa.halfLength-.11,widthB=sb.track-.08,lengthB=sb.halfLength-.11;
+    // Each rectangle's two axes share the same absolute sine and cosine of the relative heading.
+    // Retain the actual squared basis lengths and the original side/end tie order.
+    const parallel=Math.abs(ca*cb+saYaw*sbYaw),across=Math.abs(ca*sbYaw-saYaw*cb);
+    const normA=ca*ca+saYaw*saYaw,normB=cb*cb+sbYaw*sbYaw;
+    const sideA=dx*ca-dz*saYaw;
+    let depth=widthA*normA+(widthB*parallel+lengthB*across)-Math.abs(sideA);
+    if(depth<=0)return null;
+    let nx=ca,nz=-saYaw,side=sideA;
+    const endA=dx*saYaw+dz*ca,alongA=lengthA*normA+(widthB*across+lengthB*parallel)-Math.abs(endA);
+    if(alongA<=0)return null;
+    if(alongA<depth){depth=alongA;nx=saYaw;nz=ca;side=endA;}
+    const sideB=dx*cb-dz*sbYaw,acrossB=(widthA*parallel+lengthA*across)+widthB*normB-Math.abs(sideB);
+    if(acrossB<=0)return null;
+    if(acrossB<depth){depth=acrossB;nx=cb;nz=-sbYaw;side=sideB;}
+    const endB=dx*sbYaw+dz*cb,alongB=(widthA*across+lengthA*parallel)+lengthB*normB-Math.abs(endB);
+    if(alongB<=0)return null;
+    if(alongB<depth){depth=alongB;nx=sbYaw;nz=cb;side=endB;}
+    const sign=side<0?-1:1;return {nx:nx*sign,nz:nz*sign,depth};
   }
   const tonnes={hatch:.96,caleta:1.02,coupe:1.38,cab:1.66,cruiser:1.84,van:2.27,stepside:1.9,
     estate:1.53,solena:1.8,cayo:1.57,marea:1.46,wrecker:4.65,ambulance:4.2,pumper:11.3};

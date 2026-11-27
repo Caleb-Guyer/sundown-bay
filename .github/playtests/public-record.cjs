@@ -223,6 +223,14 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       await js(`const batchDraw=BayView.prototype.drawOpaque;
         const comparePixels=(${require("./street-pixels.cjs").toString()});
         const freezeStreet=(${require("./street-uploads.cjs").freeze.toString()});
+        const programs=(${require("./street-programs.cjs").street.toString()});
+        const sunPrograms=(${require("./street-programs.cjs").sun.toString()});
+        const updateSun=recQA.view.updateSun;
+        recQA.view.updateSun=function(weather,dusk){
+          updateSun.call(this,weather,dusk);
+          if(this.sunStrength<.006||!this.models.get('city')?.sunMesh||!this.sunTarget?.ok)return;
+          this.updateSun=updateSun;recQA.shadowProof=sunPrograms(this,weather,dusk,updateSun);
+        };
         recQA.compare={block:-1,frames:[],stream:[],separate:[],calls:{stream:0,separate:0},indices:{stream:0,separate:0}};
         BayView.prototype.drawOpaque=function(items){
           const q=recQA.compare;
@@ -233,6 +241,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
           q.previous=now;q.block=block;q.frames.push(path);
           if(block>=8){
             q.pixels=comparePixels(this,items,batchDraw);
+            q.programs=programs(this,items,batchDraw,freezeStreet,comparePixels);
             const batch=this.streetBatch,pose=batch.repeatedPose,flush=batch.flush,detail=batch.distanceDetail;
             const indices=[],samplePath=useDetail=>function(list){
               const before=recQA.vertices;recQA.samples=true;
@@ -295,6 +304,11 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       console.log("PERF paired motel",JSON.stringify(pair));
       assert(pair.stream.draws<pair.separate.draws*.85,"street geometry shares submissions");
       const pixels=await js("recQA.compare.pixels");console.log("PERF same-frame pixels",JSON.stringify(pixels));
+      const programs=await js("recQA.compare.programs");console.log("PERF street shader changes",JSON.stringify(programs));
+      assert(programs.image.painted>500&&programs.image.changed===0&&programs.restored.every(Boolean));
+      assert(programs.binds[1]<programs.binds[0]);
+      const sun=await js("recQA.shadowProof");console.log("PERF sunlight geometry",JSON.stringify(sun));
+      assert(sun.painted>1000&&sun.changed===0&&sun.vertexBytes[1]<sun.vertexBytes[0]);
       assert(pixels.painted>350&&pixels.silhouette<pixels.painted*.01&&pixels.recolored<pixels.painted*.015);
       const poses=await js("recQA.compare.poses");console.log("PERF stationary scenery",JSON.stringify(poses));
       assert(poses.hits>0&&poses.bytes>0&&poses.bytes<=3*1024*1024&&poses.indices[0]===poses.indices[1]);

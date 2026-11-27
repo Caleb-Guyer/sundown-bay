@@ -86,34 +86,34 @@
   }
   // Share vertices only when all six Float32 words match. Painted seams and
   // layered signs keep their colours and the original triangle ordering.
-  function indexGeometry(data,largeIndices,groups=null,frames=null){
+  function indexGeometry(data,largeIndices,groups=null,frames=null,components=6){
     const count=data.length/6;
-    if(count<192||count>65535&&!largeIndices)return null;
+    if(count<192||count>65535&&!largeIndices&&components===6)return null;
     const words=new Uint32Array(data.buffer,data.byteOffset,data.length);
     let size=1;while(size<count*2)size*=2;
     const slots=new Uint32Array(size),remap=count>65535?new Uint32Array(count):new Uint16Array(count);
-    const packed=new Float32Array(data.length);let used=0;
+    const packed=new Float32Array(count*components);let used=0;
     for(let i=0;i<count;i++){
       const p=i*6;let hash=groups?Math.imul(2166136261^groups[i],16777619):2166136261;
-      for(let n=0;n<6;n++)hash=Math.imul(hash^words[p+n],16777619);
+      for(let n=0;n<components;n++)hash=Math.imul(hash^words[p+n],16777619);
       let slot=(hash^(hash>>>16))&(size-1);
       while(slots[slot]){
         const q=(slots[slot]-1)*6;
         if((!groups||groups[slots[slot]-1]===groups[i])&&words[q]===words[p]&&words[q+1]===words[p+1]&&words[q+2]===words[p+2]&&
-          words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5]&&
+          (components===3||words[q+3]===words[p+3]&&words[q+4]===words[p+4]&&words[q+5]===words[p+5])&&
           (!frames||frames.every(f=>f[p]===f[q]&&f[p+1]===f[q+1]&&f[p+2]===f[q+2])))break;
         slot=(slot+1)&(size-1);
       }
       if(slots[slot])remap[i]=remap[slots[slot]-1];
       else{
         slots[slot]=i+1;remap[i]=used;
-        for(let n=0;n<6;n++)packed[used*6+n]=data[p+n];
+        for(let n=0;n<components;n++)packed[used*components+n]=data[p+n];
         used++;
       }
     }
-    if(used>count*.85)return null;
+    if(used>count*.85||used>65535&&!largeIndices)return null;
     const indices=used<=65535&&remap.BYTES_PER_ELEMENT===4?new Uint16Array(remap):remap;
-    return {vertices:packed.subarray(0,used*6),indices};
+    return {vertices:packed.subarray(0,used*components),indices};
   }
   Mesh.indexWalk=function(rest,poses){
     // Two corners can touch at rest and part when the knee bends. Compare
@@ -485,12 +485,13 @@
       this.uploadStream(gl.ELEMENT_ARRAY_BUFFER,this.indices,this.count,slot.topology);
       const solid=view.beginStreetSurface(this.glow);
       if(!solid){
+        if(view.listProgram)view.restoreStreetProgram();
         gl.uniform3f(view.u.origin,0,0,0);gl.uniform2f(view.u.turn,1,0);
         gl.uniform4f(view.u.tilt,1,0,1,0);view.tiltX=view.tiltZ=0;
         if(view.glow!==this.glow){gl.uniform1f(view.u.glow,this.glow);view.glow=this.glow;}
       }
       gl.drawElements(gl.TRIANGLES,this.count,gl.UNSIGNED_SHORT,0);
-      if(solid)gl.useProgram(view.program);
+      if(solid&&!view.inStreetList)gl.useProgram(view.program);
       view.bound=null;this.count=0;this.used=0;
     }
     forgetPose(p){
@@ -827,7 +828,7 @@
     }
     setup(){
       const gl=this.gl;
-      this.streetBatch=null;
+      this.streetBatch=null;this.inStreetList=false;this.listProgram=null;
       const compile=(kind,src)=>{const sh=gl.createShader(kind);gl.shaderSource(sh,src);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(sh));return sh;};
       const program=(vs,fs,attributes)=>{const p=gl.createProgram(),v=compile(gl.VERTEX_SHADER,vs),f=compile(gl.FRAGMENT_SHADER,fs);
         gl.attachShader(p,v);gl.attachShader(p,f);
@@ -835,6 +836,7 @@
         gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);
         if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;};
       const p=this.program=program(VERTEX,FRAGMENT);this.sunProgram=program(SUNVERT,SUNFRAG);gl.useProgram(p);
+      this.sunPos=gl.getAttribLocation(this.sunProgram,"pos");
       this.largeIndices=!!gl.getExtension("OES_element_index_uint");
       this.multiDraw=gl.getExtension("WEBGL_multi_draw");
       this.u={};for(const key of ["origin","eye","rightV","upV","forwardV","turn","focal","depth","tilt","castOnly","ghost","beam","waterParams","sunDepth","paper","texel","hasShadow","dusk","glow","lobbyPrint","showPrint","streetLight","airState","skyTone","driverLamp","immersion"])this.u[key]=gl.getUniformLocation(p,key);
@@ -1048,6 +1050,18 @@
         model.vertexCount=model.count;model.resizePose=true;break;
       }
     }
+    shadowMesh(city){
+      // Paint seams share a position in the depth map. Preserve every triangle
+      // and its order while sending only the attribute the sun shader reads.
+      const packed=indexGeometry(this.cpu.get("city"),this.largeIndices,null,null,3);
+      if(!packed)return city;
+      const gl=this.gl,buf=gl.createBuffer(),elements=gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.bufferData(gl.ARRAY_BUFFER,packed.vertices,gl.STATIC_DRAW);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,elements);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,packed.indices,gl.STATIC_DRAW);
+      const indices=packed.indices;
+      return {buf,elements,count:indices.length,vertexCount:packed.vertices.length/3,
+        elementType:indices.BYTES_PER_ELEMENT===2?gl.UNSIGNED_SHORT:gl.UNSIGNED_INT};
+    }
     prepareSun(){
       const gl=this.gl,sz=Math.min(1024,gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.shadowTexture);
@@ -1084,8 +1098,12 @@
         gl.useProgram(this.sunProgram);gl.viewport(0,0,sz,sz);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
         this.sunAxes(this.sunUniforms);
         gl.disableVertexAttribArray(this.pos);gl.disableVertexAttribArray(this.col);
-        const p=gl.getAttribLocation(this.sunProgram,"pos");gl.enableVertexAttribArray(p);gl.bindBuffer(gl.ARRAY_BUFFER,city.buf);gl.vertexAttribPointer(p,3,gl.FLOAT,false,24,0);
-        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);drawRange(gl,city,0,city.count);gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
+        const mesh=city.sunMesh??=this.shadowMesh(city);
+        const p=this.sunPos;gl.enableVertexAttribArray(p);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buf);gl.vertexAttribPointer(p,3,gl.FLOAT,false,mesh===city?24:12,0);
+        gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1.1,1.8);
+        if(mesh===city)drawRange(gl,city,0,city.count);
+        else{gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.elements);gl.drawElements(gl.TRIANGLES,mesh.count,mesh.elementType,0);}
+        gl.disable(gl.POLYGON_OFFSET_FILL);gl.disableVertexAttribArray(p);
         gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.useProgram(this.program);this.sunAxes(this.u);
         gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.col);
         this.sunKey=key;this.bound=null;
@@ -1156,7 +1174,9 @@
     beginStreetSurface(glow,modelSpace=false){
       const frame=this.streetFrame,surface=modelSpace?this.modelSurface:this.streetSurface;
       if(!frame||this.scale>.65||frame.underwater||this.casting||!surface||modelSpace&&!frame.timed)return false;
-      const gl=this.gl,u=surface.u;gl.useProgram(surface.program);
+      const gl=this.gl,u=surface.u;
+      if(this.listProgram!==surface.program)gl.useProgram(surface.program);
+      if(this.inStreetList)this.listProgram=surface.program;
       const newFrame=surface.frame!==frame;
       if(newFrame){
         this.setFrameUniforms(u,frame);gl.uniform1f(u.hasShadow,frame.shadow);
@@ -1167,6 +1187,9 @@
         gl.uniform1f(u.glow,glow);surface.glow=glow;
       }
       return true;
+    }
+    restoreStreetProgram(){
+      this.gl.useProgram(this.program);this.listProgram=null;
     }
     trafficVisible(x,y,z){
       // A closed road car, lamps, mirrors and plate rotate about the same origin.
@@ -1231,8 +1254,15 @@
       if(batch.detailCamera!==this.basis){
         batch.detailCamera=this.basis;batch.buildDetail=true;
       }
-      for(const item of list)batch.append(item);
-      batch.flush();
+      // Individual effects and cockpit overlays use the main program outside this list.
+      const nested=this.inStreetList;this.inStreetList=true;
+      try{
+        for(const item of list)batch.append(item);
+        batch.flush();
+      }finally{
+        this.inStreetList=nested;
+        if(!nested&&this.listProgram)this.restoreStreetProgram();
+      }
     }
     collectStreetWalls(){
       this.streetWalls=null;
@@ -1326,6 +1356,7 @@
       const worldList=reduced&&model.indices&&!this.casting&&!x&&!y&&!z&&!yaw&&!tiltX&&!tiltZ&&
         (model.city||model.worldSections&&!this.effectPass&&!vehicle&&!vapor);
       const solid=!this.effectPass&&!vapor&&this.beginStreetSurface(glow,!worldList);
+      if(!solid&&this.listProgram)this.restoreStreetProgram();
       if(!solid&&this.glow!==glow){gl.uniform1f(this.u.glow,glow);this.glow=glow;}
       if(!solid||!worldList){
         const uniforms=solid?this.modelSurface.u:this.u,state=solid?this.modelSurface:this;
@@ -1359,7 +1390,7 @@
       }else if(reduced&&model.distant){
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,model.distant);gl.drawElements(gl.TRIANGLES,model.indexCount,model.indexType,0);
       }else drawRange(gl,model,0,model.count);
-      if(solid)gl.useProgram(this.program);
+      if(solid&&!this.inStreetList)gl.useProgram(this.program);
       if(vapor){gl.uniform1f(this.u.beam,0);gl.disable(gl.BLEND);gl.depthMask(true);}
     }
   }
@@ -11929,15 +11960,26 @@ window.buildBayCity = function buildBayCity(g,water) {
     const sa=a.footprint||bayCarLayout(a.kind),sb=b.footprint||bayCarLayout(b.kind);
     const dx=a.x-b.x,dz=a.z-b.z,reach=sa.halfLength+sb.halfLength+.85;
     if(Math.abs(dx)>reach||Math.abs(dz)>reach)return null;
-    const ca=Math.cos(a.yaw),aa=Math.sin(a.yaw),cb=Math.cos(b.yaw),ab=Math.sin(b.yaw);
-    let depth=Infinity,nx=0,nz=0;
-    for(const [x,z] of [[ca,-aa],[aa,ca],[cb,-ab],[ab,cb]]){
-      const extA=(sa.track-.08)*Math.abs(x*ca-z*aa)+(sa.halfLength-.11)*Math.abs(x*aa+z*ca);
-      const extB=(sb.track-.08)*Math.abs(x*cb-z*ab)+(sb.halfLength-.11)*Math.abs(x*ab+z*cb);
-      const d=dx*x+dz*z,overlap=extA+extB-Math.abs(d);if(overlap<=0)return null;
-      if(overlap<depth){depth=overlap;nx=x*(d<0?-1:1);nz=z*(d<0?-1:1);}
-    }
-    return {nx,nz,depth};
+    const ca=Math.cos(a.yaw),saYaw=Math.sin(a.yaw),cb=Math.cos(b.yaw),sbYaw=Math.sin(b.yaw);
+    const widthA=sa.track-.08,lengthA=sa.halfLength-.11,widthB=sb.track-.08,lengthB=sb.halfLength-.11;
+    // Each rectangle's two axes share the same absolute sine and cosine of the relative heading.
+    // Retain the actual squared basis lengths and the original side/end tie order.
+    const parallel=Math.abs(ca*cb+saYaw*sbYaw),across=Math.abs(ca*sbYaw-saYaw*cb);
+    const normA=ca*ca+saYaw*saYaw,normB=cb*cb+sbYaw*sbYaw;
+    const sideA=dx*ca-dz*saYaw;
+    let depth=widthA*normA+(widthB*parallel+lengthB*across)-Math.abs(sideA);
+    if(depth<=0)return null;
+    let nx=ca,nz=-saYaw,side=sideA;
+    const endA=dx*saYaw+dz*ca,alongA=lengthA*normA+(widthB*across+lengthB*parallel)-Math.abs(endA);
+    if(alongA<=0)return null;
+    if(alongA<depth){depth=alongA;nx=saYaw;nz=ca;side=endA;}
+    const sideB=dx*cb-dz*sbYaw,acrossB=(widthA*parallel+lengthA*across)+widthB*normB-Math.abs(sideB);
+    if(acrossB<=0)return null;
+    if(acrossB<depth){depth=acrossB;nx=cb;nz=-sbYaw;side=sideB;}
+    const endB=dx*sbYaw+dz*cb,alongB=(widthA*across+lengthA*parallel)+lengthB*normB-Math.abs(endB);
+    if(alongB<=0)return null;
+    if(alongB<depth){depth=alongB;nx=sbYaw;nz=cb;side=endB;}
+    const sign=side<0?-1:1;return {nx:nx*sign,nz:nz*sign,depth};
   }
   const tonnes={hatch:.96,caleta:1.02,coupe:1.38,cab:1.66,cruiser:1.84,van:2.27,stepside:1.9,
     estate:1.53,solena:1.8,cayo:1.57,marea:1.46,wrecker:4.65,ambulance:4.2,pumper:11.3};

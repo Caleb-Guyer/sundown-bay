@@ -58,6 +58,19 @@ const view=Object.assign(Object.create(BayView.prototype),{gl,models:new Map(),a
 }
 const mesh=new BayMesh(),city=buildBayCity(mesh,new BayMesh());const data=new Float32Array(mesh.vertices);
 view.upload("city",data);const model=view.models.get("city");view.prepareDistanceMesh(model,data);
+{
+  view.cpu.set("city",data);
+  for(const large of [false,true]){
+    view.largeIndices=large;const sun=view.shadowMesh(model);
+    assert.notEqual(sun,model);
+    const xyz=new Uint32Array(sun.buf.data.buffer,sun.buf.data.byteOffset,sun.buf.data.length);
+    const original=new Uint32Array(data.buffer),order=sun.elements.data;
+    assert.equal(order.length,model.count);
+    for(let i=0;i<order.length;i++)for(let k=0;k<3;k++)assert.equal(xyz[order[i]*3+k],original[i*6+k]);
+    console.log("PASS every sun triangle retains its exact positions and draw order",order.length,
+      "corners,",sun.vertexCount,"shadow vertices versus",model.vertexCount,"painted vertices");
+  }
+}
 const list=new CityIndicesForTest(view,model,data),ref=new model.indices.constructor(model.count);
 let frames=0,partial=0;
 for(let step=0;step<260;step++){
