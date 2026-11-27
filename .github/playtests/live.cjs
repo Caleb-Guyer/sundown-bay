@@ -56,15 +56,16 @@ async function run() {
   assert.equal(process.env.GITHUB_ACTIONS, "true", "Use a hosted runner for browser tests");
   assert(["overhead", "street"].includes(mode));
   const compare=process.argv.includes("--compare-drive");
-  const root=path.resolve(__dirname,"../..",compare&&process.argv.includes("--baseline")?"baseline-release":".");
+  const chromebook=process.argv.includes("--chromebook");
+  const root=path.resolve(__dirname,"../..",(compare||chromebook)&&process.argv.includes("--baseline")?"baseline-release":".");
   const html = fs.readFileSync(path.join(root,"index.html"), "utf8");
   const asset = html.match(/<script src="(sundown\.js\?v=[a-f0-9]+)"/)[1];
-  const server = !compare&&await liveRelease(html,45000) ? null : await serveCheckout(html,root);
+  const server = !compare&&!chromebook&&await liveRelease(html,45000) ? null : await serveCheckout(html,root);
   const site = server ? "http://127.0.0.1:" + server.address().port + "/" : publicSite;
   console.log("Playtesting " + (server ? "runner checkout" : "GitHub Pages") + " · " + asset);
   const profile = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP, "bay-wire-"));
   const chrome = spawn("google-chrome", [
-    "--headless", "--mute-audio", "--window-size=1024,640", "--no-first-run",
+    "--headless", "--mute-audio", chromebook?"--window-size=1366,768":"--window-size=1024,640", "--no-first-run",
     "--disable-sync", "--disable-extensions", "--disable-background-networking",
     "--remote-debugging-pipe", "--user-data-dir=" + profile,
     ...(mode === "street" ? ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] : ["--disable-webgl"]),
@@ -128,6 +129,10 @@ async function run() {
       || await send("Target.createTarget", { url: "about:blank" }, "", 75000);
     session = (await send("Target.attachToTarget", { targetId: page.targetId, flatten: true }, "", 75000)).sessionId;
     await send("Page.enable"); await send("Runtime.enable");
+    if(chromebook){
+      await send("Emulation.setHardwareConcurrencyOverride",{hardwareConcurrency:2});
+      await send("Page.addScriptToEvaluateOnNewDocument",{source:"Object.defineProperty(navigator,'deviceMemory',{get:()=>4})"});
+    }
     await send("Page.addScriptToEvaluateOnNewDocument", { source: `
       window.audioStarts = window.cursorRequests = 0;
       localStorage.setItem("sundownBay.audio", "off");
@@ -149,11 +154,16 @@ async function run() {
       return rect.x===0&&rect.y===0&&rect.width===innerWidth&&rect.height===innerHeight&&
         getComputedStyle(document.querySelector('#sky')).position==='absolute';})()`),"Title and sky fill the viewport");
     assert.deepEqual(await js("performance.getEntriesByType('resource').map(e=>e.name).filter(n=>new URL(n).pathname.endsWith('.js'))"), [site + asset]);
-    if (mode === "overhead") await send("Emulation.setCPUThrottlingRate", { rate: 4 });
+    if (mode === "overhead"&&!chromebook) await send("Emulation.setCPUThrottlingRate", { rate: 4 });
     assert.equal(await js("document.querySelectorAll('#intro button').length"), 1);
     await js("document.querySelector('#play').click()");
     await waitFor("!document.querySelector('#hud').hidden");
     assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
+    if(chromebook){
+      await require("../benchmarks/chromebook.cjs")({js,send,tap,waitFor,mode,asset});
+      assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+      return;
+    }
     if(compare){
       const drive=await require("../benchmarks/drive.cjs")({js,send,tap,waitFor,mode});
       assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
