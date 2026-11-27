@@ -812,6 +812,7 @@
     if(street&&opt.submerged&&opt.swim){
       rect(ctx,-pad,-pad,w+pad*2,h+pad*2,"#377e80");
       BayReefArt.map(ctx,opt,px,py,s,visible);
+      if(opt.halfMoon)BayHalfMoon.chart(ctx,opt.halfMoon,px,py,s,visible,true);
       if(opt.buttonwood)BayButtonwoodPots.map(ctx,px,py,s,visible,streetTime,opt.buttonwood,opt);
       BaySurfArt.mapLadders(ctx,opt,px,py,s,visible);
       if(opt.bridge){
@@ -964,6 +965,7 @@
     if(street&&opt.record?.transfer){const p=BayLastTransfer.clip;if(visible(px(p.x),py(p.z),4))BayLastTransfer.mapClip(ctx,px(p.x),py(p.z),s);}
     if(opt.publicBoat)BayFirstCrossing.map(ctx,opt.publicBoat,px,py,s,visible,street);
     if(opt.aprons)BayApronGoal.map(ctx,opt.aprons,px,py,s,visible);
+    if(opt.halfMoon)BayHalfMoon.chart(ctx,opt.halfMoon,px,py,s,visible,false);
     if(opt.publicBoat&&BayWakeClock.hasWinner())BayMinuteCard.map(ctx,opt.minuteRun,px,py,s,visible);
     if(opt.brisas)BayBrisas.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.palmHouse)BayPalmRoom.furniture(ctx,opt,px,py,s,visible,streetTime);

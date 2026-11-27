@@ -16,6 +16,7 @@ const play = require(junction ? "./junction.cjs" : engineSeven ? "./engine-seven
 
 const mode = process.argv[2];
 const beatWake=process.argv.includes("--beat-wake"),twoAprons=process.argv.includes("--two-aprons");
+const halfMoon=process.argv.includes("--half-moon");
 const publicSite = "https://caleb-guyer.github.io/sundown-bay/";
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -128,7 +129,7 @@ async function run() {
     await send("Page.addScriptToEvaluateOnNewDocument", { source: `
       window.audioStarts = window.cursorRequests = 0;
       localStorage.setItem("sundownBay.audio", "off");
-      if(${!process.argv.includes("--public-record")}&&!localStorage.getItem("sundownBay.publicRecord.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"meet"}));
+      if(${!process.argv.includes("--public-record")}&&!localStorage.getItem("sundownBay.publicRecord.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"meet",morning:${halfMoon?JSON.stringify({luis:mode==="street"?"aboard":"ashore",second:21604}):"null"}}));
       if(${beatWake}&&!localStorage.getItem("sundownBay.wakeClock.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"filed",pass:true,trips:1,berth:0}));
       for (const name of ["requestPointerLock", "webkitRequestPointerLock", "mozRequestPointerLock"]) {
         const native=Element.prototype[name];
@@ -162,6 +163,13 @@ async function run() {
     assert(await js(`(()=>{const surface=document.querySelector('${mode==="street"?"#world":"#overhead"}');
       const rect=surface.getBoundingClientRect();return rect.x===0&&rect.y===0&&rect.width===innerWidth&&rect.height===innerHeight;})()`),"Play surface fills the viewport");
     const jumps = process.argv.includes("--picture-jumps");
+    if(halfMoon){
+      await require("./half-moon.cjs")({js,send,waitFor,tap,key,mode});
+      assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+      assert(await liveRelease(html,180000),"Half Moon build did not reach Pages");
+      console.log("PASS Half Moon",mode,"dive, drawer handoff and pocket transfer after reload. No audio starts or pointer capture.");
+      return;
+    }
     const cup = process.argv.includes("--coast-cup");
     const houseLights = process.argv.includes("--house-lights");
     const bumpers = process.argv.includes("--bumpers");

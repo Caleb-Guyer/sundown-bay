@@ -559,3 +559,10 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 #maraFinder .finder-gate::after {content:"";position:absolute;inset:35% 38%;border:1px solid #ffeab18c;pointer-events:none}
 #maraMeter {display:block;color:#ffe19c}
 #maraFinder small {font:inherit;font-size:10px;color:#e3ddcc}
+.moon-transfer {display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin:.5rem auto 1rem;max-width:31rem;padding:1.25rem;color:#282c25;background:linear-gradient(104deg,#eee4bf 47%,#d2c598 50%,#eee4bf 53%);border-top:6px solid #486c5d;box-shadow:1px 4px 10px #0004;font-family:Georgia,serif}
+.moon-transfer small,.moon-transfer strong,.moon-transfer p {grid-column:1/-1}
+.moon-transfer small {font:600 .68rem monospace;letter-spacing:.13em;color:#436255}
+.moon-transfer strong {font-size:clamp(1.5rem,4vw,2.3rem);margin:.35rem 0}
+.moon-transfer p {margin:.15rem 0 1rem;color:#494e41;font-size:.85rem}
+.moon-transfer span {position:relative;border:1px dashed #666d5d;padding:.65rem .12rem 1.1rem;text-align:center;font:600 .7rem monospace}
+.moon-transfer span.punched::after {content:"";position:absolute;left:calc(50% - 6px);bottom:-1px;width:12px;height:7px;border-radius:9px 9px 0 0;background:#373b32;box-shadow:inset 0 1px 2px #121810}

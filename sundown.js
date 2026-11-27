@@ -16049,6 +16049,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(street&&opt.submerged&&opt.swim){
       rect(ctx,-pad,-pad,w+pad*2,h+pad*2,"#377e80");
       BayReefArt.map(ctx,opt,px,py,s,visible);
+      if(opt.halfMoon)BayHalfMoon.chart(ctx,opt.halfMoon,px,py,s,visible,true);
       if(opt.buttonwood)BayButtonwoodPots.map(ctx,px,py,s,visible,streetTime,opt.buttonwood,opt);
       BaySurfArt.mapLadders(ctx,opt,px,py,s,visible);
       if(opt.bridge){
@@ -16201,6 +16202,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(street&&opt.record?.transfer){const p=BayLastTransfer.clip;if(visible(px(p.x),py(p.z),4))BayLastTransfer.mapClip(ctx,px(p.x),py(p.z),s);}
     if(opt.publicBoat)BayFirstCrossing.map(ctx,opt.publicBoat,px,py,s,visible,street);
     if(opt.aprons)BayApronGoal.map(ctx,opt.aprons,px,py,s,visible);
+    if(opt.halfMoon)BayHalfMoon.chart(ctx,opt.halfMoon,px,py,s,visible,false);
     if(opt.publicBoat&&BayWakeClock.hasWinner())BayMinuteCard.map(ctx,opt.minuteRun,px,py,s,visible);
     if(opt.brisas)BayBrisas.map(ctx,opt,px,py,s,visible,streetTime);
     if(opt.palmHouse)BayPalmRoom.furniture(ctx,opt,px,py,s,visible,streetTime);
@@ -73982,6 +73984,125 @@ window.buildBayCity = function buildBayCity(g,water) {
 })();
 
 ;
+/* half-moon.js */
+/* A conductor's lost punch. The crossing log fixes its last known pier when Marta posts the notice. */
+(() => {
+  "use strict";
+  const key="sundownBay.halfMoon.v1";
+  const piers={
+    south:{name:"Marlin Pier",x:248,z:-129,sign:1},
+    north:{name:"North Float",x:241,z:83,sign:-1}
+  };
+  const labels=["red tally cord","leather pouch","nickel ticket punch"];
+  const prompts=["Untie the tally cord","Turn the pouch over","Lift the ticket punch"];
+  const notes=[
+    "A leather keeper is still on the cord. Follow the red line across the sand.",
+    "The pouch has split along one seam. Something bright lies past the torn flap.",
+    "One jaw still moves. Take the punch to the lost-property drawer at any Route 6 stop."
+  ];
+  const gap=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+  class Search{
+    constructor(){
+      let data;
+      try{data=JSON.parse(localStorage.getItem(key));}catch{}
+      const valid=data&&Object.hasOwn(piers,data.pier)&&Number.isInteger(data.stage)&&data.stage>=1&&data.stage<=5;
+      this.stage=valid?data.stage:0;this.pier=valid?data.pier:"south";
+      this.stamps=valid&&this.stage===5?BayTransit.stops.map(s=>s.id).filter(id=>Array.isArray(data.stamps)&&data.stamps.includes(id)):[];
+    }
+    save(){try{localStorage.setItem(key,JSON.stringify({stage:this.stage,pier:this.pier,stamps:this.stamps}));}catch{}}
+    accept(morning){
+      if(this.stage)return;
+      this.pier=morning?.luis==="aboard"?"north":"south";this.stage=1;this.save();
+    }
+    site(i=this.stage-1){
+      const p=piers[this.pier],x=p.x+[0,3.9,7.1][i],z=p.z+[0,2.8,6.2][i]*p.sign;
+      return {x,z,y:BaySwimming.floor(x,z)+.32,name:labels[i]};
+    }
+    target(p){
+      if(this.stage===4)return BayTransit.stops.reduce((best,s)=>gap(p,s)<gap(p,best)?s:best);
+      if(this.stage>=1&&this.stage<=3)return {...this.site(),name:piers[this.pier].name+" · "+labels[this.stage-1]};
+      return null;
+    }
+    action(hero,swim){
+      if(this.stage<1||this.stage>3||!swim?.underwater||swim.exit)return "";
+      const q=this.site();
+      return gap(hero,q)<2.5&&Math.abs(hero.y-q.y)<1.65?prompts[this.stage-1]:"";
+    }
+    lift(hero,swim){
+      if(!this.action(hero,swim))return "";
+      const line=notes[this.stage-1];this.stage++;this.save();return line;
+    }
+    handOver(stop){
+      if(this.stage!==4||!BayTransit.stops.includes(stop))return false;
+      this.stage=5;this.stamps=[stop.id];this.save();return true;
+    }
+    arrive(stop){
+      if(this.stage!==5||!BayTransit.stops.includes(stop)||this.stamps.includes(stop.id))return false;
+      this.stamps.push(stop.id);this.save();return true;
+    }
+  }
+  function letter(morning){
+    if(morning?.luis==="aboard")return "Dalia held the gate for Luis. He remembers my punch riding north on top of his two tins. Saw the red cord go over when he unloaded at North Float.";
+    if(morning?.luis==="ashore")return "Dalia rang the bell. Luis was still standing at Marlin Pier with his two tins. He saw my red tally cord slide off the empty loading step.";
+    return "Last seen on the loading step at Marlin Pier. A deckhand found red thread caught on the ladder.";
+  }
+  function world(model,list,see,search,t,under){
+    if(search.stage<1||search.stage>3)return;
+    const buoy=search.site(0);if(!see(buoy,under?33:76))return;
+    model("moon-float",g=>{
+      g.box(0,0,0,.57,.29,.40,"#ed7954");g.box(0,.02,0,.14,.32,.42,"#fff0bc");
+      g.pole([-.18,-.03,0],[-.18,.70,0],.032,"#463d32",5);
+      g.quad([-.18,.70,0],[.28,.58,0],[.17,.43,0],[-.18,.48,0],"#d95242");
+    });
+    list.push(["moon-float",buoy.x,.14+.045*Math.sin(t*2),buoy.z,.43]);
+    if(!under)return;
+    const a=search.site(0),b=search.site(1),c=search.site(2);
+    const trail="moon-cord-"+search.pier;
+    model(trail,g=>{
+      const mid=[(a.x+b.x)*.5+.26,(a.y+b.y)*.5-.16,(a.z+b.z)*.5];
+      g.pole([a.x,-.04,a.z],[a.x,a.y,a.z],.048,"#dc7255",5);
+      g.pole([a.x,a.y,a.z],mid,.078,"#df6345",5);g.pole(mid,[b.x,b.y,b.z],.075,"#d26c4d",5);
+    });
+    model("moon-pouch",g=>{
+      g.box(0,0,0,.86,.17,.53,"#87482f");g.box(0,.096,-.14,.78,.045,.16,"#cc9364");
+      g.pole([-.28,.11,.14],[-.06,.19,.34],.045,"#eed4a2",5);g.pole([.04,.12,.12],[.34,.15,.27],.04,"#eed4a2",5);
+    });
+    model("moon-tool",g=>{
+      g.pole([-.37,.10,-.09],[.16,.10,.02],.065,"#efc676",6);
+      g.pole([-.36,.10,.18],[.16,.10,.02],.063,"#d5dbce",6);
+      g.pole([.16,.10,.02],[.33,.12,-.07],.063,"#e9e5c7",6);g.box(.32,.14,.055,.14,.10,.09,"#fff1bd");
+    });
+    list.push([trail,0,0,0,0],["moon-pouch",b.x,b.y,b.z,.55],["moon-tool",c.x,c.y,c.z,.72]);
+  }
+  function chart(g,search,px,py,s,visible,under){
+    if(search.stage<1||search.stage>3)return;
+    for(let i=0;i<(under?3:1);i++){
+      const a=search.site(i),x=px(a.x),y=py(a.z);if(!visible(x,y,12*s))continue;
+      g.save();g.translate(x,y);
+      if(i===0&&under){const b=search.site(1);g.lineWidth=Math.max(1,.12*s);g.strokeStyle="#ec825a";g.beginPath();g.moveTo(0,0);g.lineTo(px(b.x)-x,py(b.z)-y);g.stroke();}
+      g.rotate(i===2?-.52:.35);const n=Math.max(1.65,s*.42);
+      g.fillStyle=["#ea7251","#aa7051","#eed296"][i];g.fillRect(-n,-n*.55,2*n,1.1*n);
+      if(i===0){g.fillStyle="#fff1c9";g.fillRect(-n*.20,-n*.55,.4*n,1.1*n);}
+      if(i===2){g.fillStyle="#284f50";g.fillRect(-n*.99,-n*.18,n,.36*n);}
+      g.restore();
+    }
+  }
+  function ticket(body,search){
+    const paper=document.createElement("article");paper.className="moon-transfer";
+    const head=document.createElement("small");head.textContent="BAY TRANSIT     /     COACH 608";
+    const title=document.createElement("strong");title.textContent="Half Moon Transfer";
+    const line=document.createElement("p");line.textContent="Tool recovered at "+piers[search.pier].name+" · Issued by Marta Leal";
+    paper.append(head,title,line);
+    for(const s of BayTransit.stops){
+      const cell=document.createElement("span"),punched=search.stamps.includes(s.id);
+      cell.textContent=s.short;cell.className=punched?"punched":"";cell.setAttribute("aria-label",s.short+(punched?", punched":", unpunched"));paper.append(cell);
+    }
+    body.append(paper);
+  }
+  window.BayHalfMoon={Search,piers,world,chart,ticket,letter,labels};
+})();
+
+;
 /* game.js */
 (() => {
   "use strict";
@@ -74229,6 +74350,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   const save=readSave(),houseLights=new BayHouseLights.Book();
   let flyingCopy=null,copyReaction=null;
   const campaign=new BayPublicRecord.Story();
+  const halfMoon=new BayHalfMoon.Search();
   campaign.pressMPH=save.pressMPH||0;
   const maraFilm=new BayLotNegative.Archive();
   const outsideCases=new BayOutsideCopy.Cases();
@@ -75441,6 +75563,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(save.airmail.island){note("Gull Key","Liv is at the post office. Fern 3 calls at the south float.",3.5);return;}
     if(active?.buttonwood){note("Alda’s tide book",BayButtonwood.sheets[save.buttonwood.sheet].name+" · Your next stop is marked.",4);return;}
     if(!campaign.book.intro){enterFilm("opening");return;}
+    if(!active&&!waypoint&&halfMoon.stage>0&&halfMoon.stage<5)markMoon();
     if(!active&&save.rescue.laundry&&save.rescue.laundry.stage!=="filed"){startLaundryOrder();return;}
     if(!active&&!waypoint&&meterCar())waypoint=save.meterCopy.spent?meterPin(meterCar()):{...BayCab.stops.marlin.stand,kind:"meter-rank",name:"Marlin cab stand · Mina's slip"};
     if(!active&&!waypoint&&campaign.book.pass&&!campaign.book.trips)waypoint=chapterTarget();
@@ -78022,6 +78145,30 @@ window.buildBayCity = function buildBayCity(g,water) {
   const routeStop=()=>transitFree()?transit.near(hero):null;
   const atTimetable=()=>!transit.engaged&&!projector&&!unit.eye&&!afternoon.photo&&!rankPhones.lifted&&!neighbors.chat&&transitFree()&&transit.near(hero,.85);
   const busCameras=()=>transit.player?.stage==="ride"&&transit.inside;
+  function markMoon(){
+    const q=halfMoon.target(hero);
+    if(q)waypoint={...q,kind:"half-moon"};
+    else if(waypoint?.kind==="half-moon")waypoint=null;
+    lastHud=lastMap=-10;
+  }
+  function moonBoard(body,stop){
+    if(!halfMoon.stage&&stop.id!=="marlin")return;
+    if(halfMoon.stage===5){
+      body.append(makeButton("Half Moon Transfer",halfMoon.stamps.length+" of 4 stops punched.","Unfold",()=>openPanel("half-moon")));
+    }else if(halfMoon.stage===4){
+      body.append(makeButton("Lost property","Marta empties the drawer on every loop.","Return punch",()=>{
+        if(!halfMoon.handOver(routeStop()))return;
+        if(waypoint?.kind==="half-moon")waypoint=null;
+        openPanel("half-moon");speak("Marta Leal","Hear that click? That’s what a good spring sounds like. First transfer’s yours.");
+      }));
+    }else{
+      const detail=halfMoon.stage?"Follow the tally cord at "+BayHalfMoon.piers[halfMoon.pier].name+".":BayHalfMoon.letter(campaign.book.morning);
+      body.append(makeButton("Half Moon · Lost ticket punch",detail,halfMoon.stage?"Mark search":"Take the notice",()=>{
+        halfMoon.accept(campaign.book.morning);closePanel();markMoon();
+        note("Marta’s lost punch","Look for a striped float off "+BayHalfMoon.piers[halfMoon.pier].name+". Hold Space to dive. Release it to breathe.",8);
+      }));
+    }
+  }
   function chooseTransit(s,role){
     if(!transitFree()||transit.near(hero)!==s)return;
     closePanel();waypoint=null;
@@ -78122,11 +78269,13 @@ window.buildBayCity = function buildBayCity(g,water) {
       note("Route 6  ·  Trip signed",s.short+"  ·  "+score+"% smooth stop  ·  "+cash(pay),4.2);
       speak("Marta Leal","That’s your trip signed. Take us to the next stop, or I can drive from here.");sound.cue("paid");},
     left(stamp,connection){lastHud=lastMap=-10;cameraSnap();
+      const moonStamp=stamp&&halfMoon.arrive(stamp);
       if(stamp&&stamp.id===connection&&campaign.book.transfer?.punches){
         const punches=campaign.book.transfer.punches;
         if(!punches.includes(stamp.id)){punches.push(stamp.id);campaign.write();}
         enterFilm("punched-ticket");
-      }else if(stamp)note("Transfer punched",stamp.short+"  ·  "+save.transit.stamps.length+" of 4 stops",3.4);}
+      }else if(moonStamp)note("Half Moon Transfer",stamp.short+"  ·  "+halfMoon.stamps.length+" of 4 stops punched",4);
+      else if(stamp)note("Transfer punched",stamp.short+"  ·  "+save.transit.stamps.length+" of 4 stops",3.4);}
   };
   function transitKeys(code){
     const p=transit.player;
@@ -84441,6 +84590,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       slideProjection:play&&modeName==="street"?projection:null,jobPins:modeName==="radar"||modeName==="atlas"&&chartMode!=="bay"?availableJobPins():[],
       meterFare:active?.meter,fareLedger,
       aprons:play&&modeName==="street"?aprons:null,
+      halfMoon:play&&halfMoon.stage>=1&&halfMoon.stage<=3?halfMoon:null,
       tapes:tapes.filter((_,i)=>!save.tapes.includes(i)),target:take||modeName==="street"&&(shooting()||listening())?null:modeName==="street"?streetTarget():currentTarget(),route:modeName==="street"?null:roadGuide(currentTarget()),mara:play?maraOnBreak():null,places:locations,elapsed,time:streetTime,
       minuteRun:play?active?.minute:null,publicBoat:play&&luz.book.pass?luz:null,record:play&&modeName==="street"?campaign.book:null,sandBeach:play&&modeName==="street"?sandBeach:null,rankPhones:play?rankPhones:null,linenParcel:play&&modeName==="street"?linenParcel():null,roadLights:modeName==="street"?roadLights:null,arcadeSong:play&&modeName==="street"&&dist(p,BayNeedle.site)<85?needleSong().r:null,
       meet:meet.rival?meet:null,dusk:cityDusk(),weather:hours,houseMark:houseLights.mark,indoors:!!room,plate:active?.plate,lastDiner:recentDiner,
@@ -84916,6 +85066,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const list=[],see=(p,r)=>Math.abs(p.x-eye.x)<r&&Math.abs(p.z-eye.z)<r;
     const found=save.shore.carried?save.shore.returned.concat(save.shore.carried):save.shore.returned;
     BayReefArt.world(view,list,eye,t,hours,found);BaySurfArt.ladders(list,see);
+    BayHalfMoon.world(model,list,see,halfMoon,t,true);
     if(see(bridge.packet,29)||see(BayDrawbridge.iceDock,32)){
       if(!models.has("june-bug"))BayBridgePacketArt.install(model);
       BayBridgePacketArt.world(list,(p,r)=>see(p,Math.min(32,r)),bridge,t,hours);
@@ -85242,6 +85393,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     const atSea=play&&(eye.x>105||swim);
     if(atSea){surfArt();BaySurfArt.world(view,visible,see,t,hours,watchCrew,save.shore.returned);sailHulls(visible,see);}
+    if(atSea)BayHalfMoon.world(model,visible,see,halfMoon,t,false);
     if(see({x:150,z:292},184)){
       if(!cutArtReady){BayCutArt.install(model);BayCutWildlife.install(model);BayDrawbridgeArt.install(model);BayBridgePacketArt.install(model);cutArtReady=true;}
       BayCutArt.world(view,see,hours,t);BayCutWildlife.world(visible,see,hours,t);drawCrossing(visible,see,t);
@@ -86227,7 +86379,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     const wake=active?.wake,clockAction=wakeAction();
     const invitation=minuteOffer();
     const apronAction=apronOffer();
-    if(aprons.round){
+    const moonClue=!active&&!heat&&swim&&!swim.exit&&halfMoon.stage>=1&&halfMoon.stage<=3&&dist(hero,halfMoon.site())<19;
+    if(moonClue){
+      const q=halfMoon.site(),action=halfMoon.action(hero,swim);
+      $("objective").hidden=false;$("objectiveTag").textContent="Half Moon · "+BayHalfMoon.piers[halfMoon.pier].name;
+      $("objectiveText").textContent=q.name+" · "+Math.round(dist(hero,q))+" m";
+      $("roadTurn").textContent="Air "+Math.round(swim.air*100)+"% · Release Space to surface";
+      contextHint(action?"F":"Space",action||"Hold to dive · Look along the sand");
+    }else if(aprons.round){
       const a=aprons.round;
       $("objective").hidden=false;$("objectiveTag").textContent="Two Aprons · "+Math.min(3,a.shots.length+(a.phase==="result"?0:1))+" / 3";
       $("objectiveText").textContent=a.phase==="result"?BayApronGoal.words[a.shots.at(-1)]:a.phase==="set"?a.charging?"Power "+Math.round(a.power*100)+"%":"Pick your corner":"From the chalk";
@@ -86306,7 +86465,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       else if(r.phase==="wait")contextHint("",luz.regular?.gangway?"Waiting for the gangway to clear":"Scheduled departure in "+Math.max(0,Math.ceil(12-luz.clock))+" s");
       else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(atTimetable())contextHint("F","Route 6 timetable"+(transit.docked(atTimetable())?"  ·  E board Coach 608":"")+(canCallCoach()?"  ·  Shift H  Call Marta":""));
+    }else if(atTimetable())contextHint("F","Route 6 timetable"+(halfMoon.stage===4?" · Lost-property drawer":!halfMoon.stage&&atTimetable().id==="marlin"?" · Marta’s lost-property notice":"")+(transit.docked(atTimetable())?"  ·  E board Coach 608":"")+(canCallCoach()?"  ·  Shift H  Call Marta":""));
     else if(canCallCoach())contextHint("Shift H",car?"Sound your Luz call for Coach 608":"Wave to Marta for your Luz call");
     else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card"+(phoneHint?"  ·  L  Payphone":""));
     else if(chapter==="outside-copy"){
@@ -87112,7 +87271,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     let title="",kicker="";
     if(skate.rider){skate.rider.charging=false;skate.rider.charge=0;}
     skateProof=null;
-    if(next==="minute-book"){title="On the Minute";kicker="Marisol Vale · Shore timing book";minuteBook(b);}
+    if(next==="half-moon"&&halfMoon.stage===5){
+      title="Marta’s transfer";kicker="Ocean Loop / Lost property";BayHalfMoon.ticket(b,halfMoon);
+      signedNote(b,halfMoon.stamps.length===4?"Four stops on one slip. Used to take me until lunch to do that. Keep it, kid.":"Get off my bus at a different stop and I’ll put another moon in it.","Marta Leal");
+      b.append(makeButton("Fold the transfer","Keep it in your pocket.","Back to the city",closePanel));
+    }else if(next==="minute-book"){title="On the Minute";kicker="Marisol Vale · Shore timing book";minuteBook(b);}
     else if(shop){
       title=garage.name;kicker="Port Sol  /  Service bay";
       b.append($("shopNav").content.cloneNode(true));
@@ -87317,6 +87480,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const board=document.createElement("p");board.className="statline";
       board.textContent=here?"Coach 608 · Front door open":"Coach 608 · "+Math.ceil(transit.distanceTo(s))+" m along the line";b.append(board);
       const nextStop=BayTransit.stops[(BayTransit.stops.indexOf(s)+1)%4];
+      moonBoard(b,s);
       if(luz.book.bells){
         const log=luz.book.bells,score=log.best.map((n,i)=>n===null?null:bay.docks[i].name+" "+(n/100).toFixed(2)+" s").filter(Boolean);
         signedNote(b,"After-watch bell · "+log.gaps.map(n=>(n/100).toFixed(2)+" s").join(" then ")+". Wave or honk with Shift + H when you see my bus. Your closest echo from each pier: "+score.join(" / ")+".","Marta Leal · Coach 608");
@@ -87696,6 +87860,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       allControls.push(["Space","Vault a hood or pull up at a low ledge"],["F · W/S · E","Grip a ladder, climb, let go"]);
       for(const [key,text] of allControls){const span=document.createElement("span"),k=document.createElement("kbd");k.textContent=key;span.append(k,document.createTextNode(text));keysList.append(span);}b.append(keysList);
       b.append(makeButton("Back to the city","Resume free roam or your current job.","Resume",closePanel));
+      if(halfMoon.stage===5)moonBoard(b,BayTransit.stops[0]);
       if(campaign.book.trips)b.append(makeButton("Room Tone",campaign.book.cut?"Sol FM master · "+BayRoomTone.lines[campaign.book.cut.who][0]+". Tune 88.3 in a car, or return to cut another edition.":"Mara has her field reel under the lid of the Sol FM case.","Locate van",()=>{closePanel();clockPin({...BayRoomTone.site});}));
       const gfx=makeButton("Camera view",!view.gl||view.lost?"Lightweight overhead rendering is active.":"Third-person street view or the overhead map.",isTop()?"Overhead":"Street",()=>{manualTop=!manualTop;if(manualTop)motos.cockpit=false;saveCamera();openPanel("pause",true);});gfx.disabled=!view.gl||view.lost;
       const assist=makeButton("Driving camera",cameraRig.assist?"Eases toward the road after you look around.":"Holds your mouse direction. Press X to face the road.",cameraRig.assist?"Follow":"Free look",()=>{cameraRig.assist=!cameraRig.assist;saveCamera();openPanel("pause",true);});
@@ -87840,6 +88005,13 @@ window.buildBayCity = function buildBayCity(g,water) {
       return;
     }
     if(apronInput(ev)){ev.preventDefault();return;}
+    if(ev.code==="KeyF"&&!ev.repeat&&swim&&!active&&!heat){
+      const found=halfMoon.lift(hero,swim);
+      if(found){
+        if(!waypoint||waypoint.kind==="half-moon")markMoon();
+        note("Half Moon",found,6);lastHud=lastMap=-10;ev.preventDefault();return;
+      }
+    }
     if(bellInput(ev)){ev.preventDefault();return;}
     if(voiceTake&&voiceInput(ev))return;
     if(minuteInput(ev)){ev.preventDefault();return;}
