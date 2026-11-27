@@ -9,7 +9,7 @@ module.exports=async function beatWake({js,send,tap,key,waitFor,mode,errors}){
     const service=BayFirstCrossing.Service.prototype.step;
     BayFirstCrossing.Service.prototype.step=function(dt,t,h){q.h=h;q.boat=this;return service.apply(this,arguments);};
     const locals=BayLocals.animatePeople;
-    BayLocals.animatePeople=function(people,dt,car,cars){q.car=car;q.cars=cars;return locals.apply(this,arguments);};
+    BayLocals.animatePeople=function(people,dt,car,cars){q.car=car;q.cars=cars;q.feet=arguments[9];return locals.apply(this,arguments);};
     const race=BayWakeClock.Run.prototype.step;
     BayWakeClock.Run.prototype.step=function(){q.r=this;return race.apply(this,arguments);};
     q.at=(p,x,z,yaw=0)=>{Object.assign(p,{x,z,y:.12,yaw});};
@@ -23,8 +23,9 @@ module.exports=async function beatWake({js,send,tap,key,waitFor,mode,errors}){
   await waitFor("!document.querySelector('#wakeTiming').hidden&&document.querySelector('#wakeWater').value>0");
   assert.equal(await js("q.boat.phase"),"sail");await snap("road");
   await js("q.at(q.v,143.4,92);BayDriving.settle(q.v)");await waitFor("q.r.phase==='pier'");
-  await tap("KeyE");await waitFor("!q.car",20000);
+  await tap("KeyE");await waitFor("q.feet===q.h",20000);
   await js("q.at(q.h,q.d[1].punch.x-1,q.d[1].punch.z)");
+  await waitFor("document.querySelector('#context').textContent.includes('Punch your road time')");
   await tap("KeyN");await waitFor("q.r.road!==null");await snap("punch");
   await waitFor("BayWakeClock.badge(q.v.garageKey)>0",115000);
   const result=await js("({road:q.r.road,water:q.r.water,plate:q.v.garageKey})");

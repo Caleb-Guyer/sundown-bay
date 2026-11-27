@@ -73308,7 +73308,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     return {best,badges};
   }
   let book=read();
-  addEventListener("storage",e=>{if(e.key===key||e.key===null)book=read();});
+  window.addEventListener?.("storage",e=>{if(e.key===key||e.key===null)book=read();});
   const unlocked=b=>b.pass&&b.trips>0;
   const near=(p,part,r)=>clocks.findIndex(c=>distance(p,c[part])<=r);
   function save(run){
