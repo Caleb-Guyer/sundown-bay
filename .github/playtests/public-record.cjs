@@ -372,7 +372,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await snap("repair-tag");
     await waitFor("document.querySelector('#chapterLine').textContent.includes("+JSON.stringify(aboard?"blue tin":"crackers")+")");
     const pick=aboard?"wheel":"luna",mapOpen="!document.querySelector('#roadChoices').hidden";
-    await waitFor(mapOpen);await tap(aboard?"ArrowRight":"ArrowLeft");
+    await waitFor(mapOpen);
+    const coachQuote=await require("./coach-interview.cjs")({js,waitFor,tap,send,snap,book,aboard});
+    await tap(aboard?"ArrowRight":"ArrowLeft");
     await waitFor("document.querySelector('#roadChoices [aria-pressed=true]').dataset.road==="+JSON.stringify(pick));
     await snap("road-map");
     if(aboard)await tap("Space");else await js("document.querySelector('#roadChoices [data-road=luna]').click()");
@@ -535,7 +537,10 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await parkAt(await js("BayExposure.routes["+JSON.stringify(route)+"]"));
     await waitFor(film+".published?.frame==="+JSON.stringify(selected.frame),45000);
     assert.deepEqual(await js(film+".published"),selected);assert.equal(await js(film+".pending"),null);
-    await waitFor("document.querySelector('#chapterSlug').textContent.includes('FRAME 13')");await snap("window-print");await tap("Enter");
+    await waitFor("document.querySelector('#chapterSlug').textContent.includes('FRAME 13')");await snap("window-print");
+    await waitFor("document.querySelector('#chapterWho').textContent==='Marta Leal · Port Sol'");
+    assert.equal(await js("document.querySelector('#chapterLine').textContent"),await js("BayExposure.interviewCopy("+book+".coachEdition).line"));
+    assert.deepEqual(await js(book+".coachEdition"),coachQuote);await snap("six-edition");await tap("Enter");
     assert.deepEqual(await js(film+".windowPrint"),driverPrint);
     console.log("PASS Lot 14 shutter, "+selected.frame+" handoff to "+route+", exact "+selected.image.length+"-byte data URL retained.");
     // Load a delivered legacy save through the normal startup path and play its sequel on foot.

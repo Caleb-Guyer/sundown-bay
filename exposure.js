@@ -27,6 +27,53 @@
   };
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   const stopped=v=>Math.hypot(v.vx,v.vz)<.85&&Math.abs(v.speed)<.85;
+  const questions={
+    count:{ask:"How many came off the boat?",aboard:"Eighteen. Alma had seventeen transfers clipped together. Luis got the loose one she kept in her cap.",ashore:"Seventeen. Alma counted twice. Through the glass I could see one man still on the far side holding two tins.",unknown:"Alma counted them at the step. The clinic got its number from her pencil, not the clock in my dash."},
+    memory:{ask:"What do you remember hearing?",aboard:"I heard those two lunch tins knock together. Then Luis called across the aisle, ‘Anybody saving that seat?’",ashore:"Luis called his brother’s name across the water. It carried right into my cab. I can still hear it over that old motor.",unknown:"The doors wheezed so loud I missed the names. Then somebody up the back started saying them again for me."}
+  };
+  function readBed(raw){
+    return Array.isArray(raw)&&raw.length===8&&raw.every(n=>Number.isInteger(n)&&n>=0&&n<=60)?raw.slice():null;
+  }
+  function readInterview(raw){
+    if(!Object.hasOwn(questions,raw?.question)||!["aboard","ashore","unknown"].includes(raw?.morning)||
+      !BayTransit.stops.some(s=>s.id===raw.stop))return null;
+    const bed=readBed(raw.bed);return bed?{question:raw.question,morning:raw.morning,stop:raw.stop,bed}:null;
+  }
+  function interviewCopy(record){
+    return {line:questions[record.question][record.morning],stop:BayTransit.stops.find(s=>s.id===record.stop).short};
+  }
+  // The tape runs only in the wake of the scheduled coach. Traffic lights and missed turns leave the recorded sound intact.
+  class CoachTape {
+    constructor(line,bed){this.line=line;this.bed=readBed(bed)||[];this.seconds=this.bed.length/2;this.extraStop=null;}
+    get ready(){return this.seconds>=4;}
+    get target(){
+      const l=this.line;
+      return this.ready?(l.phase==="dwell"?l.stop:l.target):l.bus;
+    }
+    canAsk(v){const l=this.line;return this.ready&&l.docked(l.stop)&&distance(v,l.stop)<14&&stopped(v);}
+    rolling(v){
+      const b=this.line.bus,p=BayDriving.local(b,v.x,v.z);
+      return b.speed>1.4&&v.speed>1.4&&p.z< -6&&p.z> -36&&Math.abs(p.x)<6.5&&Math.cos(v.yaw-b.yaw)>.64;
+    }
+    step(dt,v){
+      if(!this.ready&&this.rolling(v)){
+        this.seconds=Math.min(4,this.seconds+dt);
+        while(this.bed.length<Math.floor(this.seconds*2))this.bed.push(Math.min(60,Math.round(this.line.bus.speed*2.237)));
+        if(this.ready)return true;
+      }
+      const l=this.line;
+      if(l.phase!=="dwell")this.extraStop=null;
+      else if(this.ready&&this.extraStop!==l.stop&&distance(v,l.stop)<35){
+        this.extraStop=l.stop;l.dwell=Math.max(l.dwell,10);
+      }
+      return false;
+    }
+    hint(v){
+      if(this.ready)return this.canAsk(v)?"N · Ask Marta about the crossing":"Park near the open doors at "+this.target.short;
+      if(distance(v,this.line.bus)>50)return "Catch the green Route 6 coach";
+      return (this.rolling(v)?"Recording":this.line.phase==="dwell"?"Follow when Marta pulls out":"Match her lane behind the bus")+" · "+this.seconds.toFixed(1)+" / 4.0 s";
+    }
+  }
   class Run {
     constructor(){
       this.mara={...pickup,yaw:-1.9,y:.076};this.motion=new BayPlayerMotion();
@@ -37,11 +84,12 @@
       this.field="";this.quote="";
       this.press=null;this.trackPress=false;this.passAge=0;this.pressMPH=0;
     }
-    markRoad(id){this.photoRoad=Object.hasOwn(photoRuns,id)?id:"";this.onApproach=false;this.finder=null;}
+    markRoad(id){this.coachTape=null;this.photoRoad=Object.hasOwn(photoRuns,id)?id:"";this.onApproach=false;this.finder=null;}
     target(car){
       if(this.field)return this.phase==="delivery"?{x:this.ride.x,z:this.ride.z,name:"Mara’s passenger door"}:{...BayLotNegative.mark,name:"Lot 14 · Camera mark"};
       if(this.ride&&this.ride!==car)return {x:this.ride.x,z:this.ride.z,name:"Mara’s car"};
       if(this.phase==="pickup"||this.phase==="approach"||this.phase==="board")return pickup;
+      if(this.phase==="port"&&this.coachTape){const p=this.coachTape.target;return {x:p.x,z:p.z,name:p.short||"Marta’s Route 6"};}
       if(this.phase==="port"&&this.photoRoad){const road=photoRuns[this.photoRoad];return this.onApproach?road.frame:road.lead;}
       if(this.trackPress&&this.pressAvailable())return {x:this.press.x,z:this.press.z,name:"Sol FM · press van"};
       return routes[this.route]||dock;
@@ -52,7 +100,8 @@
       switch(this.phase){
         case "pickup":return car?"Pull up beside Mara":"Take a car and pick up Mara";
         case "approach":case "board":return "Wait for Mara to get in";
-        case "port":return this.photoRoad?(this.onApproach?"Frame "+photoRuns[this.photoRoad].name+" from Mara’s window":"Take Mara past "+photoRuns[this.photoRoad].name):"Park by the Lot 14 notice at Port Sol";
+        case "port":if(this.coachTape)return this.coachTape.ready?"Meet Marta at "+this.coachTape.target.short:"Record Route 6 from behind the coach";
+          return this.photoRoad?(this.onApproach?"Frame "+photoRuns[this.photoRoad].name+" from Mara’s window":"Take Mara past "+photoRuns[this.photoRoad].name):"Park by the Lot 14 notice at Port Sol";
         case "choice":return "Decide where to take the photograph";
         case "delivery":return this.pressMPH?"Take Mara’s caption to Sol FM":this.trackPress&&this.pressAvailable()?"Catch the Sol FM press van":"Take Mara to "+routes[this.route].name;
         default:return "Wait for Mara to make the handoff";
@@ -193,5 +242,5 @@
       }
     }
   }
-  window.BayExposure={job,dock,pickup,routes,props,liveTime,photoRuns,pressSpeed,Run};
+  window.BayExposure={job,dock,pickup,routes,props,liveTime,photoRuns,pressSpeed,Run,CoachTape,questions,readBed,readInterview,interviewCopy};
 })();

@@ -246,6 +246,9 @@
     pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),bells:BayLandingBells.read(raw?.bells),
     berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,repairTag:raw?.repairTag===true,
     transfer:BayLastTransfer.read(raw?.transfer),photoRoad:Object.hasOwn(BayExposure.photoRuns,raw?.photoRoad)?raw.photoRoad:"",
+    coachLead:["follow","stop"].includes(raw?.coachLead)?raw.coachLead:"",
+    coachBed:BayExposure.readBed(raw?.coachBed),
+    coachPending:BayExposure.readInterview(raw?.coachPending),coachEdition:BayExposure.readInterview(raw?.coachEdition),
     deskHold:BayExposure.pressSpeed(raw?.deskHold),hearing:BayLandingOrder.read(raw?.hearing),airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
   class Story {
     constructor(){try{this.book=read(JSON.parse(localStorage.getItem(key)));}catch{this.book=read();}this.scene=null;this.table=null;}
@@ -278,7 +281,13 @@
         const place=BayLotNegative.locations[this.windowPrint.place];
         return {dur:5.7,art:"driverPrint",who:"Mara Vega",line:place.inscription,slug:"ON THE BACK OF FRAME 13"};
       }
-      const index=delivery&&this.windowPrint&&s.index>1?s.index-1:s.index,b=scenes[s.id][index];if(!b)return null;
+      let index=delivery&&this.windowPrint&&s.index>1?s.index-1:s.index;
+      if(delivery&&this.book.coachEdition){
+        if(index===1){const tape=BayExposure.interviewCopy(this.book.coachEdition);
+          return {dur:8,art:"coachTape",who:"Marta Leal · "+tape.stop,line:tape.line,slug:s.id==="live"?"SOL FM   /   FROM MARA’S FIELD TAPE":"CINE LUNA   /   FROM THE PROGRAM NOTES"};}
+        if(index>1)index--;
+      }
+      const b=scenes[s.id][index];if(!b)return null;
       if(s.id==="live"&&index===0&&this.pressMPH){
         const luis=this.book.morning?.luis;
         return {...b,who:"Jo Bell · Sol FM mobile desk",line:luis==="aboard"?"Jo Bell here. I’ve got Mara’s film. Luis made the boat that morning. He’s on the phone now, and he wants his brother’s name read too.":luis==="ashore"?"Jo Bell here. Mara’s film came through my window. Luis missed the boat that morning. Today we held the line for him. Luis, you’re on.":"Jo Bell here. This film came through my driver’s window ten minutes ago. Mara’s here to tell us whose landing you’re looking at."};

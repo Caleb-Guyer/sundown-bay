@@ -857,6 +857,15 @@
       if (!rolling) tone(effects, landing ? 124 : 235, at, .08, .055, 'triangle', 72, .002);
       return;
     }
+    if(name==="coach-tape"){
+      const bed=source.bed;
+      if(!bed?.length)return;
+      for(let i=0;i<bed.length;i++){
+        const hz=46+bed[i]*1.45,next=46+(bed[i+1]??bed[i])*1.45;
+        tone(effects,hz,at+i*.5,.52,.038,"triangle",next,.045,.8);
+      }
+      waterNoise(effects,at+3.86,.40,.035,1650,480);return;
+    }
     if (name === 'bus-bell' || name === 'bus-door') {
       const near = Math.max(0, 1 - (source.distance || 0) / 34) ** 1.4;
       if (name === 'bus-bell') {

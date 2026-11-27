@@ -135,6 +135,31 @@
     line(g,25,231,395,231,"#a3987e");label(g,25,276,"ONE CONTACT PRINT",14,ink,"monospace");
     line(g,412,2,412,322,"#9c9075",2);g.restore();
   }
+  function tapeCard(canvas,record){
+    canvas.width=W;canvas.height=H;
+    const g=canvas.getContext("2d"),copy=BayExposure.interviewCopy(record);
+    g.fillStyle="#3c4949";g.fillRect(0,0,W,H);
+    g.save();g.translate(80,65);g.rotate(-.026);stock(g,0,0,830,350);
+    label(g,27,46,"M. VEGA   /   LOCATION SOUND",20,ink,"monospace","bold");
+    line(g,26,65,800,65,red,2);
+    label(g,439,121,"Coach 608",37,ink,"Georgia","italic");
+    label(g,441,162,copy.stop,23,red);
+    label(g,440,220,"A1   ENGINE    0:04",17,ink,"monospace");
+    label(g,440,249,"A2   INTERVIEW",17,ink,"monospace");
+    label(g,440,304,"Marta Leal",28,ink,"Georgia","italic");
+    g.translate(51,100);g.rotate(.045);
+    g.fillStyle="#a89c7b";g.fillRect(4,7,350,206);g.fillStyle="#242d2c";g.fillRect(0,0,350,206);
+    g.fillStyle="#e6d9c2";g.fillRect(12,12,326,125);g.fillStyle="#55918a";g.fillRect(12,60,326,13);
+    label(g,26,44,"SIX  /  NORTH FLOAT",20,ink,"monospace","bold");
+    g.fillStyle="#41413a";g.fillRect(75,85,200,44);
+    for(const x of [89,261]){g.fillStyle="#d2c7b0";g.beginPath();g.arc(x,107,19,0,Math.PI*2);g.fill();
+      g.fillStyle="#343836";g.beginPath();g.arc(x,107,9,0,Math.PI*2);g.fill();}
+    g.fillStyle="#a77b57";g.fillRect(128,96,93,21);g.fillStyle="#272e2b";g.fillRect(135,105,80,5);
+    label(g,24,176,"A",26,"#ddd4bc","monospace","bold");
+    for(let i=0;i<8;i++){const h=3+record.bed[i]*.55;line(g,80+i*21,180,80+i*21,180-h,"#9fa99b",6);}
+    for(const x of [8,341])for(const y of [7,199]){g.fillStyle="#b4afa0";g.fillRect(x-2,y-2,4,4);}
+    g.restore();
+  }
   function roadMap(canvas,table,streets){
     if(canvas.width!==W||canvas.height!==H){canvas.width=W;canvas.height=H;}
     const g=canvas.getContext("2d"),px=x=>301+x*1.28,py=z=>245-z*1.06;
@@ -165,11 +190,16 @@
       g.beginPath();g.ellipse(x,y,table.pick===id?11:5,table.pick===id?8:5,-.35,0,Math.PI*2);g.stroke();
       label(g,x+dx,y+dy,name,17,ink,"Georgia","italic");
     }
+    if(table.pick==="bus"){
+      const x=px(table.busAt.x),y=py(table.busAt.z);
+      g.fillStyle="#285f57";g.fillRect(x-10,y-10,21,21);label(g,x-5,y+6,"6",17,"#faf1d8","monospace","bold");
+    }
     const left=652;label(g,left,69,"Marlin Motor Court",27,ink,"Georgia","italic");
     line(g,left,87,920,87,ink,1.5);label(g,left,111,"OCEAN DRIVE  /  ROOM 14",14,red,"monospace");
     label(g,left,170,"Mara’s last roll",33,ink,"Georgia","bold");
     const details=table.pick==="wheel"?["The Coast Wheel","North on Ocean Drive.","Keep the wheel on my right."]:
       table.pick==="luna"?["The Luna marquee","North on Luna Boulevard.","My window faces the gold trim."]:
+      table.pick==="bus"?["Marta’s side of it","Follow the Six. Tape the motor.","Catch her at the next stop."]:
       ["Straight to the port","The red notice on the fence.","Leave the last frame for Luis."];
     label(g,left,220,details[0],24,red,"Georgia","italic");label(g,left,260,details[1],19);label(g,left,290,details[2],18);
     line(g,left,331,920,331,"#a89777");label(g,left,366,"14   /   LOT 14",16,ink,"monospace","bold");
@@ -225,5 +255,5 @@
     }
     g.restore();
   }
-  window.BayRecordArt={show,world,sleeve,tone,roadMap,glovebox};
+  window.BayRecordArt={show,world,sleeve,tone,roadMap,glovebox,tapeCard};
 })();
