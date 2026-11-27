@@ -216,13 +216,20 @@
     paintLand(c,street);paintBuildings(c,solids,street);if(street)oceanFrontages(c);
   }
 
+  let cpuMaps=false;
+  window.BayMapRaster={useCPU(){cpuMaps=true;}};
   function mapSurface(w,h){
-    if(typeof OffscreenCanvas!=="undefined")return new OffscreenCanvas(w,h);
-    if(typeof document==="undefined")return null;
-    const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;return canvas;
+    let canvas;
+    if(typeof OffscreenCanvas!=="undefined")canvas=new OffscreenCanvas(w,h);
+    else{
+      if(typeof document==="undefined")return null;
+      canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
+    }
+    if(cpuMaps)canvas.getContext("2d",{willReadFrequently:true});
+    return canvas;
   }
   function freezeSurface(surface){
-    return surface.transferToImageBitmap?surface.transferToImageBitmap():surface;
+    return !cpuMaps&&surface.transferToImageBitmap?surface.transferToImageBitmap():surface;
   }
   // Paint fixed scenery in the artist's local coordinates, shared across camera poses.
   function scenerySheet(x,y,w,h,density,paint){

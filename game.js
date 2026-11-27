@@ -21,6 +21,13 @@
   const smallDevice=hardware?.hardwareConcurrency>0&&hardware.hardwareConcurrency<=2&&
     (hardware.deviceMemory===undefined||hardware.deviceMemory<=4);
   const softwareOverhead=smallDevice&&!!view.gl&&/SwiftShader|llvmpipe|softpipe|Software Rasterizer/i.test(BayFrameCheck.device(view.gl,hardware.userAgent||""));
+  if(softwareOverhead){
+    // When WebGL itself runs on the CPU, keep the 2D street and its source
+    // sheets in CPU memory too. Copying them through software GL is expensive.
+    BayMapRaster.useCPU();
+    $("overhead").getContext("2d",{alpha:false,willReadFrequently:true});
+    $("mini").getContext("2d",{willReadFrequently:true});
+  }
   if(smallDevice)view.scale=.62;
   const frameCheck=new BayFrameCheck();
   // The overhead map needs street geometry for collisions, but its land and

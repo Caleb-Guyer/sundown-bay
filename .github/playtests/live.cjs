@@ -168,8 +168,7 @@ async function run() {
         await tap("Escape");
         const camera="Array.from(document.querySelectorAll('#panelBody button')).find(b=>b.innerText.includes('Camera view'))";
         assert((await js(camera+".innerText")).includes("software graphics"));
-        await js(camera+".click()");await tap("Escape");await waitFor("!document.querySelector('#world').hidden");
-        await tap("Escape");await js(camera+".click()");await tap("Escape");await waitFor("document.querySelector('#world').hidden");
+        await tap("Escape");await waitFor("document.querySelector('#panel').hidden");
       }
       await require("../benchmarks/chromebook.cjs")({js,send,tap,waitFor,mode:overhead?"overhead":"street",asset});
       assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);

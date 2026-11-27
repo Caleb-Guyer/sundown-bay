@@ -15514,13 +15514,20 @@ window.buildBayCity = function buildBayCity(g,water) {
     paintLand(c,street);paintBuildings(c,solids,street);if(street)oceanFrontages(c);
   }
 
+  let cpuMaps=false;
+  window.BayMapRaster={useCPU(){cpuMaps=true;}};
   function mapSurface(w,h){
-    if(typeof OffscreenCanvas!=="undefined")return new OffscreenCanvas(w,h);
-    if(typeof document==="undefined")return null;
-    const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;return canvas;
+    let canvas;
+    if(typeof OffscreenCanvas!=="undefined")canvas=new OffscreenCanvas(w,h);
+    else{
+      if(typeof document==="undefined")return null;
+      canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
+    }
+    if(cpuMaps)canvas.getContext("2d",{willReadFrequently:true});
+    return canvas;
   }
   function freezeSurface(surface){
-    return surface.transferToImageBitmap?surface.transferToImageBitmap():surface;
+    return !cpuMaps&&surface.transferToImageBitmap?surface.transferToImageBitmap():surface;
   }
   // Paint fixed scenery in the artist's local coordinates, shared across camera poses.
   function scenerySheet(x,y,w,h,density,paint){
@@ -74762,6 +74769,13 @@ window.buildBayCity = function buildBayCity(g,water) {
   const smallDevice=hardware?.hardwareConcurrency>0&&hardware.hardwareConcurrency<=2&&
     (hardware.deviceMemory===undefined||hardware.deviceMemory<=4);
   const softwareOverhead=smallDevice&&!!view.gl&&/SwiftShader|llvmpipe|softpipe|Software Rasterizer/i.test(BayFrameCheck.device(view.gl,hardware.userAgent||""));
+  if(softwareOverhead){
+    // When WebGL itself runs on the CPU, keep the 2D street and its source
+    // sheets in CPU memory too. Copying them through software GL is expensive.
+    BayMapRaster.useCPU();
+    $("overhead").getContext("2d",{alpha:false,willReadFrequently:true});
+    $("mini").getContext("2d",{willReadFrequently:true});
+  }
   if(smallDevice)view.scale=.62;
   const frameCheck=new BayFrameCheck();
   // The overhead map needs street geometry for collisions, but its land and
