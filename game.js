@@ -14550,7 +14550,7 @@
       if(this.headroom>=6&&(width<1||scale<1)){
         if(width<1)this.target.widthScale=width<.84?.84:1;
         else this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);
-        if(!smallDevice&&this.target.scale>=.8)this.target.compact=false;
+        if(this.target.scale>=.8)this.target.compact=false;
         this.headroom=0;
       }
       this.time=this.frames=this.late=0;
@@ -14567,9 +14567,6 @@
       if(document.hidden||!play||panel||campaign.scene||campaign.table)frameCheck.suspend();
       else if(frameCheckId()!==frameCheck.run.id){
         frameCheck.run=null;note("Frame check stopped","The camera view or travel mode changed.",3);
-      }else{
-        const surface=lookSurface(),result=frameCheck.frame(now,pos(),surface.width,surface.height);
-        if(result)note("Frame check · "+result.fps+" FPS","Saved in Pause · "+result.metres+" metres",4);
       }
     }
     if(document.hidden){sound.reel(null);last=now;return;}
@@ -14750,6 +14747,10 @@
     if(needle&&!panel){if(now-lastCabinetStreet<150)return;lastCabinetStreet=now;}
     if(play&&!panel)(isTop()?overheadResolution:streetResolution).sample(raw);
     renderWorld(dt,streetTime);
+    if(frameCheck.run&&play&&!panel&&!campaign.scene&&!campaign.table){
+      const surface=lookSurface(),result=frameCheck.frame(now,pos(),surface.width,surface.height);
+      if(result)note("Frame check · "+result.fps+" FPS","Saved in Pause · "+result.metres+" metres",4);
+    }
     if(!panel&&skateTape.active)skateTape.sample(streetTime,lookSurface(),isTop()?null:$("sky"));
     if(skateProof)BaySkateFilm.paint(skateProof.canvas,skateReel,(now-skateProof.start)/1000);
   }

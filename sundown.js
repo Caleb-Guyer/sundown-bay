@@ -72659,13 +72659,16 @@ window.buildBayCity = function buildBayCity(g,water) {
       }
       const values=r.samples.sort((a,b)=>a-b),at=q=>values[Math.ceil(values.length*q)-1];
       const result={fps:Math.round(values.length*10000/r.ms)/10,median:at(.5),p95:at(.95),
+        worstMs:values[values.length-1],longFrames:values.filter(dt=>dt>50).length,
         slowestSecond:Math.min(...seconds),device:r.device,frames:values.length,seconds:r.ms/1000,metres:Math.round(r.metres),width,height};
       this.records[r.id]=result;this.run=null;
       try{localStorage.setItem(key,JSON.stringify(this.records));}catch{}
       return result;
     }
     describe(r){return r.fps+" FPS average · "+r.median.toFixed(1)+" ms median · "+r.p95.toFixed(1)+" ms at the 95th percentile · "+
-      (Number.isFinite(r.slowestSecond)?r.slowestSecond+" frames in the slowest second · ":"")+r.metres+" m · "+r.width+" × "+r.height+(r.device?" · "+r.device:"");}
+      (Number.isFinite(r.slowestSecond)?r.slowestSecond+" frames in the slowest second · ":"")+
+      (Number.isFinite(r.worstMs)?r.worstMs.toFixed(1)+" ms longest frame · "+r.longFrames+" frames over 50 ms · ":"")+
+      r.metres+" m · "+r.width+" × "+r.height+(r.device?" · "+r.device:"");}
   }
   window.BayFrameCheck=FrameCheck;
 })();
@@ -89288,7 +89291,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(this.headroom>=6&&(width<1||scale<1)){
         if(width<1)this.target.widthScale=width<.84?.84:1;
         else this.target.scale=Math.min(1,Math.round((scale+.06)*100)/100);
-        if(!smallDevice&&this.target.scale>=.8)this.target.compact=false;
+        if(this.target.scale>=.8)this.target.compact=false;
         this.headroom=0;
       }
       this.time=this.frames=this.late=0;
@@ -89305,9 +89308,6 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(document.hidden||!play||panel||campaign.scene||campaign.table)frameCheck.suspend();
       else if(frameCheckId()!==frameCheck.run.id){
         frameCheck.run=null;note("Frame check stopped","The camera view or travel mode changed.",3);
-      }else{
-        const surface=lookSurface(),result=frameCheck.frame(now,pos(),surface.width,surface.height);
-        if(result)note("Frame check · "+result.fps+" FPS","Saved in Pause · "+result.metres+" metres",4);
       }
     }
     if(document.hidden){sound.reel(null);last=now;return;}
@@ -89488,6 +89488,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(needle&&!panel){if(now-lastCabinetStreet<150)return;lastCabinetStreet=now;}
     if(play&&!panel)(isTop()?overheadResolution:streetResolution).sample(raw);
     renderWorld(dt,streetTime);
+    if(frameCheck.run&&play&&!panel&&!campaign.scene&&!campaign.table){
+      const surface=lookSurface(),result=frameCheck.frame(now,pos(),surface.width,surface.height);
+      if(result)note("Frame check · "+result.fps+" FPS","Saved in Pause · "+result.metres+" metres",4);
+    }
     if(!panel&&skateTape.active)skateTape.sample(streetTime,lookSurface(),isTop()?null:$("sky"));
     if(skateProof)BaySkateFilm.paint(skateProof.canvas,skateReel,(now-skateProof.start)/1000);
   }

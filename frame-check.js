@@ -40,13 +40,16 @@
       }
       const values=r.samples.sort((a,b)=>a-b),at=q=>values[Math.ceil(values.length*q)-1];
       const result={fps:Math.round(values.length*10000/r.ms)/10,median:at(.5),p95:at(.95),
+        worstMs:values[values.length-1],longFrames:values.filter(dt=>dt>50).length,
         slowestSecond:Math.min(...seconds),device:r.device,frames:values.length,seconds:r.ms/1000,metres:Math.round(r.metres),width,height};
       this.records[r.id]=result;this.run=null;
       try{localStorage.setItem(key,JSON.stringify(this.records));}catch{}
       return result;
     }
     describe(r){return r.fps+" FPS average · "+r.median.toFixed(1)+" ms median · "+r.p95.toFixed(1)+" ms at the 95th percentile · "+
-      (Number.isFinite(r.slowestSecond)?r.slowestSecond+" frames in the slowest second · ":"")+r.metres+" m · "+r.width+" × "+r.height+(r.device?" · "+r.device:"");}
+      (Number.isFinite(r.slowestSecond)?r.slowestSecond+" frames in the slowest second · ":"")+
+      (Number.isFinite(r.worstMs)?r.worstMs.toFixed(1)+" ms longest frame · "+r.longFrames+" frames over 50 ms · ":"")+
+      r.metres+" m · "+r.width+" × "+r.height+(r.device?" · "+r.device:"");}
   }
   window.BayFrameCheck=FrameCheck;
 })();
