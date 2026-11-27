@@ -1,8 +1,15 @@
 const assert=require("node:assert/strict");
+const fs=require("node:fs"),path=require("node:path");
 
 // Start at the actual title button, in a new browser profile. Count only pier
 // frames submitted by the game's selected renderer, including the cold shot.
 module.exports=async function pierFrames({js,send,waitFor,key,tap,mode,asset}){
+  const proof=path.resolve(__dirname,"../playtests/pier-proof"),version=process.argv.includes("--baseline")?"before":"after";
+  fs.mkdirSync(proof,{recursive:true});
+  async function snap(shot){
+    const picture=await send("Page.captureScreenshot",{format:"jpeg",quality:88});
+    fs.writeFileSync(path.join(proof,[mode,version,shot].join("-")+".jpg"),Buffer.from(picture.data,"base64"));
+  }
   assert.equal(await js("localStorage.getItem(BayPublicRecord.key)"),null);
   await js(`window.pierQA={shots:{},first:null};
     const director=BayPublicRecord.Story.prototype.step;
@@ -12,7 +19,7 @@ module.exports=async function pierFrames({js,send,waitFor,key,tap,mode,asset}){
     const artist=${mode==="street"?"BaySixSharp":"BaySixSharpArt"},method=${JSON.stringify(mode==="street"?"street":"overhead")},paint=artist[method];
     artist[method]=function(...args){
       const shot=pierQA.scene?.beat()?.watch;
-      if(shot){
+      if(shot&&!(shot==="work"&&pierQA.gateMeasured)){
         const now=performance.now(),row=pierQA.shots[shot]??=[];
         row.push(now);pierQA.first??=now-pierQA.start;
       }
@@ -27,6 +34,7 @@ module.exports=async function pierFrames({js,send,waitFor,key,tap,mode,asset}){
     await waitFor("pierQA.scene.watch.gate<.035");
   }
   await waitFor("performance.now()-pierQA.shots.work[0]>=8500");
+  await js("pierQA.gateMeasured=true");await snap("gate");
   await tap("KeyH");
   const book="JSON.parse(localStorage.getItem(BayPublicRecord.key)||'{}')";
   await waitFor(book+".morning?.luis==="+JSON.stringify(aboard?"aboard":"ashore"));
@@ -38,9 +46,10 @@ module.exports=async function pierFrames({js,send,waitFor,key,tap,mode,asset}){
     const intervals=times.slice(1).map((t,i)=>t-times[i]).sort((a,b)=>a-b),duration=times.at(-1)-times[0];
     console.log("PERF pier shot",asset,mode,name,JSON.stringify({frames:times.length,seconds:+(duration/1000).toFixed(2),
       fps:+(intervals.length*1000/duration).toFixed(1),median:+intervals[Math.ceil(intervals.length*.5)-1].toFixed(1),
-      p95:+intervals[Math.ceil(intervals.length*.95)-1].toFixed(1),firstPaintMs:Math.round(measurements.first)}));
+      p95:+intervals[Math.ceil(intervals.length*.95)-1].toFixed(1),firstSubmissionStartMs:Math.round(measurements.first)}));
   }
   assert.deepEqual(Object.keys(measurements.shots),["wide","work","away"]);
+  await snap("departure");
   await waitFor("document.querySelector('#chapterFilm').hidden&&"+book+".intro",90000);
   const departure=await js(book+".morning");await send("Page.reload");
   await waitFor("document.readyState==='complete'&&typeof BayPublicRecord==='object'");

@@ -14724,15 +14724,17 @@
         campaign.rub(delta,Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),held("Space"));
         if(before<.92&&campaign.table.cover>=.92)setFilmPage();
       }
-      const drawsWorld=campaign.scene&&(filmPage?.pilot||filmPage?.watch||!filmPage?.art);
-      if(drawsWorld)(isTop()?overheadResolution:streetResolution).sample(delta);
+      if(campaign.scene&&!filmPage?.art){
+        if(!isTop())streetResolution.sample(delta);
+        else if(!filmPage?.pilot&&!filmPage?.watch)overheadResolution.sample(delta);
+      }
       if(!filmFrameDue(now))return;
       const d=Math.min(.12,Math.max(0,(now-lastFilmPaint)/1000));lastFilmPaint=now;
       const art=campaign.table?"rubbing":filmPage?.art;
       if(filmPage?.pilot){
         const p=campaign.pilot,top=isTop(),beat=filmPage.pilot;
         $("world").hidden=top;$("overhead").hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
-        if(top)BayLastTransfer.overhead($("overhead"),p,beat,overheadQuality.scale);
+        if(top)BayLastTransfer.overhead($("overhead"),p,beat);
         else{
           const eye=p.eye(beat);
           view.begin(eye,p.sun.night,p.sun);skyPainter.draw(view,eye,p.age,p.sun.night,p.sun);view.drawCityAndWater(p.age);
@@ -14752,7 +14754,7 @@
       else if(filmPage?.watch){
         const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;
         scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
-        if(top)BaySixSharpArt.overhead(map,w,beat,overheadQuality.scale);
+        if(top)BaySixSharpArt.overhead(map,w,beat);
         else{
           const eye=w.eye(beat);
           view.begin(eye,w.sun.night,w.sun);skyPainter.draw(view,eye,w.age,w.sun.night,w.sun);view.drawCityAndWater(w.age);

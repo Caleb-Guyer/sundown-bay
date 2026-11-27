@@ -105,8 +105,8 @@
       circle(c,x+17,80,5,"#c8b07f");}
     c.restore();
   }
-  function overhead(canvas,w,beat,quality=1){
-    const width=Math.max(1,Math.round(Math.min(innerWidth,960)*quality)),h=Math.max(1,Math.round(width*innerHeight/innerWidth));
+  function overhead(canvas,w,beat){
+    const width=Math.max(320,Math.round(Math.min(innerWidth,960))),h=Math.round(width*innerHeight/innerWidth);
     if(canvas.width!==width||canvas.height!==h){canvas.width=width;canvas.height=h;}
     const c=canvas.getContext("2d"),p=w.dock,v=w.boat,span=beat==="wide"?27:beat==="away"?24:19;
     const s=Math.min(width/span,h/12),cx=p.x+(beat==="wide"?.35:2.0)+w.away*.19,cz=p.z+.3+w.away*.32;

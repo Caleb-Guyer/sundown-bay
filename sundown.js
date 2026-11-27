@@ -21828,8 +21828,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       circle(c,x+17,80,5,"#c8b07f");}
     c.restore();
   }
-  function overhead(canvas,w,beat,quality=1){
-    const width=Math.max(1,Math.round(Math.min(innerWidth,960)*quality)),h=Math.max(1,Math.round(width*innerHeight/innerWidth));
+  function overhead(canvas,w,beat){
+    const width=Math.max(320,Math.round(Math.min(innerWidth,960))),h=Math.round(width*innerHeight/innerWidth);
     if(canvas.width!==width||canvas.height!==h){canvas.width=width;canvas.height=h;}
     const c=canvas.getContext("2d"),p=w.dock,v=w.boat,span=beat==="wide"?27:beat==="away"?24:19;
     const s=Math.min(width/span,h/12),cx=p.x+(beat==="wide"?.35:2.0)+w.away*.19,cz=p.z+.3+w.away*.32;
@@ -27697,8 +27697,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     view.drawOpaque(list);
   }
-  function overhead(canvas,r,beat,quality=1){
-    const width=Math.max(1,Math.round(Math.min(innerWidth,960)*quality)),h=Math.max(1,Math.round(width*innerHeight/innerWidth));
+  function overhead(canvas,r,beat){
+    const width=Math.round(Math.min(innerWidth,960)),h=Math.max(1,Math.round(width*innerHeight/innerWidth));
     if(canvas.width!==width||canvas.height!==h){canvas.width=width;canvas.height=h;}
     const c=canvas.getContext("2d"),v=r.boat,wide=beat==="helm",landingShot=beat==="land",rider=r.passenger();
     const s=wide?Math.min(width/94,h/68):landingShot?Math.min(width/12,h/7.2):Math.min(width/27,h/17);
@@ -89539,15 +89539,17 @@ window.buildBayCity = function buildBayCity(g,water) {
         campaign.rub(delta,Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),held("Space"));
         if(before<.92&&campaign.table.cover>=.92)setFilmPage();
       }
-      const drawsWorld=campaign.scene&&(filmPage?.pilot||filmPage?.watch||!filmPage?.art);
-      if(drawsWorld)(isTop()?overheadResolution:streetResolution).sample(delta);
+      if(campaign.scene&&!filmPage?.art){
+        if(!isTop())streetResolution.sample(delta);
+        else if(!filmPage?.pilot&&!filmPage?.watch)overheadResolution.sample(delta);
+      }
       if(!filmFrameDue(now))return;
       const d=Math.min(.12,Math.max(0,(now-lastFilmPaint)/1000));lastFilmPaint=now;
       const art=campaign.table?"rubbing":filmPage?.art;
       if(filmPage?.pilot){
         const p=campaign.pilot,top=isTop(),beat=filmPage.pilot;
         $("world").hidden=top;$("overhead").hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
-        if(top)BayLastTransfer.overhead($("overhead"),p,beat,overheadQuality.scale);
+        if(top)BayLastTransfer.overhead($("overhead"),p,beat);
         else{
           const eye=p.eye(beat);
           view.begin(eye,p.sun.night,p.sun);skyPainter.draw(view,eye,p.age,p.sun.night,p.sun);view.drawCityAndWater(p.age);
@@ -89567,7 +89569,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       else if(filmPage?.watch){
         const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;
         scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;
-        if(top)BaySixSharpArt.overhead(map,w,beat,overheadQuality.scale);
+        if(top)BaySixSharpArt.overhead(map,w,beat);
         else{
           const eye=w.eye(beat);
           view.begin(eye,w.sun.night,w.sun);skyPainter.draw(view,eye,w.age,w.sun.night,w.sun);view.drawCityAndWater(w.age);
