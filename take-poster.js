@@ -1,7 +1,7 @@
 /* The print in the north lobby case and the one you inspect share a single negative. */
 (() => {
   "use strict";
-  const place={x:12.35,z:50.3,name:"Cine Luna poster"};
+  const place={x:13,z:50.95,name:"Cine Luna poster"};
   const wall={x:14.265,y:1.76,z:50.3},width=512,height=640;
   const paper="#f4dfae",red="#ab4035",ink="#153e43",sea="#558d89",dark="#203335";
   const pending=new WeakMap();

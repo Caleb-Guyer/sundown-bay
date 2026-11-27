@@ -1,7 +1,14 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
 module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   const selector=name=>"[...document.querySelectorAll('#panelBody button')].find(b=>b.textContent.includes("+JSON.stringify(name)+"))";
-  async function click(name){const button=selector(name);await waitFor("!!("+button+")");await js(button+".click()");}
+  async function click(name){
+    const button=selector(name);
+    try{await waitFor("!!("+button+")");}catch(error){
+      await snap("stopped");
+      throw Error(error.message+" · "+await js("JSON.stringify({panel:document.querySelector('#panel').getAttribute('data-screen'),context:document.querySelector('#context').innerText,film:!!BayTakeSplice.negative(),phase:q.run?.phase})"));
+    }
+    await js(button+".click()");
+  }
   async function snap(label){
     if(!process.argv.includes("--frames"))return;
     const {data}=await send("Page.captureScreenshot",{format:"jpeg",quality:90}),dir=path.join(__dirname,"curb-wire-proof");

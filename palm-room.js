@@ -53,11 +53,11 @@
     if(!o.palmHouse)return;const h=o.palmHouse,site=h.site;
     BayPalmDiner.map(ctx,o,px,py,s,visible,t);
     if(o.mode!=="street")return;
-    const here=o.player,inside=BayPalmDiner.contains(here.x,here.z),nearTable=visible(px(site.table.x),py(site.table.z),s*3);
+    const here=o.player,inside=here&&BayPalmDiner.contains(here.x,here.z),nearTable=visible(px(site.table.x),py(site.table.z),s*3);
     if(inside&&nearTable)BayPalmTable.map(ctx,(x,z)=>({x:px(x),y:py(z)}),site.table,h.balls,opts(h,s<11));
   }
   function map(ctx,o,px,py,s,visible,t){
-    const inside=BayPalmDiner.contains(o.player.x,o.player.z);
+    const inside=o.player&&BayPalmDiner.contains(o.player.x,o.player.z);
     for(const item of o.palmPeople||[]){const a=item.a;
       if(!visible(px(a.x),py(a.z),s*2.3)||!inside&&BayPalmDiner.contains(a.x,a.z))continue;
       BayPalmPlayers.map(ctx,o,px,py,s,a,t,a.action,item.opts);

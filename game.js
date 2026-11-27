@@ -1709,6 +1709,11 @@
       if(onStreetFeet()&&!unit.eye)a.follow(otherBody,hero,dt,afternoonEnv);else otherMotion.step(dt,0,0);
     }
   }
+  function fotoStand(){
+    const site=BayOffClock.near(hero);
+    if(site?.id==="luna"&&atTakePoster()&&dist(hero,BayTakePoster.place)<dist(hero,site.stand))return null;
+    return site;
+  }
   function afternoonKey(code){
     const a=afternoon;
     if(a.photo){
@@ -1722,7 +1727,7 @@
       if(a.active)openPanel("free-afternoon");else startAfternoon();return true;
     }
     if(code==="KeyF"&&onStreetFeet()&&!active&&!heat){
-      const site=BayOffClock.near(hero);
+      const site=fotoStand();
       if(site){
         if(!beginFoto(site))speak("Foto Bahía",a.active?"Room for two. Wait for your partner by the curtain.":"Two on the stool. Bring your partner here for a strip.");
         return true;
@@ -1737,7 +1742,7 @@
   function afternoonHint(){
     if(unit.transition||unit.eye||panel||active)return false;
     if(afternoon.photo){contextHint("","");return true;}
-    const site=onStreetFeet()&&BayOffClock.near(hero);
+    const site=onStreetFeet()&&fotoStand();
     if(site&&!heat){contextHint("F",afternoon.active?"Sit together for a Foto Bahía strip":"Sit for a Foto Bahía strip");return true;}
     if(afternoon.inDoor){contextHint("",BaySecondUnit.names[unit.other]+(afternoon.phase==="in"?" is buckling up":" is stepping out"));return true;}
     if(afternoon.seated&&car===afternoon.vehicle&&!heat){contextHint("G","Passenger seat · Stories, radio & stops");return true;}

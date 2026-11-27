@@ -28807,7 +28807,7 @@ window.buildBayCity = function buildBayCity(g,water) {
 /* The print in the north lobby case and the one you inspect share a single negative. */
 (() => {
   "use strict";
-  const place={x:12.35,z:50.3,name:"Cine Luna poster"};
+  const place={x:13,z:50.95,name:"Cine Luna poster"};
   const wall={x:14.265,y:1.76,z:50.3},width=512,height=640;
   const paper="#f4dfae",red="#ab4035",ink="#153e43",sea="#558d89",dark="#203335";
   const pending=new WeakMap();
@@ -58977,11 +58977,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!o.palmHouse)return;const h=o.palmHouse,site=h.site;
     BayPalmDiner.map(ctx,o,px,py,s,visible,t);
     if(o.mode!=="street")return;
-    const here=o.player,inside=BayPalmDiner.contains(here.x,here.z),nearTable=visible(px(site.table.x),py(site.table.z),s*3);
+    const here=o.player,inside=here&&BayPalmDiner.contains(here.x,here.z),nearTable=visible(px(site.table.x),py(site.table.z),s*3);
     if(inside&&nearTable)BayPalmTable.map(ctx,(x,z)=>({x:px(x),y:py(z)}),site.table,h.balls,opts(h,s<11));
   }
   function map(ctx,o,px,py,s,visible,t){
-    const inside=BayPalmDiner.contains(o.player.x,o.player.z);
+    const inside=o.player&&BayPalmDiner.contains(o.player.x,o.player.z);
     for(const item of o.palmPeople||[]){const a=item.a;
       if(!visible(px(a.x),py(a.z),s*2.3)||!inside&&BayPalmDiner.contains(a.x,a.z))continue;
       BayPalmPlayers.map(ctx,o,px,py,s,a,t,a.action,item.opts);
@@ -76088,6 +76088,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(onStreetFeet()&&!unit.eye)a.follow(otherBody,hero,dt,afternoonEnv);else otherMotion.step(dt,0,0);
     }
   }
+  function fotoStand(){
+    const site=BayOffClock.near(hero);
+    if(site?.id==="luna"&&atTakePoster()&&dist(hero,BayTakePoster.place)<dist(hero,site.stand))return null;
+    return site;
+  }
   function afternoonKey(code){
     const a=afternoon;
     if(a.photo){
@@ -76101,7 +76106,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(a.active)openPanel("free-afternoon");else startAfternoon();return true;
     }
     if(code==="KeyF"&&onStreetFeet()&&!active&&!heat){
-      const site=BayOffClock.near(hero);
+      const site=fotoStand();
       if(site){
         if(!beginFoto(site))speak("Foto Bahía",a.active?"Room for two. Wait for your partner by the curtain.":"Two on the stool. Bring your partner here for a strip.");
         return true;
@@ -76116,7 +76121,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   function afternoonHint(){
     if(unit.transition||unit.eye||panel||active)return false;
     if(afternoon.photo){contextHint("","");return true;}
-    const site=onStreetFeet()&&BayOffClock.near(hero);
+    const site=onStreetFeet()&&fotoStand();
     if(site&&!heat){contextHint("F",afternoon.active?"Sit together for a Foto Bahía strip":"Sit for a Foto Bahía strip");return true;}
     if(afternoon.inDoor){contextHint("",BaySecondUnit.names[unit.other]+(afternoon.phase==="in"?" is buckling up":" is stepping out"));return true;}
     if(afternoon.seated&&car===afternoon.vehicle&&!heat){contextHint("G","Passenger seat · Stories, radio & stops");return true;}
