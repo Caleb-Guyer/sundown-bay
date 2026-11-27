@@ -19511,6 +19511,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="front-tyre"){
+      const force=Math.max(.2,Math.min(1.6,source.force||.7));
+      tone(effects,106,at,.085,.039*force,"sine",46,.003);
+      waterNoise(effects,at+.012,source.rough?.14:.055,.019*force,source.rough?1950:1180,330);
+      return;
+    }
     if(name==="street-sidearm"||name==="street-scatter"){
       const heavy=name==="street-scatter";waterNoise(effects,at,heavy?.19:.083,heavy?.14:.10,heavy?1520:2610,230);
       tone(effects,heavy?121:179,at,.11,.084,"triangle",48,.002);return;
@@ -52676,7 +52682,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function eye(b,ground,pos="pilot"){
     const M=pose(b,ground),p=at(M,M.sp.eyes[pos]||M.sp.eyes.pilot);
-    return {...p,yaw:M.f.yaw,pitch:-M.f.tilt-.072,roll:-M.f.lean};
+    return {...p,y:p.y-(b.touchFlex||0)*.062,yaw:M.f.yaw,pitch:-M.f.tilt-.072-(b.touchFlex||0)*.042,roll:-M.f.lean};
   }
   const pipe=(g,a,b,r,col,n=7)=>g.pole(a,b,r,col,n);
   function tube(g,p,r,col,n=7){for(let i=1;i<p.length;i++)pipe(g,p[i-1],p[i],r,col,n);}
@@ -53165,7 +53171,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const spin=b.wheelSpin||0;
       for(let j=0;j<2;j++){
         const rear=j===0,hub=[0,sp.radii[j],sp.axles[j]];
-        const rot=rear?base:stem;put(key+(rear?"/rear-wheel":"/front-wheel"),at(M,rear?hub:steered(M,hub)),[rot[0],rot[1]+spin,rot[2]]);
+        const rot=rear?base:stem;put(key+(rear?"/rear-wheel":"/front-wheel"),at(M,rear?hub:steered(M,hub)),[rot[0],rot[1]+(rear?spin:b.frontSpin??spin),rot[2]]);
       }
       put(key+"/stand",at(M,sp.standPivot),standAngles(b,M));
     }
@@ -53205,7 +53211,13 @@ window.buildBayCity = function buildBayCity(g,water) {
       const outline=points.map(([z,w,h])=>[-w,h,z]);for(const [z,w,h] of points.slice().reverse())outline.push([w,h,z]);poly(outline,color);
     }
     c.save();c.lineJoin="round";c.lineCap="round";
-    c.save();c.globalAlpha*=.20;oval(.05,.005,0,.221,sp.footprint.halfLength+.043,"#30423e");c.restore();
+    c.save();c.globalAlpha*=.20;
+    if(b.wheelLift){
+      const back=at(M,[0,sp.radii[0],sp.axles[0]]),nose=at(M,[0,sp.radii[1],sp.axles[1]]);
+      c.save();c.translate(px((back.x+nose.x)*.5),py((back.z+nose.z)*.5));c.rotate(b.yaw||0);
+      c.beginPath();c.ellipse(0,0,.23*scale,(Math.hypot(nose.x-back.x,nose.z-back.z)*.5+sp.radii[0])*scale,0,0,tau);c.fillStyle="#30423e";c.fill();c.restore();
+    }else oval(.05,.005,0,.221,sp.footprint.halfLength+.043,"#30423e");
+    c.restore();
     if(scale<10.5){
       // At city-driving scale the tyres are a single pixel wide; preserve their bearings and the two silhouettes.
       for(let j=0;j<2;j++){
@@ -53234,7 +53246,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const front=j===1,r=sp.radii[j],z=sp.axles[j],w=sp.hubWidth[j],center=[0,r,z];
       line([0,r,z-r+ .019],[0,r,z+r-.019],w*1.88,rubber,front);
       line([-.013,r+.028,z-r+.023],[-.013,r+.028,z+r-.024],w*.76,tread,front);
-      for(const k of sides){const tt=(b.wheelSpin||0)+k*2.13;
+      for(const k of sides){const tt=(front?b.frontSpin??b.wheelSpin??0:b.wheelSpin||0)+k*2.13;
         const off=Math.sin(tt)*r*.82;line([-.028,r+.014,z+off],[.030,r+.018,z+off+.016],.009,k===-1?"#787b6c":"#969a87",front);}
       if(front){const y=r*1.94+.03;
         poly([[-w*.70,y,z-r*.81],[-w*1.20,y+.015,z-r*.46],[-w*1.08,y,z+r*.57],[-w*.68,y-.027,z+r*.90],[w*.68,y-.027,z+r*.90],[w*1.08,y,z+r*.57],[w*1.20,y+.015,z-r*.46],[w*.70,y,z-r*.81]],isScoot?col:metal,true);
@@ -53657,7 +53669,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const outside=side*(1-p.balance)*(pilot?.028:.008);
     const leanPast=studied*.159*(.42+.58*Math.max(0,Math.cos(pan)))*Math.tanh(6*(.24+Math.sin(pan)));
     const at=[shift*(L[0]+outside)+side*.025*swing+leanPast*.39,
-      mix(.955,L[1]+(pilot?.056:.033),shift)+.065*swing-.023*Math.sin(pi*smooth(.56,1,u)),
+      mix(.955,L[1]+(pilot?.056:.033),shift)+.065*swing-.023*Math.sin(pi*smooth(.56,1,u))-(b.touchFlex||0)*.044*shift,
       shift*(L[2]+(pilot?(heron?.035:.021):-.012))-.052*swing];
     const turn=(b.yaw||0)-frame.yaw,scan=pilot?steer*.24+roll*.12:0;
     const hipTurn=.42*Math.sin(pan)-.10*Math.sin(2*pan)+.17*(1-Math.cos(pan));
@@ -54462,7 +54474,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function motorcycle(kind,start,id=kind){
     const s=BayMotorcyclesArt.specs[kind];return {...start,kind,id,name:s.name,footprint:s.footprint,color:id==="remy"?"#76a186":s.paint,
-      y:0,speed:0,vx:0,vz:0,yawRate:0,lean:0,pitch:0,steer:0,stand:1,wheelSpin:0,gear:1,rpm:.08,brakes:0,throttle:0,indicator:0,impact:0,pass:0,mount:0};
+      y:0,speed:0,vx:0,vz:0,yawRate:0,lean:0,pitch:0,steer:0,stand:1,wheelSpin:0,frontSpin:0,gear:1,rpm:.08,brakes:0,throttle:0,indicator:0,impact:0,pass:0,mount:0};
   }
   const local=(role,name,p)=>({...p,name,role,motion:new BayPlayerMotion(),yaw:p.yaw||0,y:p.y||.077,chair:null,path:[],action:"idle"});
   function settle(b){b.speed=b.vx=b.vz=b.yawRate=b.throttle=0;b.brakes=1;b.oneWheel=null;b.wheelLift=0;}
@@ -54484,6 +54496,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(run.angle>1.01||Math.abs(b.lean)>.5&&run.angle>.42)run.over=true;
       if(run.angle<=0){
         b.oneWheel=null;b.wheelLift=0;b.liftHeld=!!input.lift;
+        run.over||=run.rate< -1.10;
+        b.touchAge=0;b.touchForce=clamp(-run.rate,.25,1.65);
         if(run.peak>=.22&&run.metres>=3)env.touchdown?.(b,run);
         return;
       }
@@ -54501,7 +54515,17 @@ window.buildBayCity = function buildBayCity(g,water) {
     const s=BayMotorcyclesArt.specs[b.kind],front=BayDriving.world(b,0,s.axles[1]),rear=BayDriving.world(b,0,s.axles[0]);
     const f=env.floor(front.x,front.z),r=env.floor(rear.x,rear.z),a=(b.speed-oldSpeed)/dt;
     b.grade=Math.atan2(f-r,s.wheelbase);b.y=damp(b.y,(f+r)*.5,24,dt);b.pitch=damp(b.pitch,clamp(b.grade+a*.0048,-.22,.22),8,dt);
-    b.wheelSpin+=b.speed*dt/s.radii[1];b.impact=Math.max(0,b.impact-dt);runGear(b,dt,Math.abs(b.speed),b.throttle);
+    if(b.wheelLift>.06){
+      b.frontRate=(b.frontRate??oldSpeed/s.radii[1])*Math.exp(-.19*dt);
+      b.frontSpin=(b.frontSpin??b.wheelSpin)+b.frontRate*dt;
+    }else{
+      b.frontRate=b.speed/s.radii[1];if(b.frontSpin!==undefined)b.frontSpin+=b.frontRate*dt;
+    }
+    if(b.touchAge!=null){
+      b.touchAge+=dt;b.touchFlex=b.touchForce*Math.sin(Math.PI*Math.min(1,b.touchAge/.34))*Math.exp(-4*b.touchAge);
+      if(b.touchAge>=.34){b.touchAge=null;b.touchFlex=0;}
+    }
+    b.wheelSpin+=b.speed*dt/s.radii[0];b.impact=Math.max(0,b.impact-dt);runGear(b,dt,Math.abs(b.speed),b.throttle);
   }
   function ride(b,dt,input,env,partner){
     const h=handling[b.kind],s=BayMotorcyclesArt.specs[b.kind],old=b.speed,n=Math.abs(old),grip=env.grip(b),g=h.grip*grip;
@@ -75393,6 +75417,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         lift:!aim&&!active&&!heat&&held("ShiftLeft","ShiftRight"),rear:aim||held("Space"),steer:aim?0:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"))};
     },
     touchdown(b,run){
+      sound.cue("front-tyre",{force:b.touchForce,rough:run.over});
       if(run.over||heat||active){
         note("One Wheel","Rough landing · The run stays off the board.",2.5);return;
       }

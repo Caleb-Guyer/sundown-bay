@@ -248,7 +248,7 @@
     const outside=side*(1-p.balance)*(pilot?.028:.008);
     const leanPast=studied*.159*(.42+.58*Math.max(0,Math.cos(pan)))*Math.tanh(6*(.24+Math.sin(pan)));
     const at=[shift*(L[0]+outside)+side*.025*swing+leanPast*.39,
-      mix(.955,L[1]+(pilot?.056:.033),shift)+.065*swing-.023*Math.sin(pi*smooth(.56,1,u)),
+      mix(.955,L[1]+(pilot?.056:.033),shift)+.065*swing-.023*Math.sin(pi*smooth(.56,1,u))-(b.touchFlex||0)*.044*shift,
       shift*(L[2]+(pilot?(heron?.035:.021):-.012))-.052*swing];
     const turn=(b.yaw||0)-frame.yaw,scan=pilot?steer*.24+roll*.12:0;
     const hipTurn=.42*Math.sin(pan)-.10*Math.sin(2*pan)+.17*(1-Math.cos(pan));

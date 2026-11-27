@@ -35,7 +35,7 @@
   }
   function motorcycle(kind,start,id=kind){
     const s=BayMotorcyclesArt.specs[kind];return {...start,kind,id,name:s.name,footprint:s.footprint,color:id==="remy"?"#76a186":s.paint,
-      y:0,speed:0,vx:0,vz:0,yawRate:0,lean:0,pitch:0,steer:0,stand:1,wheelSpin:0,gear:1,rpm:.08,brakes:0,throttle:0,indicator:0,impact:0,pass:0,mount:0};
+      y:0,speed:0,vx:0,vz:0,yawRate:0,lean:0,pitch:0,steer:0,stand:1,wheelSpin:0,frontSpin:0,gear:1,rpm:.08,brakes:0,throttle:0,indicator:0,impact:0,pass:0,mount:0};
   }
   const local=(role,name,p)=>({...p,name,role,motion:new BayPlayerMotion(),yaw:p.yaw||0,y:p.y||.077,chair:null,path:[],action:"idle"});
   function settle(b){b.speed=b.vx=b.vz=b.yawRate=b.throttle=0;b.brakes=1;b.oneWheel=null;b.wheelLift=0;}
@@ -57,6 +57,8 @@
       if(run.angle>1.01||Math.abs(b.lean)>.5&&run.angle>.42)run.over=true;
       if(run.angle<=0){
         b.oneWheel=null;b.wheelLift=0;b.liftHeld=!!input.lift;
+        run.over||=run.rate< -1.10;
+        b.touchAge=0;b.touchForce=clamp(-run.rate,.25,1.65);
         if(run.peak>=.22&&run.metres>=3)env.touchdown?.(b,run);
         return;
       }
@@ -74,7 +76,17 @@
     const s=BayMotorcyclesArt.specs[b.kind],front=BayDriving.world(b,0,s.axles[1]),rear=BayDriving.world(b,0,s.axles[0]);
     const f=env.floor(front.x,front.z),r=env.floor(rear.x,rear.z),a=(b.speed-oldSpeed)/dt;
     b.grade=Math.atan2(f-r,s.wheelbase);b.y=damp(b.y,(f+r)*.5,24,dt);b.pitch=damp(b.pitch,clamp(b.grade+a*.0048,-.22,.22),8,dt);
-    b.wheelSpin+=b.speed*dt/s.radii[1];b.impact=Math.max(0,b.impact-dt);runGear(b,dt,Math.abs(b.speed),b.throttle);
+    if(b.wheelLift>.06){
+      b.frontRate=(b.frontRate??oldSpeed/s.radii[1])*Math.exp(-.19*dt);
+      b.frontSpin=(b.frontSpin??b.wheelSpin)+b.frontRate*dt;
+    }else{
+      b.frontRate=b.speed/s.radii[1];if(b.frontSpin!==undefined)b.frontSpin+=b.frontRate*dt;
+    }
+    if(b.touchAge!=null){
+      b.touchAge+=dt;b.touchFlex=b.touchForce*Math.sin(Math.PI*Math.min(1,b.touchAge/.34))*Math.exp(-4*b.touchAge);
+      if(b.touchAge>=.34){b.touchAge=null;b.touchFlex=0;}
+    }
+    b.wheelSpin+=b.speed*dt/s.radii[0];b.impact=Math.max(0,b.impact-dt);runGear(b,dt,Math.abs(b.speed),b.throttle);
   }
   function ride(b,dt,input,env,partner){
     const h=handling[b.kind],s=BayMotorcyclesArt.specs[b.kind],old=b.speed,n=Math.abs(old),grip=env.grip(b),g=h.grip*grip;

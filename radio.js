@@ -749,6 +749,12 @@
     if (!enabled || paused || !context || context.state !== 'running') return;
     if (name === 'shell-hit') { if (shell) shell.hit(source,context.currentTime); return; }
     const at = context.currentTime + 0.012;
+    if(name==="front-tyre"){
+      const force=Math.max(.2,Math.min(1.6,source.force||.7));
+      tone(effects,106,at,.085,.039*force,"sine",46,.003);
+      waterNoise(effects,at+.012,source.rough?.14:.055,.019*force,source.rough?1950:1180,330);
+      return;
+    }
     if(name==="street-sidearm"||name==="street-scatter"){
       const heavy=name==="street-scatter";waterNoise(effects,at,heavy?.19:.083,heavy?.14:.10,heavy?1520:2610,230);
       tone(effects,heavy?121:179,at,.11,.084,"triangle",48,.002);return;

@@ -76,7 +76,7 @@
   }
   function eye(b,ground,pos="pilot"){
     const M=pose(b,ground),p=at(M,M.sp.eyes[pos]||M.sp.eyes.pilot);
-    return {...p,yaw:M.f.yaw,pitch:-M.f.tilt-.072,roll:-M.f.lean};
+    return {...p,y:p.y-(b.touchFlex||0)*.062,yaw:M.f.yaw,pitch:-M.f.tilt-.072-(b.touchFlex||0)*.042,roll:-M.f.lean};
   }
   const pipe=(g,a,b,r,col,n=7)=>g.pole(a,b,r,col,n);
   function tube(g,p,r,col,n=7){for(let i=1;i<p.length;i++)pipe(g,p[i-1],p[i],r,col,n);}
@@ -565,7 +565,7 @@
       const spin=b.wheelSpin||0;
       for(let j=0;j<2;j++){
         const rear=j===0,hub=[0,sp.radii[j],sp.axles[j]];
-        const rot=rear?base:stem;put(key+(rear?"/rear-wheel":"/front-wheel"),at(M,rear?hub:steered(M,hub)),[rot[0],rot[1]+spin,rot[2]]);
+        const rot=rear?base:stem;put(key+(rear?"/rear-wheel":"/front-wheel"),at(M,rear?hub:steered(M,hub)),[rot[0],rot[1]+(rear?spin:b.frontSpin??spin),rot[2]]);
       }
       put(key+"/stand",at(M,sp.standPivot),standAngles(b,M));
     }
@@ -605,7 +605,13 @@
       const outline=points.map(([z,w,h])=>[-w,h,z]);for(const [z,w,h] of points.slice().reverse())outline.push([w,h,z]);poly(outline,color);
     }
     c.save();c.lineJoin="round";c.lineCap="round";
-    c.save();c.globalAlpha*=.20;oval(.05,.005,0,.221,sp.footprint.halfLength+.043,"#30423e");c.restore();
+    c.save();c.globalAlpha*=.20;
+    if(b.wheelLift){
+      const back=at(M,[0,sp.radii[0],sp.axles[0]]),nose=at(M,[0,sp.radii[1],sp.axles[1]]);
+      c.save();c.translate(px((back.x+nose.x)*.5),py((back.z+nose.z)*.5));c.rotate(b.yaw||0);
+      c.beginPath();c.ellipse(0,0,.23*scale,(Math.hypot(nose.x-back.x,nose.z-back.z)*.5+sp.radii[0])*scale,0,0,tau);c.fillStyle="#30423e";c.fill();c.restore();
+    }else oval(.05,.005,0,.221,sp.footprint.halfLength+.043,"#30423e");
+    c.restore();
     if(scale<10.5){
       // At city-driving scale the tyres are a single pixel wide; preserve their bearings and the two silhouettes.
       for(let j=0;j<2;j++){
@@ -634,7 +640,7 @@
       const front=j===1,r=sp.radii[j],z=sp.axles[j],w=sp.hubWidth[j],center=[0,r,z];
       line([0,r,z-r+ .019],[0,r,z+r-.019],w*1.88,rubber,front);
       line([-.013,r+.028,z-r+.023],[-.013,r+.028,z+r-.024],w*.76,tread,front);
-      for(const k of sides){const tt=(b.wheelSpin||0)+k*2.13;
+      for(const k of sides){const tt=(front?b.frontSpin??b.wheelSpin??0:b.wheelSpin||0)+k*2.13;
         const off=Math.sin(tt)*r*.82;line([-.028,r+.014,z+off],[.030,r+.018,z+off+.016],.009,k===-1?"#787b6c":"#969a87",front);}
       if(front){const y=r*1.94+.03;
         poly([[-w*.70,y,z-r*.81],[-w*1.20,y+.015,z-r*.46],[-w*1.08,y,z+r*.57],[-w*.68,y-.027,z+r*.90],[w*.68,y-.027,z+r*.90],[w*1.08,y,z+r*.57],[w*1.20,y+.015,z-r*.46],[w*.70,y,z-r*.81]],isScoot?col:metal,true);

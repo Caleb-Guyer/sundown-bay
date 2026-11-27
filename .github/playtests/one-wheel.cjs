@@ -20,7 +20,7 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
         await js("document.querySelector('#play').click()");
       }
       await observe();
-      await js(`q.b=q.f.bikes.find(b=>b.kind===${JSON.stringify(kind)});Object.assign(q.b,{x:24,z:-2.52,yaw:Math.PI/2});
+      await js(`q.b=q.f.bikes.find(b=>b.kind===${JSON.stringify(kind)});Object.assign(q.b,{x:9,z:-2.52,yaw:Math.PI/2});
         Object.assign(q.hero,BayMotoRiders.placement(q.b,"pilot",1,0,q.b.y));true`);
       await waitFor("document.querySelector('#context').textContent.includes('Ride the')");await tap("KeyE");await waitFor("q.f.pilot");
       await key("keyDown","KeyW");await waitFor("q.b.speed>5");await key("keyDown","ShiftLeft");
@@ -30,7 +30,9 @@ module.exports=async({js,send,waitFor,tap,key,mode,errors})=>{
           const run=q.b.oneWheel;
           if(run){
             q.peak=Math.max(q.peak||0,run.angle);
-            if(q.allowLand&&run.metres>34)q.landing=true;
+            if(q.allowLand&&!q.landing&&run.metres>34){
+              q.landing=true;dispatchEvent(new KeyboardEvent('keyup',{code:'KeyW',bubbles:true}));
+            }
             if(q.landing||run.angle>.62)pull(false);else if(run.angle<.43)pull(true);
           }else if(q.peak){pull(false);q.landed=true;return;}
           if(q.sampling)requestAnimationFrame(feather);

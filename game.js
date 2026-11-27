@@ -2665,6 +2665,7 @@
         lift:!aim&&!active&&!heat&&held("ShiftLeft","ShiftRight"),rear:aim||held("Space"),steer:aim?0:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"))};
     },
     touchdown(b,run){
+      sound.cue("front-tyre",{force:b.touchForce,rough:run.over});
       if(run.over||heat||active){
         note("One Wheel","Rough landing · The run stays off the board.",2.5);return;
       }
