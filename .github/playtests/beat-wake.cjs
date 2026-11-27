@@ -38,8 +38,36 @@ module.exports=async function beatWake({js,send,tap,key,waitFor,mode,errors}){
   if(mode==="overhead")assert(await js("document.querySelector('#wakeBadge').getBoundingClientRect().bottom<=innerHeight-(innerHeight<460?114:145)"),"Both speed and gear stay visible");
   assert(await js("document.querySelector('#wakeBadge').getBoundingClientRect().bottom<document.querySelector('.shortcuts').getBoundingClientRect().top"),"The dashboard badge clears the keyboard shortcuts");
   await snap("brass");
+  await js(`const navStep=BayMinuteCard.Run.prototype.step;
+    BayMinuteCard.Run.prototype.step=function(){q.nav=this;
+      if(this.vehicle.passengerDoor>.3){if(this.phase==="boarding")q.entered=true;if(this.phase==="pin")q.exited=true;}
+      return navStep.apply(this,arguments);};true`);
+  await waitFor("document.querySelector('#context').textContent.includes('Invite Romy')");
+  await tap("KeyL");await waitFor("q.nav?.phase==='choose'",35000);assert(await js("q.entered&&q.nav.ride.aboard"));
+  const route=mode==="street"?"linen":"luna";
+  await tap(route==="linen"?"Digit1":"Digit2");await waitFor("q.nav.phase==='ready'");
+  await js("q.v.yaw=Math.PI");await key("keyDown","KeyW");
+  try{await waitFor("q.nav.phase==='running'");}finally{await key("keyUp","KeyW");}
+  for(let i=0;i<3;i++){
+    // Stage at each approach and drive through the width of the actual timing stripe.
+    await js(`const g${i}=q.nav.gates[${i}];q.at(q.v,g${i}.x-.6,g${i}.z+6,Math.PI);BayDriving.settle(q.v);true`);
+    await key("keyDown","KeyW");
+    try{await waitFor("q.nav.leg>"+i,22000);}finally{await key("keyUp","KeyW");}
+    if(!i){await waitFor("!document.querySelector('#minuteSheet').hidden");await snap("navigator");}
+  }
+  await js("q.at(q.v,144,q.d[0].post.z,Math.PI);BayDriving.settle(q.v);true");
+  await waitFor("BayMinuteCard.book.last?.marks.length===3",35000);
+  const card=await js("BayMinuteCard.book.last");assert.equal(card.route,route);assert.equal(card.from,1);
+  assert(await js("q.exited&&q.v.passengerDoor===0"));
+  await tap("KeyE");await waitFor("q.feet===q.h",25000);
+  await js("q.at(q.h,q.d[0].post.x+.4,q.d[0].post.z+.65)");
+  await waitFor("document.querySelector('#context').textContent.includes('timing book')");
+  await tap("KeyF");await waitFor("document.querySelector('#panelBody').textContent.includes('Last card')");
+  await snap("book");
   await send("Page.reload");await waitFor("!window.wakeQA&&typeof BayWakeClock==='object'");
   assert.equal(await js("BayWakeClock.badge("+JSON.stringify(result.plate)+")"),result.road);
   assert.equal(await js("BayWakeClock.best(0)"),result.road);assert.deepEqual(errors,[]);
+  assert.deepEqual(await js("BayMinuteCard.book.best["+JSON.stringify("1/"+route)+"]"),card);
+  console.log("PASS On the Minute",mode,route,"passenger boards and exits, three rolling punches, signed card at the clock after reload",JSON.stringify(card));
   console.log("PASS Beat the Wake",mode,"actual ferry departure, accelerated in traffic, parked exit, punch, return to free roam, winning car badge after reload",JSON.stringify(result));
 };

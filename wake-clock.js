@@ -105,5 +105,5 @@
       }
     }
   }
-  window.BayWakeClock={clocks,unlocked,near,time,save,Run,world,map,badge:plate=>book.badges.get(plate),best:i=>book.best[i]};
+  window.BayWakeClock={clocks,unlocked,near,time,save,Run,world,map,badge:plate=>book.badges.get(plate),hasWinner:()=>book.badges.size>0,best:i=>book.best[i]};
 })();
