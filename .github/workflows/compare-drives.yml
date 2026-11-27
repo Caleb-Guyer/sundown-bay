@@ -18,6 +18,10 @@ on:
         description: Check only the published game in overhead view against the 30 FPS budget
         type: boolean
         default: false
+      published_views:
+        description: Measure the published game in overhead and software-rendered Street views
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: [.github/workflows/compare-drives.yml, render.js, atlas.js, player-motion.js, street-space.js]
@@ -65,8 +69,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        view: ${{ fromJSON(inputs.published_overhead && '["overhead"]' || inputs.automatic_only && '["automatic"]' || '["street","overhead","automatic"]') }}
-        build: ${{ fromJSON(inputs.published_overhead && '["public"]' || inputs.automatic_only && '["candidate"]' || '["public","candidate"]') }}
+        view: ${{ fromJSON(inputs.published_views && '["overhead","street"]' || inputs.published_overhead && '["overhead"]' || inputs.automatic_only && '["automatic"]' || '["street","overhead","automatic"]') }}
+        build: ${{ fromJSON((inputs.published_overhead || inputs.published_views) && '["public"]' || inputs.automatic_only && '["candidate"]' || '["public","candidate"]') }}
         exclude:
           - build: public
             view: automatic
