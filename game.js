@@ -832,6 +832,7 @@
   const cupScans=new Map(),marshalMotion=new BayPlayerMotion();let marshalMesh=null;
   let beatMesh=null,footPatrolMesh=null;
   let timingFilm=null;
+  let stuntNegative=BayTakeSplice.negative(),stuntRelease=BayTakeSplice.release(),spliceBench=null;
   for(const s of green.sites){const slip=save.green.cards[s.route.id]?.slip;s.v.serviceCar=true;s.clock=slip?.film?slip.film.shots.at(-1)[0]/1000:slip?.time||0;}
   if(!personalCar)restoreParking();
   const sandSite=BaySoftSand.home,surfWagon=addCar("hatch","#c68058",sandSite.x,sandSite.z,sandSite.yaw);
@@ -5009,7 +5010,7 @@
   }
   const byCinema=()=>onStreetFeet()&&!active&&!heat&&dist(hero,BayCab.cinema)<2.3;
   let projectionStart=streetTime,lateReelListed=!!save.cab.reel;
-  const filmOptions=()=>({valeRelease:valeReel==="luna",soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
+  const filmOptions=()=>({valeRelease:valeReel==="luna",soler:save.featurePrint.last,driverPrint:maraFilm.onScreen?maraFilm.windowPrint:null,houseLights:houseLights.s.release,pictureJumps:jumps.complete(save.pictureJumps)?save.pictureJumps:null,windows:negatives.reel,location:unit.film.pinned,stunt:save.stunt,splice:stuntRelease,skate:skateReel,edition:save.edition,pierPhoto:maraFilm.published,second:!!save.cab.reel,
     moonPier:halfMoon.take?halfMoon.pier:null,moonTake:halfMoon.take,deliveredBy:save.cab.reel==="player"?"You and Walt Dunn":"Mina Ortiz and Walt Dunn"});
   function adaCopy(){
     return room?.kind==="cinema"&&room.ada&&!room.reader&&!room.transition&&
@@ -7683,6 +7684,7 @@
     if(!prior&&(!canJoinTake()||panel!=="take-brief"))return;
     if(prior?.phase==="landed"&&!prior.receipt){prior.afterPrint="retry";return;}
     const r=new BayTake.Run(prior?prior.number+1:1,longMark&&!!save.stunt);
+    r.roll=new BayTakeSplice.Roll();
     active={job:BayTake.job,take:r};waypoint=null;dashResult=null;keys.clear();
     r.lookYaw=r.lookPitch=0;r.cut=true;closePanel();
     $("speech").hidden=true;$("toast").hidden=true;lastHud=lastMap=-10;hud();
@@ -7705,6 +7707,7 @@
     if(r.phase==="rolling"&&r.role==="jules"&&!r.coupe.speed&&Math.abs(r.direction().gap)<3.1)dt*=.4;
     r.step(dt,{gas:held("KeyW","ArrowUp"),brake:held("KeyS","ArrowDown","Space"),
       steer:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft"))});
+    r.roll.sample(r);
     if(r.phase==="miss"&&r.endTime>=1&&!r.receipt){
       r.receipt={paid:0,record:false};openPanel("take-result");
     }
@@ -7714,6 +7717,8 @@
   }
   function printTake(r,source,sky){
     if(r.phase!=="landed"||r.receipt)return;
+    const negative=r.roll.finish(r,campaign.book.morning);
+    if(negative){stuntNegative=negative;BayTakeSplice.keep(negative);}
     const prior=storedPoster();if(prior&&(!save.stunt||prior.distance>save.stunt.distance))save.stunt=prior;
     const paid=80+Math.round(r.distance*4),record=!save.stunt||r.distance>save.stunt.distance;
     let image=null;
@@ -12607,7 +12612,7 @@
     else if(diner)contextHint("F",active?.plate?"Hand "+diner.name+" the bag":"Talk to "+diner.name);
     else if(car&&active?.plate&&dist(car,active.plate.customer)<15)contextHint("E","Park and hand over the order on foot");
     else if(canJoinTake())contextHint("F","Talk to Romy about One Good Take");
-    else if(atTakePoster())contextHint("F","Look at the Cine Luna poster");
+    else if(atTakePoster())contextHint("F",stuntNegative?"Cine Luna poster · Jules’s cutting bench":"Look at the Cine Luna poster");
     else if(canRideWithJules())contextHint("F","Ride shotgun with Jules  ·  Bring Mara’s camera");
     else if(canChallenge())contextHint("H","Race Romy to Cine Luna");
     else if(!active&&!heat&&meet.phase==="idle"&&!car&&dist(hero,meet.rival)<22)contextHint("","Romy takes horn challenges  ·  Walk to Jules’s teal coupe to ride");
@@ -12682,7 +12687,7 @@
   function closePanel(){
     if(seatSearch)closeSeat();
     frameCheck.suspend();
-    timingFilm=passFilm=null;
+    timingFilm=passFilm=spliceBench=null;
     wireView=null;
     skateProof=null;
     if(panel==="field-proof"&&active?.field?.phase==="review"){active.field.phase="return";cameraSnap();}
@@ -13091,7 +13096,48 @@
       button.disabled=!afford;body.append(button);
     }
   }
+  function showSpliceBench(b){
+    const film=stuntNegative,cut=BayTakeSplice;
+    const canvas=document.createElement("canvas");canvas.width=416;canvas.height=234;canvas.className="timing-film";
+    canvas.setAttribute("aria-label","One Good Take · synchronized curb and flatbed cameras");
+    const controls=document.createElement("div");controls.className="timing-film-controls";
+    const play=document.createElement("button"),scrub=document.createElement("input"),readout=document.createElement("p");
+    scrub.type="range";scrub.min="0";scrub.max=String(cut.end(film));scrub.step="1";scrub.setAttribute("aria-label","Stunt film position");
+    readout.className="edition-copy";
+    const previous=stuntRelease&&JSON.stringify(stuntRelease.film)===JSON.stringify(film)?stuntRelease.at:null;
+    const v=spliceBench={film,canvas,scrub,readout,play,at:0,cut:previous,playing:false,previous:0,frame:-1};
+    const mark=makeButton("Splice here","Switch from the curb to the truck at the frame in the viewer.","Mark cut",()=>{
+      v.cut=Math.round(v.at);v.frame=-1;print.disabled=false;drawSpliceBench(performance.now());
+    });
+    const print=makeButton("Send this cut upstairs","The projectionist will run your edit before the feature.","Make print",()=>{
+      if(v.cut===null)return;
+      stuntRelease={film,at:v.cut};const stored=cut.print(film,v.cut);closePanel();
+      const matched=cut.matched(film,v.cut);
+      speak("Jules",matched?(film.pier==="ashore"?"Wheels up, and we’re off the curb. That’s Dalia’s cut.":"There. Both of us on the boards. Send that up."):"I wouldn’t have put it there. Play it for the room. See what they say.");
+      note("Cine Luna",stored?"Your cut is on the bill. Inside, thread it at the program board and take a seat.":"Your cut is on tonight’s bill for this session. Browser storage is full or unavailable.",6);
+    });
+    print.disabled=previous===null;
+    play.addEventListener("click",()=>{if(v.at>=cut.end(film))v.at=0;v.playing=!v.playing;v.previous=performance.now();drawSpliceBench(v.previous);});
+    scrub.addEventListener("input",()=>{v.playing=false;v.at=Number(scrub.value);drawSpliceBench(performance.now());});
+    signedNote(b,cut.brief(film),"Jules · camera report, take "+film.take);
+    controls.append(play,scrub);b.append(canvas,controls,readout,mark,print);drawSpliceBench(performance.now());
+  }
+  function drawSpliceBench(now){
+    const v=spliceBench;if(!v)return;
+    const s=BayTakeSplice,stop=s.end(v.film);
+    if(v.playing){
+      v.at=Math.min(stop,v.at+Math.min(.25,Math.max(0,(now-v.previous)/1000))*s.speed);
+      if(v.at>=stop)v.playing=false;
+    }
+    v.previous=now;v.play.textContent=v.playing?"Pause":v.at>=stop?"Replay":"Play";
+    const frame=Math.round(v.at);v.scrub.value=String(frame);if(frame===v.frame)return;v.frame=frame;
+    const camera=frame<(v.cut??Infinity)?"Curb camera":"Flatbed camera";
+    v.readout.textContent=camera+" · "+(frame/100).toFixed(2)+" s"+(v.cut!==null?" · Splice at "+(v.cut/100).toFixed(2)+" s":"");
+    s.paint(v.canvas.getContext("2d"),v.film,frame,v.cut??Infinity);
+  }
   function showCineProgram(body){
+    if(stuntRelease)body.append(makeButton("The Pickup Shot","The curb camera and Jules’s flatbed camera, spliced at your mark.","Thread your cut",()=>{
+      room.cuedReel="stunt";closePanel();note("Cine Luna","Take an aisle seat. Jules has your reel on the projector.",4);}));
     if(save.featurePrint.last)body.append(makeButton("Hold It There",
       "Ada wants two frames of the laundry gate for the Bay Wire. She’s saving you an aisle seat.","Thread her film",()=>{
         room.cuedReel=BayFeaturePrint.reel.id;closePanel();note("Hold It There","Walk down the center aisle and press F to sit with Ada.",5);
@@ -13160,7 +13206,7 @@
     if(next==="fare-copy"&&!atFareCopy())return;
     if(next!=="map"||panel!=="map")pickingRidePin=next==="ride-map";
     if(pickingRidePin&&next==="ride-map"){next="map";chartMode="city";}
-    timingFilm=passFilm=null;
+    timingFilm=passFilm=spliceBench=null;
     if(next!=="curb-wire")wireView=null;
     if((next==="threads"||next==="threads-prints")&&!atThreads())return;
     if(next==="radio-desk"&&!atRadioDesk()||next==="radio-sleeves"&&!save.airwaves.met)return;
@@ -13571,7 +13617,10 @@
     }else if(next==="take-poster"){
       title="One Good Take";kicker="Cine Luna  /  Poster case";
       const poster=document.createElement("canvas");poster.className="take-print";b.append(poster);BayTakePoster.paint(poster,save.stunt);
+      if(stuntNegative)b.append(makeButton("Jules’s cutting bench","Two cameras ran through your landing. Jules left both rolls beside the poster.","Splice take",()=>openPanel("stunt-splice")));
       b.append(makeButton("Back to the street","Close the poster case.","Continue",closePanel));
+    }else if(next==="stunt-splice"&&stuntNegative){
+      title="The Pickup Shot";kicker="Cine Luna  /  Cutting bench";showSpliceBench(b);
     }else if(next==="take-result"){
       const r=active.take,ticket=r.receipt;
       title=ticket.paid?"Print it!":"Cut!";kicker="One Good Take  /  Take "+r.number;
@@ -13579,6 +13628,7 @@
       if(ticket.paid){
         line.textContent=r.distance.toFixed(1)+" m   ·   "+cash(ticket.paid)+(ticket.record?"   ·   New Cine Luna poster":ticket.filmLost?"   ·   Camera readback unavailable":"   ·   Best "+save.stunt.distance.toFixed(1)+" m");
         b.append(line);
+        if(stuntNegative)signedNote(b,"I ran a camera on the truck. Wrap here and meet me at the poster case. We can cut the two angles together.","Jules");
         if(save.stunt){const print=document.createElement("canvas");print.className="take-print";b.append(print);BayTakePoster.paint(print,save.stunt);}
       }else{line.textContent=r.reason;b.append(line);}
       b.append(makeButton("Retake","Reset both picture cars to their marks.","T",()=>startTake()));
@@ -14463,6 +14513,7 @@
     }
     if(wireView&&panel==="curb-wire")paintWire(now);
     if(timingFilm?.playing)drawTimingFilm(now);
+    if(spliceBench?.playing)drawSpliceBench(now);
     if(passFilm?.playing)rollPassFilm(now);
     if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;
     if(needle&&!panel){if(now-lastCabinetStreet<150)return;lastCabinetStreet=now;}

@@ -15,6 +15,26 @@ permissions:
   contents: read
 
 jobs:
+  pickup-shot:
+    name: Cut a stunt reel in ${{ matrix.view }} view
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        view: [street, overhead]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: node .github/playtests/live.cjs ${{ matrix.view }} --pickup-shot --frames
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pickup-shot-${{ matrix.view }}
+          path: .github/playtests/curb-wire-proof/*.jpg
+          retention-days: 3
+          if-no-files-found: ignore
   five-speed:
     name: Race the five-speed in ${{ matrix.view }} view
     runs-on: ubuntu-latest

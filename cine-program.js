@@ -547,7 +547,7 @@
   }
 
   let schedule=null,programFrames=0,listedRecord,listedSkate,listedPrint,listedSecond,listedDelivery,listedLocation,locationCard,listedWindows,windowImages,listedJumps,listedHouse,listedDriver,listedGate;
-  let listedFamily=false,listedMoon=null,listedPier=null;
+  let listedFamily=false,listedMoon=null,listedPier=null,listedSplice=null;
   function slot(id,title,credit,seconds){return Object.freeze({id,title,credit,seconds});}
   function describe(options={}){
     const saved=validated(options?.stunt);
@@ -563,7 +563,9 @@
     const gate=options?.soler;
     const family=!!options?.valeRelease;
     const moon=options?.moonTake||null,pier=options?.moonPier||null;
-    if(schedule&&listedMoon===moon&&listedPier===pier&&listedFamily===family&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    const splice=options.splice||null;
+    if(schedule&&listedSplice===splice&&listedMoon===moon&&listedPier===pier&&listedFamily===family&&listedGate===gate&&listedDriver===driver&&listedHouse===house&&listedJumps===jumps&&listedWindows===windows&&listedLocation===location&&listedRecord===saved&&listedSkate===skate&&listedPrint===print&&listedSecond===second&&listedDelivery===delivery)return schedule;
+    listedSplice=splice;
     listedMoon=moon;listedPier=pier;
     listedFamily=family;
     listedDriver=driver;listedGate=gate;
@@ -583,7 +585,8 @@
     if(location)list.push(slot("location",location.title,"Second Unit · "+location.by+" · Frame "+location.number,5));
     if(windows?.length===3)list.push(slot("windows",BayWindowSeat.filmTitle,"Cine Luna · Second Unit",12));
     if(skate)list.push(slot("skate","Curb Cut",film.title(skate.site)+" · "+skate.score+" pts",film.duration(skate)));
-    if(saved)list.push(slot("stunt","One Good Take","Romy Vale & Jules · "+saved.distance.toFixed(1)+" m",5));
+    if(splice)list.push(slot("stunt","The Pickup Shot","Romy Vale & Jules · "+splice.film.distance.toFixed(1)+" m · "+(BayTakeSplice.matched(splice.film,splice.at)?"Camera report cut":"Alternate cut"),BayTakeSplice.duration(splice.film)));
+    else if(saved)list.push(slot("stunt","One Good Take","Romy Vale & Jules · "+saved.distance.toFixed(1)+" m",5));
     if(print)list.push(slot("edition","Bay Wire","Mara Vega · Lot 14, Port Sol",4));
     list.push(slot("pelican","The Last Pelican","Bay Film Club · 16 mm",28));
     if(second)list.push(slot("tram","After the Last Tram","Cine Luna archive, 1954"+(delivery?" · Delivered by "+delivery:""),26));
@@ -627,6 +630,7 @@
     else if(item.id==="picture-jumps")window.BayPictureJumpBook.project(context,listedJumps,elapsed);
     else if(item.id==="pelican")showPelican(context,elapsed);
     else if(item.id==="tram")showTram(context,elapsed,item.credit);
+    else if(item.id==="stunt"&&listedSplice)BayTakeSplice.paint(context,listedSplice.film,Math.min(BayTakeSplice.end(listedSplice.film),elapsed*BayTakeSplice.speed),listedSplice.at);
     else if(item.id==="stunt")showStunt(context,listedRecord);
     else if(item.id==="skate")window.BaySkateFilm.draw(context,listedSkate,elapsed,width,height);
     else if(item.id==="windows"){

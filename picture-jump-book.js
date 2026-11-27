@@ -369,5 +369,5 @@
     box(c,0,0,416,8,matte);box(c,0,226,416,8,matte);
     c.restore();return true;
   }
-  window.BayPictureJumpBook=Object.freeze({paint,project});
+  window.BayPictureJumpBook=Object.freeze({paint,project,filmCar,promenadeShot});
 })();

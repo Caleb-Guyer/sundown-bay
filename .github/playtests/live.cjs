@@ -12,7 +12,8 @@ const partnerDrive = process.argv.includes("--partner-drive");
 const pavement = process.argv.includes("--pavement");
 const starlite = process.argv.includes("--starlite");
 const engineSeven = process.argv.includes("--engine-seven");
-const play = require(junction ? "./junction.cjs" : engineSeven ? "./engine-seven.cjs" : starlite ? "./starlite.cjs" : pavement ? "./pavement.cjs" : partnerDrive ? "./partner-drive.cjs" : neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
+const pickupShot=process.argv.includes("--pickup-shot");
+const play = require(pickupShot ? "./pickup-shot.cjs" : junction ? "./junction.cjs" : engineSeven ? "./engine-seven.cjs" : starlite ? "./starlite.cjs" : pavement ? "./pavement.cjs" : partnerDrive ? "./partner-drive.cjs" : neighbors ? "./neighbors.cjs" : threads ? "./threads.cjs" : green ? "./on-green.cjs" : luggage ? "./luggage.cjs" : corner ? "./corner.cjs" : "./curb-wire-public.cjs");
 
 const mode = process.argv[2];
 const beatWake=process.argv.includes("--beat-wake"),twoAprons=process.argv.includes("--two-aprons");
@@ -129,7 +130,7 @@ async function run() {
     await send("Page.addScriptToEvaluateOnNewDocument", { source: `
       window.audioStarts = window.cursorRequests = 0;
       localStorage.setItem("sundownBay.audio", "off");
-      if(${!process.argv.includes("--public-record")}&&!localStorage.getItem("sundownBay.publicRecord.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"meet",morning:${halfMoon?JSON.stringify({luis:mode==="street"?"aboard":"ashore",second:21604}):"null"}}));
+      if(${!process.argv.includes("--public-record")}&&!localStorage.getItem("sundownBay.publicRecord.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"meet",morning:${halfMoon||pickupShot?JSON.stringify({luis:mode==="street"?"aboard":"ashore",second:21604}):"null"}}));
       if(${beatWake}&&!localStorage.getItem("sundownBay.wakeClock.v1"))localStorage.setItem("sundownBay.publicRecord.v1",JSON.stringify({intro:true,stage:"filed",pass:true,trips:1,berth:0}));
       for (const name of ["requestPointerLock", "webkitRequestPointerLock", "mozRequestPointerLock"]) {
         const native=Element.prototype[name];
@@ -192,7 +193,7 @@ async function run() {
     const walkHome=process.argv.includes("--walk-home"),pressRun=process.argv.includes("--press-run");
     const airReplay=process.argv.includes("--last-seen");
     const action=process.argv.includes("--street-action"),admission=process.argv.includes("--admission");
-    if (!twoAprons && !beatWake && !pressRun && !mouseLook && !wheel && !cleanThrough && !walkHome && !airReplay && !featurePrint && !footPursuit && !admission && !action && !campaign && !sand && !lights && !rank && !needle && !windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
+    if (!pickupShot && !twoAprons && !beatWake && !pressRun && !mouseLook && !wheel && !cleanThrough && !walkHome && !airReplay && !featurePrint && !footPursuit && !admission && !action && !campaign && !sand && !lights && !rank && !needle && !windows && !junction && !lanes && !caps && !freight && !angling && !bumpers && !houseLights && !cup && !beat && !carbon && !jumps && !corner && !luggage && !green && !threads && !neighbors && !partnerDrive && !pavement && !starlite && !engineSeven) await tap("KeyM");
     const activity = needle ? require("./needle-drop.cjs") : windows ? require("./open-windows.cjs") : lanes ? require("./boulevard.cjs") : caps ? require("./summer-caps.cjs") : freight ? require("./port-spur.cjs") : angling ? require("./red-cork.cjs") : bumpers ? require("./bumpers.cjs") : houseLights ? require("./house-lights.cjs") : cup ? require("./coast-cup.cjs") : beat ? require("./ocean-beat.cjs") : carbon ? require("./carbon-copies.cjs") : jumps ? require("./picture-jumps.cjs") : play;
     await (twoAprons ? require("./two-aprons.cjs") : beatWake ? require("./beat-wake.cjs") : pressRun ? require("./press-run.cjs") : mouseLook ? require("./mouse-look.cjs") : wheel ? require("./one-wheel.cjs") : cleanThrough ? require("./clean-through.cjs") : walkHome ? require("./walk-home.cjs") : airReplay ? require("./last-seen.cjs") : featurePrint ? require("./feature-print.cjs") : footPursuit ? require("./foot-pursuit.cjs") : admission ? require("./street-admission.cjs") : action ? require("./street-action.cjs") : campaign ? require("./public-record.cjs") : sand ? require("./soft-sand.cjs") : lights ? require("./road-lights.cjs") : rank ? require("./ring-twice.cjs") : activity)({ js, send, waitFor, key, tap, errors, mode, local: false });
     assert.equal(await js("!!document.pointerLockElement"), false);
