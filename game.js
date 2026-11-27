@@ -10334,6 +10334,7 @@
     const subject=cameraSubject();
     cameraRig.update(cam,subject,spur.aboard?spur.engine:airLine.player&&!airLine.transfer?airLine.plane:transit.aboard?transit.bus:cabs.playerHeld?taxi:windowRide?.held?windowRide.vehicle:deckStep?.v||skiff||transfer?.v||car||motos.bike||cycles.riding||skate.rider,dt,elapsed,{flight:!!airLine.player,skate:!!skate.rider,rear:!motos.bike&&!airLine.aboard&&!skate.rider&&!transit.aboard&&!pickup&&held("KeyV"),court:!!pickup,swim,lift:pickup?pickup.human.lift:motion.lift,ground:airLine.aboard?(airLine.transfer?hero.y:airLine.plane.y):skiff?0:skate.rider?skate.rider.y+skate.rider.air*.42:boardwalk.player||roofs.raised?hero.y:cycles.riding?footLevel(subject.x,subject.z)+cycles.riding.air*.65:footLevel(subject.x,subject.z),
       seat:windowRide?.held?windowRide.seat:cycles.riding ? .53*cycles.riding.mount : cabs.playerHeld?cabs.booking.seat:transfer||deckStep?(motion.ride?.seat||0):undefined});
+    if(aprons.round&&!isTop()){BayApronGoal.frame(cam,hero,cameraRig);return;}
     if(car?.chalkTurn&&held("KeyV")&&!isTop()){
       const p=carbon.pad,eye={x:p.x+5.7,y:2.15,z:p.z-4.6};
       Object.assign(cam,eye,{yaw:Math.atan2(car.x-eye.x,car.z-eye.z),pitch:Math.atan2(.68-eye.y,dist(car,eye)),focal:1.45});
@@ -11678,10 +11679,10 @@
   }
   function contextHint(k,label){
     const c=neighbors.chat;
-    if(!projector&&c&&localInReach){
+    if(!projector&&!aprons.round&&c&&localInReach){
       const s=neighbors.message(unit.lead,c.p),n=s?neighbors.stage(unit.lead,s):0;
       k="1";label=c.bad?"Apologize to "+c.p.name:"Ask "+c.p.name.split(" ")[0]+" for a local spot"+(s?"  ·  2  "+["Take a message","Pass on the message","Give the reply"][n]:"");
-    }else if(!projector&&localInReach){
+    }else if(!projector&&!aprons.round&&localInReach){
       const prompt="Say hello to "+localInReach.name;
       if(label)label+="  ·  N  "+prompt;else{k="N";label=prompt;}
     }
@@ -11852,6 +11853,7 @@
     $("airLeg").textContent=leg;$("airGuide").textContent=guide;contextHint(label,hint);return true;
   }
   function hud(){
+    $("hud").classList.toggle("taking-penalties",!!aprons.round);
     const bellStrip=$("luzBells"),bells=bellWatch.round;
     bellStrip.hidden=!bells||!luz.rider;if(!bellStrip.hidden)BayLandingBells.strip(bellStrip,bells,luz.book);
     const timing=active?.minute,strip=$("minuteSheet");

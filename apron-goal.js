@@ -157,6 +157,15 @@
     }
   }
   const words={goal:"Goal",saved:"Keeper saved it",crate:"Off the crate",high:"Over the waist",wide:"Wide"};
+  function frame(cam,hero,rig){
+    const sn=Math.sin(rig.yaw),cs=Math.cos(rig.yaw),back=2.32*rig.zoom;
+    const pivot={x:hero.x,y:hero.y+1.36,z:hero.z};
+    const eye={x:pivot.x-sn*back-cs*.87,z:pivot.z-cs*back+sn*.87,y:pivot.y+rig.elevation*2.3};
+    const f=BayCamera.safeFraction(pivot,eye,rig.space.near(hero.x,hero.z,6));
+    cam.x=pivot.x+(eye.x-pivot.x)*f;cam.y=pivot.y+(eye.y-pivot.y)*f;cam.z=pivot.z+(eye.z-pivot.z)*f;
+    const dx=hero.x+sn*3.7-cam.x,dz=hero.z+cs*3.7-cam.z;
+    cam.yaw=Math.atan2(dx,dz);cam.pitch=Math.atan2(hero.y+.68-cam.y,Math.hypot(dx,dz));cam.focal=1.26;
+  }
   function football(m){
     const p=(lat,lon)=>[r*Math.cos(lat)*Math.cos(lon),r*Math.sin(lat),r*Math.cos(lat)*Math.sin(lon)];
     for(let i=0;i<6;i++)for(let j=0;j<10;j++){
@@ -211,5 +220,5 @@
     const b=g.ball;dot(b.x,b.z,.19,"#584c43");dot(b.x,b.z+b.y*.38,.21,"#f3e5c4");dot(b.x+.066,b.z+b.y*.38,.074,"#415353");
     if(g.round?.phase==="set")box(line-.35,mark.z-g.round.aim*2.7,.29,.21,"#ffdc88");
   }
-  window.BayApronGoal={Game,mark,cook,line,half,r,words,world,map};
+  window.BayApronGoal={Game,mark,cook,line,half,r,words,world,map,frame};
 })();

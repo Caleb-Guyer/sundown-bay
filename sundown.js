@@ -73893,6 +73893,15 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   const words={goal:"Goal",saved:"Keeper saved it",crate:"Off the crate",high:"Over the waist",wide:"Wide"};
+  function frame(cam,hero,rig){
+    const sn=Math.sin(rig.yaw),cs=Math.cos(rig.yaw),back=2.32*rig.zoom;
+    const pivot={x:hero.x,y:hero.y+1.36,z:hero.z};
+    const eye={x:pivot.x-sn*back-cs*.87,z:pivot.z-cs*back+sn*.87,y:pivot.y+rig.elevation*2.3};
+    const f=BayCamera.safeFraction(pivot,eye,rig.space.near(hero.x,hero.z,6));
+    cam.x=pivot.x+(eye.x-pivot.x)*f;cam.y=pivot.y+(eye.y-pivot.y)*f;cam.z=pivot.z+(eye.z-pivot.z)*f;
+    const dx=hero.x+sn*3.7-cam.x,dz=hero.z+cs*3.7-cam.z;
+    cam.yaw=Math.atan2(dx,dz);cam.pitch=Math.atan2(hero.y+.68-cam.y,Math.hypot(dx,dz));cam.focal=1.26;
+  }
   function football(m){
     const p=(lat,lon)=>[r*Math.cos(lat)*Math.cos(lon),r*Math.sin(lat),r*Math.cos(lat)*Math.sin(lon)];
     for(let i=0;i<6;i++)for(let j=0;j<10;j++){
@@ -73947,7 +73956,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const b=g.ball;dot(b.x,b.z,.19,"#584c43");dot(b.x,b.z+b.y*.38,.21,"#f3e5c4");dot(b.x+.066,b.z+b.y*.38,.074,"#415353");
     if(g.round?.phase==="set")box(line-.35,mark.z-g.round.aim*2.7,.29,.21,"#ffdc88");
   }
-  window.BayApronGoal={Game,mark,cook,line,half,r,words,world,map};
+  window.BayApronGoal={Game,mark,cook,line,half,r,words,world,map,frame};
 })();
 
 ;
@@ -84288,6 +84297,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const subject=cameraSubject();
     cameraRig.update(cam,subject,spur.aboard?spur.engine:airLine.player&&!airLine.transfer?airLine.plane:transit.aboard?transit.bus:cabs.playerHeld?taxi:windowRide?.held?windowRide.vehicle:deckStep?.v||skiff||transfer?.v||car||motos.bike||cycles.riding||skate.rider,dt,elapsed,{flight:!!airLine.player,skate:!!skate.rider,rear:!motos.bike&&!airLine.aboard&&!skate.rider&&!transit.aboard&&!pickup&&held("KeyV"),court:!!pickup,swim,lift:pickup?pickup.human.lift:motion.lift,ground:airLine.aboard?(airLine.transfer?hero.y:airLine.plane.y):skiff?0:skate.rider?skate.rider.y+skate.rider.air*.42:boardwalk.player||roofs.raised?hero.y:cycles.riding?footLevel(subject.x,subject.z)+cycles.riding.air*.65:footLevel(subject.x,subject.z),
       seat:windowRide?.held?windowRide.seat:cycles.riding ? .53*cycles.riding.mount : cabs.playerHeld?cabs.booking.seat:transfer||deckStep?(motion.ride?.seat||0):undefined});
+    if(aprons.round&&!isTop()){BayApronGoal.frame(cam,hero,cameraRig);return;}
     if(car?.chalkTurn&&held("KeyV")&&!isTop()){
       const p=carbon.pad,eye={x:p.x+5.7,y:2.15,z:p.z-4.6};
       Object.assign(cam,eye,{yaw:Math.atan2(car.x-eye.x,car.z-eye.z),pitch:Math.atan2(.68-eye.y,dist(car,eye)),focal:1.45});
@@ -85632,10 +85642,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function contextHint(k,label){
     const c=neighbors.chat;
-    if(!projector&&c&&localInReach){
+    if(!projector&&!aprons.round&&c&&localInReach){
       const s=neighbors.message(unit.lead,c.p),n=s?neighbors.stage(unit.lead,s):0;
       k="1";label=c.bad?"Apologize to "+c.p.name:"Ask "+c.p.name.split(" ")[0]+" for a local spot"+(s?"  ·  2  "+["Take a message","Pass on the message","Give the reply"][n]:"");
-    }else if(!projector&&localInReach){
+    }else if(!projector&&!aprons.round&&localInReach){
       const prompt="Say hello to "+localInReach.name;
       if(label)label+="  ·  N  "+prompt;else{k="N";label=prompt;}
     }
@@ -85806,6 +85816,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     $("airLeg").textContent=leg;$("airGuide").textContent=guide;contextHint(label,hint);return true;
   }
   function hud(){
+    $("hud").classList.toggle("taking-penalties",!!aprons.round);
     const bellStrip=$("luzBells"),bells=bellWatch.round;
     bellStrip.hidden=!bells||!luz.rider;if(!bellStrip.hidden)BayLandingBells.strip(bellStrip,bells,luz.book);
     const timing=active?.minute,strip=$("minuteSheet");

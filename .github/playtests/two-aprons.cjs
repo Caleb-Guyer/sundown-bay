@@ -6,6 +6,11 @@ module.exports=async function twoAprons({js,send,waitFor,tap,key,mode,errors}){
     fs.writeFileSync(path.join(dir,mode+"-aprons-"+name+".jpg"),Buffer.from(data,"base64"));
   }
   await js(`window.q={};const advance=BayApronGoal.Game.prototype.step;
+    const frame=BayApronGoal.frame;BayApronGoal.frame=function(cam,hero,rig){
+      frame(cam,hero,rig);const g=BayApronGoal,near=rig.space.near(hero.x,hero.z,18);
+      q.clear=Math.cos(cam.yaw-Math.PI/2)>.93&&[-g.half,0,g.half].every(offset=>
+        BayCamera.safeFraction(cam,{x:g.line,y:.51,z:g.mark.z+offset},near)>.99);
+    };
     BayApronGoal.Game.prototype.step=function(dt,e){
       q.g=this;q.h=e.hero;q.car=e.car;q.cars=e.traffic;q.free=e.free;
       const result=advance.call(this,dt,e);
@@ -43,7 +48,7 @@ module.exports=async function twoAprons({js,send,waitFor,tap,key,mode,errors}){
   await tap("KeyF");await waitFor("q.g.round?.phase==='set'");
   for(const [i,[sign,target,power]] of [[1,.56,.67],[0,0,.35],[-1,.56,.68]].entries()){
     if(i)await waitFor("q.g.round?.phase==='set'");
-    if(i===0)await shot("spot");
+    if(i===0){if(mode==="street")await waitFor("q.clear");await shot("spot");}
     await js(`Object.assign(q,{armed:true,started:false,dir:${JSON.stringify(sign===0?null:sign>0?"KeyD":"KeyA")},target:${target},power:${power}});true`);
     await key("keyDown","Space");await waitFor("q.g.round?.shots.length==="+(i+1));await key("keyUp","Space");
   }
