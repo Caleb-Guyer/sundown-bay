@@ -4,9 +4,9 @@ module.exports=function roadGrime(){
   let fills=0,images=0;
   g.fill=function(...a){fills++;return paint.apply(this,a);};
   g.drawImage=function(...a){images++;return blit.apply(this,a);};
-  function draw(v,scale,low){
+  function draw(v,scale,low,offset=0){
     fills=images=0;g.clearRect(0,0,130,130);g.fillStyle=v.color;g.fillRect(0,0,130,130);
-    BayRoadGlass.map(g,v,65.2,64.8,scale,1,low);
+    BayRoadGlass.map(g,v,65.2+offset,64.8,scale,1,low);
     return {pixels:g.getImageData(0,0,130,130).data,fills,images};
   }
   let compared=0,removed=0,worst=0,changed=0;
@@ -29,6 +29,13 @@ module.exports=function roadGrime(){
         difference+=Math.abs(vector.pixels[i+j]-second.pixels[i+j]);
       }
       if(!energy||stage>=5&&difference)throw Error("Missing or changed live dirt on "+kind);
+      if(difference/energy>.34)throw Error("Road grime pixels on "+kind+"/"+stage+" differ by "+(difference/energy).toFixed(3));
+      if(stage<5){
+        const translated=draw(v,scale,true,2);
+        if(translated.images!==1)throw Error("An integer camera translation repainted the panels");
+        for(let i=0;i<second.pixels.length-8;i++)if(translated.pixels[i+8]!==second.pixels[i])throw Error("Misregistered moving panel on "+kind+"/"+stage);
+        if(draw(v,scale,true,.48).images)throw Error("Reused a sheet at another subpixel position");
+      }
       worst=Math.max(worst,difference/energy);compared++;
     }
   }

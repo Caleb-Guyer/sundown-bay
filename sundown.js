@@ -43481,25 +43481,42 @@ window.buildBayCity = function buildBayCity(g,water) {
         add(0,pale,splashDots);add(0,muck,sandDots);add(0,tone(paint,water,.5),rivulets);
       }
     }
-    const result={soil,rinse,cells,color,kind:v.kind,parts,damage:dents,width:b+.12,length:l+.12,seenClosed:false};
+    const result={soil,rinse,cells,color,kind:v.kind,parts,damage:dents,width:b+.12,length:l+.12};
     sprites.set(key,result);return result;
+  }
+  function sameFootprint(a,b){
+    // At 16 px/m these tolerances put even a long van's edge within 1/16 pixel.
+    return a&&Math.abs(a.a-b.a)<.003&&Math.abs(a.b-b.b)<.003&&Math.abs(a.c-b.c)<.003&&
+      Math.abs(a.d-b.d)<.003&&Math.abs(a.e-b.e)<.032&&Math.abs(a.f-b.f)<.032;
+  }
+  function closedPrint(ctx,rec){
+    const m=ctx.getTransform(),x=Math.floor(m.e),y=Math.floor(m.f);
+    m.e-=x;m.f-=y;
+    let sheet=rec.sheet;
+    if(!sameFootprint(sheet?.pose,m)){
+      // A continually turning car uses the live paths. Only spend a canvas
+      // on a projection that has already appeared on consecutive frames.
+      if(!sameFootprint(rec.previous,m)){rec.previous=m;return false;}
+      const hw=Math.ceil(Math.abs(m.a)*rec.width+Math.abs(m.c)*rec.length)+2;
+      const hh=Math.ceil(Math.abs(m.b)*rec.width+Math.abs(m.d)*rec.length)+2;
+      const canvas=sheet?.canvas||document.createElement("canvas");
+      if(canvas.width!==2*hw)canvas.width=2*hw;
+      if(canvas.height!==2*hh)canvas.height=2*hh;
+      const ink=canvas.getContext("2d");
+      ink.setTransform(1,0,0,1,0,0);ink.clearRect(0,0,canvas.width,canvas.height);
+      ink.setTransform(m.a,m.b,m.c,m.d,m.e+hw,m.f+hh);
+      for(const part of rec.parts)for(const [shape,color] of part){ink.fillStyle=color;ink.fill(shape);}
+      sheet=rec.sheet={pose:m,canvas,hw,hh};
+    }
+    rec.previous=m;ctx.setTransform(1,0,0,1,0,0);
+    ctx.drawImage(sheet.canvas,x-sheet.hw,y-sheet.hh);return true;
   }
   function map(ctx,v,x,y,scale,t,lowDetail=false){
     if(scale<2.2||!v.soil&&!v.rinse||typeof Path2D==="undefined")return;
     const soil=stamp(v.soil),rinse=stamp(v.rinse);if(!soil&&!rinse)return;
     const rec=mapBody(v,soil,rinse),s=bayCarLayout(v.kind);
     ctx.save();ctx.translate(x,y);ctx.rotate(v.yaw||0);ctx.scale(scale,-scale);
-    if(lowDetail&&scale<=16&&!(v.doorAngle>.008||v.passengerDoor>.008)){
-      // Moving cars carry the same salt lines through many frames. Wait for
-      // a second showing so an active hose needn't rasterize every new mark.
-      if(rec.seenClosed){
-        rec.sheet??=BayMapSheet(-rec.width,-rec.length,2*rec.width,2*rec.length,32,ink=>{
-          for(const part of rec.parts)for(const [shape,color] of part){ink.fillStyle=color;ink.fill(shape);}
-        });
-        rec.sheet(ctx);ctx.restore();return;
-      }
-      rec.seenClosed=true;
-    }
+    if(lowDetail&&scale<=16&&ctx.globalAlpha===1&&!(v.doorAngle>.008||v.passengerDoor>.008)&&closedPrint(ctx,rec)){ctx.restore();return;}
     for(let i=0;i<3;i++){
       if(!rec.parts[i].length)continue;
       ctx.save();
