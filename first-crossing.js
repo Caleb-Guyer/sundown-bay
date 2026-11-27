@@ -165,6 +165,7 @@
   }
   function world(view,model,visible,see,s,t,person){
     if(!s.book.pass)return;
+    BayLandingBells.world(model,visible,see,s);
     if(s.regular)BayLandingRun.world(view,model,visible,see,s);
     const charter=BayLandingOrder.charter(s.book);
     for(let i=0;i<2;i++){
@@ -221,6 +222,7 @@
   }
   function map(c,s,px,py,scale,visible,street){
     if(!s?.book.pass)return;
+    if(street)BayLandingBells.map(c,s,px,py,scale);
     if(BayWakeClock.unlocked(s.book))BayWakeClock.map(c,px,py,scale,visible,street);
     for(let i=0;i<2;i++){const p=stop(i);if(!visible(px(p.x),py(p.z),12))continue;
       c.fillStyle=teal;c.fillRect(px(p.x)-2,py(p.z)-2,4,4);

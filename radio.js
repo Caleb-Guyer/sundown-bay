@@ -779,6 +779,12 @@
       tone(effects,806,at+.035,.092,.014,"sine",753,.002);tone(effects,1264,at+.071,.076,.008,"sine",1173,.002);return;
     }
     if(name==="luz-cast"){tone(effects,147,at,.71,.085,"horn",151,.075);tone(effects,219,at+.03,.62,.04,"reed",224,.06);return;}
+    if(name==="watch-bell"||name==="coach-answer"){
+      const near=Math.max(0,1-(source.distance||0)/65)**1.5,bus=name==="coach-answer";
+      if(near){tone(effects,bus?334:736,at,bus?.15:.39,.075*near,bus?"horn":"sine",bus?338:727,.006);
+        tone(effects,bus?421:1269,at+.012,bus?.13:.23,.033*near,bus?"reed":"sine",bus?424:1258,.004);}
+      return;
+    }
     if(name==="luz-bell"){for(const delay of [0,.34]){tone(effects,672,at+delay,.47,.071,"sine",664,.003);
       tone(effects,1546,at+delay,.18,.027,"sine",1530,.003);}return;}
     if(name==="record-theme"){

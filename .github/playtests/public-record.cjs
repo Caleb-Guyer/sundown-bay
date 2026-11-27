@@ -70,9 +70,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert(result.directPixels.painted>600&&result.directPixels.silhouette===0&&result.directPixels.recolored<=Math.ceil(result.directPixels.painted*.0001));
     assert.equal(await js("recQA.view.gl.getError()"),0);
   }
-  async function loadFootAt(point){
+  async function loadFootAt(point,facing=1.57){
     const before=await send("Page.addScriptToEvaluateOnNewDocument",{source:`const data=JSON.parse(localStorage.getItem('sundownBay.secondUnit.v1'));
-      data[data.lead]=Object.assign({},${JSON.stringify(point)},{yaw:1.57,ride:''});localStorage.setItem('sundownBay.secondUnit.v1',JSON.stringify(data));`});
+      data[data.lead]=Object.assign({},${JSON.stringify(point)},{yaw:${facing},ride:''});localStorage.setItem('sundownBay.secondUnit.v1',JSON.stringify(data));`});
     await send("Page.reload");await ready();await send("Page.removeScriptToEvaluateOnNewDocument",{identifier:before.identifier});
     await js("document.querySelector('#play').click()");
   }
@@ -607,10 +607,35 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     assert.equal(await js("['objective','jobKey','watchCall'].every(id=>document.getElementById(id).hidden)"),true);
     assert.equal(await js("document.querySelector('#mode').textContent"),"M/V Luz · Passenger");
     await key("keyDown","KeyD");try{await waitFor("Math.hypot(rideTest.rider.x+.8,rideTest.rider.z)>.27",16000);}finally{await key("keyUp","KeyD");}
+    await tap("KeyN");const bell="rideTest.bellWatch.round";
+    await waitFor(bell+"?.phase==='echo'&&!document.querySelector('#luzBells').hidden");
+    const cadence=await js(bell+".target");
+    assert.equal(await js(bell+".name"),credit==="crew"?"Night shift":"Dalia Cruz");await snap("after-watch");
+    async function strike(gaps){
+      await tap("KeyH");
+      for(const [i,gap] of gaps.entries()){
+        await waitFor(bell+".hits.length==="+(i+1)+"&&"+bell+".age-"+bell+".hits["+i+"]>="+(gap-.02));
+        await tap("KeyH");
+      }
+    }
+    await strike([cadence[1],cadence[2]-cadence[1]]);await waitFor(bell+".phase==='own'");
+    await strike([.62,.95]);await waitFor(book+".bells?.rounds===1");
+    const ownCall=await js(book+".bells");
+    assert(ownCall.gaps.every((n,i)=>Math.abs(n-[62,95][i])<22));
+    assert(ownCall.best[await js("rideTest.departure")]<=44);
     await waitFor("Math.abs(rideTest.u-.5)<.13",95000);await tap("KeyH");await waitFor("rideTest.rider.bell");await snap("deck");
     await waitFor("rideTest.rider.phase==='line'",90000);await snap("quay");
     await key("keyDown","Space");await waitFor("window.letGo&&"+book+".trips===1",35000);await key("keyUp","Space");
     assert.equal((await js(book)).clean,1);await send("Page.reload");await ready();assert.equal((await js(book)).trips,1);
+    const front=await js("(()=>{const b=BayTransit.stops[0].berth,p=BayDriving.world(b,4,7);return {...p,yaw:Math.atan2(b.x-p.x,b.z-p.z)};})()");
+    await loadFootAt(front,front.yaw);assert.deepEqual(await js(book+".bells"),ownCall);
+    await js(`window.busStrokes=[];const ring=BayLandingBells.Watch.prototype.ring;
+      BayLandingBells.Watch.prototype.ring=function(place,emit){if(place==='coach')busStrokes.push(this.reply.age);return ring.call(this,place,emit);};`);
+    await send("Input.dispatchKeyEvent",{type:"keyDown",code:"KeyH",key:"H",modifiers:8,windowsVirtualKeyCode:72});
+    await key("keyUp","KeyH");await waitFor("busStrokes.length>0");await snap("coach-call");
+    await waitFor("busStrokes.length===3");const stamps=await js("busStrokes");
+    for(const [i,n] of ownCall.gaps.entries())assert(Math.abs(stamps[i+1]-stamps[i]-n/100)<.055);
+    console.log("PASS After-watch bell",mode,credit,"echoed, composed, reloaded and answered by Coach 608",JSON.stringify(ownCall));
     const voice=credit==="crew"?"luis":"dalia";
     await loadFootAt(await js("BayRoomTone.site"));await waitFor("document.querySelector('#context').innerText.includes('Room Tone')");
     await js("const wind=BayRoomTone.Edit.prototype.move;BayRoomTone.Edit.prototype.move=function(...a){window.reelTest=this;return wind.apply(this,a);};");

@@ -252,6 +252,7 @@
   let lastCaseHeard=null;
   const ferryRadio=new BayRoomTone.Relay();
   const luz=new BayFirstCrossing.Service(campaign.book);
+  const bellWatch=luz.bellWatch=new BayLandingBells.Watch();
   const gateCrew={x:recordGate.x+1.15,z:recordGate.z+1.44,yaw:2.87,motion:new BayPlayerMotion()};
   const gateMara={x:recordGate.x+1.12,z:recordGate.z-1.46,yaw:-.26};
   if(save.edition&&BayExposure.routes[save.edition]&&campaign.book.stage!=="filed"){
@@ -6377,10 +6378,12 @@
     if(act!=="talk")campaign.write();speak(r.story.name,line);lastHud=lastMap=-10;return true;
   }
   function stepLuz(dt){
+    const castFrom=luz.phase;
     const r=luz.rider,x=hero.x,z=hero.z;
     const input=r?{x:Number(held("KeyD","ArrowRight"))-Number(held("KeyA","ArrowLeft")),
       z:Number(held("KeyW","ArrowUp"))-Number(held("KeyS","ArrowDown")),yaw:cameraRig.yaw}:null;
     const ux=r?.x,uz=r?.z,event=luz.step(dt,streetTime,hero,input);
+    bellWatch.step(dt,luz,castFrom==="berth"&&luz.phase==="sail",bellStroke);
     if(luz.regular?.dirty){luz.regular.dirty=false;campaign.write();}
     if(!r)return;
     const moving=r.phase==="board"||r.phase==="off"?Math.hypot(hero.x-x,hero.z-z):Math.hypot(r.x-ux,r.z-uz);
@@ -6400,6 +6403,39 @@
       if(filed){enterFilm(hearing.draft==="clinic"?"landingClinic":"landingShift");return;}
       if(luz.book.trips===1&&!luz.book.cut){waypoint={...BayRoomTone.site};speak("Mara Vega · voicemail","Bring your ears to the Sol van. I caught the first boat on tape.");}
       note("Luz · "+bay.docks[luz.at].name,"Pass punched · Crossing "+luz.book.trips+(r.clean?" · First-throw catch":"")+(luz.book.trips===1?" · Bring a car to the brass clock on Ocean Drive.":""),luz.book.trips===1?7:4.6);}
+  }
+  function bellStroke(place){
+    const bus=place==="coach";
+    sound.cue(bus?"coach-answer":"watch-bell",{distance:dist(pos(),bus?transit.bus:luz)});lastHud=-10;
+  }
+  function canCallCoach(){
+    return !!luz.book.bells&&!active&&!heat&&!room&&!transfer&&!campaign.scene&&!campaign.table&&!transit.aboard&&
+      !bellWatch.reply&&bellWatch.cool===0&&(car||onStreetFeet())&&dist(pos(),transit.bus)<19;
+  }
+  function bellInput(ev){
+    if(ev.code!=="KeyN"&&ev.code!=="KeyH")return false;
+    if(luz.rider){
+      if(ev.code==="KeyN"&&!ev.repeat&&bellWatch.start(luz)){
+        const waited=luz.book.morning?.luis==="ashore";
+        speak(luz.book.credit==="crew"?"Luis · night shift":"Dalia Cruz",
+          luz.book.credit==="crew"?(waited?"When I missed the six, I could still reach the rail with my tin. Leave that first gap long. That's the one my brother heard.":"Two slow boots and a lunch tin. Used to play it on the rail so my brother could find me. Your go."):
+          waited?"We were halfway out when I heard Luis on the dock. I left the last knock late so he'd know I'd heard him.":"My sister knew it was me before she could see the boat. Listen to the space between the knocks. Then try it.");
+        lastHud=-10;return true;
+      }
+      if(ev.code!=="KeyH"||!bellWatch.round||bellWatch.round.phase==="done")return false;
+      if(!ev.repeat){
+        const result=bellWatch.tap(luz,bellStroke);
+        if(result==="own")speak("Inez · captain of Luz","That's it. Give me three of your own. Marta drives the Six. I'll pass them on.");
+        if(result==="saved"){campaign.write();speak("Inez · captain of Luz","That's yours now. I'll ring it leaving the pier. Marta'll know it when you see Coach 608.");
+          note("After-watch bell","Shift + H near Coach 608 to hear your call from the road.",5);}
+        if(result==="miss")note("After-watch bell","Listen for the longer gap. Then give it another go.",2.5);
+        lastHud=-10;
+      }
+      return true;
+    }
+    if(ev.code!=="KeyH"||!ev.shiftKey||ev.repeat||!canCallCoach()||!bellWatch.hail(luz.book,transit.bus))return false;
+    if(car){car.hornAt=streetTime;sound.cue("horn");}
+    speak("Marta Leal · Coach 608","Inez said I'd see you out here. Does this sound right?");lastHud=-10;return true;
   }
   function wakeAction(){
     if(!play||!BayWakeClock.unlocked(luz.book)||transfer||room||luz.rider||campaign.scene||campaign.table)return null;
@@ -11766,6 +11802,8 @@
     $("airLeg").textContent=leg;$("airGuide").textContent=guide;contextHint(label,hint);return true;
   }
   function hud(){
+    const bellStrip=$("luzBells"),bells=bellWatch.round;
+    bellStrip.hidden=!bells||!luz.rider;if(!bellStrip.hidden)BayLandingBells.strip(bellStrip,bells,luz.book);
     const timing=active?.minute,strip=$("minuteSheet");
     strip.hidden=!timing?.route;if(!strip.hidden)BayMinuteCard.sheet(strip,timing.from,timing.route,timing.marks,timing.phase==="running"?timing.elapsed:null);
     $("wakeTiming").hidden=!active?.wake;
@@ -12203,6 +12241,8 @@
         h?h.draft?"Signed order · File at the landing":"Public hearing · "+(Number(h.clinic)+Number(h.shift))+"/2 statements":
         luz.regular?.carrying?luz.regular.story.parcel+" · "+bay.docks[luz.regular.destination].name:
         route?BayLandingOrder.terms[route].title:r.bell?"Two bells · Channel clear":r.phase==="board"?"First ticket aboard":"Public landing service";
+      if(bells)$("luzLine").textContent=BayLandingBells.label(bells);
+      else if(bellWatch.available(luz))$("luzLine").textContent+=" · N for the after-watch bell";
       $("luzMeter").hidden=r.phase!=="line";if(r.phase==="line"){
         $("luzMeter").style.setProperty("--zone",(luz.goal()-.14)*100+"%");
         $("luzMeter").style.setProperty("--power",(r.charge??r.rope?.power??0)*100+"%");
@@ -12210,13 +12250,15 @@
       if(r.phase==="line"){
         const power=r.charge==null?0:Math.round(r.charge*100),target=Math.round(luz.goal()*100);
         contextHint("Space",r.rope?"Line out":r.charge==null?"Hold to cast the mooring line · F asks the deckhand":"Release near "+target+"% · "+power+"%");
-      }else if(h&&!h.draft&&(r.phase==="sail"||r.phase==="hearing")){
+      }else if(bells&&bells.phase!=="done")contextHint(bells.phase==="listen"?"":"H",bells.phase==="listen"?"Watch the lamp and listen for three strokes":bells.phase==="echo"?"Play the same spacing · Start when ready":"Tap your own rhythm · Coach 608 will learn it");
+      else if(h&&!h.draft&&(r.phase==="sail"||r.phase==="hearing")){
         const [key,line]=BayLandingOrder.hint(h,r);contextHint(key,line+(r.phase==="hearing"?" · E ashore":""));
       }else if((r.phase==="wait"||r.phase==="sail")&&commuterHint())contextHint("F",commuterHint());
       else if(r.phase==="wait")contextHint("",luz.regular?.gangway?"Waiting for the gangway to clear":"Scheduled departure in "+Math.max(0,Math.ceil(12-luz.clock))+" s");
       else if(r.phase==="sail")contextHint(r.bell?"V":"H",r.bell?"The channel watch answered · V for the bow view":"Walk the deck · Ring as you pass the red buoy");
       else contextHint("",r.phase==="board"?"Boarding Luz":"Stepping ashore");
-    }else if(atTimetable())contextHint("F","Route 6 timetable"+(transit.docked(atTimetable())?"  ·  E board Coach 608":""));
+    }else if(atTimetable())contextHint("F","Route 6 timetable"+(transit.docked(atTimetable())?"  ·  E board Coach 608":"")+(canCallCoach()?"  ·  Shift H  Call Marta":""));
+    else if(canCallCoach())contextHint("Shift H",car?"Sound your Luz call for Coach 608":"Wave to Marta for your Luz call");
     else if(nearFlowerChair())contextHint("F","Turn over Bea’s flower card"+(phoneHint?"  ·  L  Payphone":""));
     else if(chapter==="outside-copy"){
       const s=outsideSite();contextHint("F","Frame the outside copy · "+s.name+(outsideCases.mounted[s.route]?" · H ask about the projector":""));
@@ -13225,6 +13267,10 @@
       const board=document.createElement("p");board.className="statline";
       board.textContent=here?"Coach 608 · Front door open":"Coach 608 · "+Math.ceil(transit.distanceTo(s))+" m along the line";b.append(board);
       const nextStop=BayTransit.stops[(BayTransit.stops.indexOf(s)+1)%4];
+      if(luz.book.bells){
+        const log=luz.book.bells,score=log.best.map((n,i)=>n===null?null:bay.docks[i].name+" "+(n/100).toFixed(2)+" s").filter(Boolean);
+        signedNote(b,"After-watch bell · "+log.gaps.map(n=>(n/100).toFixed(2)+" s").join(" then ")+". Wave or honk with Shift + H when you see my bus. Your closest echo from each pier: "+score.join(" / ")+".","Marta Leal · Coach 608");
+      }
       b.append(makeButton("Ride Route 6","Next stop, "+nextStop.short+". F pulls the cord. Marta will let you out through the back.","Free transfer",()=>chooseTransit(s,"rider")));
       if(campaign.book.transfer?.punches)b.append(makeButton("Alma’s through ticket","North Float spare · "+campaign.book.transfer.punches.length+" of 4 stops punched.","Unfold",()=>enterFilm("through-ticket")));
       b.append(makeButton("Take Marta’s wheel","Drive to the next marked stop. Line the front door up with the pole, brake, and press F to let people through.","Relief shift",()=>chooseTransit(s,"driver")));
@@ -13743,6 +13789,7 @@
         if((ev.shiftKey&&document.activeElement===controls[0])||(!ev.shiftKey&&document.activeElement===controls.at(-1))){ev.preventDefault();controls[ev.shiftKey?controls.length-1:0].focus();}}
       return;
     }
+    if(bellInput(ev)){ev.preventDefault();return;}
     if(voiceTake&&voiceInput(ev))return;
     if(minuteInput(ev)){ev.preventDefault();return;}
     if(wakeInput(ev)){ev.preventDefault();return;}
@@ -14214,6 +14261,9 @@
       actionPose(dt);
       if(countyCrew.hand>=0)motion.handTarget={countyCone:true,x:.29,y:.88,z:.31,weight:1};
       else if(motion.handTarget?.countyCone)motion.handTarget=null;
+      if(bellWatch.cool>9&&onStreetFeet()&&(!motion.handTarget||motion.handTarget.busHello)){
+        const t=10-bellWatch.cool;motion.handTarget={busHello:true,x:.36+.15*Math.sin(t*15),y:1.72,z:.12,weight:Math.sin(t*Math.PI)};
+      }else if(motion.handTarget?.busHello)motion.handTarget=null;
       if(!pickup&&!room&&!boardwalk.player&&!cabs.playerHeld&&!windowRide?.held&&!swim&&!active?.take&&!transfer&&!skiff&&!deckStep)checkTapes();const p=pos(),speed=Math.abs(active?.take?.subject().speed??(transit.aboard?transit.bus.speed:null)??motos.bike?.speed??skiff?.speed??car?.speed??(windowRide?.held?windowRide.vehicle.speed:cabs.playerHeld?taxi.speed:0));
       if(!panel){if(car?.upgrades?.scanner||countyRadio.car)receiveCounty();stepSand(dt);bellStep(dt);curbStep(dt);stepGutters(dt);crewStep(dt);stepUmbrella(dt);updateRadio();ferryBulletin(Math.min(raw,.8));stepField(dt);}
       if(!panel){stepHomeWalk(dt);theatreStep(dt);neighborStep();stepPavement(dt);listenAtCase();if(projector?.showing)advanceScreening(raw);}

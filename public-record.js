@@ -235,7 +235,7 @@
   };
   const read=(raw={})=>({stage:stages.includes(raw?.stage)?raw.stage:"arrival",route:["print","live"].includes(raw?.route)?raw.route:"",
     credit:["signed","crew"].includes(raw?.credit)?raw.credit:"",intro:raw?.intro===true,
-    pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),
+    pass:raw?.pass===true,trips:Math.max(0,Math.floor(Number(raw?.trips)||0)),clean:Math.max(0,Math.floor(Number(raw?.clean)||0)),bells:BayLandingBells.read(raw?.bells),
     berth:raw?.berth===1?1:0,cut:BayRoomTone.valid(raw?.cut),morning:BaySixSharp.read(raw?.morning),sleeve:raw?.sleeve===true,repairTag:raw?.repairTag===true,
     transfer:BayLastTransfer.read(raw?.transfer),photoRoad:Object.hasOwn(BayExposure.photoRuns,raw?.photoRoad)?raw.photoRoad:"",
     deskHold:BayExposure.pressSpeed(raw?.deskHold),hearing:BayLandingOrder.read(raw?.hearing),airings:Number.isSafeInteger(raw?.airings)&&raw.airings>0?raw.airings:0});
