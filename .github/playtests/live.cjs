@@ -192,7 +192,8 @@ async function run() {
     assert.equal(await js("cursorRequests"), mouseLook?2:0);
     if(server){
       console.log("Verified runner checkout " + asset);
-      assert(await liveRelease(html,30000),"Pages has not published the tested release");
+      // The short mouse test can finish while Pages is still deploying this commit.
+      assert(await liveRelease(html,180000),"Pages has not published the tested release");
       const response=await fetch(publicSite+asset,{signal:AbortSignal.timeout(20000)});
       assert(response.ok);
       assert(fs.readFileSync(path.join(__dirname,"../../sundown.js")).equals(Buffer.from(await response.arrayBuffer())));
