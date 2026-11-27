@@ -1,0 +1,46 @@
+name: Compare city drives
+on:
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Earlier game revision
+        required: true
+        default: 1b0a504fdb92f079fe4d6716f083c3b3318ea75b
+  push:
+    branches: [main]
+    paths: [.github/workflows/compare-drives.yml]
+permissions:
+  contents: read
+jobs:
+  drive:
+    name: Compare ${{ matrix.view }} drives on one runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        view: [street, overhead]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.baseline || '1b0a504fdb92f079fe4d6716f083c3b3318ea75b' }}
+          path: baseline-release
+          persist-credentials: false
+      - name: Earlier, current, current, earlier
+        env:
+          VIEW: ${{ matrix.view }}
+        run: |
+          node .github/playtests/live.cjs "$VIEW" --compare-drive --baseline
+          node .github/playtests/live.cjs "$VIEW" --compare-drive
+          node .github/playtests/live.cjs "$VIEW" --compare-drive
+          node .github/playtests/live.cjs "$VIEW" --compare-drive --baseline
+          cat "$RUNNER_TEMP/bay-drives.jsonl"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compared-${{ matrix.view }}
+          path: ${{ runner.temp }}/bay-drives.jsonl
+          retention-days: 7

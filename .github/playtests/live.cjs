@@ -31,7 +31,7 @@ async function liveRelease(html,timeout) {
   }
   return false;
 }
-async function serveCheckout(html) {
+async function serveCheckout(html, root) {
   const files = new Map([["","index.html"],["index.html","index.html"],["sundown.js","sundown.js"],
     ["style.css","style.css"],["wordmark.svg","wordmark.svg"]]);
   const sources=JSON.parse(html.match(/<script type="application\/json" id="game-sources">([\s\S]*?)<\/script>/)[1]);
@@ -41,7 +41,7 @@ async function serveCheckout(html) {
     const name = files.get(req.url.split("?")[0].slice(1));
     if (!name) { res.writeHead(404).end(); return; }
     res.setHeader("Content-Type",types[path.extname(name)] + "; charset=utf-8");
-    fs.createReadStream(path.join(__dirname,"../..",name)).pipe(res);
+    fs.createReadStream(path.join(root,name)).pipe(res);
   });
   await new Promise((resolve,reject)=>{server.once("error",reject);server.listen(0,"127.0.0.1",resolve);});
   server.unref();
@@ -52,9 +52,11 @@ async function run() {
   assert.equal(process.platform, "linux", "Browser playtests run on GitHub's Linux machines");
   assert.equal(process.env.GITHUB_ACTIONS, "true", "Use a hosted runner for browser tests");
   assert(["overhead", "street"].includes(mode));
-  const html = fs.readFileSync(path.join(__dirname, "../../index.html"), "utf8");
+  const compare=process.argv.includes("--compare-drive");
+  const root=path.resolve(__dirname,"../..",compare&&process.argv.includes("--baseline")?"baseline-release":".");
+  const html = fs.readFileSync(path.join(root,"index.html"), "utf8");
   const asset = html.match(/<script src="(sundown\.js\?v=[a-f0-9]+)"/)[1];
-  const server = await liveRelease(html,45000) ? null : await serveCheckout(html);
+  const server = !compare&&await liveRelease(html,45000) ? null : await serveCheckout(html,root);
   const site = server ? "http://127.0.0.1:" + server.address().port + "/" : publicSite;
   console.log("Playtesting " + (server ? "runner checkout" : "GitHub Pages") + " · " + asset);
   const profile = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP, "bay-wire-"));
@@ -147,6 +149,14 @@ async function run() {
     await js("document.querySelector('#play').click()");
     await waitFor("!document.querySelector('#hud').hidden");
     assert.equal(await js("document.querySelector('#world').hidden"), mode === "overhead");
+    if(compare){
+      const drive=await require("../benchmarks/drive.cjs")({js,send,tap,waitFor,mode});
+      assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+      assert(!await js("!!document.pointerLockElement"));
+      console.log("Paired release drive",asset,JSON.stringify(drive));
+      fs.appendFileSync(path.join(process.env.RUNNER_TEMP,"bay-drives.jsonl"),JSON.stringify({asset,...drive})+"\n");
+      return;
+    }
     assert(await js(`(()=>{const surface=document.querySelector('${mode==="street"?"#world":"#overhead"}');
       const rect=surface.getBoundingClientRect();return rect.x===0&&rect.y===0&&rect.width===innerWidth&&rect.height===innerHeight;})()`),"Play surface fills the viewport");
     const jumps = process.argv.includes("--picture-jumps");
