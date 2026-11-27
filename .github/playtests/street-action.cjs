@@ -41,7 +41,9 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await key("keyDown","KeyW");
   try{await waitFor("q.ride.call?.phase==='ring'&&!document.querySelector('#julesPhone').hidden",20000);}
   finally{await key("keyUp","KeyW");}
-  await tap("KeyG");await waitFor("q.ride.call?.phase==='ask'");await snap("romy-calling");
+  await tap("KeyG");await waitFor("q.ride.call?.phase==='ask'&&document.querySelector('#julesCaller').textContent.includes('speaker')");
+  assert(await js("document.querySelector('#julesPhone').getBoundingClientRect().right<document.querySelector('#speech').getBoundingClientRect().left"),"Both routes remain readable under the driving subtitle");
+  await snap("romy-calling");
   await tap("Digit1");assert.equal(await js("q.ride.call.said"),"luna");
   if(port)await tap("Digit2");
   await js(`q.at(q.car,72,84);q.car.yaw=0;BayDriving.settle(q.car);

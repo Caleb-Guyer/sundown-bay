@@ -344,7 +344,7 @@
     const ticket=document.createElement("canvas");BayStreetAction.paper(ticket,port?"portReceipt":"payReceipt");
     c.save();c.translate(375,192);c.rotate(.087);rect(-24,-116,338,243,"#302d28");
     c.drawImage(ticket,107,50,545,322,-30,-122,338,243);c.restore();
-    c.save();c.translate(282,184);c.rotate(-.105);
+    c.save();c.translate(248,184);c.rotate(-.105);
     pill(-88,-156,186,348,27,"#2f302b");pill(47,-178,19,37,7,"#343d38");
     pill(-89,-163,181,345,25,"#8a8c77");pill(-85,-159,171,337,22,"#323b38");
     pill(-75,-149,150,161,18,"#58625b");pill(-57,-111,115,88,5,"#26342e");rect(-52,-106,105,78,"#a9b987");

@@ -72000,7 +72000,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const ticket=document.createElement("canvas");BayStreetAction.paper(ticket,port?"portReceipt":"payReceipt");
     c.save();c.translate(375,192);c.rotate(.087);rect(-24,-116,338,243,"#302d28");
     c.drawImage(ticket,107,50,545,322,-30,-122,338,243);c.restore();
-    c.save();c.translate(282,184);c.rotate(-.105);
+    c.save();c.translate(248,184);c.rotate(-.105);
     pill(-88,-156,186,348,27,"#2f302b");pill(47,-178,19,37,7,"#343d38");
     pill(-89,-163,181,345,25,"#8a8c77");pill(-85,-159,171,337,22,"#323b38");
     pill(-75,-149,150,161,18,"#58625b");pill(-57,-111,115,88,5,"#26342e");rect(-52,-106,105,78,"#a9b987");
@@ -84351,7 +84351,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         if(r.holding)$("objectiveText").textContent=r.stage==="enter"||r.stage==="approach"?"Wait for Jules at the passenger door":"Jules is handing over the payroll";
         if(r.blocked)$("roadTurn").textContent="Leave room beside the passenger door";
         else if(envelopes?.count<3)$("roadTurn").textContent="Ease below 12 mph · Hold U for Jules · "+envelopes.count+"/3 back in the tin";
-        else if(active.vehicle)$("roadTurn").textContent="1  Cine Luna · return wages     2  Port Sol · sell the tin";
+        else if(active.vehicle)$("roadTurn").textContent=payrollCall?.phase==="ask"?"":"1  Cine Luna · return wages     2  Port Sol · sell the tin";
       }
       if(active?.cup){
         const racing=cup.phase==="race",count=cup.phase==="count";
@@ -86096,6 +86096,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const ride=active.payroll;
       if(ev.code==="KeyG"&&ride.call?.phase==="ring"){
         ev.preventDefault();if(!ev.repeat&&ride.answer()){
+          toastTill=elapsed;$("toast").hidden=true;
           speak("Romy · on speaker","Mum's picking the paper off her straw. She does that when she's scared. Are you coming to the side door or going to the scales?");lastHud=-10;
         }return;
       }

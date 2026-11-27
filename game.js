@@ -11535,7 +11535,7 @@
         if(r.holding)$("objectiveText").textContent=r.stage==="enter"||r.stage==="approach"?"Wait for Jules at the passenger door":"Jules is handing over the payroll";
         if(r.blocked)$("roadTurn").textContent="Leave room beside the passenger door";
         else if(envelopes?.count<3)$("roadTurn").textContent="Ease below 12 mph · Hold U for Jules · "+envelopes.count+"/3 back in the tin";
-        else if(active.vehicle)$("roadTurn").textContent="1  Cine Luna · return wages     2  Port Sol · sell the tin";
+        else if(active.vehicle)$("roadTurn").textContent=payrollCall?.phase==="ask"?"":"1  Cine Luna · return wages     2  Port Sol · sell the tin";
       }
       if(active?.cup){
         const racing=cup.phase==="race",count=cup.phase==="count";
@@ -13280,6 +13280,7 @@
       const ride=active.payroll;
       if(ev.code==="KeyG"&&ride.call?.phase==="ring"){
         ev.preventDefault();if(!ev.repeat&&ride.answer()){
+          toastTill=elapsed;$("toast").hidden=true;
           speak("Romy · on speaker","Mum's picking the paper off her straw. She does that when she's scared. Are you coming to the side door or going to the scales?");lastHud=-10;
         }return;
       }
