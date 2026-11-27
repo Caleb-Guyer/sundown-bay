@@ -36,6 +36,7 @@ module.exports=async function beatWake({js,send,tap,key,waitFor,mode,errors}){
   if(await js("document.querySelector('#driverGlass').hidden"))await tap("KeyZ");
   await waitFor("!document.querySelector('#wakeBadge').hidden");
   if(mode==="overhead")assert(await js("document.querySelector('#wakeBadge').getBoundingClientRect().bottom<=innerHeight-(innerHeight<460?114:145)"),"Both speed and gear stay visible");
+  assert(await js("document.querySelector('#wakeBadge').getBoundingClientRect().bottom<document.querySelector('.shortcuts').getBoundingClientRect().top"),"The dashboard badge clears the keyboard shortcuts");
   await snap("brass");
   await send("Page.reload");await waitFor("!window.wakeQA&&typeof BayWakeClock==='object'");
   assert.equal(await js("BayWakeClock.badge("+JSON.stringify(result.plate)+")"),result.road);
