@@ -14,6 +14,10 @@ on:
         description: Only exercise the automatic camera on software graphics
         type: boolean
         default: false
+      published_overhead:
+        description: Check only the published game in overhead view against the 30 FPS budget
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: [.github/workflows/compare-drives.yml, render.js, atlas.js, player-motion.js, street-space.js]
@@ -61,8 +65,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        view: ${{ fromJSON(inputs.automatic_only && '["automatic"]' || '["street","overhead","automatic"]') }}
-        build: ${{ fromJSON(inputs.automatic_only && '["candidate"]' || '["public","candidate"]') }}
+        view: ${{ fromJSON(inputs.published_overhead && '["overhead"]' || inputs.automatic_only && '["automatic"]' || '["street","overhead","automatic"]') }}
+        build: ${{ fromJSON(inputs.published_overhead && '["public"]' || inputs.automatic_only && '["candidate"]' || '["public","candidate"]') }}
         exclude:
           - build: public
             view: automatic

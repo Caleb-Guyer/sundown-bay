@@ -123,5 +123,6 @@ module.exports=async function chromebook({js,send,tap,waitFor,mode,asset}){
   const scenarios={walk,drive,chase};
   const misses=Object.entries(scenarios).filter(([,s])=>s.fps<30||s.slowestSecond<30||s.p95>33.45).map(([name])=>name);
   console.log("PERF 30 FPS budget",misses.length?"missed in "+misses.join(", "):"met in all measured scenarios");
-  if(process.argv[2]==="automatic")assert.deepEqual(misses,[],"Automatic two-thread camera must sustain 30 FPS");
+  if(process.argv[2]==="automatic"||mode==="overhead"&&process.argv.includes("--baseline"))
+    assert.deepEqual(misses,[],view+" two-thread camera must sustain 30 FPS");
 };
