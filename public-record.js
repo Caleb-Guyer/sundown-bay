@@ -116,6 +116,14 @@
       {dur:4.1,shot:"clinicDoor",slug:"PALM COUNTY CLINIC   /   NORTH WINDOW",title:"One shirt, one comb",who:"Ora Bell",line:"You can tell it's hers by the way she ties the string. Pull the little ear and it comes right off."},
       {dur:5.4,art:"linenSlip",who:"Ora Bell",line:""}
     ],
+    keyAtCounty:[
+      {dur:3.5,shot:"clinicDoor",slug:"PALM COUNTY   /   WAITING ROOM",title:"A Spare Key",who:"Ora Bell",line:"Sit where they sit a minute. See that blank bit between the clock and the fire notice? That's where I'd put it."},
+      {dur:5.1,art:"keyImpression",who:"Ora Bell",line:"Look at the little teeth. Whoever cut that key was thinking about one particular door."}
+    ],
+    keyAtLaundry:[
+      {dur:3.5,shot:"laundry",slug:"OCEAN DRIVE   /   MARLIN LAUNDRY",title:"A Spare Key",who:"Romy Vale",line:"I know that twist in the paper. I do it one-handed while the iron's coming up."},
+      {dur:5.1,art:"keyImpression",who:"Romy Vale",line:"Leave it up. Somebody comes looking for their shirt, I want them to see it."}
+    ],
     countyLoan:[
       {dur:6.8,voice:"loanTicket",art:"relayCard",slug:"PORTSIDE TIRE   /   COUNTY BAND",title:"Say Again, Four",who:"Cleo Moss",line:"Somebody sent me one spare repeater and two work orders. That's county arithmetic."},
       {dur:7.1,voice:"lunaCheck",shot:"cab",who:"Cleo Moss",line:"Take the receiver under the Luna sign. Key it there and listen to what comes back. The market and the Marlin both want the spare."}

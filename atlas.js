@@ -1192,6 +1192,7 @@
       const p=site.route.post;if(visible(px(p.x),py(p.z),12*s))BayOnGreenArt.finishMap(ctx,px,py,s,p,site.route.id,Math.min(1,site.flash),site.clock);
     }
     if(street&&opt.linenParcel&&visible(px(opt.linenParcel.x),py(opt.linenParcel.z),2*s))BayClinicLaundry.map(ctx,opt.linenParcel,px,py,s);
+    if(street&&opt.keyPrints)BayKeyPrint.map(ctx,px,py,s,opt.keyPrints.prints);
     if(opt.valet)BayValetPlaces.map(ctx,opt,px,py,s,visible);
     if(opt.band)BaySoundShell.map(ctx,opt,px,py,s,visible);
     if(opt.wash)BayPalmaWash.map(ctx,opt,px,py,s,visible);

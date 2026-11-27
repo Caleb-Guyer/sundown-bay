@@ -434,6 +434,10 @@
       const order=BayClinicLaundry.read(incoming);
       if(order){save.rescue.laundry=order;if(active?.laundry&&order.stage==="filed")active=null;}
     }
+    if(incoming?.prints&&save.rescue.laundry?.stage==="filed"&&incoming.patient===save.rescue.laundry.patient){
+      const prints=BayKeyPrint.merge(save.rescue.laundry.prints,incoming.prints);
+      if(prints)save.rescue.laundry.prints=prints;
+    }
     if(latest?.countyRelay?.rev>save.countyRelay.rev){
       save.countyRelay=BayCountyRelay.read(latest.countyRelay);
       if(active?.county&&!save.countyRelay.next)active=null;
@@ -984,6 +988,10 @@
       BayOnGreenArt.fridge($("chapterInsert"),ink,shot);
       if(shot===2)$("chapterLine").textContent="Dad did this stretch in 3.92. Read the one beside it. "+ink.time.toFixed(2)+" seconds, in "+ink.plate+". Same bit of road.";
     }
+    if(b?.art==="keyImpression"){
+      const order=save.rescue.laundry;
+      BayKeyPrint.paint($("chapterInsert"),order.prints[campaign.scene.id==="keyAtCounty"?"clinic":"laundry"],order.patient);
+    }
     if(b?.art==="linenSlip"){
       BayClinicLaundry.slip($("chapterInsert"),save.rescue.laundry,campaign.scene.id==="laundryOrder"&&campaign.scene.index===2);
       if(campaign.scene.id==="laundryOrder"&&campaign.scene.index===2)$("chapterWho").textContent=save.rescue.laundry.patient+" · pencilled on the back";
@@ -1085,6 +1093,8 @@
       note("Bea’s family waltz","The band put it on the set list. Ben has a stool for you.",5);
     }
     if(filmReplay){filmReplay=false;return;}
+    if(id==="laundryReceipt"){note("Ora Bell","There’s a house key by my print lamp. Come back to the desk when you’ve got a minute.",5);return;}
+    if(id==="keyAtCounty"||id==="keyAtLaundry"){note("A Spare Key","Signed by "+save.rescue.laundry.patient+" · "+(id==="keyAtCounty"?"Palm County waiting room":"Marlin laundry"),3.2);return;}
     if(id==="unclaimedFare"&&active?.meter){openPanel("fare-window");return;}
     if(id==="countyAlone"){note("Both lanes open",countyCrew.site.street,3);return;}
     if(id==="lastCone"){note("The Last Cone","County Roads vest · Room 14 wardrobe",4);return;}
@@ -1465,6 +1475,7 @@
     if(!campaign.book.intro){enterFilm("opening");return;}
     if(!active&&!waypoint&&halfMoon.stage>0&&halfMoon.stage<5)markMoon();
     if(!active&&save.rescue.laundry&&save.rescue.laundry.stage!=="filed"){startLaundryOrder();return;}
+    if(!active&&save.rescue.laundry?.prints?.pocket)waypoint={...BayKeyPrint.sites.laundry};
     if(!active&&!waypoint&&meterCar())waypoint=save.meterCopy.spent?meterPin(meterCar()):{...BayCab.stops.marlin.stand,kind:"meter-rank",name:"Marlin cab stand · Mina's slip"};
     if(!active&&!waypoint&&campaign.book.pass&&!campaign.book.trips)waypoint=chapterTarget();
     if(!active&&!waypoint&&["ride","negative","return"].includes(campaign.book.stage))waypoint=chapterTarget();
@@ -3905,6 +3916,80 @@
     const actor=car||hero,p=BayDriving.world(actor,car?.42:.35,car?-.34:.08);
     return {...p,y:(car?footLevel(car.x,car.z)+.77:hero.y+.49),yaw:actor.yaw};
   }
+  let keyLamp=null;
+  function atPrintRail(place){
+    return save.rescue.laundry?.stage==="filed"&&!active&&!heat&&onStreetFeet()&&dist(hero,BayKeyPrint.sites[place])<(place==="clinic"?2.35:2.15);
+  }
+  function printCanvas(body){
+    const canvas=document.createElement("canvas");canvas.className="night-edition";canvas.setAttribute("role","img");body.append(canvas);return canvas;
+  }
+  function changePrint(place,fromPress){
+    const source=fromPress?"clinic":place;
+    if(!atPrintRail(source))return;
+    const carriedId=save.rescue.laundry.prints?.pocket?.id;
+    syncProgress(readSave());
+    const order=save.rescue.laundry,book=order.prints||{rev:0,clinic:null,laundry:null,pocket:null};
+    const rev=Math.max(Date.now(),book.rev+1);
+    if(fromPress&&keyLamp?.press.phase!=="washed")return;
+    const print=fromPress?{...keyLamp.press.state(performance.now()),id:rev}:book.pocket;
+    if(!print||!fromPress&&print.id!==carriedId){openPanel("key-"+place,true);return;}
+    order.prints={...book,rev,pocket:fromPress?book.pocket:null,[place]:print};persist();
+    if(place==="pocket"){
+      clockPin(BayKeyPrint.sites.laundry);
+      speak("Ora Bell","Keep it flat. Romy hangs things on the little rack just down from the laundry door.");
+    }else{
+      if(waypoint?.kind==="linen-print"&&!order.prints.pocket)waypoint=null;
+      if(!book[place])enterFilm(place==="clinic"?"keyAtCounty":"keyAtLaundry");
+      else openPanel("key-"+place,true);
+    }
+    lastHud=lastMap=-10;
+  }
+  function lampAction(code){
+    if(!keyLamp)return;
+    const p=keyLamp.press;
+    if(code==="KeyA")p.turn();
+    if(code==="KeyD")p.slide();
+    if(code==="KeyL")p.shutter(performance.now());
+    if(code==="KeyR")p.reset();
+    drawKeyLamp(performance.now(),true);
+  }
+  function drawKeyLamp(now,force=false){
+    const lamp=keyLamp;if(!lamp||!force&&(lamp.press.phase!=="exposing"||now-lamp.drawn<100))return;
+    const p=lamp.press;lamp.drawn=now;
+    if(p.phase==="exposing"&&p.age(now)>=8)p.shutter(now);
+    BayKeyPrint.paint(lamp.canvas,p.state(now),save.rescue.laundry.patient,p.phase,p.age(now));
+    lamp.turn.disabled=lamp.slide.disabled=p.phase!=="arrange";lamp.light.disabled=p.phase==="washed";
+    lamp.light.textContent=p.phase==="exposing"?"L · Switch off and rinse":"L · Switch on lamp";
+    lamp.turn.textContent="A · Turn key";lamp.slide.textContent="D · Move wrapper";
+    lamp.keep.hidden=lamp.hang.hidden=p.phase!=="washed";lamp.retry.hidden=p.phase==="arrange";
+    const text=p.phase==="washed"?["Pale wash","Sea glass","Harbor blue","Prussian blue","Midnight blue"][p.tone(now)]+" · "+p.seconds.toFixed(1)+" s":
+      p.phase==="exposing"?"Switch off and rinse when the paper reaches the blue you want.":BayKeyPrint.wraps[p.wrap]+" · Set the objects, then switch on the lamp.";
+    if(lamp.status.textContent!==text)lamp.status.textContent=text;
+  }
+  function keyPrintPanel(body,screen){
+    const order=save.rescue.laundry,book=order.prints;
+    if(screen==="key-lamp"){
+      const canvas=printCanvas(body),status=document.createElement("p"),tools=document.createElement("div");
+      tools.className="key-print-controls";body.append(status,tools);status.setAttribute("aria-live","polite");
+      const button=(name,action)=>{const b=document.createElement("button");b.type="button";b.textContent=name;b.onclick=action;tools.append(b);return b;};
+      const lamp=keyLamp={canvas,status,press:new BayKeyPrint.Press(),drawn:0};
+      lamp.turn=button("Turn key",()=>lampAction("KeyA"));lamp.slide=button("Move wrapper",()=>lampAction("KeyD"));lamp.light=button("Lamp",()=>lampAction("KeyL"));
+      lamp.retry=button("R · Fresh sheet",()=>lampAction("KeyR"));
+      lamp.hang=button("Clip it in the waiting room",()=>changePrint("clinic",true));lamp.keep=button(book?.pocket?"Replace the print for Romy":"Carry it to Romy",()=>changePrint("pocket",true));
+      signedNote(body,"I flattened the mint paper under a book. Put it next to my house key. Ora says four seconds gives a good deep blue.",order.patient);
+      drawKeyLamp(performance.now(),true);return;
+    }
+    const place=screen==="key-clinic"?"clinic":"laundry",hung=book?.[place],carried=book?.pocket;
+    if(hung){
+      BayKeyPrint.paint(printCanvas(body),hung,order.patient);
+      signedNote(body,place==="clinic"?"The next person in that chair asked about the key. First time today we got to talk about home.":"All those shirts I pressed. I never saw what was in the pockets until now. Leave that one with me.",place==="clinic"?"Ora Bell":"Romy Vale");
+    }
+    if(carried){
+      if(!hung)BayKeyPrint.paint(printCanvas(body),carried,order.patient,"washed");
+      body.append(makeButton(place==="clinic"?"Leave it with Ora":"Give Romy the blue print",hung?"Replace the impression on this rail.":"Hang "+order.patient+"’s signed impression here.","Clip up the print",()=>changePrint(place,false)));
+    }
+    body.append(makeButton("Back to the street",BayKeyPrint.sites[place].name,"Leave",closePanel));
+  }
   function joinRescue(desk){
     if(active||heat||!rescue.recruit(desk))return;
     active={job:{id:"rescue",name:"Rescue 4",by:"Anaïs Park"},rescue:true};waypoint=null;
@@ -3927,6 +4012,11 @@
     if(linenPatient()||save.rescue.laundry){
       const filed=save.rescue.laundry?.stage==="filed";
       b.append(makeButton("The Laundry Line",filed?"Laundry received for "+save.rescue.laundry.patient+".":"Ora has a linen order for "+(save.rescue.laundry?.patient||linenPatient())+".",filed?"Read signed tag":"Take the claim",startLaundryOrder));
+      if(filed&&!active&&!heat){
+        const book=save.rescue.laundry.prints;
+        b.append(makeButton("A Spare Key","“The key goes back in my pocket. The picture can stay.” — "+save.rescue.laundry.patient,"Work the print lamp",()=>openPanel("key-lamp")));
+        if(book?.pocket||book?.clinic)b.append(makeButton("Waiting-room print rail",book.pocket?"Ora has a clip for the proof you’re carrying.":"The signed blue print is still on the rail.","Visit the rail",()=>openPanel("key-clinic")));
+      }
     }
     if(save.countyRelay.cover)signedNote(b,"Spare 04-113 · "+BayCountyRelay.sites[save.countyRelay.cover].name+". Reading five. Driver's carbon on file.","Cleo Moss · Radio service");
     const slip=save.rescue.streetSlip;
@@ -3977,6 +4067,7 @@
   }
   const rescueMeshes=new Map();let clinicArtReady=false,unitArtReady=false,rescueZoom=0;
   function drawRescue(list,see,t){
+    if(save.rescue.laundry?.stage==="filed")BayKeyPrint.world(model,list,see,save.rescue.laundry.prints);
     if(see(clinic.center,170)){if(!clinicArtReady){BayPalmClinic.install(model);clinicArtReady=true;}BayPalmClinic.world(list,see,t,hours,!!rescue.recovering,save.rescue);}
     if(!unitArtReady&&see(unit4,165)){BayAmbulanceArt.install(model);unitArtReady=true;}
     const parcel=linenParcel();
@@ -10559,6 +10650,7 @@
         peds.push({...julesBody,shirt:personColors[2][1],skin:personColors[2][0]});
     }
     return {mode:modeName,countyCrew:play&&countyCrew.site?countyCrew:null,walkerIndex,romyHome:modeName==="street"&&play?(minutePassenger()||romyOutside()||(campaign.scene?.id==="walkHomeDoor"?homeWalk:null)):null,payroll:modeName==="street"?(active?.featurePrint?.ride||active?.payroll||payrollReceipt||printAftermath||lastPayroll()):null,streetAction:play&&modeName==="street"?streetAction:null,cx,cz,scale,solids,threads:play?{site:threads.site,strip:modeName==="street"&&dist(pos(),threads.site)<80?featuredStrip():null}:null,coffee:play?coffee:null,curbWire:play?curbWire:null,wireTV:play&&modeName==="street"?updateWireTV(streetTime):null,campana:play?campana:null,paletaHeld:play&&paletaOnFoot()?campanaHeld():null,gutters:play?gutters:null,crew:play?{lead:unit.lead,otherLook:worn(unit.other),other:otherBody,afternoon,ride:otherCar,finder:!!unit.eye,met:unit.met,desk:scoutDesk,outing:windowRide,print:scoutHouseCard()}:null,rainWalk:play?rainWalk:null,buttonwood:play?works:null,brisas:play?club:null,palmHouse:play?palm:null,palmDiner:play?BayPalmRoom.frameState(palm,pos()):null,
+      keyPrints:play&&modeName==="street"&&save.rescue.laundry?.stage==="filed"?save.rescue.laundry:null,
       palmPeople:play&&modeName==="street"?BayPalmRoom.nearPeople(palm,hero).map(a=>({a,opts:BayPalmRoom.poseOptions(palm,a,worn(),personColors)})):null,motorSales:play?gull.render:null,dealerCrew:play?gull:null,gullPeople:play&&modeName==="street"?gullActors.concat(gull.exchange?.ready?[hero]:[]).map(a=>({a,opts:gullPose(a)})):null,motos:play?motos:null,rescue:play?rescue:null,airLine:play?airLine:null,airCrew,airCarried:save.airmail.bag&&onStreetFeet()?hero:null,courts,pickup,valet,skate:play?skate:null,deckHand:skateCarried()?hero:null,deckSeat:stowedDeck(),keyMapActor:exchangingKey()?keyMapActor:null,streetCar:car,motorists:modeName==="street"&&play?motoristsNear(q=>Math.abs(q.x-cx)<88&&Math.abs(q.z-cz)<88,.05):[],player:{x:p.x,y:p.y,z:p.z,yaw:p.yaw,kit:worn(),lead:unit.lead,neighborPose:helloPose,skin:unit.lead==="guest"?personColors[0][0]:BayExposureArt.palette[0],shirt:BayThreadsArt.colors[worn()]||BayCourtPlayers.kitColors[worn()]||(unit.lead==="guest"?personColors[0][1]:BayExposureArt.palette[1]),driving,kind:car?.kind,color:displayCar?.color||"#99ebc6",motion,damage:car?.damage,towRig:car?.towRig,
       steer:car?.steer,brakes:car?.brakes,handbrake:car?.handbrake,reversing:car?.reversing,flatSide:car?.flatSide,passengerDoor:car?.passengerDoor,inCabin:!!windowRide?.held&&windowRide.seat>.54||!!airLine.player&&!airLine.transfer||transit.aboard||(!!transfer||cabs.playerHeld)&&(motion.ride?.seat||0)>.54},skids,story:active?.story,pressVan,
       summerCaps:play?summerCaps:null,portSpur:play?spur:null,redCork:play,angling:active?.angling,coastCup:play?cup:null,oceanBeat:play?beat:null,engineCompany:play?company:null,sevenScene,starlite:play?starliteSite:null,starliteVisit:theatre.visit,starliteFrame:theatreFilm,atProjector:!!theatre.run,starliteLit:cityDusk()>.28,pavement:play?pavement:null,cabService:play?cabs:null,cineSecond:!!save.cab.reel,recovery:play?recovery:null,
@@ -12366,8 +12458,10 @@
     const invitation=minuteOffer();
     const apronAction=apronOffer();
     const moonClue=!active&&!heat&&swim&&!swim.exit&&halfMoon.stage>=1&&halfMoon.stage<=3&&dist(hero,halfMoon.site())<19;
+    const printRack=save.rescue.laundry?.prints;
     const linen=linenHint(nearby);
     if(linen)contextHint(...linen);
+    else if((printRack?.pocket||printRack?.laundry)&&atPrintRail("laundry"))contextHint("F",printRack.pocket?"Give Romy the blue print":"Look at the signed print");
     else if(moonClue){
       const q=halfMoon.site(),action=halfMoon.action(hero,swim);
       $("objective").hidden=false;$("objectiveTag").textContent="Half Moon · "+BayHalfMoon.piers[halfMoon.pier].name;
@@ -12728,6 +12822,7 @@
     if(!$("speech").hidden&&elapsed>speechTill)$("speech").hidden=true;
   }
   function closePanel(){
+    keyLamp=null;
     if(seatSearch)closeSeat();
     frameCheck.suspend();
     timingFilm=passFilm=spliceBench=null;
@@ -13246,6 +13341,8 @@
   function airLedgerButton(){return makeButton("Pelican Air · Signed mail","Delivery slips, recorded routes and water landings.","Open ledger",()=>openPanel("air-book"));}
   let pickingRidePin=false;
   function openPanel(next,redraw=false){
+    if((next==="key-lamp"||next==="key-clinic")&&!atPrintRail("clinic"))return;
+    if(next==="key-laundry"&&!atPrintRail("laundry"))return;
     if(aprons.round?.charging){aprons.round.charging=false;aprons.round.power=0;aprons.round.commit=null;}
     countyCrew.charge=null;
     if(next==="pause"&&needle?.phase==="ready"&&needle.held)needle.serve();
@@ -13299,7 +13396,7 @@
     if(pickup?.human.shot?.stage==="wind"){const p=pickup.human;p.shot=null;p.wind=0;p.action="dribble";courtMeter();}
     onAir=null;paintPreview=null;$("shade").className=shop?"paint-shade":"";
     if(seatSearch&&next!=="under-seat")closeSeat();
-    releaseMouse();panel=next;keys.clear();resetPointer();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
+    keyLamp=null;releaseMouse();panel=next;keys.clear();resetPointer();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
     const b=$("panelBody");b.replaceChildren();$("closePanel").focus({preventScroll:true});
     let title="",kicker="";
     if(skate.rider){skate.rider.charging=false;skate.rider.charge=0;}
@@ -13479,6 +13576,8 @@
       title=next==="motor-titles"?"Your garage":next==="jobs"?"A Second Opinion":next==="motor-sticker"&&gullSelection?formatVehicle(gullSelection):gullSite.name;kicker="Biscayne Street  /  Kitty Vega";gullPanel(b,next);
     }else if(next==="moto-shop"||next==="moto-prints"||next==="jobs"&&active?.moto){
       title=next==="moto-prints"?"The print window":next==="jobs"?"Second Seat":studio.name;kicker="Ocean Drive  /  Inés Vidal";motoPanel(b,next);
+    }else if(next==="key-lamp"||next==="key-clinic"||next==="key-laundry"){
+      title="A Spare Key";kicker=next==="key-lamp"?"Palm County  /  Print lamp":next==="key-clinic"?"Palm County  /  Waiting room":"Marlin laundry  /  Print rack";keyPrintPanel(b,next);
     }else if(next==="rescue-call"||next==="clinic-desk"||next==="jobs"&&active?.rescue){
       title=next==="clinic-desk"?clinic.name:"Rescue 4";kicker=next==="clinic-desk"?"Old Palms  /  Receiving":"Bay Rescue  /  "+rescue.call.place;
       rescuePanel(b,next);
@@ -14034,6 +14133,7 @@
     if(filmControls(ev))return;
     if(!play){if(ev.code==="Enter"&&!ev.repeat){ev.preventDefault();playStart();}return;}
     if(panel){
+      if(keyLamp&&["KeyA","KeyD","KeyL","KeyR"].includes(ev.code)){ev.preventDefault();if(!ev.repeat)lampAction(ev.code);return;}
       if(seatSearch&&["KeyA","KeyD","ArrowLeft","ArrowRight","Space"].includes(ev.code)){ev.preventDefault();keys.add(ev.code);return;}
       if(panel==="bell-desk"&&!ev.repeat&&/^Digit[1-3]$/.test(ev.code)){ev.preventDefault();takeClaim(luggage.tags[Number(ev.code.slice(-1))-1]);return;}
       if(panel==="take-result"&&ev.code==="KeyT"&&!ev.repeat){ev.preventDefault();startTake();return;}
@@ -14123,6 +14223,7 @@
     if(roadside.vehicle&&(ev.code==="KeyX"||ev.code==="KeyZ"&&!ev.shiftKey&&!held("ShiftLeft","ShiftRight")))roadside.stop();
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
     if(active?.laundry&&linenKey(ev.code))return;
+    if(ev.code==="KeyF"&&(save.rescue.laundry?.prints?.pocket||save.rescue.laundry?.prints?.laundry)&&atPrintRail("laundry")){openPanel("key-laundry");return;}
     if(ev.code==="KeyB"&&throwHouseCopy())return;
     if(ev.code==="KeyF"&&subscriber()){openPanel("subscriber-copy");return;}
     if(ev.code==="KeyU"&&active?.payroll?.aboard&&car===active.payroll.car&&active.payroll.envelopes?.count<3)return;
@@ -14560,6 +14661,7 @@
     }
     if(wireView&&panel==="curb-wire")paintWire(now);
     if(timingFilm?.playing)drawTimingFilm(now);
+    if(keyLamp)drawKeyLamp(now);
     if(spliceBench?.playing)drawSpliceBench(now);
     if(passFilm?.playing)rollPassFilm(now);
     if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;

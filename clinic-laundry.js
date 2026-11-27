@@ -7,7 +7,8 @@
   const targets={call:phone,collect:laundry,return:desk};
   function read(raw){
     if(!stages.includes(raw?.stage)||typeof raw.patient!=="string"||!raw.patient.trim())return null;
-    return {stage:raw.stage,patient:raw.patient.slice(0,56)};
+    const prints=raw.stage==="filed"&&BayKeyPrint.read(raw.prints);
+    return {stage:raw.stage,patient:raw.patient.slice(0,56),...(prints?{prints}:{})};
   }
   function count(seconds){return seconds<.35?0:Math.min(3,1+Math.floor((seconds-.35)/1.18));}
   function slip(canvas,order,reverse=false){

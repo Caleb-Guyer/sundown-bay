@@ -16455,6 +16455,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const p=site.route.post;if(visible(px(p.x),py(p.z),12*s))BayOnGreenArt.finishMap(ctx,px,py,s,p,site.route.id,Math.min(1,site.flash),site.clock);
     }
     if(street&&opt.linenParcel&&visible(px(opt.linenParcel.x),py(opt.linenParcel.z),2*s))BayClinicLaundry.map(ctx,opt.linenParcel,px,py,s);
+    if(street&&opt.keyPrints)BayKeyPrint.map(ctx,px,py,s,opt.keyPrints.prints);
     if(opt.valet)BayValetPlaces.map(ctx,opt,px,py,s,visible);
     if(opt.band)BaySoundShell.map(ctx,opt,px,py,s,visible);
     if(opt.wash)BayPalmaWash.map(ctx,opt,px,py,s,visible);
@@ -22093,6 +22094,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     laundryReceipt:[
       {dur:4.1,shot:"clinicDoor",slug:"PALM COUNTY CLINIC   /   NORTH WINDOW",title:"One shirt, one comb",who:"Ora Bell",line:"You can tell it's hers by the way she ties the string. Pull the little ear and it comes right off."},
       {dur:5.4,art:"linenSlip",who:"Ora Bell",line:""}
+    ],
+    keyAtCounty:[
+      {dur:3.5,shot:"clinicDoor",slug:"PALM COUNTY   /   WAITING ROOM",title:"A Spare Key",who:"Ora Bell",line:"Sit where they sit a minute. See that blank bit between the clock and the fire notice? That's where I'd put it."},
+      {dur:5.1,art:"keyImpression",who:"Ora Bell",line:"Look at the little teeth. Whoever cut that key was thinking about one particular door."}
+    ],
+    keyAtLaundry:[
+      {dur:3.5,shot:"laundry",slug:"OCEAN DRIVE   /   MARLIN LAUNDRY",title:"A Spare Key",who:"Romy Vale",line:"I know that twist in the paper. I do it one-handed while the iron's coming up."},
+      {dur:5.1,art:"keyImpression",who:"Romy Vale",line:"Leave it up. Somebody comes looking for their shirt, I want them to see it."}
     ],
     countyLoan:[
       {dur:6.8,voice:"loanTicket",art:"relayCard",slug:"PORTSIDE TIRE   /   COUNTY BAND",title:"Say Again, Four",who:"Cleo Moss",line:"Somebody sent me one spare repeater and two work orders. That's county arithmetic."},
@@ -52711,7 +52720,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   const targets={call:phone,collect:laundry,return:desk};
   function read(raw){
     if(!stages.includes(raw?.stage)||typeof raw.patient!=="string"||!raw.patient.trim())return null;
-    return {stage:raw.stage,patient:raw.patient.slice(0,56)};
+    const prints=raw.stage==="filed"&&BayKeyPrint.read(raw.prints);
+    return {stage:raw.stage,patient:raw.patient.slice(0,56),...(prints?{prints}:{})};
   }
   function count(seconds){return seconds<.35?0:Math.min(3,1+Math.floor((seconds-.35)/1.18));}
   function slip(canvas,order,reverse=false){
@@ -52748,6 +52758,135 @@ window.buildBayCity = function buildBayCity(g,water) {
     c.fillStyle="#eee1be";c.fillRect(-.158,-.093,.131,.08);c.restore();
   }
   window.BayClinicLaundry={stages,targets,read,count,slip,parcel,map};
+})();
+
+;
+/* key-print.js */
+/* Palm County's old exposure lamp and the contact prints in the two windows. */
+(() => {
+  "use strict";
+  const sites={
+    clinic:{x:-94.6,z:57.74,name:"Palm County waiting room",kind:"clinic"},
+    laundry:{x:153.45,z:-38.45,name:"Romy’s print rack · Marlin laundry",kind:"linen-print"}
+  };
+  const inks=["#b1c6bf","#7caaa9","#447c90","#235572","#193c58"];
+  const wraps=["Left of the key","Over the bow","Right of the key"];
+  const integer=(n,max)=>Number.isInteger(n)&&n>=0&&n<=max;
+  function proof(p){
+    if(!p||!integer(p.angle,7)||!integer(p.wrap,2)||!integer(p.tone,4)||!Number.isSafeInteger(p.id)||p.id<1)return null;
+    return {angle:p.angle,wrap:p.wrap,tone:p.tone,id:p.id};
+  }
+  function read(raw){
+    if(!Number.isSafeInteger(raw?.rev)||raw.rev<1)return null;
+    const pocket=proof(raw.pocket),clinic=proof(raw.clinic),laundry=proof(raw.laundry);
+    return pocket||clinic||laundry?{rev:raw.rev,pocket,clinic,laundry}:null;
+  }
+  function merge(local,incoming){
+    const other=read(incoming);
+    if(!other)return local;
+    if(!local)return other;
+    const recent=other.rev>local.rev?other:local;
+    const later=(a,b)=>!a||b&&b.id>a.id?b:a;
+    const clinic=later(local.clinic,other.clinic),laundry=later(local.laundry,other.laundry);
+    const p=recent.pocket;
+    return {rev:recent.rev,clinic,laundry,pocket:p&&p.id!==clinic?.id&&p.id!==laundry?.id?p:null};
+  }
+  class Press{
+    constructor(){this.angle=1;this.wrap=2;this.phase="arrange";this.seconds=0;}
+    turn(){if(this.phase==="arrange")this.angle=(this.angle+1)%8;}
+    slide(){if(this.phase==="arrange")this.wrap=(this.wrap+1)%3;}
+    shutter(now){
+      if(this.phase==="arrange"){this.start=now;this.phase="exposing";}
+      else if(this.phase==="exposing"){this.seconds=this.age(now);this.phase="washed";}
+    }
+    age(now){return this.phase==="exposing"?Math.min(8,Math.max(0,(now-this.start)/1000)):this.seconds;}
+    tone(now){return Math.min(4,Math.floor(this.age(now)/1.30));}
+    state(now){return {angle:this.angle,wrap:this.wrap,tone:this.tone(now)};}
+    reset(){this.phase="arrange";this.seconds=0;}
+  }
+  function impression(c,p,objects=false){
+    c.save();c.translate(311,174);c.rotate((p.angle-1)*Math.PI/4-.29);
+    c.fillStyle=objects?"#827453":"#e6ead8";
+    c.fillRect(-76,-9,147,18);c.fillRect(34,4,12,23);c.fillRect(57,4,13,18);
+    c.beginPath();c.ellipse(-81,0,32,40,0,0,Math.PI*2);c.ellipse(-81,0,15,20,0,0,Math.PI*2);c.fill("evenodd");
+    if(objects){c.fillStyle="#baa97b";c.fillRect(-51,-6,117,3);}
+    c.restore();
+    c.save();c.translate([160,251,423][p.wrap],[216,103,212][p.wrap]);c.rotate(.26);
+    c.fillStyle=objects?"#ae5f52":"#b8d3d0";
+    c.beginPath();c.moveTo(-37,-18);c.lineTo(-15,-8);c.quadraticCurveTo(0,-29,18,-8);c.lineTo(39,-20);c.lineTo(34,0);c.lineTo(41,16);c.lineTo(17,9);c.quadraticCurveTo(0,29,-15,9);c.lineTo(-39,18);c.closePath();c.fill();
+    c.strokeStyle=objects?"#e7d2a7":"#e1e8d8";c.lineWidth=2;
+    for(const x of [-10,-2,6]){c.beginPath();c.moveTo(x,-13);c.quadraticCurveTo(x+11,-3,x+3,13);c.stroke();}
+    c.restore();
+  }
+  function paint(canvas,p,patient,phase="hung",age=0){
+    if(canvas.width!==620)canvas.width=620;if(canvas.height!==340)canvas.height=340;
+    const c=canvas.getContext?.("2d");if(!c)return;
+    c.fillStyle="#363d39";c.fillRect(0,0,620,340);c.save();c.translate(4,-2);c.rotate(.009);
+    c.fillStyle="#e2d6b7";c.fillRect(34,15,549,309);
+    const objects=phase==="arrange"||phase==="exposing";
+    c.fillStyle=phase==="arrange"?"#a5ad8a":inks[p.tone];
+    // A flat brush leaves dry bristles at either end of each pass.
+    for(let i=0;i<10;i++){
+      const x=51+(i*7%11),end=566-(i*13%9),y=33+i*22.3;
+      c.fillRect(x,y,end-x,25);
+      for(let j=0;j<4;j++)c.fillRect(x-2-(i+j)%5,y+j*5.7,end-x+9-(i*j)%5,1.4);
+    }
+    c.fillStyle="rgba(239,232,200,.25)";
+    for(let i=0;i<96;i++)c.fillRect(61+(i*139)%493,39+(i*71)%210,i%4+.7,.75);
+    c.save();c.beginPath();c.rect(53,32,511,228);c.clip();impression(c,p,objects);c.restore();
+    c.fillStyle="#455852";c.font="bold 12px monospace";c.fillText("PALM COUNTY   /   CONTACT PRINT",54,282);
+    c.font="italic 21px Georgia,serif";c.fillText(patient,55,308,325);
+    c.textAlign="right";c.font="12px monospace";
+    c.fillText(phase==="exposing"?age.toFixed(1)+" s   •   LAMP ON":phase==="arrange"?"HOUSE KEY  /  MINT PAPER":"ONE SHIRT, ONE KEY",562,304);
+    if(objects){
+      for(let i=0;i<inks.length;i++){c.fillStyle=inks[i];c.fillRect(410+i*30,270,28,8);}
+      if(phase==="exposing"){const x=410+Math.min(age/6.5,1)*146;c.fillStyle="#5b452d";c.beginPath();c.moveTo(x,279);c.lineTo(x-4,286);c.lineTo(x+4,286);c.fill();}
+    }
+    c.restore();
+    canvas.setAttribute("aria-label",patient+"’s house key and peppermint wrapper · "+phase);
+  }
+  function stand(g){
+    for(const x of [-.32,.32])g.box(x,.67,0,.044,1.34,.045,"#806d52");
+    g.box(0,1.18,0,.82,.49,.05,"#5f695c");g.box(0,1.40,0,.87,.04,.07,"#a48c62");
+  }
+  function world(model,list,see,book){
+    for(const place of ["clinic","laundry"]){
+      const p=sites[place],x=p.x+(place==="clinic"?1.17:.73),z=p.z+(place==="clinic"?-.68:0);
+      if(!see(p,48))continue;
+      const yaw=place==="clinic"?0:-Math.PI/2;
+      model("clinic-key-rack",stand);list.push(["clinic-key-rack",x,.14,z,yaw]);
+      const print=book?.[place];if(!print)continue;
+      const face=(name,dx,y,dz,rot,build)=>{
+        model(name,build);list.push([name,x+dx*Math.cos(yaw)+dz*Math.sin(yaw),y+.14,z-dx*Math.sin(yaw)+dz*Math.cos(yaw),yaw,0,rot]);
+      };
+      face("clinic-key-card-"+print.tone,0,1.16,.035,0,g=>{
+        g.box(0,0,0,.58,.33,.012,"#e2d6b7");g.box(0,.019,.008,.53,.246,.006,inks[print.tone]);
+      });
+      face("clinic-key-silhouette",0,1.17,.050,-((print.angle-1)*Math.PI/4-.29),g=>{
+        g.box(.011,0,0,.15,.018,.005,"#e6ead8");g.box(.054,-.012,0,.014,.032,.006,"#e6ead8");
+        g.box(.077,-.008,0,.014,.023,.006,"#e6ead8");
+        for(let i=0;i<8;i++){
+          const a=i*Math.PI/4,b=(i+1)*Math.PI/4;
+          g.pole([-.074+.026*Math.cos(a),.030*Math.sin(a),0],[-.074+.026*Math.cos(b),.030*Math.sin(b),0],.009,"#e6ead8",4);
+        }
+      });
+      face("clinic-mint-paper",[-.152,-.058,.117][print.wrap],print.wrap===1?1.24:1.13,.054,0,g=>{
+        g.box(0,0,0,.047,.027,.004,"#d1e1d7");
+        for(const s of [-1,1])g.tri([s*.015,0,.003],[s*.042,-.017,.003],[s*.04,.017,.003],"#b8d3d0");
+      });
+    }
+  }
+  function map(c,px,py,s,book){
+    for(const [id,p] of Object.entries(sites)){
+      const x=px(p.x+(id==="clinic"?1.17:.73)),y=py(p.z+(id==="clinic"?-.68:0));
+      if(x< -12||y< -12||x>c.canvas.width+12||y>c.canvas.height+12)continue;
+      c.save();c.translate(x,y);c.rotate(id==="clinic"?0:-Math.PI/2);c.scale(s,s);
+      c.fillStyle="#806d52";c.fillRect(-.44,-.12,.88,.24);
+      if(book?.[id]){c.fillStyle="#eadcbb";c.fillRect(-.3,-.24,.6,.32);c.fillStyle=inks[book[id].tone];c.fillRect(-.26,-.21,.52,.22);}
+      c.restore();
+    }
+  }
+  window.BayKeyPrint={sites,wraps,read,merge,Press,proof,paint,world,map};
 })();
 
 ;
@@ -74868,6 +75007,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       const order=BayClinicLaundry.read(incoming);
       if(order){save.rescue.laundry=order;if(active?.laundry&&order.stage==="filed")active=null;}
     }
+    if(incoming?.prints&&save.rescue.laundry?.stage==="filed"&&incoming.patient===save.rescue.laundry.patient){
+      const prints=BayKeyPrint.merge(save.rescue.laundry.prints,incoming.prints);
+      if(prints)save.rescue.laundry.prints=prints;
+    }
     if(latest?.countyRelay?.rev>save.countyRelay.rev){
       save.countyRelay=BayCountyRelay.read(latest.countyRelay);
       if(active?.county&&!save.countyRelay.next)active=null;
@@ -75418,6 +75561,10 @@ window.buildBayCity = function buildBayCity(g,water) {
       BayOnGreenArt.fridge($("chapterInsert"),ink,shot);
       if(shot===2)$("chapterLine").textContent="Dad did this stretch in 3.92. Read the one beside it. "+ink.time.toFixed(2)+" seconds, in "+ink.plate+". Same bit of road.";
     }
+    if(b?.art==="keyImpression"){
+      const order=save.rescue.laundry;
+      BayKeyPrint.paint($("chapterInsert"),order.prints[campaign.scene.id==="keyAtCounty"?"clinic":"laundry"],order.patient);
+    }
     if(b?.art==="linenSlip"){
       BayClinicLaundry.slip($("chapterInsert"),save.rescue.laundry,campaign.scene.id==="laundryOrder"&&campaign.scene.index===2);
       if(campaign.scene.id==="laundryOrder"&&campaign.scene.index===2)$("chapterWho").textContent=save.rescue.laundry.patient+" · pencilled on the back";
@@ -75519,6 +75666,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       note("Bea’s family waltz","The band put it on the set list. Ben has a stool for you.",5);
     }
     if(filmReplay){filmReplay=false;return;}
+    if(id==="laundryReceipt"){note("Ora Bell","There’s a house key by my print lamp. Come back to the desk when you’ve got a minute.",5);return;}
+    if(id==="keyAtCounty"||id==="keyAtLaundry"){note("A Spare Key","Signed by "+save.rescue.laundry.patient+" · "+(id==="keyAtCounty"?"Palm County waiting room":"Marlin laundry"),3.2);return;}
     if(id==="unclaimedFare"&&active?.meter){openPanel("fare-window");return;}
     if(id==="countyAlone"){note("Both lanes open",countyCrew.site.street,3);return;}
     if(id==="lastCone"){note("The Last Cone","County Roads vest · Room 14 wardrobe",4);return;}
@@ -75899,6 +76048,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!campaign.book.intro){enterFilm("opening");return;}
     if(!active&&!waypoint&&halfMoon.stage>0&&halfMoon.stage<5)markMoon();
     if(!active&&save.rescue.laundry&&save.rescue.laundry.stage!=="filed"){startLaundryOrder();return;}
+    if(!active&&save.rescue.laundry?.prints?.pocket)waypoint={...BayKeyPrint.sites.laundry};
     if(!active&&!waypoint&&meterCar())waypoint=save.meterCopy.spent?meterPin(meterCar()):{...BayCab.stops.marlin.stand,kind:"meter-rank",name:"Marlin cab stand · Mina's slip"};
     if(!active&&!waypoint&&campaign.book.pass&&!campaign.book.trips)waypoint=chapterTarget();
     if(!active&&!waypoint&&["ride","negative","return"].includes(campaign.book.stage))waypoint=chapterTarget();
@@ -78339,6 +78489,80 @@ window.buildBayCity = function buildBayCity(g,water) {
     const actor=car||hero,p=BayDriving.world(actor,car?.42:.35,car?-.34:.08);
     return {...p,y:(car?footLevel(car.x,car.z)+.77:hero.y+.49),yaw:actor.yaw};
   }
+  let keyLamp=null;
+  function atPrintRail(place){
+    return save.rescue.laundry?.stage==="filed"&&!active&&!heat&&onStreetFeet()&&dist(hero,BayKeyPrint.sites[place])<(place==="clinic"?2.35:2.15);
+  }
+  function printCanvas(body){
+    const canvas=document.createElement("canvas");canvas.className="night-edition";canvas.setAttribute("role","img");body.append(canvas);return canvas;
+  }
+  function changePrint(place,fromPress){
+    const source=fromPress?"clinic":place;
+    if(!atPrintRail(source))return;
+    const carriedId=save.rescue.laundry.prints?.pocket?.id;
+    syncProgress(readSave());
+    const order=save.rescue.laundry,book=order.prints||{rev:0,clinic:null,laundry:null,pocket:null};
+    const rev=Math.max(Date.now(),book.rev+1);
+    if(fromPress&&keyLamp?.press.phase!=="washed")return;
+    const print=fromPress?{...keyLamp.press.state(performance.now()),id:rev}:book.pocket;
+    if(!print||!fromPress&&print.id!==carriedId){openPanel("key-"+place,true);return;}
+    order.prints={...book,rev,pocket:fromPress?book.pocket:null,[place]:print};persist();
+    if(place==="pocket"){
+      clockPin(BayKeyPrint.sites.laundry);
+      speak("Ora Bell","Keep it flat. Romy hangs things on the little rack just down from the laundry door.");
+    }else{
+      if(waypoint?.kind==="linen-print"&&!order.prints.pocket)waypoint=null;
+      if(!book[place])enterFilm(place==="clinic"?"keyAtCounty":"keyAtLaundry");
+      else openPanel("key-"+place,true);
+    }
+    lastHud=lastMap=-10;
+  }
+  function lampAction(code){
+    if(!keyLamp)return;
+    const p=keyLamp.press;
+    if(code==="KeyA")p.turn();
+    if(code==="KeyD")p.slide();
+    if(code==="KeyL")p.shutter(performance.now());
+    if(code==="KeyR")p.reset();
+    drawKeyLamp(performance.now(),true);
+  }
+  function drawKeyLamp(now,force=false){
+    const lamp=keyLamp;if(!lamp||!force&&(lamp.press.phase!=="exposing"||now-lamp.drawn<100))return;
+    const p=lamp.press;lamp.drawn=now;
+    if(p.phase==="exposing"&&p.age(now)>=8)p.shutter(now);
+    BayKeyPrint.paint(lamp.canvas,p.state(now),save.rescue.laundry.patient,p.phase,p.age(now));
+    lamp.turn.disabled=lamp.slide.disabled=p.phase!=="arrange";lamp.light.disabled=p.phase==="washed";
+    lamp.light.textContent=p.phase==="exposing"?"L · Switch off and rinse":"L · Switch on lamp";
+    lamp.turn.textContent="A · Turn key";lamp.slide.textContent="D · Move wrapper";
+    lamp.keep.hidden=lamp.hang.hidden=p.phase!=="washed";lamp.retry.hidden=p.phase==="arrange";
+    const text=p.phase==="washed"?["Pale wash","Sea glass","Harbor blue","Prussian blue","Midnight blue"][p.tone(now)]+" · "+p.seconds.toFixed(1)+" s":
+      p.phase==="exposing"?"Switch off and rinse when the paper reaches the blue you want.":BayKeyPrint.wraps[p.wrap]+" · Set the objects, then switch on the lamp.";
+    if(lamp.status.textContent!==text)lamp.status.textContent=text;
+  }
+  function keyPrintPanel(body,screen){
+    const order=save.rescue.laundry,book=order.prints;
+    if(screen==="key-lamp"){
+      const canvas=printCanvas(body),status=document.createElement("p"),tools=document.createElement("div");
+      tools.className="key-print-controls";body.append(status,tools);status.setAttribute("aria-live","polite");
+      const button=(name,action)=>{const b=document.createElement("button");b.type="button";b.textContent=name;b.onclick=action;tools.append(b);return b;};
+      const lamp=keyLamp={canvas,status,press:new BayKeyPrint.Press(),drawn:0};
+      lamp.turn=button("Turn key",()=>lampAction("KeyA"));lamp.slide=button("Move wrapper",()=>lampAction("KeyD"));lamp.light=button("Lamp",()=>lampAction("KeyL"));
+      lamp.retry=button("R · Fresh sheet",()=>lampAction("KeyR"));
+      lamp.hang=button("Clip it in the waiting room",()=>changePrint("clinic",true));lamp.keep=button(book?.pocket?"Replace the print for Romy":"Carry it to Romy",()=>changePrint("pocket",true));
+      signedNote(body,"I flattened the mint paper under a book. Put it next to my house key. Ora says four seconds gives a good deep blue.",order.patient);
+      drawKeyLamp(performance.now(),true);return;
+    }
+    const place=screen==="key-clinic"?"clinic":"laundry",hung=book?.[place],carried=book?.pocket;
+    if(hung){
+      BayKeyPrint.paint(printCanvas(body),hung,order.patient);
+      signedNote(body,place==="clinic"?"The next person in that chair asked about the key. First time today we got to talk about home.":"All those shirts I pressed. I never saw what was in the pockets until now. Leave that one with me.",place==="clinic"?"Ora Bell":"Romy Vale");
+    }
+    if(carried){
+      if(!hung)BayKeyPrint.paint(printCanvas(body),carried,order.patient,"washed");
+      body.append(makeButton(place==="clinic"?"Leave it with Ora":"Give Romy the blue print",hung?"Replace the impression on this rail.":"Hang "+order.patient+"’s signed impression here.","Clip up the print",()=>changePrint(place,false)));
+    }
+    body.append(makeButton("Back to the street",BayKeyPrint.sites[place].name,"Leave",closePanel));
+  }
   function joinRescue(desk){
     if(active||heat||!rescue.recruit(desk))return;
     active={job:{id:"rescue",name:"Rescue 4",by:"Anaïs Park"},rescue:true};waypoint=null;
@@ -78361,6 +78585,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(linenPatient()||save.rescue.laundry){
       const filed=save.rescue.laundry?.stage==="filed";
       b.append(makeButton("The Laundry Line",filed?"Laundry received for "+save.rescue.laundry.patient+".":"Ora has a linen order for "+(save.rescue.laundry?.patient||linenPatient())+".",filed?"Read signed tag":"Take the claim",startLaundryOrder));
+      if(filed&&!active&&!heat){
+        const book=save.rescue.laundry.prints;
+        b.append(makeButton("A Spare Key","“The key goes back in my pocket. The picture can stay.” — "+save.rescue.laundry.patient,"Work the print lamp",()=>openPanel("key-lamp")));
+        if(book?.pocket||book?.clinic)b.append(makeButton("Waiting-room print rail",book.pocket?"Ora has a clip for the proof you’re carrying.":"The signed blue print is still on the rail.","Visit the rail",()=>openPanel("key-clinic")));
+      }
     }
     if(save.countyRelay.cover)signedNote(b,"Spare 04-113 · "+BayCountyRelay.sites[save.countyRelay.cover].name+". Reading five. Driver's carbon on file.","Cleo Moss · Radio service");
     const slip=save.rescue.streetSlip;
@@ -78411,6 +78640,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   const rescueMeshes=new Map();let clinicArtReady=false,unitArtReady=false,rescueZoom=0;
   function drawRescue(list,see,t){
+    if(save.rescue.laundry?.stage==="filed")BayKeyPrint.world(model,list,see,save.rescue.laundry.prints);
     if(see(clinic.center,170)){if(!clinicArtReady){BayPalmClinic.install(model);clinicArtReady=true;}BayPalmClinic.world(list,see,t,hours,!!rescue.recovering,save.rescue);}
     if(!unitArtReady&&see(unit4,165)){BayAmbulanceArt.install(model);unitArtReady=true;}
     const parcel=linenParcel();
@@ -84993,6 +85223,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         peds.push({...julesBody,shirt:personColors[2][1],skin:personColors[2][0]});
     }
     return {mode:modeName,countyCrew:play&&countyCrew.site?countyCrew:null,walkerIndex,romyHome:modeName==="street"&&play?(minutePassenger()||romyOutside()||(campaign.scene?.id==="walkHomeDoor"?homeWalk:null)):null,payroll:modeName==="street"?(active?.featurePrint?.ride||active?.payroll||payrollReceipt||printAftermath||lastPayroll()):null,streetAction:play&&modeName==="street"?streetAction:null,cx,cz,scale,solids,threads:play?{site:threads.site,strip:modeName==="street"&&dist(pos(),threads.site)<80?featuredStrip():null}:null,coffee:play?coffee:null,curbWire:play?curbWire:null,wireTV:play&&modeName==="street"?updateWireTV(streetTime):null,campana:play?campana:null,paletaHeld:play&&paletaOnFoot()?campanaHeld():null,gutters:play?gutters:null,crew:play?{lead:unit.lead,otherLook:worn(unit.other),other:otherBody,afternoon,ride:otherCar,finder:!!unit.eye,met:unit.met,desk:scoutDesk,outing:windowRide,print:scoutHouseCard()}:null,rainWalk:play?rainWalk:null,buttonwood:play?works:null,brisas:play?club:null,palmHouse:play?palm:null,palmDiner:play?BayPalmRoom.frameState(palm,pos()):null,
+      keyPrints:play&&modeName==="street"&&save.rescue.laundry?.stage==="filed"?save.rescue.laundry:null,
       palmPeople:play&&modeName==="street"?BayPalmRoom.nearPeople(palm,hero).map(a=>({a,opts:BayPalmRoom.poseOptions(palm,a,worn(),personColors)})):null,motorSales:play?gull.render:null,dealerCrew:play?gull:null,gullPeople:play&&modeName==="street"?gullActors.concat(gull.exchange?.ready?[hero]:[]).map(a=>({a,opts:gullPose(a)})):null,motos:play?motos:null,rescue:play?rescue:null,airLine:play?airLine:null,airCrew,airCarried:save.airmail.bag&&onStreetFeet()?hero:null,courts,pickup,valet,skate:play?skate:null,deckHand:skateCarried()?hero:null,deckSeat:stowedDeck(),keyMapActor:exchangingKey()?keyMapActor:null,streetCar:car,motorists:modeName==="street"&&play?motoristsNear(q=>Math.abs(q.x-cx)<88&&Math.abs(q.z-cz)<88,.05):[],player:{x:p.x,y:p.y,z:p.z,yaw:p.yaw,kit:worn(),lead:unit.lead,neighborPose:helloPose,skin:unit.lead==="guest"?personColors[0][0]:BayExposureArt.palette[0],shirt:BayThreadsArt.colors[worn()]||BayCourtPlayers.kitColors[worn()]||(unit.lead==="guest"?personColors[0][1]:BayExposureArt.palette[1]),driving,kind:car?.kind,color:displayCar?.color||"#99ebc6",motion,damage:car?.damage,towRig:car?.towRig,
       steer:car?.steer,brakes:car?.brakes,handbrake:car?.handbrake,reversing:car?.reversing,flatSide:car?.flatSide,passengerDoor:car?.passengerDoor,inCabin:!!windowRide?.held&&windowRide.seat>.54||!!airLine.player&&!airLine.transfer||transit.aboard||(!!transfer||cabs.playerHeld)&&(motion.ride?.seat||0)>.54},skids,story:active?.story,pressVan,
       summerCaps:play?summerCaps:null,portSpur:play?spur:null,redCork:play,angling:active?.angling,coastCup:play?cup:null,oceanBeat:play?beat:null,engineCompany:play?company:null,sevenScene,starlite:play?starliteSite:null,starliteVisit:theatre.visit,starliteFrame:theatreFilm,atProjector:!!theatre.run,starliteLit:cityDusk()>.28,pavement:play?pavement:null,cabService:play?cabs:null,cineSecond:!!save.cab.reel,recovery:play?recovery:null,
@@ -86800,8 +87031,10 @@ window.buildBayCity = function buildBayCity(g,water) {
     const invitation=minuteOffer();
     const apronAction=apronOffer();
     const moonClue=!active&&!heat&&swim&&!swim.exit&&halfMoon.stage>=1&&halfMoon.stage<=3&&dist(hero,halfMoon.site())<19;
+    const printRack=save.rescue.laundry?.prints;
     const linen=linenHint(nearby);
     if(linen)contextHint(...linen);
+    else if((printRack?.pocket||printRack?.laundry)&&atPrintRail("laundry"))contextHint("F",printRack.pocket?"Give Romy the blue print":"Look at the signed print");
     else if(moonClue){
       const q=halfMoon.site(),action=halfMoon.action(hero,swim);
       $("objective").hidden=false;$("objectiveTag").textContent="Half Moon · "+BayHalfMoon.piers[halfMoon.pier].name;
@@ -87162,6 +87395,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(!$("speech").hidden&&elapsed>speechTill)$("speech").hidden=true;
   }
   function closePanel(){
+    keyLamp=null;
     if(seatSearch)closeSeat();
     frameCheck.suspend();
     timingFilm=passFilm=spliceBench=null;
@@ -87680,6 +87914,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   function airLedgerButton(){return makeButton("Pelican Air · Signed mail","Delivery slips, recorded routes and water landings.","Open ledger",()=>openPanel("air-book"));}
   let pickingRidePin=false;
   function openPanel(next,redraw=false){
+    if((next==="key-lamp"||next==="key-clinic")&&!atPrintRail("clinic"))return;
+    if(next==="key-laundry"&&!atPrintRail("laundry"))return;
     if(aprons.round?.charging){aprons.round.charging=false;aprons.round.power=0;aprons.round.commit=null;}
     countyCrew.charge=null;
     if(next==="pause"&&needle?.phase==="ready"&&needle.held)needle.serve();
@@ -87733,7 +87969,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(pickup?.human.shot?.stage==="wind"){const p=pickup.human;p.shot=null;p.wind=0;p.action="dribble";courtMeter();}
     onAir=null;paintPreview=null;$("shade").className=shop?"paint-shade":"";
     if(seatSearch&&next!=="under-seat")closeSeat();
-    releaseMouse();panel=next;keys.clear();resetPointer();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
+    keyLamp=null;releaseMouse();panel=next;keys.clear();resetPointer();sound.pause(true);$("hud").hidden=true;$("shade").hidden=false;$("panel").hidden=false;$("panel").setAttribute("data-screen",shop?"garage":next);
     const b=$("panelBody");b.replaceChildren();$("closePanel").focus({preventScroll:true});
     let title="",kicker="";
     if(skate.rider){skate.rider.charging=false;skate.rider.charge=0;}
@@ -87913,6 +88149,8 @@ window.buildBayCity = function buildBayCity(g,water) {
       title=next==="motor-titles"?"Your garage":next==="jobs"?"A Second Opinion":next==="motor-sticker"&&gullSelection?formatVehicle(gullSelection):gullSite.name;kicker="Biscayne Street  /  Kitty Vega";gullPanel(b,next);
     }else if(next==="moto-shop"||next==="moto-prints"||next==="jobs"&&active?.moto){
       title=next==="moto-prints"?"The print window":next==="jobs"?"Second Seat":studio.name;kicker="Ocean Drive  /  Inés Vidal";motoPanel(b,next);
+    }else if(next==="key-lamp"||next==="key-clinic"||next==="key-laundry"){
+      title="A Spare Key";kicker=next==="key-lamp"?"Palm County  /  Print lamp":next==="key-clinic"?"Palm County  /  Waiting room":"Marlin laundry  /  Print rack";keyPrintPanel(b,next);
     }else if(next==="rescue-call"||next==="clinic-desk"||next==="jobs"&&active?.rescue){
       title=next==="clinic-desk"?clinic.name:"Rescue 4";kicker=next==="clinic-desk"?"Old Palms  /  Receiving":"Bay Rescue  /  "+rescue.call.place;
       rescuePanel(b,next);
@@ -88468,6 +88706,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(filmControls(ev))return;
     if(!play){if(ev.code==="Enter"&&!ev.repeat){ev.preventDefault();playStart();}return;}
     if(panel){
+      if(keyLamp&&["KeyA","KeyD","KeyL","KeyR"].includes(ev.code)){ev.preventDefault();if(!ev.repeat)lampAction(ev.code);return;}
       if(seatSearch&&["KeyA","KeyD","ArrowLeft","ArrowRight","Space"].includes(ev.code)){ev.preventDefault();keys.add(ev.code);return;}
       if(panel==="bell-desk"&&!ev.repeat&&/^Digit[1-3]$/.test(ev.code)){ev.preventDefault();takeClaim(luggage.tags[Number(ev.code.slice(-1))-1]);return;}
       if(panel==="take-result"&&ev.code==="KeyT"&&!ev.repeat){ev.preventDefault();startTake();return;}
@@ -88557,6 +88796,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(roadside.vehicle&&(ev.code==="KeyX"||ev.code==="KeyZ"&&!ev.shiftKey&&!held("ShiftLeft","ShiftRight")))roadside.stop();
     ev.preventDefault();keys.add(ev.code);if(ev.repeat)return;
     if(active?.laundry&&linenKey(ev.code))return;
+    if(ev.code==="KeyF"&&(save.rescue.laundry?.prints?.pocket||save.rescue.laundry?.prints?.laundry)&&atPrintRail("laundry")){openPanel("key-laundry");return;}
     if(ev.code==="KeyB"&&throwHouseCopy())return;
     if(ev.code==="KeyF"&&subscriber()){openPanel("subscriber-copy");return;}
     if(ev.code==="KeyU"&&active?.payroll?.aboard&&car===active.payroll.car&&active.payroll.envelopes?.count<3)return;
@@ -88994,6 +89234,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     if(wireView&&panel==="curb-wire")paintWire(now);
     if(timingFilm?.playing)drawTimingFilm(now);
+    if(keyLamp)drawKeyLamp(now);
     if(spliceBench?.playing)drawSpliceBench(now);
     if(passFilm?.playing)rollPassFilm(now);
     if(panel&&now-lastMenuPaint<(skateProof?120:300))return;lastMenuPaint=now;

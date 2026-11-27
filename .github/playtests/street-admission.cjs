@@ -104,6 +104,24 @@ module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
   assert.equal((await js(order)).patient,name);await snap("linen-received");await tap("Enter");
   assert.equal((await js(order)).stage,"filed");
   console.log("PASS rang the laundry from the Marlin cab phone, took Romy's parcel, resumed delivery after reload and signed the same patient's tag at Palm County",mode);
+  const screen=id=>"document.querySelector('#panel').dataset.screen==='"+id+"'&&!document.querySelector('#panel').hidden";
+  async function button(label){
+    const pick="[...document.querySelectorAll('#panelBody button')].find(b=>!b.hidden&&b.textContent.includes("+JSON.stringify(label)+"))";
+    await waitFor("!!"+pick);await js(pick+".click()");
+  }
+  async function light(wait){
+    await tap("KeyL");await waitFor("document.querySelector('#panelBody canvas')?.getAttribute('aria-label')?.endsWith('exposing')");
+    await new Promise(resolve=>setTimeout(resolve,wait));await tap("KeyL");
+    await waitFor("document.querySelector('#panelBody canvas')?.getAttribute('aria-label')?.endsWith('washed')");
+  }
+  await tap("KeyF");await waitFor(screen("clinic-desk"));await button("A Spare Key");await waitFor(screen("key-lamp"));
+  await tap("KeyA");await tap("KeyD");await light(3000);await snap("key-washed");
+  await button("Carry it to Romy");await waitFor("!!"+order+".prints?.pocket");
+  const carried=await js(order+".prints.pocket");assert.equal(carried.angle,2);assert.equal(carried.wrap,0);assert(carried.tone>=2);
+  await tap("KeyF");await button("A Spare Key");await light(500);await button("Clip it in the waiting room");
+  await waitFor("document.querySelector('#chapterTitle').textContent==='A Spare Key'");
+  await waitFor("document.querySelector('#chapterInsert').getAttribute('aria-label')==="+JSON.stringify(name+"’s house key and peppermint wrapper · hung"));
+  await snap("key-county");await tap("Enter");assert.equal((await js(order)).prints.pocket.id,carried.id);
   await send("Page.reload");await waitFor("!window.linenQA&&document.readyState==='complete'&&typeof BayRescue==='object'");
   assert.deepEqual(await js("BayRescue.read(JSON.parse(localStorage.getItem('sundownBay.v1')).rescue).streetSlip"),record);
   await js(`window.doorQA={};const racer=BayOnGreen.Club.prototype.step;
@@ -111,6 +129,16 @@ module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
     const rescue=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,e){doorQA.hero=e.hero;return rescue.apply(this,arguments);};
     document.querySelector('#play').click();`);
   await waitFor("doorQA.hatch&&doorQA.hero");
+  assert.deepEqual(await js(order+".prints.pocket"),carried);
+  await js("void Object.assign(doorQA.hero,BayKeyPrint.sites.laundry)");
+  await waitFor("document.querySelector('#context').textContent.includes('Give Romy the blue print')");await tap("KeyF");
+  await waitFor(screen("key-laundry"));await button("Clip up the print");
+  await waitFor("document.querySelector('#chapterTitle').textContent==='A Spare Key'");
+  await waitFor("document.querySelector('#chapterWho').textContent.includes('Romy')&&!document.querySelector('#chapterInsert').hidden&&document.querySelector('#chapterInsert').getAttribute('aria-label')?.endsWith('hung')");
+  await snap("key-marlin");await tap("Enter");await waitFor("!document.querySelector('#hud').hidden");
+  await tap("KeyF");await waitFor(screen("key-laundry"));assert.deepEqual(await js(order+".prints.laundry"),carried);
+  assert.equal(await js(order+".prints.pocket"),null);await tap("Escape");
+  console.log("PASS exposed two distinct signed key prints, hung one in the clinic, delivered the carried proof after reload, watched Romy receive it and revisited her print rack",mode);
   assert.equal(await js("doorQA.hatch.plate"),"SURF 13");
   assert(await js("BayDriving.clearance(doorQA.hatch,BayClinicLaundry.targets.collect)>4"));
   await js("Object.assign(doorQA.hatch,{x:151.6,z:-31});void Object.assign(doorQA.hero,{x:150.5,z:-30.6})");await tap("KeyE");

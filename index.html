@@ -343,6 +343,10 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
 #meetFinder.release {animation:shutter-release .17s ease-out}
 @keyframes shutter-release {from{background:#f4e8cbbd}to{background:transparent}}
 .night-edition {width:100%;height:auto;display:block;border:1px solid #7e816e}
+.panel[data-screen^="key-"] .night-edition {width:min(100%,560px);margin:auto}
+.key-print-controls {display:flex;flex-wrap:wrap;gap:6px}
+.key-print-controls button {border:1px solid #61756e;background:#eee4cc;color:#263f3e;padding:7px 10px;font:600 .88rem "DM Sans","Segoe UI",sans-serif;cursor:pointer}
+.key-print-controls button:disabled {opacity:.55;cursor:default}
 #takeHud {position:absolute;left:23px;bottom:calc(clamp(103px,16.3vmin,151px) + 37px);width:min(275px,52vw);padding:9px 12px;background:#162f32f2;border-left:3px solid #e6b26f;color:#fff0d3}
 .take-slate {display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-bottom:4px;border-bottom:1px solid #8a9b88}
 .take-slate strong {font:bold italic 1.07rem Georgia,serif}.take-slate span {font:600 .71rem Consolas,monospace;color:#e6bf87}
@@ -971,6 +975,7 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "palm-clinic-art.js",
   "rescue-crew-art.js",
   "clinic-laundry.js",
+  "key-print.js",
   "bay-rescue.js",
   "motorcycle-art.js",
   "moto-riders-art.js",
@@ -1059,6 +1064,6 @@ noscript {position:absolute;inset:30% 10%;padding:30px;background:var(--ink)}
   "half-moon.js",
   "game.js"
 ]</script>
-  <script src="sundown.js?v=57cfdf6598be6668"></script>
+  <script src="sundown.js?v=d8474a71fe399e40"></script>
 </body>
 </html>
