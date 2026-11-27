@@ -13,7 +13,7 @@
       }
     }
     yieldSeat(v,entry,env){
-      const p=v.owner;if(!p||p.phase!=="drive"||!v.path)return true;
+      const p=v.owner;if(!p||p.phase!=="drive"||(!v.path&&!v.greenId))return true;
       const out=env.door(v,true,p,-entry.side)||env.door(v,true,p,entry.side);
       if(!out)return false;
       p.side=out.side;p.seat=1;p.route=v.path;p.oldCorner=v.corner;p.ride=v;p.displaced=true;
@@ -38,7 +38,11 @@
         }else if(p.phase==="phone"||p.phase==="upset"){
           p.motion.step(dt,0,0);
           if(p.phase==="phone"&&p.age>5.5)BayMotorCourt.phase(p,"upset");
-          if(p.age<2||env.held(v)||gap(v,p)>32||!env.reclaimable(v)||!env.canRejoin(p))continue;
+          if(p.age<2||env.held(v)||(!v.greenId&&gap(v,p)>32)||!env.reclaimable(v)||!env.canRejoin(p))continue;
+          if(v.greenId){
+            p.walkRetry=(p.walkRetry||0)-dt;if(p.walkRetry>0)continue;
+            p.walkRetry=1;
+          }
           const dest=BayDriving.world(v,p.side*(bayCarLayout(v.kind).track+.75),-.2);
           if(!BayMotorCourt.walkTo(p,dest,v,env))continue;
           BayMotorCourt.phase(p,"return");

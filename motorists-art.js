@@ -2,6 +2,9 @@
 (() => {
   "use strict";
   const people={
+    "racer-ocean":{skin:"#b57d58",shirt:"#edb27a",pants:"#465763",hair:"#503c32",edge:"#966e51",trim:"#e7d4a7"},
+    "racer-luna":{skin:"#c28c6b",shirt:"#a4b8ac",pants:"#555c59",hair:"#4c3531",edge:"#738b84",trim:"#d8cfad"},
+    "racer-port":{skin:"#94694b",shirt:"#547a80",pants:"#4d5149",hair:"#423d36",edge:"#455b5a",trim:"#d4bd91"},
     ruth:{skin:"#b78768",shirt:"#344766",pants:"#525759",hair:"#2d2934",edge:"#86745f",tag:"#e5aa43",trim:"#b29477"},
     des:{skin:"#84573f",shirt:"#798261",pants:"#4b4849",hair:"#3b302c",edge:"#594b43",tag:"#4bb7ac",trim:"#c9bb8f"},
     viv:{skin:"#ba8269",shirt:"#c87762",pants:"#3c5659",hair:"#b9b9b0",edge:"#7e807b",tag:"#e18270",trim:"#e1a78b"},

@@ -87,7 +87,8 @@ module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
   finally{await key("keyUp","KeyL");}
   const order="JSON.parse(localStorage.getItem('sundownBay.v1')).rescue.laundry";
   await waitFor(order+".stage==='collect'");
-  await js("care.p=BayClinicLaundry.targets.collect;care.at(care.hero,care.p.x-.75,care.p.z);care.rig.reset(care.hero)");await tap("KeyF");
+  await js("care.p=BayClinicLaundry.targets.collect;care.at(care.hero,care.p.x-3.3,care.p.z);care.rig.reset(care.hero)");
+  await waitFor("document.querySelector('#context').textContent.includes('Take the parcel from Romy')");await tap("KeyF");
   await waitFor(order+".stage==='return'");await snap("linen-parcel");
   await send("Page.reload");await waitFor("!window.careQA&&document.readyState==='complete'&&typeof BayRescue==='object'");
   await js(`window.linenQA={};const old=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,e){linenQA.h=e.hero;return old.apply(this,arguments);};
@@ -102,6 +103,19 @@ module.exports=async function admission({js,send,tap,key,waitFor,errors,mode}){
   console.log("PASS rang the laundry from the Marlin cab phone, took Romy's parcel, resumed delivery after reload and signed the same patient's tag at Palm County",mode);
   await send("Page.reload");await waitFor("!window.linenQA&&document.readyState==='complete'&&typeof BayRescue==='object'");
   assert.deepEqual(await js("BayRescue.read(JSON.parse(localStorage.getItem('sundownBay.v1')).rescue).streetSlip"),record);
+  await js(`window.doorQA={};const racer=BayOnGreen.Club.prototype.step;
+    BayOnGreen.Club.prototype.step=function(dt,t,v){doorQA.hatch=this.sites[0].v;doorQA.driver=v;return racer.apply(this,arguments);};
+    const rescue=BayRescue.Service.prototype.step;BayRescue.Service.prototype.step=function(dt,e){doorQA.hero=e.hero;return rescue.apply(this,arguments);};
+    document.querySelector('#play').click();`);
+  await waitFor("doorQA.hatch&&doorQA.hero");
+  assert.equal(await js("doorQA.hatch.plate"),"SURF 13");
+  assert(await js("BayDriving.clearance(doorQA.hatch,BayClinicLaundry.targets.collect)>4"));
+  await js("Object.assign(doorQA.hero,BayDriving.world(doorQA.hatch,-1.65,-.2))");await tap("KeyE");
+  await waitFor("doorQA.hatch.owner.phase==='out'");await snap("surf-door");
+  await waitFor("doorQA.driver===doorQA.hatch&&doorQA.hatch.owner.displaced&&!doorQA.hatch.owner.ride",20000);
+  const at=await js("doorQA.hatch.z");await key("keyDown","KeyW");
+  try{await waitFor("doorQA.hatch.z>"+(at+1.5));}finally{await key("keyUp","KeyW");}
+  console.log("PASS took Lena’s parked SURF 13 through the door, left her on the sidewalk and drove it",mode);
   assert.deepEqual(errors,[]);assert.equal(await js("audioStarts+cursorRequests"),0);
   console.log("PASS flagged Rescue 4, saw the ambulance and occupied stretcher, received the same named walker at the clinic and retained the street slip after reload",mode,name);
 };

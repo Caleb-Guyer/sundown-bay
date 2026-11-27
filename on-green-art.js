@@ -104,7 +104,7 @@
     }
     return out;
   }
-  function fixedCar(g,id,s){
+  function fixedCar(g,id,s,occupied){
     const team=teams[id],truck=id==="port";
     for(const {points,col,depth} of roofPaint(id,s)){
       polyg(g,points.map(([x,z])=>{
@@ -115,6 +115,7 @@
     }
     for(const [points,col] of hoodBands(s,id))polyg(g,points.map(([x,z])=>[x,(truck?BayBoulevardCars.hoodHeight("stepside",x,z):section(s,z).y)+.008,z]),col);
     doors(g,id,s);
+    if(!occupied)return;
     const x=-s.seatX,z=s.seatZ,y=s.seatY,head=y+.676;
     const shoulder=[x-.137,y+.431,z-.015],elbow=elbowAt(s);
     g.box(x,y+.269,z-.041,.309,.375,.178,team.shirt);
@@ -138,10 +139,13 @@
   function raised(amount){return -.08-.99*unit(amount);}
   function car(list,model,v,ground,gesture=0){
     const id=v.greenId,team=teams[id];if(!team)return;
-    const s=bayCarLayout(v.kind),body="on-green/car/"+id,arm="on-green/arm/"+id;
-    model(body,g=>fixedCar(g,id,s));model(arm,g=>forearm(g,team));
+    const occupied=!v.owner||v.owner.phase==="drive";
+    const s=bayCarLayout(v.kind),body="on-green/car/"+id+(occupied?"":"/empty"),arm="on-green/arm/"+id;
+    model(body,g=>fixedCar(g,id,s,occupied));
     const pitch=v.pitch||0,lean=v.lean||0,yaw=v.yaw||0;
     list.push([body,v.x,ground,v.z,yaw,pitch,lean]);
+    if(!occupied)return;
+    model(arm,g=>forearm(g,team));
     const [x,y,z]=elbowAt(s),py=y*Math.cos(pitch)-z*Math.sin(pitch),pz=y*Math.sin(pitch)+z*Math.cos(pitch);
     const px=x*Math.cos(lean)-py*Math.sin(lean),p=BayDriving.world(v,px,pz);
     list.push([arm,p.x,ground+x*Math.sin(lean)+py*Math.cos(lean),p.z,yaw,pitch+raised(gesture),lean]);
@@ -157,6 +161,7 @@
     if(!strips.has(id))strips.set(id,hoodBands(s,id));
     for(const [points,col] of strips.get(id))paint(c,points,col);
     for(const {points,col} of roofPaint(id,s))paint(c,points,col);
+    if(v.owner&&v.owner.phase!=="drive"){c.restore();return;}
     const [x,,z]=elbowAt(s),reach=Math.cos(raised(gesture))*.24;
     paint(c,stroke([x+.055,z-.07],[x,z],.10),team.shirt);
     paint(c,stroke([x,z],[x-.064,z+reach],.077),team.skin);

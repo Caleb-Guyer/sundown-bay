@@ -12,7 +12,7 @@
   const line=-12.80;
   const roadPoint=(r,lane,f)=>({...BayDriving.world(r,lane,f),yaw:r.yaw});
   for(const r of routes){
-    r.home=roadPoint(r,7.6,-31);r.grid=roadPoint(r,3.1,line);
+    r.home=r.id==="ocean"?roadPoint(r,5.4,-54.5):roadPoint(r,7.6,-31);r.grid=roadPoint(r,3.1,line);
     r.post={...roadPoint(r,7.90,r.finish),name:r.landmark,kind:"timing-clock"};
     r.target={...roadPoint(r,3.1,r.finish),name:r.landmark,kind:"green-finish"};
   }
@@ -122,7 +122,7 @@
     const r=s.route,p=(d,f)=>roadPoint(r,d,f);
     const points=[p(lane,65),p(lane,69),p(lane-1.2,72.7),p(-2.7,74.5),p(-69,74.5),p(-72.8,73.1),p(-74.5,69),
       p(-74.5,-68.5),p(-73,-72.9),p(-69,-74.5),p(-2,-74.5),p(1,-73.2),p(2.5,-69),
-      p(5.8,-65),p(7.6,-53),r.home];
+      p(5.8,-65),...(r.id==="ocean"?[]:[p(7.6,-53)]),r.home];
     // Drivers merge back into the ordinary order of traffic on their lap home.
     points[0].yieldAt=[p(lane,0),p(lane,74.5),points[4]];
     points[4].yieldAt=[points[3],p(-74.5,74.5),points[7]];
@@ -147,7 +147,8 @@
   class Club{
     constructor(make,signals){
       this.sites=routes.map(r=>{
-        const v=make(r.kind,r.color,r.home.x,r.home.z,r.yaw);
+        const original=roadPoint(r,7.6,-31),v=make(r.kind,r.color,original.x,original.z,r.yaw);
+        Object.assign(v,r.home,{lastRoadX:r.home.x,lastRoadZ:r.home.z}); // Keep the original garage key.
         v.greenId=r.id;v.plate=r.plate;
         return {route:r,v,signal:signals.find(s=>s.x===r.x&&s.z===r.z),out:false,flash:0,clock:0};
       });
@@ -156,18 +157,27 @@
     challenge(p){
       if(!p||this.cooldown)return null;
       for(const s of this.sites){
-        if(s.out||s.v.path||Math.abs(p.x-s.route.x)>30||Math.abs(p.z-s.route.z)>30)continue;
+        if(s.v===p||s.v.owner?.displaced||s.out||s.v.path||Math.abs(p.x-s.route.x)>30||Math.abs(p.z-s.route.z)>30)continue;
         const q=relative(s.route,p);
         if(q.x>.3&&q.x<7.1&&q.z>=-21&&q.z<line+2.6&&Math.abs(p.speed)<5&&Math.cos(p.yaw-s.route.yaw)>.9)return s;
       }
       return null;
+    }
+    returnCar(v,start){
+      const s=this.sites.find(site=>site.v===v),r=s.route;
+      const distance=Math.hypot(v.x-r.home.x,v.z-r.home.z);
+      if(distance<.4){s.out=false;return;}
+      const home={...r.home,dir:(Math.round(r.yaw/(Math.PI/2))+4)%4};
+      const points=distance<6?[home]:BayCab.route({...start,x:v.x,z:v.z},home).pts.slice(1);
+      leg(v,points,6.3,r.yaw);s.out=true;
     }
     approach(s,p){
       // Join from the curb whenever there is room for both cars. This also keeps
       // the approach clear of the traffic queue forming behind the player.
       const r=s.route,local=relative(r,p),lane=local.x<4.45?Math.max(5.55,local.x+2.46):1.45;
       const stop=roadPoint(r,lane,line);
-      leg(s.v,[roadPoint(r,lane,line-5.7),stop],5.6,r.yaw);
+      const approach=r.id==="ocean"?[roadPoint(r,7.6,-48.5),roadPoint(r,7.6,-31)]:[];
+      leg(s.v,[...approach,roadPoint(r,lane,line-5.7),stop],5.6,r.yaw);
       this.run={s,p,lane,stop,phase:"offer",accepted:false,age:0,staged:0,clock:0,react:null,opponent:null,rolled:0,
         token:Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,10)};
     }
