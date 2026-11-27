@@ -34,7 +34,9 @@ module.exports=async function beatWake({js,send,tap,key,waitFor,mode,errors}){
   await js("const side=BayDriving.world(q.v,-2.2,0);q.at(q.h,side.x,side.z)");
   await tap("KeyE");await waitFor("q.car===q.v",20000);
   if(await js("document.querySelector('#driverGlass').hidden"))await tap("KeyZ");
-  await waitFor("!document.querySelector('#wakeBadge').hidden");await snap("brass");
+  await waitFor("!document.querySelector('#wakeBadge').hidden");
+  if(mode==="overhead")assert(await js("document.querySelector('#wakeBadge').getBoundingClientRect().bottom<=innerHeight-(innerHeight<460?114:145)"),"Both speed and gear stay visible");
+  await snap("brass");
   await send("Page.reload");await waitFor("!window.wakeQA&&typeof BayWakeClock==='object'");
   assert.equal(await js("BayWakeClock.badge("+JSON.stringify(result.plate)+")"),result.road);
   assert.equal(await js("BayWakeClock.best(0)"),result.road);assert.deepEqual(errors,[]);

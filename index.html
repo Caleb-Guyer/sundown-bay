@@ -167,7 +167,8 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 #wakeTiming progress{width:100%;height:6px;accent-color:#e5ad65}
 #wakeTiming label+label progress{accent-color:#78bab2}
 #wakeBadge:not([hidden]){position:absolute;right:19%;bottom:5%;transform:rotate(-3deg);border:2px ridge #cead71;border-radius:3px;padding:4px 8px;background:#8b693b;color:#fff0cd;font:bold 11px monospace;letter-spacing:.04em;pointer-events:none}
-#overhead:not([hidden]) ~ #wakeBadge{right:18px;bottom:91px}
+#overhead:not([hidden]) ~ #wakeBadge{right:20px;bottom:149px;transform:none}
+@media(max-height:459px){#overhead:not([hidden]) ~ #wakeBadge{bottom:118px}}
 #game.in-chapter #wakeBadge{visibility:hidden}
 #julesPhone:not([hidden]){display:grid;gap:3px;width:fit-content;max-width:100%;margin:.45rem 0 .12rem;padding:.36rem .55rem;border-left:3px solid #69775d;border-radius:2px;background:#bfcca2;color:#233328;text-shadow:none;font:650 .77rem/1.18 "IBM Plex Mono",Consolas,monospace}
 #julesCaller{font-size:.69rem;letter-spacing:.035em;text-transform:uppercase}
