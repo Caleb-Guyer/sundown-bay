@@ -236,24 +236,59 @@
   // stream. Cut-out doors, cloth, lettering and open meshes remain double-sided.
   const boxCorners=[2,3,7,2,7,6,0,1,3,0,3,2,4,6,7,4,7,5,0,2,6,0,6,4,1,5,7,1,7,3,0,4,5,0,5,1];
   const boxFaces=[8,16,32,1,2,4];
-  function closedBoxFaces(data,accept){
+  function closedBoxFaces(data,accept,world=false){
     let sides=null;
     for(let p=0;p+216<=data.length;p+=18){
       const x=data[p],y=data[p+37],z=data[p+2],X=data[p+6],Y=data[p+1],Z=data[p+14];
-      if(X<=x||Y<=y||Z<=z||data[p+7]!==Y||data[p+8]!==z||data[p+12]!==X)continue;
+      if(Y<=y||data[p+7]!==Y||data[p+13]!==Y)continue;
+      const aligned=X>x&&Z>z&&data[p+8]===z&&data[p+12]===X&&data[p+30]===x&&data[p+32]===Z;
+      if(!aligned&&!world)continue;
       let i=0;
       for(;i<36;i++){
         const c=boxCorners[i],v=p+i*6;
-        if(data[v]!==((c&1)?X:x)||data[v+1]!==((c&2)?Y:y)||data[v+2]!==((c&4)?Z:z))break;
+        const corner=p+((c&4)?(c&1?12:30):(c&1?6:0));
+        if(data[v]!==data[corner]||data[v+1]!==((c&2)?Y:y)||data[v+2]!==data[corner+2])break;
       }
       if(i!==36)continue;
-      if(!accept||accept(p/18)){
+      let planes=null;
+      if(!aligned){
+        // Float32 rounding can make opposite edges differ slightly. Use the
+        // four actual edges and require a strictly convex, closed footprint.
+        const corners=[p,p+6,p+12,p+30],bits=[16,2,32,1];planes=[];
+        for(let k=0;k<4;k++){
+          const a=corners[k],b=corners[(k+1)%4],c=corners[(k+2)%4];
+          const nx=data[b+2]-data[a+2],nz=data[a]-data[b],len=Math.hypot(nx,nz);
+          if(nx*(data[c]-data[a])+nz*(data[c+2]-data[a+2])>=0){planes=null;break;}
+          planes.push({nx:nx/len,nz:nz/len,x:data[a],z:data[a+2],bit:bits[k]});
+        }
+        if(!planes)continue;
+      }
+      if(!accept||accept(p/18,planes)){
         sides??=new Uint8Array(data.length/18);
         for(let f=0;f<6;f++)sides[p/18+f*2]=sides[p/18+f*2+1]=boxFaces[f];
       }
       p+=216-18;
     }
     return sides;
+  }
+  function worldBoxMask(part,eye,near){
+    const b=part.bounds,dx=eye.x-b.x,dy=eye.y-b.y,dz=eye.z-b.z;
+    // The near rectangle must stay entirely outside a face. Once that holds,
+    // the closed shell hides every face seen from its interior half-space.
+    let outside=Math.abs(dy)>b.hh+near;
+    let mask=(dy> -b.hh+near?4:0)|(dy<b.hh-near?8:0);
+    if(part.planes){
+      for(const f of part.planes){
+        const d=f.nx*(eye.x-f.x)+f.nz*(eye.z-f.z);
+        if(d>near)outside=true;
+        if(d< -near)mask|=f.bit;
+      }
+    }else{
+      outside=outside||Math.abs(dx)>b.hw+near||Math.abs(dz)>b.hd+near;
+      mask|=(dx> -b.hw+near?1:0)|(dx<b.hw-near?2:0)|
+        (dz> -b.hd+near?16:0)|(dz<b.hd-near?32:0);
+    }
+    return outside?mask:0;
   }
   function cameraSides(model,basis,x,y,z,yaw,tiltX,tiltZ){
     const eye=basis.camera,b=model.bounds;
@@ -299,19 +334,18 @@
   // valid until a section changes visibility, detail level or camera side.
   class CityIndexList {
     constructor(view,model,data){
-      const gl=view.gl,triangles=model.count/3,perSection=model.sections[0].end/3;
+      const gl=view.gl,triangles=model.count/3;
       this.farFaces=new Uint8Array(triangles);
-      this.faces=closedBoxFaces(data,first=>{
-        // A box split between sections may lose its front when the adjoining
-        // section uses distant detail. Only intact boxes can hide their backs.
-        if(Math.floor(first/perSection)!==Math.floor((first+11)/perSection))return false;
+      const boxes=model.worldBoxes;
+      this.faces=model.worldFaces||new Uint8Array(triangles);
+      for(const start of boxes.keys()){
+        const first=start/3;
         if(model.farKeep){
           let complete=true;
           for(let t=first;t<first+12;t++)if(!model.farKeep[t]){complete=false;break;}
           if(complete)for(let f=0;f<6;f++)this.farFaces[first+2*f]=this.farFaces[first+2*f+1]=boxFaces[f];
         }
-        return true;
-      })||new Uint8Array(triangles);
+      }
       // The original sections can span several addresses. Give each intact
       // box its own bounds while retaining the parent section's detail level.
       this.parts=[];this.ends=[];
@@ -319,10 +353,11 @@
         let first=section.first;
         while(first<section.end){
           let end=first;
-          if(this.faces[first/3]===8)end+=36;
-          else do{end+=3;}while(end<section.end&&this.faces[end/3]!==8);
+          const box=boxes.has(first);
+          if(box)end+=36;
+          else do{end+=3;}while(end<section.end&&!boxes.has(end));
           const bounds=first===section.first&&end===section.end?section.bounds:meshBounds(data,first,end);
-          this.parts.push({first,end,bounds});first=end;
+          this.parts.push({first,end,bounds,box,planes:box?boxes.get(first):null});first=end;
         }
         this.ends.push(this.parts.length);
       }
@@ -335,7 +370,7 @@
     }
     draw(view,model){
       const gl=view.gl,{camera:eye,horizontal,vertical}=view.basis;
-      const near=.13*Math.hypot(1,horizontal,vertical)+.01;
+      const near=.13*Math.hypot(1,horizontal,vertical)+.05;
       let firstChange=this.parts.length,lastChange=-1;
       for(let s=0,i=0;s<model.sections.length;s++){
         const parent=model.sections[s].bounds,visible=view.inFrame(parent,0,0,0,0,0,0);
@@ -345,11 +380,7 @@
           let state=-1;
           if(visible&&(b===parent||view.inFrame(b,0,0,0,0,0,0))){
             state=far?64:0;
-            if((far?this.farFaces:this.faces)[part.first/3]){
-              const dx=eye.x-b.x,dy=eye.y-b.y,dz=eye.z-b.z;
-              state|=(dx>b.hw+near?1:dx< -b.hw-near?2:0)|
-                (dy>b.hh+near?4:dy< -b.hh-near?8:0)|(dz>b.hd+near?16:dz< -b.hd-near?32:0);
-            }
+            if(part.box&&(!far||this.farFaces[part.first/3]))state|=worldBoxMask(part,eye,near);
           }
           if(state!==this.states[i]){this.states[i]=state;firstChange=Math.min(firstChange,i);lastChange=i;}
         }
@@ -899,9 +930,23 @@
         // shop details can share a draw even when the next shop is behind us.
         model.sections=[];
         const step=this.multiDraw?96:288;
-        for(let first=0;first<count;first+=step){
-          const end=Math.min(count,first+step);
+        // Keep all twelve triangles of a closed building part at the same
+        // detail level. Open meshes still break at ordinary triangle edges.
+        const boxEnds=new Map();
+        if(model.indices){
+          model.worldBoxes=new Map();
+          model.worldFaces=closedBoxFaces(data,(first,planes)=>{
+            const start=first*3;
+            model.worldBoxes.set(start,planes);
+            const cut=(Math.floor(start/step)+1)*step;
+            if(cut<start+36)boxEnds.set(cut,start+36);
+            return true;
+          },true);
+        }
+        for(let first=0,cut=step;first<count;cut+=step){
+          const end=Math.min(count,boxEnds.get(cut)||cut);
           model.sections.push({first,end,bounds:meshBounds(data,first,end)});
+          first=end;
         }
         if(this.multiDraw){
           model.starts=new Int32Array(model.sections.length);

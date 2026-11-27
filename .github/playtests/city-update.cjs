@@ -63,3 +63,40 @@ for(let i=0;i<72;i++){
 }
 assert(queries>10000&&hidden>100&&gridCandidates<allCandidates*.8);
 console.log("PASS",queries,"wall decisions across 72 city cameras;",allCandidates,"->",gridCandidates,"candidate walls");
+
+// A row of crates crosses every kind of section seam. Look at each actual
+// triangle from outside, from inside, and with the near plane at a wall.
+for(const multiDraw of [false,true]){
+  view.multiDraw=multiDraw;view.streetWalls=null;
+  const props=new BayMesh();
+  for(let i=0;i<32;i++){
+    props.tri([i,1,0],[i+1,2,0],[i,1,1],"#abcdef");
+    props.box(i*4,1,3,2,2,3,"#cabdad",i%3===0?0:i*.39);
+  }
+  const vertices=new Float32Array(props.vertices);
+  view.upload("city",vertices);const crates=view.models.get("city");
+  const draw=new CityIndicesForTest(view,crates,vertices);
+  assert.equal(draw.parts.filter(p=>p.box).length,32);
+  const testEyes=[[0,0,0],[.01,.01,.01],[0,1.05,0],[0,7,0],[6,0,-8],[-7,-5,5],[1.05,.04,.31]];
+  let hiddenCount=0;
+  for(const [i,p] of draw.parts.entries()){
+    if(!p.box)continue;
+    const b=p.bounds;
+    for(const [dx,dy,dz] of testEyes){
+      const eye={x:b.x+dx,y:b.y+dy,z:b.z+dz};view.basis={camera:eye,horizontal:1,vertical:.65};
+      view.inFrame=()=>true;draw.draw(view,crates);
+      const mask=draw.states[i];
+      if(!dx&&!dz&&Math.abs(dy)<1.2)assert.equal(mask,0,"camera inside or near the cap");
+      for(let j=p.first;j<p.end;j+=3){
+        if(!(mask&draw.faces[j/3]))continue;
+        // Mesh.box winds inward. A removed face must face away from the eye.
+        const a=j*6,ux=vertices[a+6]-vertices[a],uy=vertices[a+7]-vertices[a+1],uz=vertices[a+8]-vertices[a+2];
+        const vx=vertices[a+12]-vertices[a],vy=vertices[a+13]-vertices[a+1],vz=vertices[a+14]-vertices[a+2];
+        const dot=(uy*vz-uz*vy)*(eye.x-vertices[a])+(uz*vx-ux*vz)*(eye.y-vertices[a+1])+(ux*vy-uy*vx)*(eye.z-vertices[a+2]);
+        assert(dot>0,"removed triangle faces away from the eye");hiddenCount++;
+      }
+    }
+  }
+  assert(hiddenCount>600);delete view.inFrame;
+  console.log("PASS",hiddenCount,"hidden triangles face away; all 32 closed crates stay intact using",multiDraw?96:288,"vertex sections");
+}

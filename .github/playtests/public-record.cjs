@@ -141,8 +141,11 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     await waitFor("!recQA.goal&&document.querySelector('#context').innerText.includes('Mara Vega')",45000);
     await waitFor("recQA.frames.length>=48",60000);await js("recQA.samples=false");
     const {profile}=await send("Profiler.stop");await send("Profiler.disable");
-    console.log("PERF CPU",mode,profile.nodes.filter(n=>n.hitCount).sort((a,b)=>b.hitCount-a.hitCount).slice(0,18)
-      .map(n=>(n.callFrame.functionName||"line "+n.callFrame.lineNumber)+" "+n.hitCount).join(", "));
+    const callers=new Map();
+    for(const frame of profile.nodes)for(const id of frame.children||[])callers.set(id,frame);
+    function location(frame){return (frame.callFrame.functionName||"anonymous")+"@"+(1+frame.callFrame.lineNumber);}
+    console.log("PERF CPU",mode,profile.nodes.filter(n=>n.hitCount).sort((a,b)=>b.hitCount-a.hitCount).slice(0,22)
+      .map(n=>[n,callers.get(n.id),callers.get(callers.get(n.id)?.id)].filter(Boolean).map(location).join(" <- ")+" "+n.hitCount).join(", "));
     const perf=await js(`(()=>{const rig=recQA.rig,all=rig.obstacles,poses=[];
       for(let i=0;i<640;i++){const x=(i*17%372)-181,z=(i*41%359)-180;poses.push([{x,y:1.45,z},{x:x+7*Math.sin(i),y:4.3,z:z-7*Math.cos(i)}]);}
       const run=indexed=>{let sum=0,n=0;const t=performance.now();for(let k=0;k<3;k++)for(const [a,b] of poses){
