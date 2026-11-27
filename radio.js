@@ -788,6 +788,11 @@
       }return;
     }
     if(name==="record-shutter"){waterNoise(effects,at,.034,.07,2400,620);waterNoise(effects,at+.11,.052,.042,1230,250);return;}
+    if(name==="jules-ring"){
+      for(const d of [0,.48])for(const [i,n] of [739,880,988].entries())
+        tone(effects,n,at+d+i*.088,.076,.024,"triangle",n,.008);
+      return;
+    }
     if(name==="rank-ring"){
       const gain=.036*Math.max(0,1-source.distance/26);
       for(const delay of [0,.59])for(let i=0;i<7;i++){

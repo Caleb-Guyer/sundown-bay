@@ -57,14 +57,25 @@
       if(this.waiting?.route===route)return;
       const p=actor(stops[route]);p.route=route;p.y=ground(p.x,p.z);this.waiting=p;
     }
-    offerPrint(dt,driver){
-      if(this.photoOffered)return false;
-      if(!this.aboard||driver!==this.car){this.photoX=undefined;return false;}
-      const distance=Number.isFinite(this.photoX)?Math.hypot(driver.x-this.photoX,driver.z-this.photoZ):0;
-      this.photoX=driver.x;this.photoZ=driver.z;
-      if(distance<50*dt+.04)this.photoDistance=(this.photoDistance||0)+distance;
-      if(!(this.photoDistance>=16))return false;
-      this.photoOffered=true;return true;
+    cabin(dt,driver,offerPhoto){
+      if(!this.aboard||driver!==this.car){this.lastX=undefined;return;}
+      const distance=Number.isFinite(this.lastX)?Math.hypot(driver.x-this.lastX,driver.z-this.lastZ):0;
+      this.lastX=driver.x;this.lastZ=driver.z;
+      if(distance<50*dt+.04)this.travel=(this.travel||0)+distance;
+      if(offerPhoto&&!this.photoOffered&&this.travel>=16){this.photoOffered=true;return "photo";}
+      if(!this.call&&this.travel>=48){this.call={phase:"ring",age:0,said:""};return "ring";}
+      const call=this.call;
+      if(!call||call.phase==="done")return;
+      call.age+=dt;
+      if(call.age>=(call.phase==="reply"?5:call.phase==="ring"?16:22)){call.phase="done";return "hang";}
+    }
+    answer(){
+      if(this.call?.phase!=="ring")return false;
+      this.call.phase="ask";this.call.age=0;return true;
+    }
+    giveWord(route){
+      if(this.call?.phase!=="ask"||!Object.hasOwn(stops,route))return false;
+      this.call.said=route;this.call.phase="reply";this.call.age=0;return true;
     }
     stop(){if(this.car)this.car.passengerDoor=0;}
     step(dt,car,dest,plan,ground){
@@ -129,7 +140,16 @@
       const shot=run.aboard&&run.coverPose;
       a.motion.ride.coverArm=shot?{x:.52,y:1.13+.055*Math.exp(-shot.age*11),z:-.18,weight:Math.min(1,(.65-shot.age)*7)}:null;
     }
+    const calling=run.aboard&&(run.call?.phase==="ask"||run.call?.phase==="reply");
+    if(!run.film&&a.motion.ride)a.motion.ride.coverArm=calling?{x:.24,y:1.26,z:.09,weight:Math.min(1,run.call.phase==="ask"?run.call.age*5:1)}:null;
     const j=run.film?body(view,list,a,"print-romy",["#ba8167","#bc694c","#485460"]):body(view,list,a,"payroll-jules",colors);
+    if(calling){
+      model("jules-handset",g=>{
+        g.box(0,0,0,.066,.141,.029,"#34413f");g.box(0,.018,.017,.048,.050,.005,"#abc68d");
+        g.box(.022,.079,0,.012,.031,.015,"#535650");
+      });
+      list.push(["jules-handset",j.x,j.y+.045,j.z,a.yaw]);
+    }
     if(r)body(view,list,r,"payroll-"+r.route,stops[r.route].colors);
     if(run.coverPose&&run.aboard){
       const yaw=run.coverPose.yaw,height=j.y+.12;
@@ -301,5 +321,41 @@
     c.fillStyle="#624e43";c.font="italic 22px Georgia";c.fillText("Last load before breakfast",29,337);
     c.font="13px monospace";c.fillText("SEP  1998",497,335);
   }
-  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto,footwell,deliveryLine};
+  function readCall(raw){
+    return raw&&Number.isSafeInteger(raw.seq)&&raw.seq>0&&typeof raw.said==="string"&&Object.hasOwn(stops,raw.said)&&typeof raw.to==="string"&&Object.hasOwn(stops,raw.to)?
+      {seq:raw.seq,said:raw.said,to:raw.to}:null;
+  }
+  function lastWords({said,to}){
+    if(to==="luna")return said==="luna"?"I kept the side door open with my shoe. Mum kept telling me to let it shut. I told her you'd be here.":
+      "I told Mum you'd gone to the scales. Then she saw that tin under Jules's arm. You should've seen her get out of that seat.";
+    return said==="luna"?"I counted twenty-one people through that side door. I told every one of them you were coming.":
+      "I went up to the booth and turned the trailers back on. Thought I'd give Mum another ten minutes before I told her.";
+  }
+  function handsetInsert(canvas,record){
+    const port=record.to==="port",place=record.said==="port"?"PORT SOL":"CINE LUNA";
+    canvas.width=720;canvas.height=384;
+    canvas.setAttribute("aria-label","Jules’s phone beside the "+(port?"scale ticket":"wage receipt")+". Romy heard you say "+place+".");
+    const c=canvas.getContext("2d");if(!c)return;
+    const rect=(x,y,w,h,ink)=>{c.fillStyle=ink;c.fillRect(x,y,w,h);};
+    const type=(s,x,y,font,ink)=>{c.fillStyle=ink;c.font=font;c.fillText(s,x,y);};
+    const pill=(x,y,w,h,r,ink)=>{c.beginPath();c.roundRect(x,y,w,h,r);c.fillStyle=ink;c.fill();};
+    rect(0,0,720,384,port?"#555f59":"#664c3a");
+    for(let i=0;i<92;i++){const y=(i*89)%383;rect((i*43)%719,y,22+i%7*14,1,port?"#626d64":"#795c46");}
+    const ticket=document.createElement("canvas");BayStreetAction.paper(ticket,port?"portReceipt":"payReceipt");
+    c.save();c.translate(375,192);c.rotate(.087);rect(-24,-116,338,243,"#302d28");
+    c.drawImage(ticket,107,50,545,322,-30,-122,338,243);c.restore();
+    c.save();c.translate(282,184);c.rotate(-.105);
+    pill(-88,-156,186,348,27,"#2f302b");pill(47,-178,19,37,7,"#343d38");
+    pill(-89,-163,181,345,25,"#8a8c77");pill(-85,-159,171,337,22,"#323b38");
+    pill(-75,-149,150,161,18,"#58625b");pill(-57,-111,115,88,5,"#26342e");rect(-52,-106,105,78,"#a9b987");
+    for(let i=0;i<4;i++)rect(-44+i*6,-91-i*3,4,i*3+3,"#44533c");
+    rect(29,-97,14,6,"#44533c");rect(43,-96,2,4,"#44533c");
+    type("CALL ENDED",-44,-64,"bold 14px monospace","#344633");type("Romy Vale",-44,-44,"14px monospace","#344633");
+    for(let i=0;i<7;i++)rect(-18+i*6,-132,3,4,"#303a35");
+    pill(-64,8,129,11,5,"#788076");pill(-48,32,29,12,6,"#718c72");pill(20,32,29,12,6,"#906b60");
+    for(let i=0;i<12;i++){const x=-53+i%3*38,y=55+Math.floor(i/3)*23;
+      pill(x,y,30,17,6,"#626b60");type("123456789*0#"[i],x+11,y+13,"bold 12px monospace","#e0e0c5");}
+    rect(-51,154,101,10,"#a79b72");type("JULES",-19,163,"bold 9px monospace","#423d33");c.restore();
+  }
+  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto,footwell,deliveryLine,readCall,lastWords,handsetInsert};
 })();

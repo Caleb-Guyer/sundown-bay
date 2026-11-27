@@ -40,7 +40,7 @@
       this.reset({x:151,z:-27,yaw:0});
     }
     reset(subject,yaw=subject.yaw) {
-      this.anchor={x:subject.x,z:subject.z};this.jumpLift=0;
+      this.anchor={x:subject.x,z:subject.z};this.jumpLift=this.stuntAngle=0;
       const long=overhang(subject)>0;
       this.yaw=this.wantedYaw=yaw;this.elevation=this.wantedElevation=long?.34:.255;
       this.distance=(long?chaseBoom(subject,1,0):4.6)*this.zoom;this.safeDistance=this.distance;
@@ -78,7 +78,9 @@
       this.yaw+=wrap(this.wantedYaw-this.yaw)*-Math.expm1(-28*dt);
       this.elevation=smooth(this.elevation,this.wantedElevation,24,dt);
       this.lookBack=smooth(this.lookBack,options.rear?Math.PI:0,12,dt);
-      const heading=this.yaw+this.lookBack,sn=Math.sin(heading),cs=Math.cos(heading);
+      const stuntTarget=!this.manualAim&&vehicle?.oneWheel?Math.min(.43,vehicle.oneWheel.angle*.645):0;
+      this.stuntAngle=stuntTarget||this.stuntAngle>.0001?smooth(this.stuntAngle,stuntTarget,4.5,dt):0;
+      const heading=this.yaw+this.lookBack+this.stuntAngle,sn=Math.sin(heading),cs=Math.cos(heading);
       const anchor=this.anchor;
       anchor.x=smooth(anchor.x,subject.x,17,dt);anchor.z=smooth(anchor.z,subject.z,17,dt);
       // Keep a lagged anchor on the subject's side when it rounds a corner.

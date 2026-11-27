@@ -150,6 +150,8 @@ kbd {display:inline-block;border:1px solid #e3e4cb70;border-radius:3px;padding:2
 #objectiveTag {display:block;font-size:.68rem;color:#ffc883;margin-bottom:3px}
 #objectiveText {font-size:.91rem;font-weight:640}
 #wageEnvelopes:not([hidden]) {display:block;width:min(218px,100%);height:auto;margin:5px 0 2px;border-radius:2px}
+#julesPhone:not([hidden]){display:grid;gap:3px;width:fit-content;max-width:100%;margin:.45rem 0 .12rem;padding:.36rem .55rem;border-left:3px solid #69775d;border-radius:2px;background:#bfcca2;color:#233328;text-shadow:none;font:650 .77rem/1.18 "IBM Plex Mono",Consolas,monospace}
+#julesCaller{font-size:.69rem;letter-spacing:.035em;text-transform:uppercase}
 #roadTurn {display:block;margin-top:2px;color:#adebd4;font:650 .81rem/1.15 "DM Sans","Segoe UI",sans-serif}#roadTurn:empty {display:none}
 #dashHud {position:absolute;top:83px;left:23px;width:min(256px,45vw);padding:9px 12px 10px;background:linear-gradient(104deg,#153334fa 70%,#183839e8);border-left:3px solid #ef9c75;box-shadow:0 3px 9px #162b2d38}
 .dash-heading {display:flex;justify-content:space-between;align-items:baseline;gap:8px;color:#ffce9e;font:italic 700 1.12rem Georgia,serif}

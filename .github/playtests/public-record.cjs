@@ -49,7 +49,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         }finally{if(batch)batch.distanceDetail=detail;}
         recQA.surfaceResult=(${require("./street-surface.cjs").toString()})(this,items,comparePixels);
         recQA.wallResult=(${require("./street-walls.cjs").toString()})(this,items,comparePixels,recQA);
-        recQA.paintResult=(${require("./frame-paint.cjs").toString()})(this,items,comparePixels);
+        recQA.paintResult=(${require("./frame-paint.cjs").toString()})(this,items,comparePixels,freezeStreet);
         return this.drawOpaque(items);};}`);
     await waitFor("!!recQA.surfaceResult",40000);
     const result=await js("recQA.surfaceResult");console.log("PERF solid street "+label,JSON.stringify(result));
@@ -204,6 +204,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       // paths on the same runner. Discard the first frame of each block.
       await js(`const batchDraw=BayView.prototype.drawOpaque;
         const comparePixels=(${require("./street-pixels.cjs").toString()});
+        const freezeStreet=(${require("./street-uploads.cjs").freeze.toString()});
         recQA.compare={block:-1,frames:[],stream:[],separate:[],calls:{stream:0,separate:0},indices:{stream:0,separate:0}};
         BayView.prototype.drawOpaque=function(items){
           const q=recQA.compare;
@@ -296,7 +297,7 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
           const q=uploadTrial,n=q.frame++,block=Math.floor(n/8),ring=[0,3].includes(block%4)?1:0,b=this.streetBatch;
           if(n===64){
             b.buffers=streams;b.nextBuffer=0;BayView.prototype.drawOpaque=batchDraw;batch.uploadStream=update;
-            Object.assign(q,(${require("./street-uploads.cjs").toString()})(this,items,batchDraw,comparePixels));
+            Object.assign(q,(${require("./street-uploads.cjs").toString()})(this,items,batchDraw,comparePixels,freezeStreet));
             return batchDraw.call(this,items);
           }
           const start=performance.now();

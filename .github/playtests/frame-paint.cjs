@@ -1,5 +1,5 @@
 // Both programs use the same depth, surface textures and triangle stream.
-module.exports=function framePaint(view,items,pixels){
+module.exports=function framePaint(view,items,pixels,freeze){
   const gl=view.gl,world=view.streetSurface,model=view.modelSurface,frame=view.streetFrame;
   const batch=view.streetBatch,detail=batch.distanceDetail,scale=view.scale,read=new Uint8Array(4);
   if(!world.paint||!model.paint)throw Error("The hosted WebGL driver fell back to per-pixel paint");
@@ -12,13 +12,14 @@ module.exports=function framePaint(view,items,pixels){
   const reports=[];
   try{
     view.scale=.64;batch.distanceDetail=function(...args){this.buildDetail=false;return detail.apply(this,args);};
+    const {replay}=freeze(view,items,view.drawOpaque);
     for(const [weather,f] of tests){
       gl.useProgram(view.program);view.streetFrame=f;view.setFrameUniforms(view.u,f);
       const timings=[[],[]];let image;
       const draw=(current,measure)=>function(){
         view.streetSurface=current?world:previousWorld;view.modelSurface=current?model:previousModel;
         gl.finish();const start=performance.now();
-        view.draw("city");view.drawOpaque(items);
+        view.draw("city");replay();
         gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,read);
         if(measure)timings[+current].push(performance.now()-start);
       };

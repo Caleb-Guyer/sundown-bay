@@ -46,6 +46,7 @@ function compare(v,list,a,b){
   trace.length=0;b();const first=trace.slice();trace.length=0;a();
   assert.deepEqual(first,[[1,0,0],"car",[2,1,1]]);assert.deepEqual(trace,first);return true;
 }
-const captured=require("./street-uploads.cjs")(frame,[],scene,compare);
+const uploads=require("./street-uploads.cjs");
+const captured=uploads(frame,[],scene,compare,uploads.freeze);
 assert(captured.reference&&captured.image&&captured.batches===2&&visits===1);
 console.log("PASS both GPU upload comparisons replay the same ordered geometry from one scene traversal.");

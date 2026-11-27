@@ -176,7 +176,7 @@
     result.buttonwood=BayButtonwood.read(null);result.brisas=BayBrisasClub.read(null);result.palm=BayPalmLeague.read(null);result.gull=BayGullSales.read(null);result.moto=BaySecondSeat.read(null);result.rescue=BayRescue.read(null);result.skate=BaySkate.read(null);result.airmail=BayPelicanAir.read(null);
     result.luggage=luggage.read(null);result.green=BayOnGreen.read(null);result.threads=threads.read(null,result.courts);
     result.clubCup=BayCoastCup.read(null);result.catchBook=BayRedCork.read(null);
-    result.collection={last:"",luna:0,port:0,best:0,print:0,envelopes:null};
+    result.collection={last:"",luna:0,port:0,best:0,print:0,envelopes:null,call:null};
     result.freight=BayPortSpur.saved(null);
     result.oceanBeat=BayOceanBeat.read(null);result.releaseCopy=null;result.meterCopy=null;
     result.pictureJumps=jumps.read(null);result.copies=carbon.read(null);
@@ -184,6 +184,7 @@
       result.featurePrint=BayFeaturePrint.read(raw.featurePrint);
       result.houseCopies=BayHouseCopies.read(raw.houseCopies);
       if(raw.collection){
+        result.collection.call=BayPayroll.readCall(raw.collection.call);
         for(const id of ["luna","port","best"])if(Number.isFinite(raw.collection[id])&&raw.collection[id]>=0)result.collection[id]=raw.collection[id];
         if([1,2].includes(raw.collection.print))result.collection.print=raw.collection.print;
         if(["luna","port"].includes(raw.collection.last))result.collection.last=raw.collection.last;
@@ -389,6 +390,8 @@
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    const phoneCopy=BayPayroll.readCall(latest?.collection?.call);
+    if(phoneCopy&&phoneCopy.seq>(save.collection.call?.seq||0))save.collection.call=phoneCopy;
     if(latest?.moto?.wheel){
       const incoming=BaySecondSeat.read(latest.moto).wheel;
       for(const [kind,run] of Object.entries(incoming))if(run.metres>(save.moto.wheel[kind]?.metres||0))save.moto.wheel[kind]=run;
@@ -937,6 +940,10 @@
     $("chapterLine").textContent=table?(table.cover>=.92?"Who gets the credit?   1  Dalia Cruz     2  The night shift":"Hold Space and sweep A / D across the covered line."):(b?.line||"");
     if(campaign.scene?.id==="collectionOpen"&&campaign.scene.index===0&&save.collection.last){
       $("chapterLine").textContent=save.collection.last==="port"?"Mum heard you took the tin to the scales. She still wants me to give you the keys. I wouldn't.":"Mum kept the envelope. It's on the fridge next to my school picture. Another week's gone missing.";
+      const last=save.collection.call;
+      if(last&&last.to===save.collection.last&&last.said!==last.to)$("chapterLine").textContent=last.to==="port"?
+        "Last time you said the Luna, I put a chair by the door for Mum. This time I'll wait till I see your headlights.":
+        "Mum says I'm to give you the good key. Says anyone who can change their mind between here and the scales deserves a car that starts.";
     }
     if(b?.art==="gatePrint")BayFeaturePrint.frame($("chapterInsert"),0,true);
     if(b?.art==="twoPockets")BayCoastCamera.wheelCard($("chapterInsert"),save.moto.wheel);
@@ -989,6 +996,7 @@
     if(b?.art==="staffKey")BayWalkHome.keys($("chapterInsert"),homeWalk.accepts);
     if(b?.art==="rabbitSleeve")BayWalkHome.sleeve($("chapterInsert"));
     if(b?.art==="fareCarbon")BayMeterRunning.paper($("chapterInsert"),fareLedger);
+    if(b?.art==="julesHandset")BayPayroll.handsetInsert($("chapterInsert"),campaign.scene.call);
     if(["payEnvelope","payReceipt","portReceipt"].includes(b?.art))BayStreetAction.paper($("chapterInsert"),b.art);
     if(b?.art==="inscription")BayStreetEditionArt.reverse($("chapterInsert"),inscribedCopy);
     if(b?.art==="landingOrder")BayLandingOrder.docket($("chapterInsert"),campaign.book);
@@ -1027,6 +1035,7 @@
     }else if(id==="transfer-stub")campaign.table={kind:"transferStub",pier:true};
     else if(id==="landing-order")campaign.table={kind:"landingOrder"};
     else if(id==="watch-book")campaign.table={kind:"watchBook"};else if(id==="edit-reel")campaign.table=new BayRoomTone.Edit();else if(id)campaign.start(id,replay);else campaign.beginTable();
+    if((id==="collectionPort"||id==="collectionLuna")&&payrollReceipt?.call?.said)campaign.scene.call={said:payrollReceipt.call.said,to:payrollReceipt.route};
     if(id==="firstCopy")campaign.negativeNumber=inscribedCopy.pierPhoto.frame;
     keys.clear();resetPointer();$("chapterFilm").hidden=false;$("game").classList.toggle("in-chapter",true);setFilmPage();
   }
@@ -2785,7 +2794,7 @@
       if(code==="KeyX"){if(motos.cockpit){motos.pan=motos.tilt=0;}else if(motos.bike)cameraRig.recenter(motos.bike.yaw,elapsed);return true;}
       return ["KeyK","KeyT","KeyB"].includes(code);
     }
-    if(code==="KeyE"&&motoAtBike()){if(motos.board(hero,motoEnv)){motion.reset();lastHud=-10;}return true;}
+    if(code==="KeyE"&&motoAtBike()){if(motos.board(hero,motoEnv)){motion.reset();toastTill=elapsed;$("toast").hidden=true;lastHud=-10;}return true;}
     if(code!=="KeyF")return false;
     const contact=motoContact();if(!contact)return false;
     if(contact==="motorcyclist")speak("Remy Price",motos.visitor.leg===0?"Inés keeps a print of my first Paloma. Mint green. Same color as this one.":"I take the long way back when the light's like this.");
@@ -7885,6 +7894,8 @@
       luna?"Neve’s last envelope caught inside the lid. She just left in a Bay Cab.":"Vic found a pay envelope under the scale pan. Neve’s cab is still out there.",fareLedger?"Resume":"Take the envelope",beginMeterRun));
     const line=BayPayroll.deliveryLine(c.route,save.collection.envelopes);
     if(line)signedNote(b,line,c.receiver.name+" · "+save.collection.envelopes+" of 3 back in the tin at handoff");
+    const call=save.collection.call;
+    if(call&&call.to===c.route)signedNote(b,BayPayroll.lastWords(call),"Romy’s last call with Jules");
     if(romyOutside())b.append(makeButton("The Long Way Home","Romy left the Luna on foot.","Find Romy",()=>clockPin(homeTarget())));
     if(homeWalk.book?.ending)signedNote(b,homeWalk.book.ending==="ride"?"Dropped Romy at the Marlin laundry.":"Walked Romy to the Marlin laundry.","The Long Way Home");
     if(homeWagon)b.append(makeButton("Marisol’s staff wagon",BayStreetCars.plateFor(homeWagon),"Mark car",()=>clockPin({...homeWagon,name:"Marisol’s staff wagon"})));
@@ -7933,10 +7944,13 @@
       if(movingEnvelopes)lastHud=-10;
       if(ride.envelopes?.count<3&&held("KeyU"))dest=null;
     }
-    if(!save.collection.print&&ride.offerPrint(dt,car)){
+    const cabin=ride.cabin(dt,car,!save.collection.print);
+    if(cabin==="photo"){
       speak("Jules","Wait. That's Romy's mum in the middle. There's pencil on the back. Want to keep it?");
       lastHud=-10;
     }
+    if(cabin==="ring"){sound.cue("jules-ring");lastHud=-10;}
+    if(cabin==="hang")lastHud=-10;
     const cue=ride.step(dt,car,dest,doorPlan,footLevel);
     if(cue==="approaching"){toastTill=elapsed;$("toast").hidden=true;speak("Jules","Hang on. This lid only stays shut if I keep my thumb on it.");}
     if(cue==="boarded"){
@@ -7948,6 +7962,7 @@
     const route=ride.route;payrollReceipt=ride;
     const clean=streetAction.count===run.incidents,amount=(route==="port"?460:250)+(clean?75:0);
     save.wallet+=amount;save.paid++;save.collection.last=route;save.collection[route]++;
+    if(ride.call?.said)save.collection.call={seq:(save.collection.call?.seq||0)+1,said:ride.call.said,to:route};
     save.collection.envelopes=ride.envelopes?.count??null;
     homeWalk=new BayWalkHome.Walk(save.collection);homeWalk.write();
     save.collection.best=save.collection.best?Math.min(save.collection.best,run.clock):run.clock;
@@ -11365,6 +11380,13 @@
   }
   function hud(){
     const envelopes=active?.payroll?.aboard&&car===active.payroll.car?active.payroll.envelopes:null;
+    const payrollCall=active?.payroll?.aboard&&car===active.payroll.car&&!transfer?active.payroll.call:null;
+    const mobile=$("julesPhone");mobile.hidden=!payrollCall||payrollCall.phase==="done";
+    if(!mobile.hidden){
+      $("julesCaller").textContent=payrollCall.phase==="ring"?"Incoming · Romy Vale":"Romy Vale · on speaker";
+      $("julesAnswer").textContent=payrollCall.phase==="ring"?"G  Tell Jules to pick up":payrollCall.phase==="ask"?"1  Tell her Cine Luna     2  Tell her Port Sol":
+        payrollCall.said==="luna"?"“I'll hold the side door.”":"“Okay. I'll tell Mum.”";
+    }
     const footwell=$("wageEnvelopes");footwell.hidden=!envelopes||envelopes.count===3;
     if(!footwell.hidden)BayPayroll.footwell(footwell,envelopes);
     const w=BayStreetAction.weapons[streetAction.slot],armed=!!w&&actionFeet();
@@ -13254,8 +13276,20 @@
     if(car&&active?.cabFare?.ordinaryStop&&active.cabFare.phase==="ride"&&active.cabFare.ride===car&&/^(Digit|Numpad)[12]$/.test(ev.code)){
       ev.preventDefault();active.cabFare.to=BayCab.flowerStop(ev.code.endsWith("1")?"marlin":"wheel");lastMap=lastHud=-10;return;
     }
-    if(car&&active?.payroll?.aboard&&active.vehicle===car&&/^(Digit|Numpad)[12]$/.test(ev.code)){
-      ev.preventDefault();if(!ev.repeat)collectionRoute(ev.code.endsWith("1")?"luna":"port");return;
+    if(car&&active?.payroll?.aboard&&active.vehicle===car&&!transfer){
+      const ride=active.payroll;
+      if(ev.code==="KeyG"&&ride.call?.phase==="ring"){
+        ev.preventDefault();if(!ev.repeat&&ride.answer()){
+          speak("Romy · on speaker","Mum's picking the paper off her straw. She does that when she's scared. Are you coming to the side door or going to the scales?");lastHud=-10;
+        }return;
+      }
+      if(/^(Digit|Numpad)[12]$/.test(ev.code)){
+        ev.preventDefault();if(!ev.repeat){
+          const route=ev.code.endsWith("1")?"luna":"port";
+          if(ride.giveWord(route))speak("Jules · to Romy",route==="luna"?"Put your shoe in the door. We're bringing it round.":"We're headed for the port. Yeah. That's what the driver said.");
+          collectionRoute(route);
+        }return;
+      }
     }
     if(active?.county&&car?.upgrades.scanner&&!transfer){
       if(ev.code==="Backslash"&&!heat){ev.preventDefault();if(!ev.repeat)keys.add(ev.code);return;}

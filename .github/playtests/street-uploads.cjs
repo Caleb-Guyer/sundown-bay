@@ -1,8 +1,8 @@
 // Capture one real submission list. Mesh selection can change between two
 // traversals of the same objects when a repeated camera side becomes eligible.
-module.exports=function streetUploads(view,items,drawBatch,pixels){
-  const b=view.streetBatch,commands=[],draw=view.draw,flush=b.flush,upload=b.uploadStream;
-  const hadDraw=Object.hasOwn(view,"draw"),buffers=b.buffers,single=[buffers[0]];
+function freezeStreet(view,items,drawBatch){
+  const b=view.streetBatch,commands=[],draw=view.draw,flush=b.flush;
+  const hadDraw=Object.hasOwn(view,"draw");
   try{
     b.flush=function(){
       if(!this.count)return;
@@ -22,6 +22,11 @@ module.exports=function streetUploads(view,items,drawBatch,pixels){
       flush.call(b);
     }
   }
+  return {replay,batches:commands.filter(c=>c.indices).length};
+}
+module.exports=function streetUploads(view,items,drawBatch,pixels,freeze){
+  const {replay,batches}=freeze(view,items,drawBatch);
+  const b=view.streetBatch,upload=b.uploadStream,buffers=b.buffers,single=[buffers[0]];
   function fullUpload(target,source,length,history){
     view.gl.bufferSubData(target,0,source.subarray(0,length));history.known=0;
   }
@@ -30,6 +35,7 @@ module.exports=function streetUploads(view,items,drawBatch,pixels){
     // on the warmed ring before the full replacement invalidates each slot.
     const reference=pixels(view,items,()=>{b.uploadStream=fullUpload;try{replay();}finally{b.uploadStream=upload;}},replay,true);
     const ring=pixels(view,items,replay,()=>{b.buffers=single;b.nextBuffer=0;try{replay();}finally{b.buffers=buffers;b.nextBuffer=0;}});
-    return {reference,image:ring,batches:commands.filter(c=>c.indices).length};
+    return {reference,image:ring,batches};
   }finally{b.buffers=buffers;b.nextBuffer=0;b.uploadStream=upload;}
 };
+module.exports.freeze=freezeStreet;

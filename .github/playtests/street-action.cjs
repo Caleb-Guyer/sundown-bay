@@ -37,6 +37,13 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   try{await waitFor("q.ride.photoOffered&&document.querySelector('#context').textContent.includes('photograph')",24000);
     await tap("KeyN");await waitFor("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.print===1");
   }finally{await key("keyUp","KeyW");}
+  await js("q.at(q.car,-143,82);q.car.yaw=0;BayDriving.settle(q.car)");
+  await key("keyDown","KeyW");
+  try{await waitFor("q.ride.call?.phase==='ring'&&!document.querySelector('#julesPhone').hidden",20000);}
+  finally{await key("keyUp","KeyW");}
+  await tap("KeyG");await waitFor("q.ride.call?.phase==='ask'");await snap("romy-calling");
+  await tap("Digit1");assert.equal(await js("q.ride.call.said"),"luna");
+  if(port)await tap("Digit2");
   await js(`q.at(q.car,72,84);q.car.yaw=0;BayDriving.settle(q.car);
     q.blocker=q.cars.find(v=>v!==q.car&&!v.path&&!v.serviceCar&&!v.meetCar&&!v.guestId&&['coupe','hatch','sedan'].includes(v.kind));
     if(!q.blocker)throw Error('No parked car for payroll collision');
@@ -57,8 +64,13 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   await waitFor("q.ride.stage==='exit'||q.ride.stage==='deliver'",30000);
   await waitFor("q.ride.stage==='receipt'",30000);assert(await js("q.exitDoor&&q.ride.receiver.name==="+JSON.stringify(name)));
   assert.equal(await js("document.querySelector('#chapterLine').textContent"),await js("BayPayroll.deliveryLine("+JSON.stringify(route)+","+gathered+")"));
-  await snap("collection-handoff");await tap("Enter");
+  await snap("collection-handoff");
+  await waitFor("document.querySelector('#chapterInsert').getAttribute('aria-label')?.startsWith('Jules’s phone')");
+  assert.equal(await js("document.querySelector('#chapterLine').textContent"),await js("BayPayroll.lastWords({said:'luna',to:"+JSON.stringify(route)+"})"));
+  await snap("romy-handset");await tap("Enter");
   assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.last"),route);
+  assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.call.said"),"luna");
+  console.log("PASS Romy called the moving payroll car, Jules answered, and her reply remembered the promised and delivered destinations",mode);
   console.log("PASS Jules walked in, opened both doors, carried the tin to "+name+" and completed "+route,mode);
   await js("q.at(q.car,-109,-17);q.car.yaw=0;BayDriving.settle(q.car);true");
   await waitFor("document.querySelector('#context').textContent.includes('Upgrades & paint')");await tap("KeyF");
