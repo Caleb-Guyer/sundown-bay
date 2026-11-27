@@ -58,8 +58,8 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   try{await waitFor("q.ride.envelopes.count===1");}
   finally{await key("keyUp","KeyU");}
   await snap("payroll-footwell");
-  if(port){await key("keyDown","KeyU");try{await waitFor("q.ride.envelopes.count===3");}finally{await key("keyUp","KeyU");}}
-  const gathered=await js("q.ride.envelopes.count");assert(port?gathered===3:gathered>0&&gathered<3);
+  if(port){await key("keyDown","KeyU");try{await waitFor("q.ride.envelopes.count===2");}finally{await key("keyUp","KeyU");}}
+  const gathered=await js("q.ride.envelopes.count");assert.equal(gathered,port?2:1);
   await js("q.at(q.car,-143,126);BayDriving.settle(q.car)");
   await waitFor("document.querySelector('#stars').getAttribute('aria-label')==='No heat'",75000);
   await js("q.at(q.car,"+(port?"-138,-73":"6,66")+");q.car.yaw=0;BayDriving.settle(q.car)");
@@ -121,6 +121,33 @@ module.exports=async function streetAction({js,send,waitFor,key,tap,mode,errors}
   assert(await js("document.querySelector('#panelBody').textContent.includes('"+gathered+" of 3 back in the tin')"));
   console.log("PASS recovered "+gathered+" envelopes after a driving impact and kept the handoff on the signed counter copy",mode);
   await snap("collection-copy");
+  await js(button("Under the Seat"));
+  await waitFor("document.querySelector('#panel').hidden");
+  await js(`q.slip=()=>JSON.parse(localStorage.getItem("sundownBay.v1")).collection.slips[0];
+    q.rideCar=q.cars.find(v=>v.garageKey===q.slip().key);
+    const curb=BayCarAccess.outside(bayCarLayout(q.rideCar.kind),1),side=BayDriving.world(q.rideCar,curb.x,curb.z);
+    q.at(q.h,side.x,side.z);q.rig.reset(q.h);true`);
+  await waitFor("document.querySelector('#context').textContent.includes('passenger footwell')");
+  await tap("KeyN");
+  for(let i=gathered;i<3;i++){
+    await waitFor("document.querySelector('.seat-dial')&&q.rideCar.passengerDoor>.9");
+    await js("q.dial=document.querySelector('.seat-dial');q.dial.value="+[103,277,404][i]+";q.dial.dispatchEvent(new Event('input'));true");
+    await waitFor("document.querySelector('#panelBody .statline')?.textContent.includes("+JSON.stringify(["Tino Ramos","Neve Armas","Marisol Vale"][i])+")");
+    if(i===gathered)await snap("under-seat");
+    await key("keyDown","Space");try{await waitFor("q.slip().found&"+(1<<i));}finally{await key("keyUp","Space");}
+    if(i===1){await tap("Escape");assert.equal(await js("q.rideCar.passengerDoor"),0);await tap("KeyN");}
+  }
+  await waitFor("document.querySelector('#panel').hidden&&q.rideCar.passengerDoor===0");
+  const beforeDesk=await js("JSON.parse(localStorage.getItem('sundownBay.v1')).wallet");
+  await js("Object.assign(q.h,BayMeterRunning.desk);q.rig.reset(q.h);true");
+  await waitFor("document.querySelector('#context').textContent.includes('sealed pay')");
+  await tap("KeyN");await waitFor("q.slip().filed");
+  assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).wallet"),beforeDesk);
+  if(port)assert.equal(await js("JSON.parse(localStorage.getItem('sundownBay.v1')).collection.carbon.mask"),4);
+  await js("q.at(q.h,"+clerk.x+","+clerk.z+");q.rig.reset(q.h)");await tap("KeyF");
+  await waitFor("document.querySelector('#panelBody').textContent.includes('Received at the Marlin night desk')");
+  await snap("under-seat-receipt");
+  console.log("PASS Under the Seat",mode,"found the original plate after reload, recovered the missing pay with the torch, and filed Bea's signed receipt");
   await js(button("Keep the Meter Running"));
   await waitFor("BayMeterRunning.read()?.stage==='search'");
   await js(`q.fare=q.cars.find(v=>v.garageKey===BayMeterRunning.read().car);

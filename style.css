@@ -75,6 +75,8 @@ button:focus-visible,select:focus-visible,canvas:focus-visible {outline:3px soli
 .room-note {margin:0 0 16px;padding:16px 20px 18px;border-top:3px solid #a65b49;background:#f6e3ba;color:#303f3b;box-shadow:2px 3px 0 #0c2528;transform:rotate(-.4deg)}
 .room-note p {font:italic 1.08rem/1.43 Georgia,serif;color:#304541}
 .room-note span {display:block;margin-top:10px;font:700 .87rem/1.25 Georgia,serif;color:#784a38}
+.seat-insert {display:block;width:100%;height:auto;border-radius:3px}
+.seat-dial {display:block;width:100%;margin:12px 0;accent-color:#735634}
 .market-hours {margin:0 0 12px;color:#cbe7d9;line-height:1.45}
 .order-history {margin:12px 0 4px;padding-left:18px;color:#daceaa;font-size:.91rem;line-height:1.6}
 #world,#overhead {touch-action:none;cursor:default}
