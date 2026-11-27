@@ -53,7 +53,14 @@ module.exports=async function beatWake({js,send,tap,key,waitFor,mode,errors}){
     await js(`const g${i}=q.nav.gates[${i}];q.at(q.v,g${i}.x-.6,g${i}.z+6,Math.PI);BayDriving.settle(q.v);true`);
     await key("keyDown","KeyW");
     try{await waitFor("q.nav.leg>"+i,22000);}finally{await key("keyUp","KeyW");}
-    if(!i){await waitFor("!document.querySelector('#minuteSheet').hidden");await snap("navigator");}
+    if(!i){
+      await waitFor("!document.querySelector('#minuteSheet').hidden");
+      assert(await js(`(()=>{const card=document.querySelector('#minuteSheet').getBoundingClientRect();
+        const voice=document.querySelector('#speech').getBoundingClientRect();
+        return !voice.width||card.right<=voice.left||card.bottom<=voice.top||voice.bottom<=card.top;})()`),
+        "Romy's directions leave every punch on the timing card visible");
+      await snap("navigator");
+    }
   }
   await js("q.at(q.v,144,q.d[0].post.z,Math.PI);BayDriving.settle(q.v);true");
   await waitFor("BayMinuteCard.book.last?.marks.length===3",35000);
