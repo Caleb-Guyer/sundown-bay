@@ -11207,8 +11207,8 @@
     }
     if(play&&maraFilm.published)BayPavementArt.rackPrint(view,model,see,pavement,BayPavement.pierLead(hours.day+1,neighbors.editions,save,maraFilm));
     if(play&&see(starliteSite,76)){
-      const dx=starliteSite.x-eye.x,dz=starliteSite.z+9.89-eye.z;
-      if(dz>-.25&&dx*Math.sin(eye.yaw)+dz*Math.cos(eye.yaw)>-.5){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}
+      const width=BayStarliteArt.projectedWidth(view,starliteSite);
+      if(width){const frame=theatreFilm(width);BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}
     }
     if(play&&see(threads.site,32)&&featuredStrip())stall.print(view,threads.site,windowStrip,windowStamp);
     if(play&&see(BayNeedle.site,32))BayNeedleArt.world(view,model,needle?.record||needleRecord,needleSong().r);
@@ -13822,20 +13822,22 @@
       if(passReel.vehicle&&(transfer||!car||car!==passReel.vehicle||active))passReel.reset();
       streetAction.tick(dt);stepHouseCopy(dt);stepCountyCrew(dt);elapsed+=dt;hours.step(dt);stepRankPhones();gutters.weather(hours);if(hours.total-savedAt>=20)saveTime();
       bumpLock=Math.max(0,bumpLock-dt);
-      // Small steps keep steering and collision response consistent on slower hardware.
-      let left=dt,trafficTime=0;while(left>.00001&&!panel){
-        const d=Math.min(left,motos.bike||car||skiff||cycles.riding||skate.rider||pickup||active?.take?1/60:1/45);
-        // Traffic follows the same clock as the wheels. On a long frame, advance
-        // ambient drivers and walkers together in at most two physics steps.
+      // Browser timestamps round a 60 Hz frame to either 16.6 or 16.7 ms.
+      // Divide the whole interval evenly so a rounding remainder costs no extra city update.
+      const rate=motos.bike||car||transfer||skiff||cycles.riding||skate.rider||pickup||active?.take?60:45;
+      const steps=dt>0?Math.max(1,Math.ceil((dt-.00025)*rate)):0;
+      let trafficTime=0;
+      for(let step=1;step<=steps&&!panel;step++){
+        const d=dt/steps;
         trafficTime+=d;
-        const streetStep=trafficTime>=1/30-.00001||left-d<.00001?trafficTime:0;
+        const streetStep=step%2===0||step===steps?trafficTime:0;
         if(streetStep)trafficTime=0;
         iceVan.campanaDriver=!campana.manual&&car!==iceVan&&transfer?.v!==iceVan;
         stepSummer(d);stepSpur(d);campana.step(d,paletaEnv);radioStep(d);stepButtonwood(d);stepBridge(d);stepNeon(d);stepAir(d);stepRescue(d);sevenStep(d);brisasStep(d);palmUpdate(d);gull.step(d,gullEnv);stepMotorcycles(d);stepSkate(d);transit.step(d,transitEnv);
         if(luz.book.pass)stepLuz(d);
         const onBoardwalk=!!(boardwalk.player||cycles.riding);stepCourts(d);boardwalkStep(d);
         if(car!==wrecker&&tow.busy)tow.step(d,towClear,recoveryEvent);
-        if(room){walkRoom(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);left-=d;continue;}
+        if(room){walkRoom(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);continue;}
         if(projector)stepProjector(d);
         else if(needle){
           const score=needle.score,banks=needle.banks;
@@ -13848,7 +13850,7 @@
         else if(!unit.transition&&!unit.eye&&!afternoon.photo&&!windowRide?.held&&!broadcastDesk.mix&&!palm.match&&!palm.playerSeat&&!gull.exchange&&!motos.player&&!motos.job?.swapping&&!rescue.holding&&!airLine.aboard&&!skate.rider&&!transit.engaged&&!band.take&&!pickup&&!onBoardwalk&&!cabs.playerHeld&&!skiff&&!listening()&&!exchangingKey())walk(d);
         stepWater(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);greenStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);
         if(windowRide)windowRide.step(d,windowEnv,windowRideEvent);recovery.step(d,recoveryEnv,recoveryEvent);pursuit(d);stepMeet(d);advanceJob(d);if(printAftermath)stepPrintPassenger(d);serviceGarage(d);stepBeach(d);
-        pavement.physics(d,cars,pavementEnv);left-=d;
+        pavement.physics(d,cars,pavementEnv);
       }
       actionPose(dt);
       if(countyCrew.hand>=0)motion.handTarget={countyCone:true,x:.29,y:.88,z:.31,weight:1};

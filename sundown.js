@@ -1257,11 +1257,15 @@
       this.drawEffect("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
     }
     drawPrint(name,canvas,revision,x,y,z,yaw,tiltX=0){
-      if(!this.gl||this.lost||!this.models.has(name))return;
+      const model=this.models.get(name);
+      if(!this.gl||this.lost||!model)return;
       const gl=this.gl;
       // A window print and the moving curb television can share one street view.
       // Retain a few surfaces so changing which one is drawn only changes a binding.
       let slot=this.printSlots.find(s=>s.source===canvas);
+      // A hidden shop window or street TV need not upload its next edition.
+      // Animated bounds are refreshed by draw() before they can be culled.
+      if((!slot||slot.revision!==revision)&&!model.poseChanged&&!this.inFrame(model.bounds,x,y,z,yaw,tiltX,0))return;
       if(!slot){
         slot=this.printSlots.find(s=>!s.source);
         if(!slot&&this.printSlots.length<4){slot={texture:gl.createTexture()};this.printSlots.push(slot);}
@@ -65858,6 +65862,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         return {id,kind,x,z,y:.07,yaw,tilt:0,home:{x,z,yaw},height:k.height,phase:"upright",stock:k.stock,worker,cool:0};
       });
       this.bits=[];this.hand=null;this.lift=null;this.serial=0;this.archive=[];this.readArchive();
+      this.movingCells=new Set();
     }
     readArchive(){
       try{const raw=JSON.parse(localStorage.getItem(archiveKey));if(Array.isArray(raw))this.archive=raw.filter(validIssue).slice(-5).map(q=>{
@@ -65924,10 +65929,19 @@ window.buildBayCity = function buildBayCity(g,water) {
       env.hit(p,v);
     }
     physics(dt,vehicles,env){
+      // Most stands have no moving vehicle within striking distance. Use the
+      // current positions, including vehicles that just changed lanes or slid.
+      const cells=this.movingCells;cells.clear();
+      for(const v of vehicles)if(Math.abs(v.speed)>=.28)cells.add(Math.floor(v.x/16)*65536+Math.floor(v.z/16));
       for(const p of this.props){
         const k=kinds[p.kind];p.cool=Math.max(0,p.cool-dt);
         if(p.contact&&(Math.abs(p.contact.x-p.x)>6||Math.abs(p.contact.z-p.z)>6||BayDriving.clearance(p.contact,p)>k.r+.45))p.contact=null;
-        if(!p.cool)for(const v of vehicles){
+        const left=Math.floor((p.x-5)/16),right=Math.floor((p.x+5)/16);
+        const near=Math.floor((p.z-5)/16),far=Math.floor((p.z+5)/16);
+        // A ten-metre window touches at most two cells on each axis. On
+        // contact, keep the original vehicle order as a nudge can move the stand.
+        if(!p.cool&&(cells.has(left*65536+near)||cells.has(left*65536+far)||
+          cells.has(right*65536+near)||cells.has(right*65536+far)))for(const v of vehicles){
           if(v===p.contact||Math.abs(v.x-p.x)>5||Math.abs(v.z-p.z)>5||Math.abs(v.speed)<.28||BayDriving.clearance(v,p)>k.r)continue;
           if(Math.abs(v.speed)<k.threshold){
             const dx=Math.sin(v.yaw)*v.speed,dz=Math.cos(v.yaw)*v.speed;
@@ -66827,6 +66841,22 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     list.push(["starlite-clipped-speaker",0,0,0,0]);
   }
+  function projectedWidth(view,site){
+    const mesh=view.models.get("starlite-film"),base=site.y??ground,yaw=site.yaw||0;
+    if(!mesh||!view.inFrame(mesh.bounds,site.x,base,site.z,yaw,0,0))return 0;
+    const eye=view.basis.camera;
+    if(BayDriving.local(site,eye.x,eye.z).z>screenZ+.25)return 0;
+    if(view.scale>.75)return Infinity;
+    const left=BayDriving.world(site,-screenWidth/2,screenZ),right=BayDriving.world(site,screenWidth/2,screenZ);
+    const bottom=base+screenY-screenHeight/2,top=bottom+screenHeight;
+    const a=view.project(left.x,bottom,left.z),b=view.project(right.x,bottom,right.z);
+    const c=view.project(left.x,top,left.z),d=view.project(right.x,top,right.z);
+    // A clipped corner can still fill the windshield. Keep the full negative there.
+    if(!a||!b||!c||!d)return Infinity;
+    const sx=view.canvas.width/innerWidth,sy=view.canvas.height/innerHeight;
+    const pixels=(p,q)=>Math.hypot((p.x-q.x)*sx,(p.y-q.y)*sy);
+    return Math.max(pixels(a,b),pixels(c,d),Math.max(pixels(a,c),pixels(b,d))*screenWidth/screenHeight);
+  }
   function screen(view,site,canvas,revision){
     if(canvas?.width&&view.gl&&!view.lost)view.drawPrint("starlite-film",canvas,revision,site.x,site.y??ground,site.z,site.yaw||0);
   }
@@ -66892,7 +66922,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     screenFace(c,canvas,5.08);
     c.restore();
   }
-  window.BayStarliteArt=Object.freeze({world,screen,overhead,focusedScreen,blocks,clipped});
+  window.BayStarliteArt=Object.freeze({world,screen,projectedWidth,overhead,focusedScreen,blocks,clipped});
 })();
 
 ;
@@ -84212,8 +84242,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     if(play&&maraFilm.published)BayPavementArt.rackPrint(view,model,see,pavement,BayPavement.pierLead(hours.day+1,neighbors.editions,save,maraFilm));
     if(play&&see(starliteSite,76)){
-      const dx=starliteSite.x-eye.x,dz=starliteSite.z+9.89-eye.z;
-      if(dz>-.25&&dx*Math.sin(eye.yaw)+dz*Math.cos(eye.yaw)>-.5){const frame=theatreFilm();BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}
+      const width=BayStarliteArt.projectedWidth(view,starliteSite);
+      if(width){const frame=theatreFilm(width);BayStarliteArt.screen(view,starliteSite,frame,theatre.version);}
     }
     if(play&&see(threads.site,32)&&featuredStrip())stall.print(view,threads.site,windowStrip,windowStamp);
     if(play&&see(BayNeedle.site,32))BayNeedleArt.world(view,model,needle?.record||needleRecord,needleSong().r);
@@ -86827,20 +86857,22 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(passReel.vehicle&&(transfer||!car||car!==passReel.vehicle||active))passReel.reset();
       streetAction.tick(dt);stepHouseCopy(dt);stepCountyCrew(dt);elapsed+=dt;hours.step(dt);stepRankPhones();gutters.weather(hours);if(hours.total-savedAt>=20)saveTime();
       bumpLock=Math.max(0,bumpLock-dt);
-      // Small steps keep steering and collision response consistent on slower hardware.
-      let left=dt,trafficTime=0;while(left>.00001&&!panel){
-        const d=Math.min(left,motos.bike||car||skiff||cycles.riding||skate.rider||pickup||active?.take?1/60:1/45);
-        // Traffic follows the same clock as the wheels. On a long frame, advance
-        // ambient drivers and walkers together in at most two physics steps.
+      // Browser timestamps round a 60 Hz frame to either 16.6 or 16.7 ms.
+      // Divide the whole interval evenly so a rounding remainder costs no extra city update.
+      const rate=motos.bike||car||transfer||skiff||cycles.riding||skate.rider||pickup||active?.take?60:45;
+      const steps=dt>0?Math.max(1,Math.ceil((dt-.00025)*rate)):0;
+      let trafficTime=0;
+      for(let step=1;step<=steps&&!panel;step++){
+        const d=dt/steps;
         trafficTime+=d;
-        const streetStep=trafficTime>=1/30-.00001||left-d<.00001?trafficTime:0;
+        const streetStep=step%2===0||step===steps?trafficTime:0;
         if(streetStep)trafficTime=0;
         iceVan.campanaDriver=!campana.manual&&car!==iceVan&&transfer?.v!==iceVan;
         stepSummer(d);stepSpur(d);campana.step(d,paletaEnv);radioStep(d);stepButtonwood(d);stepBridge(d);stepNeon(d);stepAir(d);stepRescue(d);sevenStep(d);brisasStep(d);palmUpdate(d);gull.step(d,gullEnv);stepMotorcycles(d);stepSkate(d);transit.step(d,transitEnv);
         if(luz.book.pass)stepLuz(d);
         const onBoardwalk=!!(boardwalk.player||cycles.riding);stepCourts(d);boardwalkStep(d);
         if(car!==wrecker&&tow.busy)tow.step(d,towClear,recoveryEvent);
-        if(room){walkRoom(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);left-=d;continue;}
+        if(room){walkRoom(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);recovery.step(d,recoveryEnv,recoveryEvent);stepBeach(d);continue;}
         if(projector)stepProjector(d);
         else if(needle){
           const score=needle.score,banks=needle.banks;
@@ -86853,7 +86885,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         else if(!unit.transition&&!unit.eye&&!afternoon.photo&&!windowRide?.held&&!broadcastDesk.mix&&!palm.match&&!palm.playerSeat&&!gull.exchange&&!motos.player&&!motos.job?.swapping&&!rescue.holding&&!airLine.aboard&&!skate.rider&&!transit.engaged&&!band.take&&!pickup&&!onBoardwalk&&!cabs.playerHeld&&!skiff&&!listening()&&!exchangingKey())walk(d);
         stepWater(d);if(streetStep)traffic(streetStep);beat.step(d,beatEnv);cupStep(d);greenStep(d);bandSteps(d);cabs.step(d,cabEnvironment,cabEvent);
         if(windowRide)windowRide.step(d,windowEnv,windowRideEvent);recovery.step(d,recoveryEnv,recoveryEvent);pursuit(d);stepMeet(d);advanceJob(d);if(printAftermath)stepPrintPassenger(d);serviceGarage(d);stepBeach(d);
-        pavement.physics(d,cars,pavementEnv);left-=d;
+        pavement.physics(d,cars,pavementEnv);
       }
       actionPose(dt);
       if(countyCrew.hand>=0)motion.handTarget={countyCone:true,x:.29,y:.88,z:.31,weight:1};

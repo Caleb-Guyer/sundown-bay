@@ -209,6 +209,11 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       }
     }
     if(mode==="street"){
+      const film=await js("("+require("./street-projection.cjs").toString()+")(recQA.view)");
+      console.log("PERF street drive-in screen",JSON.stringify(film));
+      assert(film.away===0&&film.rear===0&&film.noUpload&&film.uploaded);
+      for(const s of film.shots)assert(s.width>0&&s.painted>80&&s.coverage===0&&s.error<10);
+      assert(film.shots[0].widths[1]<416&&film.shots[2].widths[1]===416);
       // Keep the camera parked outside the motel and alternate both submission
       // paths on the same runner. Discard the first frame of each block.
       await js(`const batchDraw=BayView.prototype.drawOpaque;
@@ -404,7 +409,20 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
     const checkId=mode==="street"?"Street drive":"Overhead drive";
     await js(`const driveKeys=(${require("./coast-driver.cjs").toString()});
       const mem={cruise:true},held=new Set();recQA.driving=true;recQA.blocks=new Set();
+      const timing=recQA.timing={physics:0,traffic:0,oldPhysics:0,oldTraffic:0,seconds:0,trafficSeconds:0,frame:0};
+      const physics=BayPavement.Street.prototype.physics,people=BayLocals.animatePeople;
+      BayPavement.Street.prototype.physics=function(d,...args){timing.frame+=d;timing.physics++;timing.seconds+=d;return physics.call(this,d,...args);};
+      BayLocals.animatePeople=function(p,d,...args){timing.traffic++;timing.trafficSeconds+=d;return people.call(this,p,d,...args);};
+      function countOldSteps(){
+        let left=timing.frame,ambient=0;timing.frame=0;
+        while(left>.00001){
+          const d=Math.min(left,1/60);ambient+=d;timing.oldPhysics++;
+          if(ambient>=1/30-.00001||left-d<.00001){timing.oldTraffic++;ambient=0;}
+          left-=d;
+        }
+      }
       function driveLoop(t){
+        countOldSteps();
         const map=recQA.map,v=map.streetCar;
         if(v)recQA.blocks.add(Math.floor(v.x/36)+','+Math.floor(v.z/36));
         else{recQA.driving=false;recQA.interruption=document.querySelector('#toast').innerText||'Driver left the car';}
@@ -414,10 +432,13 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         if(recQA.driving)requestAnimationFrame(driveLoop);
       }requestAnimationFrame(driveLoop);`);
     const result="JSON.parse(localStorage.getItem('sundownBay.frameCheck.v1')||'{}')["+JSON.stringify(checkId)+"]";
-    try{await waitFor("recQA.interruption||"+result,100000);}finally{await js("recQA.driving=false");}
+    try{await waitFor("recQA.interruption||"+result,100000);}finally{await js("recQA.driving=false;countOldSteps();BayPavement.Street.prototype.physics=physics;BayLocals.animatePeople=people;true");}
     assert.equal(await js("recQA.interruption||null"),null,"The full measurement must stay behind the wheel");
     const minute=await js(result),blocks=await js("recQA.blocks.size");
     console.log("PERF minute drive",mode,JSON.stringify({...minute,blocks}));assert(minute.seconds>=60&&minute.metres>120&&blocks>=4);
+    const timing=await js("recQA.timing");console.log("PERF city clock",mode,JSON.stringify(timing));
+    assert(timing.seconds>45&&Math.abs(timing.trafficSeconds-timing.seconds)<.00001);
+    assert(timing.physics<=timing.oldPhysics&&timing.traffic<=timing.oldTraffic);
     assert(minute.device.startsWith("Linux · "+(mode==="street"?"WebGL":"Canvas 2D"))&&Number.isInteger(minute.slowestSecond));
     if(mode==="street")await checkCity("after drive");
     await snap("drive");await tap("Escape");await waitFor("document.querySelector('#panelBody').innerText.includes('95th percentile')");await tap("Escape");

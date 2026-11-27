@@ -35,6 +35,7 @@
         return {id,kind,x,z,y:.07,yaw,tilt:0,home:{x,z,yaw},height:k.height,phase:"upright",stock:k.stock,worker,cool:0};
       });
       this.bits=[];this.hand=null;this.lift=null;this.serial=0;this.archive=[];this.readArchive();
+      this.movingCells=new Set();
     }
     readArchive(){
       try{const raw=JSON.parse(localStorage.getItem(archiveKey));if(Array.isArray(raw))this.archive=raw.filter(validIssue).slice(-5).map(q=>{
@@ -101,10 +102,19 @@
       env.hit(p,v);
     }
     physics(dt,vehicles,env){
+      // Most stands have no moving vehicle within striking distance. Use the
+      // current positions, including vehicles that just changed lanes or slid.
+      const cells=this.movingCells;cells.clear();
+      for(const v of vehicles)if(Math.abs(v.speed)>=.28)cells.add(Math.floor(v.x/16)*65536+Math.floor(v.z/16));
       for(const p of this.props){
         const k=kinds[p.kind];p.cool=Math.max(0,p.cool-dt);
         if(p.contact&&(Math.abs(p.contact.x-p.x)>6||Math.abs(p.contact.z-p.z)>6||BayDriving.clearance(p.contact,p)>k.r+.45))p.contact=null;
-        if(!p.cool)for(const v of vehicles){
+        const left=Math.floor((p.x-5)/16),right=Math.floor((p.x+5)/16);
+        const near=Math.floor((p.z-5)/16),far=Math.floor((p.z+5)/16);
+        // A ten-metre window touches at most two cells on each axis. On
+        // contact, keep the original vehicle order as a nudge can move the stand.
+        if(!p.cool&&(cells.has(left*65536+near)||cells.has(left*65536+far)||
+          cells.has(right*65536+near)||cells.has(right*65536+far)))for(const v of vehicles){
           if(v===p.contact||Math.abs(v.x-p.x)>5||Math.abs(v.z-p.z)>5||Math.abs(v.speed)<.28||BayDriving.clearance(v,p)>k.r)continue;
           if(Math.abs(v.speed)<k.threshold){
             const dx=Math.sin(v.yaw)*v.speed,dz=Math.cos(v.yaw)*v.speed;

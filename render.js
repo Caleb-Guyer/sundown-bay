@@ -1256,11 +1256,15 @@
       this.drawEffect("bay-water");gl.uniform4f(this.u.waterParams,0,0,0,0);
     }
     drawPrint(name,canvas,revision,x,y,z,yaw,tiltX=0){
-      if(!this.gl||this.lost||!this.models.has(name))return;
+      const model=this.models.get(name);
+      if(!this.gl||this.lost||!model)return;
       const gl=this.gl;
       // A window print and the moving curb television can share one street view.
       // Retain a few surfaces so changing which one is drawn only changes a binding.
       let slot=this.printSlots.find(s=>s.source===canvas);
+      // A hidden shop window or street TV need not upload its next edition.
+      // Animated bounds are refreshed by draw() before they can be culled.
+      if((!slot||slot.revision!==revision)&&!model.poseChanged&&!this.inFrame(model.bounds,x,y,z,yaw,tiltX,0))return;
       if(!slot){
         slot=this.printSlots.find(s=>!s.source);
         if(!slot&&this.printSlots.length<4){slot={texture:gl.createTexture()};this.printSlots.push(slot);}

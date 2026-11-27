@@ -211,6 +211,22 @@
     }
     list.push(["starlite-clipped-speaker",0,0,0,0]);
   }
+  function projectedWidth(view,site){
+    const mesh=view.models.get("starlite-film"),base=site.y??ground,yaw=site.yaw||0;
+    if(!mesh||!view.inFrame(mesh.bounds,site.x,base,site.z,yaw,0,0))return 0;
+    const eye=view.basis.camera;
+    if(BayDriving.local(site,eye.x,eye.z).z>screenZ+.25)return 0;
+    if(view.scale>.75)return Infinity;
+    const left=BayDriving.world(site,-screenWidth/2,screenZ),right=BayDriving.world(site,screenWidth/2,screenZ);
+    const bottom=base+screenY-screenHeight/2,top=bottom+screenHeight;
+    const a=view.project(left.x,bottom,left.z),b=view.project(right.x,bottom,right.z);
+    const c=view.project(left.x,top,left.z),d=view.project(right.x,top,right.z);
+    // A clipped corner can still fill the windshield. Keep the full negative there.
+    if(!a||!b||!c||!d)return Infinity;
+    const sx=view.canvas.width/innerWidth,sy=view.canvas.height/innerHeight;
+    const pixels=(p,q)=>Math.hypot((p.x-q.x)*sx,(p.y-q.y)*sy);
+    return Math.max(pixels(a,b),pixels(c,d),Math.max(pixels(a,c),pixels(b,d))*screenWidth/screenHeight);
+  }
   function screen(view,site,canvas,revision){
     if(canvas?.width&&view.gl&&!view.lost)view.drawPrint("starlite-film",canvas,revision,site.x,site.y??ground,site.z,site.yaw||0);
   }
@@ -276,5 +292,5 @@
     screenFace(c,canvas,5.08);
     c.restore();
   }
-  window.BayStarliteArt=Object.freeze({world,screen,overhead,focusedScreen,blocks,clipped});
+  window.BayStarliteArt=Object.freeze({world,screen,projectedWidth,overhead,focusedScreen,blocks,clipped});
 })();
