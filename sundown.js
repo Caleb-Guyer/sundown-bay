@@ -80015,7 +80015,7 @@ window.buildBayCity = function buildBayCity(g,water) {
   }
   function startDub(){
     if(halfMoon.stage!==5||!atProjectionBooth())return;
-    closePanel();releaseMouse();keys.clear();theatre.visit=null;
+    closePanel();releaseMouse();keys.clear();theatre.visit=null;toastTill=elapsed;$("toast").hidden=true;
     theatre.run={id:"last-boat",dub:new BayLastBoat.Dub(halfMoon.pier),done:false};
     gaugeStamp=-1;lastHud=-10;
     speak("Ada Soler","I shot this without sound. You take the bell. Keep Marta’s punch in your other hand.");
@@ -84472,7 +84472,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const watching=!!theatre.visit,shape=watching&&bayCarLayout(car.kind);
       const eye=watching?BayDriving.world(car,-shape.track*.46,shape.sections.at(-1)[0]-.10):{x:hero.x+.18,z:hero.z+.15};
       const x=eye.x,z=eye.z,y=watching?footLevel(car.x,car.z)+Math.max(1.16,shape.glass[4]+.18):1.70;
-      Object.assign(cam,{x,y,z,yaw:Math.atan2(starliteSite.x-x,starliteSite.z+10-z),pitch:Math.atan2(3.70-y,Math.hypot(starliteSite.x-x,starliteSite.z+10-z)),focal:watching?1.64:1.85});return;
+      Object.assign(cam,{x,y,z,yaw:Math.atan2(starliteSite.x-x,starliteSite.z+10-z),pitch:Math.atan2(3.70-y,Math.hypot(starliteSite.x-x,starliteSite.z+10-z)),focal:theatre.run?.dub?2.95:watching?1.64:1.85});return;
     }
     const opening=bell.open&&bell.lid&&onStreetFeet();
     if(opening&&trunkFrame.v!==bell.lid){
@@ -85419,8 +85419,9 @@ window.buildBayCity = function buildBayCity(g,water) {
         state.cx=(hero.x+company.call.x)*.5;state.cz=(hero.z+company.call.z)*.5;state.rotation=state.cameraYaw=company.call.yaw;state.scale=h/(17*cameraRig.zoom);
       }
       if(theatre.run||theatre.visit){
-        state.cx=starliteSite.x-(theatre.run ? .45 : 0);state.cz=starliteSite.z+(theatre.run ? 5 : 4.2);
-        state.rotation=state.cameraYaw=0;state.scale=h/((theatre.run ? 18 : 16)*cameraRig.zoom);
+        const recording=!!theatre.run?.dub;
+        state.cx=starliteSite.x-(theatre.run&&!recording ? .45 : 0);state.cz=starliteSite.z+(recording?7.4:theatre.run?5:4.2);
+        state.rotation=state.cameraYaw=0;state.scale=h/((recording?11.75:theatre.run?18:16)*cameraRig.zoom);
       }
       if(film)setTakeMap(state,film,w,h,replay);
       if(projector||voiceTake){

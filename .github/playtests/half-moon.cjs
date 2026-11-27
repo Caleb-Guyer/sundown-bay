@@ -40,6 +40,7 @@ module.exports=async function halfMoon({js,send,waitFor,tap,key,mode}){
   for(const [i,code] of ["KeyH","Space"].entries()){
     await waitFor(run+".age >= "+run+".beats["+i+"]-.07",25000);
     await tap(code);assert.notEqual(await js(run+".marks["+i+"]"),null);
+    if(i===0){await waitFor(run+".age>=5.2");await shot("crossing");}
   }
   await shot("punch");
   await waitFor(book+".take?.length===2",18000);assert(await js(run+".score>=60"));
