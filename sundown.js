@@ -21821,6 +21821,11 @@ window.buildBayCity = function buildBayCity(g,water) {
       {dur:4.1,shot:"laundry",slug:"MARLIN MOTEL   /   LAUNDRY STEPS",title:"The Long Way Home",who:"Romy Vale",line:"Come under the awning a minute."},
       {dur:6.1,art:"staffKey",who:"Romy Vale",line:"My mother always carried two keys."}
     ],
+    blueCarbon:[
+      {dur:4,shot:"laundry",slug:"MARLIN MOTEL   /   END OF SHIFT",title:"The Blue Carbon",who:"Romy Vale",line:"Three envelopes. I borrowed Mum’s good pen. It goes through both sheets if you lean on it."},
+      {dur:5.5,art:"blueCarbon",who:"Marisol Vale · through the door",line:"Tino’s downstairs fixing the dryer. Slide his under the boiler-room door. Neve can take mine upstairs."},
+      {dur:4.1,shot:"laundry",who:"Romy Vale",line:"Keep the blue one. Mum kept a copy of everything. I used to give her hell about those drawers."}
+    ],
     collectionOpen:[
       {dur:3.1,shot:"laundry",slug:"OCEAN DRIVE   /   LAUNDRY ENTRANCE",title:"Last Collection",who:"Romy Vale",line:"My mother folded sheets upstairs for twenty years. They paid her last Friday with a key to a room she already cleans."},
       {dur:4.5,art:"payEnvelope",who:"Romy Vale",line:"That's the pay office stamp. Jules has the missing envelopes at the motel curb. Pull up slow. He'll find the passenger door."}
@@ -71925,7 +71930,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   let shiftPortrait=null;
-  const wageNames=["T. Ramos","N. Santos","M. Vale"];
+  const wageNames=["T. Ramos","N. Armas","M. Vale"];
   function footwell(canvas,e){
     const c=canvas.getContext("2d");if(!c)return;
     const block=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -72058,7 +72063,43 @@ window.buildBayCity = function buildBayCity(g,water) {
       pill(x,y,30,17,6,"#626b60");type("123456789*0#"[i],x+11,y+13,"bold 12px monospace","#e0e0c5");}
     rect(-51,154,101,10,"#a79b72");type("JULES",-19,163,"bold 9px monospace","#423d33");c.restore();
   }
-  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto,footwell,deliveryLine,readCall,lastWords,handsetInsert};
+  const wages=[
+    {name:"Tino Ramos",shift:"Boiler room",amount:126},
+    {name:"Neve Armas",shift:"Linen van",amount:148},
+    {name:"Marisol Vale",shift:"Laundry",amount:186}
+  ];
+  function readCarbon(record){
+    if(!Number.isSafeInteger(record?.sale)||record.sale<1||!Number.isInteger(record.mask)||record.mask<1||record.mask>7)return null;
+    return {sale:record.sale,mask:record.mask};
+  }
+  function carbonPaper(canvas,sale,mask){
+    canvas.width=640;canvas.height=340;
+    canvas.setAttribute("aria-label","Marlin night shift carbon "+sale+". "+wages.map((w,i)=>w.name+", $"+w.amount+", "+(mask&(1<<i)?"in envelope":"outstanding")).join(". "));
+    const c=canvas.getContext("2d");if(!c)return;
+    const rect=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
+    const label=(t,x,y,font,ink)=>{c.font=font;c.fillStyle=ink;c.fillText(t,x,y);};
+    rect(0,0,640,340,"#4b584f");
+    for(let x=7;x<640;x+=34)rect(x,0,1,340,"#536056");
+    c.save();c.translate(317,171);c.rotate(-.027);
+    rect(-282,-143,568,295,"#303e39");rect(-286,-149,568,295,"#ddd2ae");rect(-280,-153,565,295,"#aec9cc");
+    for(let j=0;j<18;j++)rect(-271,-141+j*15,6,4,"#657e7e");
+    rect(-250,-137,1,263,"#ab7979");rect(-245,-137,1,263,"#ab7979");
+    label("MARLIN MOTOR INN",-227,-103,"bold 23px Georgia","#294b57");
+    label("CASH ENVELOPES  /  NIGHT SHIFT",-227,-79,"14px monospace","#385866");
+    label("No. "+String(sale).padStart(4,"0"),164,-103,"15px monospace","#865d56");
+    let total=0;
+    for(const [i,w] of wages.entries()){
+      const y=-35+i*46,paid=!!(mask&(1<<i));
+      rect(-228,y+10,472,1,"#72949b");
+      label(w.name,-225,y,"bold 17px Georgia","#274557");
+      label(w.shift,-78,y,"14px monospace","#45626b");label("$"+w.amount,43,y,"16px monospace","#2d495a");
+      if(paid){total+=w.amount;c.save();c.translate(128,y);c.rotate([-.03,.018,-.055][i]);
+        label("R. Vale",0,1,"italic 22px Georgia","#303f73");c.restore();}
+    }
+    label("IN ENVELOPES   $"+total+" / $460",-225,108,"bold 15px monospace","#385765");
+    label("office copy",145,113,"italic 16px Georgia","#46656a");c.restore();
+  }
+  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto,footwell,deliveryLine,readCall,lastWords,handsetInsert,wages,readCarbon,carbonPaper};
 })();
 
 ;
@@ -73045,6 +73086,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       result.featurePrint=BayFeaturePrint.read(raw.featurePrint);
       result.houseCopies=BayHouseCopies.read(raw.houseCopies);
       if(raw.collection){
+        result.collection.carbon=BayPayroll.readCarbon(raw.collection.carbon);
         result.collection.call=BayPayroll.readCall(raw.collection.call);
         for(const id of ["luna","port","best"])if(Number.isFinite(raw.collection[id])&&raw.collection[id]>=0)result.collection[id]=raw.collection[id];
         if([1,2].includes(raw.collection.print))result.collection.print=raw.collection.print;
@@ -73251,6 +73293,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    const wages=BayPayroll.readCarbon(latest?.collection?.carbon),own=save.collection.carbon;
+    if(wages&&(!own||wages.sale>own.sale||wages.sale===own.sale&&(wages.mask&~own.mask))){
+      save.collection.carbon={sale:wages.sale,mask:wages.mask|(wages.sale===own?.sale?own.mask:0)};
+      save.collection.port=Math.max(save.collection.port,wages.sale);
+      if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
+    }
     const phoneCopy=BayPayroll.readCall(latest?.collection?.call);
     if(phoneCopy&&phoneCopy.seq>(save.collection.call?.seq||0))save.collection.call=phoneCopy;
     if(latest?.moto?.wheel){
@@ -73855,6 +73903,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
     if(b?.art==="transferStub")BaySixSharpArt.stub($("chapterInsert"),campaign.pilot.result,campaign.book.transfer);
     if(b?.art==="staffKey")BayWalkHome.keys($("chapterInsert"),homeWalk.accepts);
+    if(b?.art==="blueCarbon")BayPayroll.carbonPaper($("chapterInsert"),save.collection.carbon.sale,save.collection.carbon.mask);
     if(b?.art==="rabbitSleeve")BayWalkHome.sleeve($("chapterInsert"));
     if(b?.art==="fareCarbon")BayMeterRunning.paper($("chapterInsert"),fareLedger);
     if(b?.art==="julesHandset")BayPayroll.handsetInsert($("chapterInsert"),campaign.scene.call);
@@ -73932,6 +73981,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     if(id==="walkHomeDoor"){
       if(homeWalk.accepts&&homeWagon)clockPin({...homeWagon,name:"Marisol’s staff wagon"});
+      if(homeWalk.book.route==="port")note("Romy Vale","I’ve got their hours here. G at the laundry steps if you want to see them.",6);
       return;
     }
     if(id==="laundryOrder"){note("Ora Bell","Hold L at the Marlin cab phone. Let it ring twice, then release.",5);return;}
@@ -80611,7 +80661,41 @@ window.buildBayCity = function buildBayCity(g,water) {
     homeWalk.join();active={job:{id:"walk-home",name:"The Long Way Home",by:"Romy Vale"},homeWalk:true,stops:[BayWalkHome.home],index:0,clock:0};
     waypoint=null;lastMap=lastHud=-10;
   }
+  function atWageBook(){
+    if(save.collection.last!=="port"||!save.collection.port||!homeWalk.book?.ending)return false;
+    return !active&&!heat&&dist(hero,laundryContact)<2&&(panel==="blue-carbon"?onStreetFeet():actionFeet());
+  }
+  function wageMask(){
+    const c=save.collection.carbon;
+    return c?.sale===save.collection.port?c.mask:0;
+  }
+  function showWageBook(body,sale,mask,atDoor){
+    const page=document.createElement("canvas");page.style.cssText="display:block;width:100%;height:auto";
+    page.setAttribute("role","img");BayPayroll.carbonPaper(page,sale,mask);body.append(page);
+    if(!atDoor)return;
+    signedNote(body,mask===7?"All three are in. I put the blue sheet in your drawer at the motel.":
+      "Vic gave you $460. These three take home exactly that between them. Pick an envelope if you want. I’ve got a shift to do. You know where to find me.","Romy Vale");
+    for(const [i,w] of BayPayroll.wages.entries()){
+      if(mask&(1<<i))continue;
+      const button=makeButton(w.name,w.shift+" · Your cash "+cash(save.wallet),"Put in "+cash(w.amount),()=>{
+        if(window.navigator?.locks)return navigator.locks.request("sundownBay.payroll",()=>putWages(i,sale));
+        putWages(i,sale);
+      });
+      button.disabled=save.wallet<w.amount;body.append(button);
+    }
+  }
+  function putWages(i,sale){
+    if(panel!=="blue-carbon"||!atWageBook())return;
+    try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
+    const w=BayPayroll.wages[i],mask=wageMask(),bit=1<<i;
+    if(!w||sale!==save.collection.port||(mask&bit)||save.wallet<w.amount)return;
+    save.wallet-=w.amount;save.collection.carbon={sale,mask:mask|bit};persist();lastHud=-10;
+    if(waypoint?.kind==="wage-book")waypoint=null;
+    if(wageMask()===7){enterFilm("blueCarbon");return;}
+    openPanel("blue-carbon",true);
+  }
   function homeKey(code){
+    if(code==="KeyG"&&atWageBook()){openPanel("blue-carbon");return true;}
     if(code==="KeyL"&&car&&car===homeWagon&&homeHint()?.[0]==="L"){
       if(!valeReel)valeReel=BayWalkHome.keepReel("sleeve");
       enterFilm("visorSleeve");return true;
@@ -80759,6 +80843,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(call&&call.to===c.route)signedNote(b,BayPayroll.lastWords(call),"Romy’s last call with Jules");
     if(romyOutside())b.append(makeButton("The Long Way Home","Romy left the Luna on foot.","Find Romy",()=>clockPin(homeTarget())));
     if(homeWalk.book?.ending)signedNote(b,homeWalk.book.ending==="ride"?"Dropped Romy at the Marlin laundry.":"Walked Romy to the Marlin laundry.","The Long Way Home");
+    if(!luna&&homeWalk.book?.ending)b.append(makeButton("The Blue Carbon","Romy keeps the night shift’s wage sheet on the laundry steps.","Mark laundry",
+      ()=>clockPin({...BayWalkHome.home,name:"Romy’s wage book",kind:"wage-book"})));
     if(homeWagon)b.append(makeButton("Marisol’s staff wagon",BayStreetCars.plateFor(homeWagon),"Mark car",()=>clockPin({...homeWagon,name:"Marisol’s staff wagon"})));
   }
   const shiftKeeper=walkers.find(p=>p.coffeeRegular);
@@ -84594,6 +84680,8 @@ window.buildBayCity = function buildBayCity(g,water) {
     const payee=atPayrollCounter();
     const showing=homeHint()||(active?.laundry&&linenReach()?(save.rescue.laundry.stage==="call"?["L","Ring the laundry twice"]:["F",save.rescue.laundry.stage==="return"?"Give Ora the parcel":"Take the parcel"]):payee?["F",payee.receiver.name+" · Read the receipt"]:streetCallNear()?["H",heat||rescue.pendingStreet?"Flag Rescue 4 · Track the ambulance":"Flag Rescue 4 · F to help with the stretcher"]:atLaundry()?["F",romyOutside()?"Last Collection · Romy’s laundry note":"Talk to Romy · Last Collection"]:angler?(angler.phase==="miss"||angler.phase==="landed"?["Space","Cast again · E put the rod back"]:["E","Put the rod back"]):rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint());
     const freightHint=spurHint();
+    const wagesHere=atWageBook();
+    if(showing&&wagesHere)showing[1]+=" · G Romy’s wage book";
     if(spur.trip||spur.aboard){
       const r=spur.trip;const st=r?.phase==="board"?r.start:r?.target||spur.destination;
       $("objective").hidden=false;$("objectiveTag").textContent="Port Sol Belt · No. 9";
@@ -84688,6 +84776,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     else if(capHint)contextHint(...capHint);
     else if(freightHint)contextHint(...freightHint);
     else if(showing)contextHint(...showing);
+    else if(wagesHere)contextHint("G","Romy’s wage book");
     else if(atThreads())contextHint("F","Cora Vidal · Low Tide Exchange");
     else if(curbPrompt)contextHint(...curbPrompt);
     else if(localRun)contextHint(...localRun);
@@ -85049,6 +85138,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
   }
   function showDesk(body){
+    if(save.collection.carbon)showWageBook(body,save.collection.carbon.sale,save.collection.carbon.mask,false);
     if(["ride","negative","return","filed"].includes(campaign.book.stage)){
       body.append(makeButton("The Sticking Latch","Mara’s dash close-up from the first drive out of the Marlin.","Run the film",()=>enterFilm("dashInsert")));
     }
@@ -85473,6 +85563,9 @@ window.buildBayCity = function buildBayCity(g,water) {
           active.meter.deskBound=true;active.stops[0]=BayMeterRunning.desk;closePanel();lastHud=lastMap=-10;
           speak("Neve Armas","Thanks. Bea’s the one with the pencil through her bun.");
         }));
+    }else if(next==="blue-carbon"){
+      if(!atWageBook()){closePanel();return;}
+      title="The Blue Carbon";kicker="Marlin laundry  /  Romy’s book";showWageBook(b,save.collection.port,wageMask(),true);
     }else if(next==="payroll-receipt"){
       const c=lastPayroll();title=c.route==="luna"?"The night shift’s copy":"The scale ticket";
       kicker=c.route==="luna"?"Cine Luna · Side door":"Port Sol · Loading bay";readPayroll(c);
@@ -86507,7 +86600,7 @@ window.buildBayCity = function buildBayCity(g,water) {
         const s=campaign.scene,prompt=$("glovePrompt");
         if(s.tagAt==null&&s.age>=2.8&&prompt.textContent!=="Read the repair tag")prompt.textContent="Read the repair tag";
         BayRecordArt.glovebox($("chapterInsert"),s);
-      }else if(art==="transferStub"||art==="fareCarbon")return;
+      }else if(art==="transferStub"||art==="fareCarbon"||art==="blueCarbon")return;
       else if(filmPage?.watch){
         const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;
         scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;

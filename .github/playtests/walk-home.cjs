@@ -128,4 +128,32 @@ module.exports=async function walkHome({js,send,waitFor,tap,key,mode,errors}){
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS The Long Way Home",mode,route,port?"honest answer, passenger lift":"entire walk, crossing signal","laundry scene, saved owner key and drivable estate after reload");
   console.log("PASS Rabbit Ears",mode,"visor scene, drive into bay two, projected family film, ticket and",port?"actual Cine Luna screening":"private print absent from public bill","after reload");
+  // Resume a completed walk from a save that predates the wage book.
+  await js(`{const s=JSON.parse(localStorage.getItem('sundownBay.v1'));s.collection={last:'port',port:1,luna:0};s.wallet=460;
+    localStorage.setItem('sundownBay.v1',JSON.stringify(s));localStorage.setItem(BayWalkHome.key,JSON.stringify({route:'port',trip:1,at:11,joined:true,ending:'walk'}));}true`);
+  const saved="JSON.parse(localStorage.getItem('sundownBay.v1'))";
+  async function bookAtDoor(){
+    await launch();await js("q.at(q.h,153.05,-29.5);q.rig.reset(q.h);true");
+    await wait("document.querySelector('#context').textContent.includes('wage book')");
+    await tap("KeyG");await wait("document.querySelector('#panel').dataset.screen==='blue-carbon'&&!document.querySelector('#panel').hidden");
+  }
+  await bookAtDoor();await click("Neve Armas");
+  await wait(saved+".wallet===312&&"+saved+".collection.carbon.mask===2");await shot("wages-neve");
+  await bookAtDoor();
+  assert.equal(await js("[...document.querySelectorAll('#panelBody button')].some(b=>b.innerText.includes('Neve Armas'))"),false);
+  await click("Marisol Vale");await wait(saved+".wallet===126");await click("Tino Ramos");
+  await wait("document.querySelector('#chapterTitle').textContent==='The Blue Carbon'&&!document.querySelector('#chapterFilm').hidden");await shot("wages-door");
+  await wait("document.querySelector('#chapterInsert').getAttribute('aria-label')?.includes('Tino Ramos, $126, in envelope')&&!document.querySelector('#chapterInsert').hidden");
+  await shot("wages-paid");await tap("Enter");await wait("document.querySelector('#chapterFilm').hidden");
+  assert.equal(await js(saved+".wallet"),0);assert.equal(await js(saved+".collection.carbon.mask"),7);
+  await bookAtDoor();assert.equal(await js("document.querySelectorAll('#panelBody button').length"),0);
+  await tap("Escape");
+  await js(`for(const [method,index] of [['map',1],['draw',2]]){
+    const draw=BayMarlinRoom[method];BayMarlinRoom[method]=function(...args){q.motel=args[index];return draw.apply(this,args);};
+  }q.at(q.h,BayMarlinRoom.outside.x,BayMarlinRoom.outside.z);true`);
+  await tap("KeyF");await wait("q.motel");await js("Object.assign(q.motel,BayMarlinRoom.points.desk);true");
+  await wait("document.querySelector('#context').textContent.toLowerCase().includes('desk')");
+  await tap("KeyF");await wait("document.querySelector('#panelBody canvas')?.getAttribute('aria-label')?.includes('Neve Armas, $148, in envelope')");
+  assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+  console.log("PASS The Blue Carbon",mode,"legacy Port Sol ending, out-of-order envelopes, partial reload, $460 accounted for once, signed scene, free roam and final reload");
 };

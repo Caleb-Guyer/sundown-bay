@@ -149,6 +149,11 @@
       {dur:4.1,shot:"laundry",slug:"MARLIN MOTEL   /   LAUNDRY STEPS",title:"The Long Way Home",who:"Romy Vale",line:"Come under the awning a minute."},
       {dur:6.1,art:"staffKey",who:"Romy Vale",line:"My mother always carried two keys."}
     ],
+    blueCarbon:[
+      {dur:4,shot:"laundry",slug:"MARLIN MOTEL   /   END OF SHIFT",title:"The Blue Carbon",who:"Romy Vale",line:"Three envelopes. I borrowed Mum’s good pen. It goes through both sheets if you lean on it."},
+      {dur:5.5,art:"blueCarbon",who:"Marisol Vale · through the door",line:"Tino’s downstairs fixing the dryer. Slide his under the boiler-room door. Neve can take mine upstairs."},
+      {dur:4.1,shot:"laundry",who:"Romy Vale",line:"Keep the blue one. Mum kept a copy of everything. I used to give her hell about those drawers."}
+    ],
     collectionOpen:[
       {dur:3.1,shot:"laundry",slug:"OCEAN DRIVE   /   LAUNDRY ENTRANCE",title:"Last Collection",who:"Romy Vale",line:"My mother folded sheets upstairs for twenty years. They paid her last Friday with a key to a room she already cleans."},
       {dur:4.5,art:"payEnvelope",who:"Romy Vale",line:"That's the pay office stamp. Jules has the missing envelopes at the motel curb. Pull up slow. He'll find the passenger door."}

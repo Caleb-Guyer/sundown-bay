@@ -184,6 +184,7 @@
       result.featurePrint=BayFeaturePrint.read(raw.featurePrint);
       result.houseCopies=BayHouseCopies.read(raw.houseCopies);
       if(raw.collection){
+        result.collection.carbon=BayPayroll.readCarbon(raw.collection.carbon);
         result.collection.call=BayPayroll.readCall(raw.collection.call);
         for(const id of ["luna","port","best"])if(Number.isFinite(raw.collection[id])&&raw.collection[id]>=0)result.collection[id]=raw.collection[id];
         if([1,2].includes(raw.collection.print))result.collection.print=raw.collection.print;
@@ -390,6 +391,12 @@
     lastHud=lastMap=-10;
   }
   function syncProgress(latest){
+    const wages=BayPayroll.readCarbon(latest?.collection?.carbon),own=save.collection.carbon;
+    if(wages&&(!own||wages.sale>own.sale||wages.sale===own.sale&&(wages.mask&~own.mask))){
+      save.collection.carbon={sale:wages.sale,mask:wages.mask|(wages.sale===own?.sale?own.mask:0)};
+      save.collection.port=Math.max(save.collection.port,wages.sale);
+      if(Number.isSafeInteger(latest.wallet))save.wallet=latest.wallet;
+    }
     const phoneCopy=BayPayroll.readCall(latest?.collection?.call);
     if(phoneCopy&&phoneCopy.seq>(save.collection.call?.seq||0))save.collection.call=phoneCopy;
     if(latest?.moto?.wheel){
@@ -994,6 +1001,7 @@
     $("chapterSkip").hidden=!!table;$("chapterInsert").hidden=!(b?.art||table);
     if(b?.art==="transferStub")BaySixSharpArt.stub($("chapterInsert"),campaign.pilot.result,campaign.book.transfer);
     if(b?.art==="staffKey")BayWalkHome.keys($("chapterInsert"),homeWalk.accepts);
+    if(b?.art==="blueCarbon")BayPayroll.carbonPaper($("chapterInsert"),save.collection.carbon.sale,save.collection.carbon.mask);
     if(b?.art==="rabbitSleeve")BayWalkHome.sleeve($("chapterInsert"));
     if(b?.art==="fareCarbon")BayMeterRunning.paper($("chapterInsert"),fareLedger);
     if(b?.art==="julesHandset")BayPayroll.handsetInsert($("chapterInsert"),campaign.scene.call);
@@ -1071,6 +1079,7 @@
     }
     if(id==="walkHomeDoor"){
       if(homeWalk.accepts&&homeWagon)clockPin({...homeWagon,name:"Marisol’s staff wagon"});
+      if(homeWalk.book.route==="port")note("Romy Vale","I’ve got their hours here. G at the laundry steps if you want to see them.",6);
       return;
     }
     if(id==="laundryOrder"){note("Ora Bell","Hold L at the Marlin cab phone. Let it ring twice, then release.",5);return;}
@@ -7750,7 +7759,41 @@
     homeWalk.join();active={job:{id:"walk-home",name:"The Long Way Home",by:"Romy Vale"},homeWalk:true,stops:[BayWalkHome.home],index:0,clock:0};
     waypoint=null;lastMap=lastHud=-10;
   }
+  function atWageBook(){
+    if(save.collection.last!=="port"||!save.collection.port||!homeWalk.book?.ending)return false;
+    return !active&&!heat&&dist(hero,laundryContact)<2&&(panel==="blue-carbon"?onStreetFeet():actionFeet());
+  }
+  function wageMask(){
+    const c=save.collection.carbon;
+    return c?.sale===save.collection.port?c.mask:0;
+  }
+  function showWageBook(body,sale,mask,atDoor){
+    const page=document.createElement("canvas");page.style.cssText="display:block;width:100%;height:auto";
+    page.setAttribute("role","img");BayPayroll.carbonPaper(page,sale,mask);body.append(page);
+    if(!atDoor)return;
+    signedNote(body,mask===7?"All three are in. I put the blue sheet in your drawer at the motel.":
+      "Vic gave you $460. These three take home exactly that between them. Pick an envelope if you want. I’ve got a shift to do. You know where to find me.","Romy Vale");
+    for(const [i,w] of BayPayroll.wages.entries()){
+      if(mask&(1<<i))continue;
+      const button=makeButton(w.name,w.shift+" · Your cash "+cash(save.wallet),"Put in "+cash(w.amount),()=>{
+        if(window.navigator?.locks)return navigator.locks.request("sundownBay.payroll",()=>putWages(i,sale));
+        putWages(i,sale);
+      });
+      button.disabled=save.wallet<w.amount;body.append(button);
+    }
+  }
+  function putWages(i,sale){
+    if(panel!=="blue-carbon"||!atWageBook())return;
+    try{syncProgress(JSON.parse(localStorage.getItem("sundownBay.v1")));}catch{}
+    const w=BayPayroll.wages[i],mask=wageMask(),bit=1<<i;
+    if(!w||sale!==save.collection.port||(mask&bit)||save.wallet<w.amount)return;
+    save.wallet-=w.amount;save.collection.carbon={sale,mask:mask|bit};persist();lastHud=-10;
+    if(waypoint?.kind==="wage-book")waypoint=null;
+    if(wageMask()===7){enterFilm("blueCarbon");return;}
+    openPanel("blue-carbon",true);
+  }
   function homeKey(code){
+    if(code==="KeyG"&&atWageBook()){openPanel("blue-carbon");return true;}
     if(code==="KeyL"&&car&&car===homeWagon&&homeHint()?.[0]==="L"){
       if(!valeReel)valeReel=BayWalkHome.keepReel("sleeve");
       enterFilm("visorSleeve");return true;
@@ -7898,6 +7941,8 @@
     if(call&&call.to===c.route)signedNote(b,BayPayroll.lastWords(call),"Romy’s last call with Jules");
     if(romyOutside())b.append(makeButton("The Long Way Home","Romy left the Luna on foot.","Find Romy",()=>clockPin(homeTarget())));
     if(homeWalk.book?.ending)signedNote(b,homeWalk.book.ending==="ride"?"Dropped Romy at the Marlin laundry.":"Walked Romy to the Marlin laundry.","The Long Way Home");
+    if(!luna&&homeWalk.book?.ending)b.append(makeButton("The Blue Carbon","Romy keeps the night shift’s wage sheet on the laundry steps.","Mark laundry",
+      ()=>clockPin({...BayWalkHome.home,name:"Romy’s wage book",kind:"wage-book"})));
     if(homeWagon)b.append(makeButton("Marisol’s staff wagon",BayStreetCars.plateFor(homeWagon),"Mark car",()=>clockPin({...homeWagon,name:"Marisol’s staff wagon"})));
   }
   const shiftKeeper=walkers.find(p=>p.coffeeRegular);
@@ -11733,6 +11778,8 @@
     const payee=atPayrollCounter();
     const showing=homeHint()||(active?.laundry&&linenReach()?(save.rescue.laundry.stage==="call"?["L","Ring the laundry twice"]:["F",save.rescue.laundry.stage==="return"?"Give Ora the parcel":"Take the parcel"]):payee?["F",payee.receiver.name+" · Read the receipt"]:streetCallNear()?["H",heat||rescue.pendingStreet?"Flag Rescue 4 · Track the ambulance":"Flag Rescue 4 · F to help with the stretcher"]:atLaundry()?["F",romyOutside()?"Last Collection · Romy’s laundry note":"Talk to Romy · Last Collection"]:angler?(angler.phase==="miss"||angler.phase==="landed"?["Space","Cast again · E put the rod back"]:["E","Put the rod back"]):rail?["F",rail.id==="marlin"?"Cal Bennett · Red Cork Club":"Read Cal’s tide book"]:cupHint()||beatHint()||copyHint()||jumpHint()||engineHint()||starliteHint());
     const freightHint=spurHint();
+    const wagesHere=atWageBook();
+    if(showing&&wagesHere)showing[1]+=" · G Romy’s wage book";
     if(spur.trip||spur.aboard){
       const r=spur.trip;const st=r?.phase==="board"?r.start:r?.target||spur.destination;
       $("objective").hidden=false;$("objectiveTag").textContent="Port Sol Belt · No. 9";
@@ -11827,6 +11874,7 @@
     else if(capHint)contextHint(...capHint);
     else if(freightHint)contextHint(...freightHint);
     else if(showing)contextHint(...showing);
+    else if(wagesHere)contextHint("G","Romy’s wage book");
     else if(atThreads())contextHint("F","Cora Vidal · Low Tide Exchange");
     else if(curbPrompt)contextHint(...curbPrompt);
     else if(localRun)contextHint(...localRun);
@@ -12188,6 +12236,7 @@
     }
   }
   function showDesk(body){
+    if(save.collection.carbon)showWageBook(body,save.collection.carbon.sale,save.collection.carbon.mask,false);
     if(["ride","negative","return","filed"].includes(campaign.book.stage)){
       body.append(makeButton("The Sticking Latch","Mara’s dash close-up from the first drive out of the Marlin.","Run the film",()=>enterFilm("dashInsert")));
     }
@@ -12612,6 +12661,9 @@
           active.meter.deskBound=true;active.stops[0]=BayMeterRunning.desk;closePanel();lastHud=lastMap=-10;
           speak("Neve Armas","Thanks. Bea’s the one with the pencil through her bun.");
         }));
+    }else if(next==="blue-carbon"){
+      if(!atWageBook()){closePanel();return;}
+      title="The Blue Carbon";kicker="Marlin laundry  /  Romy’s book";showWageBook(b,save.collection.port,wageMask(),true);
     }else if(next==="payroll-receipt"){
       const c=lastPayroll();title=c.route==="luna"?"The night shift’s copy":"The scale ticket";
       kicker=c.route==="luna"?"Cine Luna · Side door":"Port Sol · Loading bay";readPayroll(c);
@@ -13646,7 +13698,7 @@
         const s=campaign.scene,prompt=$("glovePrompt");
         if(s.tagAt==null&&s.age>=2.8&&prompt.textContent!=="Read the repair tag")prompt.textContent="Read the repair tag";
         BayRecordArt.glovebox($("chapterInsert"),s);
-      }else if(art==="transferStub"||art==="fareCarbon")return;
+      }else if(art==="transferStub"||art==="fareCarbon"||art==="blueCarbon")return;
       else if(filmPage?.watch){
         const w=campaign.watch,top=isTop(),scene=$("world"),map=$("overhead"),beat=filmPage.watch;
         scene.hidden=top;map.hidden=!top;$("rain").hidden=$("tireHaze").hidden=true;

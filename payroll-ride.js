@@ -224,7 +224,7 @@
     }
   }
   let shiftPortrait=null;
-  const wageNames=["T. Ramos","N. Santos","M. Vale"];
+  const wageNames=["T. Ramos","N. Armas","M. Vale"];
   function footwell(canvas,e){
     const c=canvas.getContext("2d");if(!c)return;
     const block=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -357,5 +357,41 @@
       pill(x,y,30,17,6,"#626b60");type("123456789*0#"[i],x+11,y+13,"bold 12px monospace","#e0e0c5");}
     rect(-51,154,101,10,"#a79b72");type("JULES",-19,163,"bold 9px monospace","#423d33");c.restore();
   }
-  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto,footwell,deliveryLine,readCall,lastWords,handsetInsert};
+  const wages=[
+    {name:"Tino Ramos",shift:"Boiler room",amount:126},
+    {name:"Neve Armas",shift:"Linen van",amount:148},
+    {name:"Marisol Vale",shift:"Laundry",amount:186}
+  ];
+  function readCarbon(record){
+    if(!Number.isSafeInteger(record?.sale)||record.sale<1||!Number.isInteger(record.mask)||record.mask<1||record.mask>7)return null;
+    return {sale:record.sale,mask:record.mask};
+  }
+  function carbonPaper(canvas,sale,mask){
+    canvas.width=640;canvas.height=340;
+    canvas.setAttribute("aria-label","Marlin night shift carbon "+sale+". "+wages.map((w,i)=>w.name+", $"+w.amount+", "+(mask&(1<<i)?"in envelope":"outstanding")).join(". "));
+    const c=canvas.getContext("2d");if(!c)return;
+    const rect=(x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(x,y,w,h);};
+    const label=(t,x,y,font,ink)=>{c.font=font;c.fillStyle=ink;c.fillText(t,x,y);};
+    rect(0,0,640,340,"#4b584f");
+    for(let x=7;x<640;x+=34)rect(x,0,1,340,"#536056");
+    c.save();c.translate(317,171);c.rotate(-.027);
+    rect(-282,-143,568,295,"#303e39");rect(-286,-149,568,295,"#ddd2ae");rect(-280,-153,565,295,"#aec9cc");
+    for(let j=0;j<18;j++)rect(-271,-141+j*15,6,4,"#657e7e");
+    rect(-250,-137,1,263,"#ab7979");rect(-245,-137,1,263,"#ab7979");
+    label("MARLIN MOTOR INN",-227,-103,"bold 23px Georgia","#294b57");
+    label("CASH ENVELOPES  /  NIGHT SHIFT",-227,-79,"14px monospace","#385866");
+    label("No. "+String(sale).padStart(4,"0"),164,-103,"15px monospace","#865d56");
+    let total=0;
+    for(const [i,w] of wages.entries()){
+      const y=-35+i*46,paid=!!(mask&(1<<i));
+      rect(-228,y+10,472,1,"#72949b");
+      label(w.name,-225,y,"bold 17px Georgia","#274557");
+      label(w.shift,-78,y,"14px monospace","#45626b");label("$"+w.amount,43,y,"16px monospace","#2d495a");
+      if(paid){total+=w.amount;c.save();c.translate(128,y);c.rotate([-.03,.018,-.055][i]);
+        label("R. Vale",0,1,"italic 22px Georgia","#303f73");c.restore();}
+    }
+    label("IN ENVELOPES   $"+total+" / $460",-225,108,"bold 15px monospace","#385765");
+    label("office copy",145,113,"italic 16px Georgia","#46656a");c.restore();
+  }
+  window.BayPayroll={Ride,world,map,mapCounters,counters,counter,clerkWorld,stops,nightShiftPhoto,footwell,deliveryLine,readCall,lastWords,handsetInsert,wages,readCarbon,carbonPaper};
 })();
