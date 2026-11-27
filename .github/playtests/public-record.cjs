@@ -157,6 +157,11 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
         vertices:Math.round((recQA.vertices||0)/a.length),width:document.querySelector('#'+(recQA.view?'world':'overhead')).width};})()`);
     assert.equal(perf.base.sum,perf.indexed.sum);assert(perf.indexed.candidates<perf.base.candidates*.18);
     console.log("PERF",mode,JSON.stringify(perf));
+    if(mode==="street"){
+      const pose=await js("("+require("./crowd-motion.cjs").toString()+")()");
+      console.log("PERF citizen joint poses",JSON.stringify(pose));
+      assert(pose.compared>1000000&&pose.worst<.000002);
+    }
     if(mode==="overhead"){
       const atlas=fs.readFileSync(path.join(__dirname,"../../atlas.js"),"utf8");
       const tiles=atlas.replace("  function castBuildings(","  window.tiles={patch:groundPatch,image:staticImage};\n  function castBuildings(");
@@ -172,8 +177,9 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       const ground=await js("("+require("./ground-window.cjs").toString()+")((function(window){"+expose+";return window.patch;})({}))");
       console.log("PERF overhead block pixels",JSON.stringify(ground));
       const people=await js("("+require("./sidewalk-prints.cjs").toString()+")((function(window){"+atlas.replace("  function castBuildings(","  window.person=personSprite;\n  function castBuildings(")+";return window.person;})({}))");
-      console.log("PERF standing pedestrians",JSON.stringify(people));
-      assert(people.ink>1500&&people.fills[0]>200&&!people.fills[1]&&people.overlap>.88&&people.meanError<22&&people.walkingChanges===0);
+      console.log("PERF sidewalk poses",JSON.stringify(people));
+      for(const pose of people.poses)assert(pose.ink>1500&&pose.fills[0]>200&&!pose.fills[1]&&pose.overlap>.88&&pose.meanError<22);
+      assert(people.walking>500&&people.gestures===0);
       const lot=await js("("+require("./starlite-lot.cjs").toString()+")()");
       console.log("PERF Starlite lot",JSON.stringify(lot));
       const projection=await js("("+require("./drive-in-projection.cjs").toString()+")()");

@@ -10621,6 +10621,7 @@
     for(const p of cabs.people)if(p.phase!=="booth"&&see(p,74))drawLocal(p);
     BayCabArt.world(view,list,see,t,hours,cabs,!!save.cab.reel,play?rankPhones:null);
     function drawLocal(p){
+      if(!p.ride&&!streetGroupVisible(performerBounds,p,p.y+p.motion.lift))return;
       const key="cab-person/"+p.id;
       if(!p.mesh){
         p.mesh=new BayPlayerMesh(BayCabArt.colors[p.id],BayCabArt.roles[p.id]);
@@ -10727,7 +10728,7 @@
     if(nearBus)BayCityBusArt.world(list,b,t,{near:see(b,73),inside:busCameras()&&!isTop(),night:seatLights()});
     if(!play)return;
     for(const p of [transit.driver,...transit.people]){
-      if(!see(p,71))continue;
+      if(!see(p,71)||!streetGroupVisible(performerBounds,p,p.y))continue;
       const key="route-six/"+p.id;
       if(!p.mesh){p.mesh=new BayPlayerMesh(personColors[p.style],"local");view.add(key,p.mesh,true);}
       if(p.mesh.update(p.motion))view.updateAnimated(key);list.push([key,p.x,p.y,p.z,p.yaw]);
@@ -10749,7 +10750,7 @@
     for(const c of skate.crew){
       if(c.site.loan&&save.skate.deck!==c.site.id&&see(c.site.stand,38))BaySkateArt.world(list,c.site.loan,t,false);
       for(const [p,role] of [[c.r,"skater"],[c.filmer,"filmer"]]){
-        if(!see(p,61))continue;
+        if(!see(p,61)||!streetGroupVisible(performerBounds,p,p.y+(p.air||0)))continue;
         const id=c.site.id,key="curb-cut/"+id+"/"+role;
         if(!p.mesh){p.mesh=new BayPlayerMesh(BaySkateArt.colors[id],"local");BaySkateArt.dress(p.mesh,id,role);view.add(key,p.mesh,true);}
         if(role==="skater"){BaySkateArt.pose(p.mesh,p,t);BaySkateArt.world(list,p,t,see(p,33));}
@@ -11235,7 +11236,7 @@
       p.motion.handTarget={x:.24,y:1.1+.04*Math.sin(t),z:.32,weight:.75};p.motion.step(dt,0,0);
       if(p.mesh.update(p.motion))view.updateAnimated(k);visible.push([k,p.x,footLevel(p.x,p.z),p.z,p.yaw]);
     }
-    if(play&&see(surfWagon,67)){
+    if(play&&see(surfWagon,67)&&streetGroupVisible(performerBounds,sandBeach.ro,sandBeach.ro.y)){
       const p=sandBeach.ro,k="ro-vega";
       if(!p.mesh){p.mesh=new BayPlayerMesh(["#ac7254","#ba7250","#456b73"],"local");view.add(k,p.mesh,true);}
       if(p.mesh.update(p.motion))view.updateAnimated(k);
@@ -11245,10 +11246,12 @@
       BayGutterArt.world(view,visible,see,gutters,t);BayPavementArt.world(view,visible,see,pavement,t);
       for(const p of pavement.props){
         const w=p.worker;if(!see(w,55))continue;
+        const floor=footLevel(w.x,w.z)+(w.startle?.lift||0);
+        if(!streetGroupVisible(performerBounds,w,floor))continue;
         const key="stand-worker/"+p.id;if(!w.mesh){w.mesh=new BayPlayerMesh(personColors[w.style],p.kind==="board"?"courier":"local");view.add(key,w.mesh,true);}
         if(w.startle){w.mesh.startle(w.startle);view.updateAnimated(key);}
         else if(w.mesh.update(w.motion))view.updateAnimated(key);
-        visible.push([key,w.x,footLevel(w.x,w.z)+(w.startle?.lift||0),w.z,w.yaw]);
+        visible.push([key,w.x,floor,w.z,w.yaw]);
       }
       drawCrew(visible,see,t);drawCampana(visible,see,t);
     }
@@ -11367,7 +11370,7 @@
       marshalMotion.step(dt,0,0);if(BayCoastCupArt.handFlag(visible,model,cup,marshalMesh,marshalMotion,y))view.updateAnimated(key);
       visible.push([key,a.x,y,a.z,a.yaw]);
     }
-    if(play&&chase.foot&&see(chase.foot.actor,65)){
+    if(play&&chase.foot&&see(chase.foot.actor,65)&&streetGroupVisible(performerBounds,chase.foot.actor,chase.foot.actor.y)){
       const a=chase.foot.actor,k="bay-foot-officer";
       if(!footPatrolMesh){footPatrolMesh=new BayPlayerMesh(["#8d614c","#52696b","#39474f"],"local");BayOceanBeatArt.dress(footPatrolMesh);view.add(k,footPatrolMesh,true);}
       const moved=footPatrolMesh.update(a.motion),posed=BayOceanBeatArt.pose(footPatrolMesh,a,t);
@@ -11375,7 +11378,7 @@
       visible.push([k,a.x,a.y,a.z,a.yaw]);
       if(a.writing>.02)BayOceanBeatArt.world(visible,model,a,a.y,t);
     }
-    if(play&&see(beat.actor,68)){
+    if(play&&see(beat.actor,68)&&streetGroupVisible(performerBounds,beat.actor,beat.actor.y)){
       const a=beat.actor,k="ocean-solis";
       if(!beatMesh){beatMesh=new BayPlayerMesh(BayOceanBeatArt.colors,"local");BayOceanBeatArt.dress(beatMesh);view.add(k,beatMesh,true);}
       const moved=beatMesh.update(a.motion),posed=BayOceanBeatArt.pose(beatMesh,a,t);
@@ -11441,6 +11444,7 @@
     for(const p of walkers){
       if(p.down?.inCare||play&&(p===band.local||p.palmManaged)||!see(p,91)||film&&BayTake.onSet(p))continue;
       const feet=p.fieldSource?footLevel(p.x,p.z)+.055:.15;
+      if((p.down||p.startle||p.sprayPose||p.neighborPose||p.hornPose||p.coffeeSip||p.curbAim||p.canopy>.01||p.fieldSource)&&!streetGroupVisible(performerBounds,p,feet))continue;
       if(p.down){visible.push([personSkin(p.style,p.role,0,0),p.x,feet+.12,p.z,p.yaw,BayStreetAction.tilt(p)]);continue;}
       const recoil=p.startle||p.sprayPose;
       if(recoil){

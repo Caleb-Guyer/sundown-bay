@@ -200,17 +200,28 @@
   // Triangle corners often share a joint and position but have different face
   // colours. Transform that point once, then copy only XYZ to the other corners.
   function skinPlan(rest,bindings){
-    const bones=new Map(),seen=new Map(),unique=[],copies=[];
+    const bones=new Map(),seen=new Map(),groups=new Map(),unique=[],copies=[];
     const boneId=m=>{if(!bones.has(m))bones.set(m,bones.size);return bones.get(m);};
     const words=new Uint32Array(rest.buffer,rest.byteOffset,rest.length);
     for(let i=0;i<bindings.length;i++){
       const {a,b,t}=bindings[i],p=i*6;
-      const key=boneId(a)+"/"+(t?boneId(b):0)+"/"+t+"/"+words[p]+"/"+words[p+1]+"/"+words[p+2];
+      const joint=boneId(a)+"/"+(t?boneId(b):0)+"/"+t;
+      const key=joint+"/"+words[p]+"/"+words[p+1]+"/"+words[p+2];
       const other=seen.get(key);
-      if(other===undefined){seen.set(key,p);unique.push(i);}
+      if(other===undefined){
+        seen.set(key,p);
+        let group=groups.get(joint);
+        if(!group){group={a,b,t,points:[]};groups.set(joint,group);}
+        group.points.push(i);
+      }
       else copies.push(p,other);
     }
-    return {rest,bindings,count:bindings.length,unique:new Uint32Array(unique),copies:new Uint32Array(copies)};
+    const runs=[];
+    for(const group of groups.values()){
+      for(const i of group.points)unique.push(i);
+      runs.push({a:group.a,b:group.b,t:group.t,end:unique.length});
+    }
+    return {rest,bindings,count:bindings.length,unique:new Uint32Array(unique),runs,copies:new Uint32Array(copies),matrix:new Float64Array(12)};
   }
 
   class PlayerMesh {
@@ -346,13 +357,19 @@
       const dst=this.vertices,src=this.rest;
       if(!this.bindings.length)return;
       const plan=this.skinPlan();
-      for(let k=0;k<plan.unique.length;k++){
-        const i=plan.unique[k],j=i*6;
-        const {a,b,t}=this.bindings[i],x=src[j],y=src[j+1],z=src[j+2];
-        const ax=a[0]*x+a[1]*y+a[2]*z+a[3],ay=a[4]*x+a[5]*y+a[6]*z+a[7],az=a[8]*x+a[9]*y+a[10]*z+a[11];
-        dst[j]=t?blend(ax,b[0]*x+b[1]*y+b[2]*z+b[3],t):ax;
-        dst[j+1]=t?blend(ay,b[4]*x+b[5]*y+b[6]*z+b[7],t):ay;
-        dst[j+2]=t?blend(az,b[8]*x+b[9]*y+b[10]*z+b[11],t):az;
+      let k=0;
+      for(const {a,b,t,end} of plan.runs){
+        // Vertices with the same two joints and weight share one affine transform.
+        let m=t===1?b:a;
+        if(t&&t!==1){
+          m=plan.matrix;
+          for(let n=0;n<12;n++)m[n]=blend(a[n],b[n],t);
+        }
+        const xx=m[0],xy=m[1],xz=m[2],tx=m[3],yx=m[4],yy=m[5],yz=m[6],ty=m[7],zx=m[8],zy=m[9],zz=m[10],tz=m[11];
+        for(;k<end;k++){
+          const j=plan.unique[k]*6,x=src[j],y=src[j+1],z=src[j+2];
+          dst[j]=xx*x+xy*y+xz*z+tx;dst[j+1]=yx*x+yy*y+yz*z+ty;dst[j+2]=zx*x+zy*y+zz*z+tz;
+        }
       }
       const pairs=plan.copies;
       for(let k=0;k<pairs.length;k+=2){

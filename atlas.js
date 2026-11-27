@@ -473,20 +473,25 @@
     carSprite(c,{kind,color,yaw:Math.PI*.46},w*.50,h*.50,Math.min(w/5.25,h/2.90),0);
   };
   const peoplePrints=new Map();
-  function standingPrint(c,p,x,y,s){
-    const key=(p.skin||"#c58b68")+"/"+(p.shirt||"#cb8a78");
+  function pedestrianPrint(c,p,x,y,s){
+    const stride=p.stride||0;
+    // At this scale one step between neighbouring drawings moves the shoe less than half a pixel.
+    // Keep the hands tucked for the brief neutral part of the gait.
+    const pose=Math.abs(stride)<=.03?0:Math.sign(stride)*Math.max(1,Math.round(Math.abs(stride)*12));
+    const key=(p.skin||"#c58b68")+"/"+(p.shirt||"#cb8a78")+"/"+pose;
     let print=peoplePrints.get(key);
     if(!print){
-      const surface=mapSurface(48,48),ink=surface?.getContext("2d");if(!ink)return false;
-      ink.lineJoin="round";personSprite(ink,{skin:p.skin,shirt:p.shirt},24,24,38,false);
+      const surface=mapSurface(56,56),ink=surface?.getContext("2d");if(!ink)return false;
+      ink.lineJoin="round";personSprite(ink,{skin:p.skin,shirt:p.shirt,stride:pose/12},28,28,38,false);
       print=freezeSurface(surface);
-      if(peoplePrints.size>=64){const first=peoplePrints.keys().next().value;peoplePrints.get(first).close?.();peoplePrints.delete(first);}
+      if(peoplePrints.size>=256){const first=peoplePrints.keys().next().value;peoplePrints.get(first).close?.();peoplePrints.delete(first);}
       peoplePrints.set(key,print);
     }
-    const half=s*24/38;c.save();c.translate(x,y);c.rotate(p.yaw||0);c.drawImage(print,-half,-half,2*half,2*half);c.restore();return true;
+    const half=s*28/38;c.save();c.translate(x,y);c.rotate(p.yaw||0);
+    c.drawImage(print,-half,-half,2*half,2*half);c.restore();return true;
   }
   function personSprite(c,p,x,y,s,hero,bearing=0,ghost=false,low=false) {
-    if(low&&s<=16&&!hero&&!ghost&&!p.down&&!p.stride&&!p.startle&&!p.sprayPose&&p.gesture!==4&&standingPrint(c,p,x,y,s))return;
+    if(low&&s<=16&&!hero&&!ghost&&!p.down&&!p.startle&&!p.sprayPose&&p.gesture!==4&&(!p.stride||p.shirt)&&Math.abs(p.stride||0)<=1&&pedestrianPrint(c,p,x,y,s))return;
     c.save();c.translate(x,y);
     if(p.down){
       c.rotate(p.yaw);c.scale(s,s);const roll=Math.sin(BayStreetAction.tilt(p));
