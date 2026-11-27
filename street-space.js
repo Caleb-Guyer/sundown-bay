@@ -29,15 +29,26 @@
     key(p){return Math.floor(p.x/24)*65536+Math.floor(p.z/24);}
     cell(key){
       let cell=this.cells.get(key);
-      if(!cell){cell={cars:[],walkers:[]};this.cells.set(key,cell);}
-      if(!cell.cars.length&&!cell.walkers.length)this.used.push(cell);
+      if(!cell){cell={cars:[],walkers:[],carCount:0,walkerCount:0,listed:false};this.cells.set(key,cell);}
+      if(!cell.listed){cell.listed=true;this.used.push(cell);}
       return cell;
     }
     rebuild(cars,walkers,passenger){
-      for(const cell of this.used){cell.cars.length=0;cell.walkers.length=0;}
-      this.used.length=0;
-      for(const v of cars)this.cell(this.key(v)).cars.push(v);
-      for(const p of walkers)if(!p.down?.inCare&&!p.palmPassenger&&p!==passenger)this.cell(this.key(p)).walkers.push(p);
+      // Most occupants stay in their tile between two traffic steps. Rewrite
+      // occupied slots in street order and only truncate lists that got shorter.
+      for(const v of cars){const cell=this.cell(this.key(v));cell.cars[cell.carCount++]=v;}
+      for(const p of walkers)if(!p.down?.inCare&&!p.palmPassenger&&p!==passenger){
+        const cell=this.cell(this.key(p));cell.walkers[cell.walkerCount++]=p;
+      }
+      let active=0;
+      for(const cell of this.used){
+        if(cell.cars.length!==cell.carCount)cell.cars.length=cell.carCount;
+        if(cell.walkers.length!==cell.walkerCount)cell.walkers.length=cell.walkerCount;
+        cell.listed=!!(cell.carCount||cell.walkerCount);
+        if(cell.listed)this.used[active++]=cell;
+        cell.carCount=0;cell.walkerCount=0;
+      }
+      this.used.length=active;
     }
     moved(car,from){
       const key=this.key(car);if(key===from)return;

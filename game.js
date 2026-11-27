@@ -9232,13 +9232,17 @@
     if(homeWalk.book&&homeWalk.stage!=="done"&&!homeWalk.aboard&&romyOutside()){
       const p=homeWalk.jules;laneSpace.cell(laneSpace.key(p)).walkers.push(p);
     }
+    const accelerate=1-Math.exp(-1.7*dt),slow=1-Math.exp(-4.1*dt),evade=1-Math.exp(-6.2*dt);
+    const centerLane=-Math.expm1(-3.9*dt),swerve=-Math.expm1(-5.6*dt),faceRoad=-Math.expm1(-8*dt);
+    const brakeBlend=1-Math.exp(-12*dt),rollBlend=1-Math.exp(-7*dt),wheelBlend=1-Math.exp(-11*dt);
     let previous=null,previousCell;
     indexedTraffic=true;
     for(const v of cars){
       // Later drivers must see the final position of the preceding vehicle,
       // including a sliding or reversing car that crossed a cell boundary.
       if(previous)laneSpace.moved(previous,previousCell);
-      previous=v;previousCell=laneSpace.key(v);
+      previous=null;
+      if((v.path||v.impactSlide)&&v!==car&&v!==transfer?.v){previous=v;previousCell=laneSpace.key(v);}
       if(v.impactSlide&&v!==car&&v!==transfer?.v){
         const s=v.impactSlide,scrub=Math.abs(s.vx*Math.cos(v.yaw)-s.vz*Math.sin(v.yaw))+Math.abs(s.spin);
         if(scrub>1.7&&!s.tires)s.tires=carbon.contacts(v);
@@ -9349,11 +9353,11 @@
       if(v.indicator)maximum=Math.min(maximum,v.greenRacing?15:5.7);
       if(working)maximum=Math.min(maximum,4.4);
       const pace=v.wait>0?0:Math.min(maximum,clearance*1.24);
-      v.speed=ease(v.speed,pace,pace<v.speed?(evading?6.2:4.1):1.7,dt);
+      v.speed+=(pace-v.speed)*(pace<v.speed?(evading?evade:slow):accelerate);
       let step=Math.min(remaining,clearance,run,v.speed*dt);
       const goal=stop?2.8:yielding?yielding.goal:evading?response.offset*clamp((remaining-.4)/4,0,1):lane?lane.goal:0;
       const lateralLimit=step*((evading||yielding?.goal>.1||lane?.change) ? .76 : .48);
-      let lateral=clamp(step*(lane?.slope||0)+(goal-offset)*-Math.expm1(-(evading?5.6:3.9)*dt),-lateralLimit,lateralLimit);
+      let lateral=clamp(step*(lane?.slope||0)+(goal-offset)*(evading?swerve:centerLane),-lateralLimit,lateralLimit);
       const x=v.x+ux*step,z=v.z+uz*step;
       if((response||lane?.change||Math.abs(lateral)>.00001)&&step>0&&!spaceToSwerve(v,x+uz*lateral,z-ux*lateral,v.yaw,0,true)){
         if(lane?.change||!lateral||!spaceToSwerve(v,x,z,v.yaw,0,true)){step=0;v.speed=0;}
@@ -9368,12 +9372,13 @@
         const gap=BayDriving.local(v,driver.x,driver.z);
         if(gap.z>0&&Math.abs(gap.x)<1.65)trafficHonk(v);
       }
-      v.brakes=ease(v.brakes||0,(yielding&&v.speed<1||evading||pace<before-.35||clearance<.35)?1:0,12,dt);
+      const brakes=v.brakes||0,wantsBrake=yielding&&v.speed<1||evading||pace<before-.35||clearance<.35;
+      v.brakes=brakes+((wantsBrake?1:0)-brakes)*brakeBlend;
       const steer=step>.0001?Math.atan2(lateral,step):0;
       let heading=roadYaw+steer;
       if(v.finiteRoute&&v.corner===v.path.length-1)heading+=angle(heading,v.finiteYaw)*clamp(1-remaining/3.8,0,1);
-      const turn=step>.00001?angle(v.yaw,heading)*-Math.expm1(-8*dt):0;
-      v.yaw+=turn;v.lean=ease(v.lean||0,clamp(turn/Math.max(dt,.001)*v.speed*.017,-.09,.09),7,dt);
+      const turn=step>.00001?angle(v.yaw,heading)*faceRoad:0,lean=v.lean||0;
+      v.yaw+=turn;v.lean=lean+(clamp(turn/Math.max(dt,.001)*v.speed*.017,-.09,.09)-lean)*rollBlend;
       if(rescue.call.source&&Math.abs(v.x-unit4.x)<8&&Math.abs(v.z-unit4.z)<8){
         const hit=BayDriving.contact(v,unit4);
         if(hit){const prior=BayDriving.contact({kind:v.kind,x:oldX,z:oldZ,yaw:oldYaw},unit4);
@@ -9396,7 +9401,7 @@
         const s=bayCarLayout(v.kind),travel=Math.hypot(v.x-oldX,v.z-oldZ);
         v.wheelSpin=(v.wheelSpin+travel/s.wheel)%(Math.PI*2);
         const steer=travel>.008?Math.atan((s.axles[1]-s.axles[0])*angle(oldYaw,v.yaw)/travel):0;
-        v.steer=ease(v.steer||0,clamp(steer,-.52,.52),11,dt);
+        const oldSteer=v.steer||0;v.steer=oldSteer+(clamp(steer,-.52,.52)-oldSteer)*wheelBlend;
       }
       if(response&&!evading&&Math.abs(offset)<.09)v.reaction=null;
     }
@@ -11457,9 +11462,9 @@
     if(play&&see(beat.v,110))BayOceanBeatArt.car(visible,model,beat.v,footLevel(beat.v.x,beat.v.z)+.008,t,beat.v.beatLights);
     for(const v of cars)if(see(v,160)&&!(film&&BayTake.onSet(v))&&!(v===windowRide?.vehicle&&unit.eye?.window)&&!(v===car&&!transfer&&(hideActor||insideSeat()))){
       const ground=footLevel(v.x,v.z)+.008+serviceLift(v)+(v.towLift||0);
-      const shell=view.scale<=.65&&v!==owned&&v!==story?.ride&&!v.damage&&!v.doorAngle&&!v.passengerDoor&&
-        !v.hydraulic&&!v.serviceCar&&!v.cupNumber&&!v.greenId&&v!==surfWagon&&v!==iceVan&&trafficShells.has(v.kind)&&
-        Math.hypot(eye.x-v.x,eye.z-v.z)>25;
+      const closed=view.scale<=.74&&v!==owned&&v!==story?.ride&&!v.damage&&!v.doorAngle&&!v.passengerDoor&&
+        !v.hydraulic&&!v.serviceCar&&!v.cupNumber&&!v.greenId&&v!==surfWagon&&v!==iceVan&&trafficShells.has(v.kind);
+      const shell=closed&&view.scale<=.65&&Math.hypot(eye.x-v.x,eye.z-v.z)>25;
       if(shell&&!view.trafficVisible(v.x,ground,v.z))continue;
       const body=roadBody(v);
       if(shell){
@@ -11474,7 +11479,11 @@
       const rigBody=v===owned&&paintPreview?paintPreview:body;
       const nativeWheels=(v.brisasLead||v.lanes?.change||v.lanes?.reverse||v.kind==="estate"||v.kind==="stepside")&&see(v,29);
       const split=v===owned||nativeWheels||v.hydraulic&&!v.hydraulic.rest&&see(v,85)||v===otherCar||v===afternoon.vehicle||v===windowRide?.vehicle||v===story?.ride||v===active?.ferry?.ride||v===active?.cabFare?.ride||v===band.june.ride||v===unit4&&(dist(cam,v)<72||v.rearOpen>.01)||v===taxi||v===wrecker||v.onLift||v.doorAngle>.01;
-      if(split||v===bell.lid||v===engine7&&(v.passengerDoor>.01||see(v,38)))addRig(visible,rigBody,ground);
+      const rigged=split||v===bell.lid||v===engine7&&(v.passengerDoor>.01||see(v,38));
+      // Below the projected-shadow tier a closed, single-piece car and its
+      // driver share one bound. Ground shadows still get their own pass.
+      if(closed&&!rigged&&!v.soil&&v!==spider&&v!==unit4&&!view.trafficVisible(v.x,ground,v.z))continue;
+      if(rigged)addRig(visible,rigBody,ground);
       else{
         visible.push([v.model,v.x,ground,v.z,v.yaw,body.pitch,body.lean,0,v]);
         if((v.cupNumber||v.path&&!v.recoveryOwner||v===meet.rival&&meet.phase!=="idle")&&see(v,52)){

@@ -30,14 +30,16 @@ module.exports=async({js,send,waitFor,key,tap,mode,errors})=>{
       assert(scenery.pixels.silhouette<=Math.ceil(scenery.pixels.painted*.001)&&scenery.pixels.recolored<=Math.ceil(scenery.pixels.painted*.005));
     }
     await js(`{recQA.surfaceResult=null;recQA.wallResult=null;
-      const omitted=new Set();let checked=0;
+      const omitted=new Map();let checked=0;
       recQA.view.trafficVisible=function(x,y,z){
-        checked++;if(!BayView.prototype.trafficVisible.call(this,x,y,z))omitted.add(x+"/"+y+"/"+z);
+        checked++;if(!BayView.prototype.trafficVisible.call(this,x,y,z))omitted.set(x+"/"+y+"/"+z,{x,y,z});
         return true;
       };
       recQA.view.drawOpaque=function(items){delete this.drawOpaque;
         delete this.trafficVisible;
-        const rejected=items.filter(([name,x,y,z])=>(name.startsWith("traffic-shell/")||name.startsWith("traffic-brakes/")||name.startsWith("registry/"))&&omitted.has(x+"/"+y+"/"+z));
+        const rejected=items.filter(([name,x,y,z,,,,,body])=>
+          (body||name.startsWith("traffic-shell/")||name.startsWith("traffic-brakes/"))&&omitted.has(x+"/"+y+"/"+z)||
+          name==="traffic-driver"&&Array.from(omitted.values()).some(v=>Math.hypot(v.x-x,v.y-y,v.z-z)<2));
         // Draw the entire rejected set against the city. A passing pedestrian or
         // a different car must never cover up an erroneous early rejection.
         const draw=list=>()=>{this.draw("city");this.drawOpaque(list);};

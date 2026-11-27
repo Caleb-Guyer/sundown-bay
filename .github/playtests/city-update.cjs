@@ -24,6 +24,22 @@ for(const file of JSON.parse(fs.readFileSync(path.join(root,"index.html"),"utf8"
     }
   }
   console.log("PASS traffic swerve candidates matched the fleet across cell edges",probes,"probes, average",Math.round(candidates/probes),"of",cars.length);
+  const walkers=cars.slice(0,12).map(v=>({x:v.x,z:v.z}));
+  for(let i=0;i<30;i++){
+    const vehicles=i%3?cars.slice(i,45+i).reverse():[];
+    const passenger=walkers[i%walkers.length];
+    walkers[2].palmPassenger=i%2===0;walkers[3].down={inCare:i%3===0};
+    grid.rebuild(vehicles,walkers,passenger);
+    const waiting=walkers.filter(p=>!p.down?.inCare&&!p.palmPassenger&&p!==passenger);
+    for(const [key,cell] of grid.cells){
+      assert.deepEqual(cell.cars,vehicles.filter(v=>grid.key(v)===key));
+      assert.deepEqual(cell.walkers,waiting.filter(p=>grid.key(p)===key));
+    }
+    assert.equal(new Set(grid.used).size,grid.used.length);
+    // A story passenger can step out between rebuilds.
+    grid.cell(grid.key(passenger)).walkers.push(passenger);passenger.x-=25;
+  }
+  console.log("PASS changing traffic and passenger lists keep their order and clear vacated tiles");
 }
 let bound,actual=0,full=0,drawn=0;
 const gl={ARRAY_BUFFER:1,ELEMENT_ARRAY_BUFFER:2,UNSIGNED_INT:4,UNSIGNED_SHORT:2,

@@ -152,9 +152,9 @@
         p.moving=false;p.gesture=0;p.yaw+=wrap(Math.atan2(p.ringLook.x-p.x,p.ringLook.z-p.z)-p.yaw)*-Math.expm1(-5*dt);continue;
       }
       p.moving=false;
-      const target=p.path[p.index],dx=target[0]+p.offset-p.x,dz=target[1]+p.offset-p.z,d=Math.hypot(dx,dz);
       if(p.alert>0){p.alert-=dt;p.gesture=1;continue;}
       if(p.wait>0){p.wait-=dt;p.gesture=p.name?2:(Math.floor(time*.32+p.phase)%3===0?1:0);continue;}
+      const target=p.path[p.index],dx=target[0]+p.offset-p.x,dz=target[1]+p.offset-p.z,d=Math.hypot(dx,dz);
       if(d<.3||p.stuck>2.4){p.wait=target[2];p.index=(p.index+1)%p.path.length;p.stuck=0;continue;}
       let ux=dx/d,uz=dz/d;
       if(!BayCrosswalk.ready(p,time,signals,cars,driver,dt))continue;
