@@ -10,7 +10,8 @@
   function get(key){try{return JSON.parse(localStorage.getItem(key));}catch{return null;}}
   function put(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{return false;}}
   function place(p,id){
-    if(!p||![p.x,p.z,p.yaw].every(Number.isFinite)||Math.abs(p.x)>380||p.z< -195||p.z>420)return {...home[id],ride:""};
+    if(!p||![p.x,p.z,p.yaw].every(Number.isFinite)||Math.abs(p.x)>380||p.z>420||
+      p.z< -195&&!BayCityEdge.land(p.x,p.z,.3))return {...home[id],ride:""};
     return {x:p.x,z:p.z,yaw:Math.atan2(Math.sin(p.yaw),Math.cos(p.yaw)),ride:typeof p.ride==="string"?p.ride.slice(0,100):"",
       flat:p.flat===1||p.flat===-1?p.flat:0,axle:Number.isFinite(p.axle)?p.axle:0};
   }

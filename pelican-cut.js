@@ -37,7 +37,7 @@
     }
     best.d=Math.sqrt(smallest);return best;
   }
-  const area=p=>p.z>177&&p.z<372&&p.x>67&&p.x<445;
+  const area=p=>p.z>177&&p.z<372&&p.x>67&&p.x<445&&(p.z>205||p.x>=138);
   const ellipse=(p,x,z,r)=>((x-p.x)/(p.rx-r))**2+((z-p.z)/(p.rz-r))**2<=1;
   const smooth=v=>{const t=Math.max(0,Math.min(1,v));return t*t*(3-2*t);};
   function height(x,z){

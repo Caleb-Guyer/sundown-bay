@@ -59,4 +59,20 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   await js("Object.assign(q.room,BayCineRoom.points.exit)");await tap("KeyF");
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS",mode,"drove both cars, landed",negative.distance,"m, cut",negative.frames.length,"recorded poses at",t,"for",negative.pier,"and watched the saved print in the auditorium");
+  // Return to an outdoor save at the old city boundary and walk towards the bend.
+  const pose={x:-158,z:-195.7,yaw:-Math.PI/2};
+  const seed=await send("Page.addScriptToEvaluateOnNewDocument",{source:`{
+    const u=JSON.parse(localStorage.getItem('sundownBay.secondUnit.v1')||'{}');
+    u.met=true;u.lead='guest';u.guest=${JSON.stringify(pose)};u.motors={};
+    localStorage.setItem('sundownBay.secondUnit.v1',JSON.stringify(u));}`});
+  await send("Page.reload");await waitFor("document.readyState==='complete'&&!!window.BayCityEdge");
+  await send("Page.removeScriptToEvaluateOnNewDocument",{identifier:seed.identifier});
+  await js("document.querySelector('#play').click()");await observe();
+  await waitFor("Math.hypot(q.hero.x+158,q.hero.z+195.7)<1");
+  await key("keyDown","KeyW");
+  try{await waitFor("Math.hypot(q.hero.x+158,q.hero.z+195.7)>3");}finally{await key("keyUp","KeyW");}
+  assert(await js("BayCityEdge.closest(q.hero,true).d<5.8"));
+  await snap("canal-bend");await tap("KeyM");await waitFor("document.querySelector('#panelBody canvas')");await snap("canal-map");
+  assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
+  console.log("PASS",mode,"resumed beyond the former south limit, walked Canal Road and opened the city map");
 };

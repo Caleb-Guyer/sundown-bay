@@ -6,6 +6,10 @@
   function grid(v){const i=Math.max(0,Math.min(4,Math.round((v+144)/72)));return {i,offset:Math.abs(v-(i*72-144))};}
   function through(p,yaw){
     if(p&&p.z>155&&p.x>68){const n=BayCut.nearest(p.x,p.z);if(n.d<n.route.halfWidth+2)return n.route.name;}
+    if(p&&BayCityEdge.vicinity(p.x,p.z)){
+      const n=BayCityEdge.closest(p);
+      if(n.d<=8)return n.s.canal?"Canal Road":Math.abs(n.s.dx)>Math.abs(n.s.dz)?streets[grid(n.z).i]:avenues[grid(n.x).i];
+    }
     if(!p||p.x< -158||p.x>156||p.z< -157||p.z>157)return "";
     const x=grid(p.x),z=grid(p.z);if(Math.min(x.offset,z.offset)>10.5)return "";
     const ns=x.offset<z.offset;
@@ -13,6 +17,12 @@
     return ns?avenues[x.i]:streets[z.i];
   }
   function segment(a,b){
+    const x=(a.x+b.x)*.5,z=(a.z+b.z)*.5;
+    if(BayCityEdge.vicinity(x,z)&&!BayCut.area({x,z})){
+      const n=BayCityEdge.closest({x,z});
+      if(n.s.canal)return "Canal Road";
+      return Math.abs(n.s.dx)>Math.abs(n.s.dz)?streets[grid(n.z).i]:avenues[grid(n.x).i];
+    }
     if(Math.max(a.z,b.z)>165)return BayCut.nearest((a.x+b.x)*.5,(a.z+b.z)*.5).route.name;
     return Math.abs(b.x-a.x)>Math.abs(b.z-a.z)?streets[grid((a.z+b.z)*.5).i]:avenues[grid((a.x+b.x)*.5).i];
   }
@@ -55,6 +65,7 @@
     ctx.strokeStyle="#26373d";ctx.fillStyle="#d2d8c9";ctx.lineWidth=2.2;ctx.lineJoin="round";
     [97,-38,-107,36,-108].forEach((z,i)=>print(avenues[i],i*72-144,z,true));
     [32,-106,39,-37,102].forEach((x,i)=>print(streets[i],x,i*72-144,false));
+    print("Canal Road",-195,107,true);
     ctx.restore();
   }
   window.BayStreetNames={through,segment,atlas,maneuver,alongLeg};

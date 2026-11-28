@@ -123,6 +123,9 @@
       if(BayCut.area(p)){
         const n=BayCut.nearest(p.x,p.z);return {x:n.x,z:n.z,vertical:Math.abs(n.segment.dz)>Math.abs(n.segment.dx),county:true};
       }
+      if(BayCityEdge.vicinity(p.x,p.z)){
+        const n=BayCityEdge.closest(p);return {x:n.x,z:n.z,vertical:Math.abs(n.s.dz)>Math.abs(n.s.dx)};
+      }
       const x=this.nearest(p.x),z=this.nearest(p.z);
       return Math.abs(p.x-x)<Math.abs(p.z-z)?{x,z:clamp(p.z,-178,178),vertical:true}:
         {x:clamp(p.x,-179,148),z,vertical:false};
@@ -134,6 +137,13 @@
     }
     route(unit,target){
       const leaving=BayCut.area(unit),arriving=BayCut.area(target);
+      const outer=(!leaving&&BayCityEdge.vicinity(unit.x,unit.z))||(!arriving&&BayCityEdge.vicinity(target.x,target.z));
+      if(outer){
+        const gate=BayCityEdge.north[4];
+        if(leaving)return BayCut.route(unit,gate).concat(BayCityEdge.route(gate,target));
+        if(arriving)return BayCityEdge.route(unit,gate).concat(BayCut.route(gate,target));
+        return BayCityEdge.route(unit,target);
+      }
       if(!leaving&&!arriving)return this.cityRoute(unit,target);
       if(leaving&&arriving)return BayCut.route(unit,target);
       const gate=BayCut.gate;

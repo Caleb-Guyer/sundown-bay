@@ -1992,7 +1992,7 @@
     }
     best.d=Math.sqrt(smallest);return best;
   }
-  const area=p=>p.z>177&&p.z<372&&p.x>67&&p.x<445;
+  const area=p=>p.z>177&&p.z<372&&p.x>67&&p.x<445&&(p.z>205||p.x>=138);
   const ellipse=(p,x,z,r)=>((x-p.x)/(p.rx-r))**2+((z-p.z)/(p.rz-r))**2<=1;
   const smooth=v=>{const t=Math.max(0,Math.min(1,v));return t*t*(3-2*t);};
   function height(x,z){
@@ -6008,6 +6008,226 @@
 })();
 
 ;
+/* city-edge.js */
+// Canal Road follows the old drainage bank from the beach to the county approach.
+// Tagged junctions are the places where the original grid meets the bank.
+(() => {
+  "use strict";
+  const axes=[-144,-72,0,72,144],points=[],segments=[],links=new Map();
+  const node=(x,z)=>({x,z});
+  const distance=(a,b)=>Math.hypot(b.x-a.x,b.z-a.z);
+  function link(a,b,canal=false){
+    const dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
+    const s={a,b,dx,dz,length,canal};
+    segments.push(s);
+    for(const [p,to] of [[a,b],[b,a]]){
+      if(!links.has(p))links.set(p,[]);
+      links.get(p).push({to,length});
+    }
+  }
+  const grid=axes.map(x=>axes.map(z=>node(x,z)));
+  for(let i=0;i<5;i++)for(let j=0;j<5;j++){
+    if(i)link(grid[i-1][j],grid[i][j]);
+    if(j)link(grid[i][j-1],grid[i][j]);
+  }
+  const south=[],west=[],north=[];
+  function station(x,z,side,index){
+    const p=node(x,z),prev=points.at(-1);
+    if(prev)link(prev,p,true);
+    p.at=prev?prev.at+distance(prev,p):0;
+    points.push(p);
+    if(!side)return;
+    const sideRoads={south,west,north};
+    sideRoads[side][index]=p;
+    link(side==="west"?grid[0][index]:grid[index][side==="south"?0:4],p);
+  }
+  station(144,-162,"south",4);
+  station(144,-174);station(142,-181);station(137,-187);station(129,-190);
+  station(111,-191);station(72,-191,"south",3);station(40,-194);
+  station(0,-195,"south",2);station(-38,-190);station(-72,-190,"south",1);
+  station(-111,-193);station(-144,-193,"south",0);station(-170,-193);
+  station(-181,-191);station(-189,-185);station(-194,-176);station(-196,-164);
+  station(-196,-144,"west",0);station(-192,-108);station(-192,-72,"west",1);
+  station(-198,-39);station(-198,0,"west",2);station(-193,40);
+  station(-193,72,"west",3);station(-196,109);station(-196,144,"west",4);
+  station(-196,163);station(-194,176);station(-187,185);station(-176,190);
+  station(-162,192);station(-144,192,"north",0);station(-111,190);
+  station(-72,190,"north",1);station(-38,195);station(0,195,"north",2);
+  station(36,191);station(72,191,"north",3);station(110,187);
+  station(144,187,"north",4);
+  const length=points.at(-1).at;
+
+  // One mitered strip supplies the pavement, shoulders, water and ink in both views.
+  for(let i=0;i<points.length;i++){
+    const a=points[Math.max(0,i-1)],p=points[i],b=points[Math.min(i+1,points.length-1)];
+    const before=i?distance(a,p):distance(p,b),after=i+1<points.length?distance(p,b):before;
+    const x1=i?-(p.z-a.z)/before:-(b.z-p.z)/after,z1=i?(p.x-a.x)/before:(b.x-p.x)/after;
+    const x2=b===p?x1:-(b.z-p.z)/after,z2=b===p?z1:(b.x-p.x)/after;
+    const div=1+x1*x2+z1*z2;
+    p.nx=(x1+x2)/div;p.nz=(z1+z2)/div;
+  }
+  function along(at,offset=0){
+    const i=points.findIndex(p=>p.at>=at),end=i<0?points.length-1:Math.max(1,i),b=points[end],a=points[end-1];
+    const t=Math.max(0,Math.min(1,(at-a.at)/(b.at-a.at)));
+    return {x:a.x+(b.x-a.x)*t+offset*(a.nx+(b.nx-a.nx)*t),
+      z:a.z+(b.z-a.z)*t+offset*(a.nz+(b.nz-a.nz)*t)};
+  }
+  const faces=[],posts=[],trees=[],rail=[];
+  function band(a,b,inner,outer,material,y,innerB=inner,outerB=outer){
+    faces.push({points:[along(a,inner),along(b,innerB),along(b,outerB),along(a,outer)],material,y});
+  }
+  const junctions=[...south,...west,...north].map(p=>p.at);
+  for(let i=1;i<points.length;i++){
+    const a=points[i-1].at,b=points[i].at;
+    const bankStart=Math.max(47,a),bankEnd=Math.min(length-26,b);
+    if(bankStart<bankEnd){
+      const width=d=>Math.min(1,(d-47)/23,(length-26-d)/21)*(10+2.7*Math.sin(d*.033)+1.8*Math.cos(d*.019));
+      const bank=d=>11.7+.9*Math.sin(d*.05);
+      const u=bank(bankStart),v=bank(bankEnd),w=width(bankStart),h=width(bankEnd);
+      band(bankStart,bankEnd,6.4,u+w+8,"grass",.098,6.4,v+h+8);
+      band(bankStart,bankEnd,u-1,u+w+1.5,"silt",.103,v-1,v+h+1.5);
+      band(bankStart,bankEnd,u,u+w,"water",.107,v,v+h);
+      band(bankStart,bankEnd,u+w*.18,u+w*.78,"channel",.109,v+h*.18,v+h*.78);
+      rail.push([along(bankStart,8.3),along(bankEnd,8.3)]);
+    }
+    band(a,b,-7.25,7.55,"shoulder",.112);
+    band(a,b,-5.75,5.75,"road",.121);
+    if(a>=14&&b<=length-16)band(a,b,5.37,5.48,"edge",.131);
+  }
+  for(let d=3;d<length-5;d+=8){
+    if(junctions.every(j=>Math.abs(j-d)>10))band(d,d+3,-.10,.10,"line",.135);
+  }
+  for(let d=47;d<length-25;d+=7.4)posts.push(along(d,8.3));
+  for(let d=64;d<length-42;d+=10.9+4.8*Math.sin(d*.3)){
+    if(Math.sin(d*.063)>.80)continue;
+    trees.push(along(d,29+3.4*Math.cos(d*.37)));
+  }
+  for(const [side,nodes] of [["south",south],["west",west],["north",north]])for(const p of nodes){
+    if(p===points[0]||p===points.at(-1))continue;
+    // Flare the mouth through the gravel shoulder. The stop line faces the bank.
+    const aim=(across,inward)=>side==="west"?{x:p.x+inward,z:p.z+across}:
+      {x:p.x+across,z:p.z+(side==="south"?inward:-inward)};
+    const polygon=(coords,material,y)=>faces.push({points:coords.map(([u,v])=>aim(u,v)),material,y});
+    polygon([[-7.0,12],[-7.0,9],[-9.8,5],[9.8,5],[7.0,9],[7.0,12]],"road",.126);
+    const lane=side==="south"?-1:1;
+    polygon([[.32*lane,9.8],[6.43*lane,9.8],[6.43*lane,10.13],[.32*lane,10.13]],"edge",.136);
+  }
+  const colors={grass:"#859773",silt:"#9aa080",water:"#829e92",channel:"#567e78",
+    shoulder:"#c4b89c",road:"#525c60",edge:"#d7d0b6",line:"#dfbe79"};
+  // The pump house sits opposite the freight yards, with two intake bays facing the channel.
+  const pump={x:-229,z:-103};
+  function mesh(g){
+    for(const f of faces){
+      const v=f.points.map(p=>[p.x,f.y,p.z]);
+      for(let i=1;i<v.length-1;i++)g.tri(v[0],v[i],v[i+1],colors[f.material]);
+    }
+    for(const [a,b] of rail){
+      const dx=b.x-a.x,dz=b.z-a.z,l=Math.hypot(dx,dz),x=-dz*.09/l,z=dx*.09/l;
+      g.quad([a.x-x,.48,a.z-z],[b.x-x,.48,b.z-z],[b.x-x,.68,b.z-z],[a.x-x,.68,a.z-z],"#a69e88");
+      g.quad([a.x-x,.68,a.z-z],[b.x-x,.68,b.z-z],[b.x+x,.68,b.z+z],[a.x+x,.68,a.z+z],"#d2c5a6");
+      g.quad([a.x+x,.68,a.z+z],[b.x+x,.68,b.z+z],[b.x+x,.48,b.z+z],[a.x+x,.48,a.z+z],"#978f79");
+    }
+    for(const p of posts){
+      g.box(p.x,.52,p.z,.26,.93,.28,"#95856d");g.box(p.x,.88,p.z,.28,.13,.30,"#e1d1a6");
+    }
+    // Low mangroves on the far bank leave the port skyline visible across the water.
+    for(const [i,p] of trees.entries()){
+      if(Math.abs(p.x-pump.x)<7&&Math.abs(p.z-pump.z)<10)continue;
+      const h=1.65+.65*Math.sin(i*2.4),r=2.5+.55*Math.sin(i*4.2);
+      g.box(p.x,.6,p.z,.32,1,.34,"#7d7662");
+      g.cyl(p.x,h,p.z,r,1.25,h,6,i%3?"#788a72":"#627c69");
+      g.cyl(p.x+.8,h*1.45,p.z+.5,r*.75,.65,h*.57,5,"#8c9c78");
+    }
+    const {x,z}=pump;
+    g.box(x,.34,z,9.6,.65,15.8,"#a9a28d");
+    g.box(x,2.18,z,8.2,3.25,13.6,"#c8b695");
+    g.box(x,3.93,z,8.8,.32,14.2,"#687d78");
+    g.box(x-.8,4.57,z+3.5,2.3,1.05,3.1,"#91a49a");
+    for(const dz of [-3.4,3.4]){
+      g.box(x+4.12,1.94,z+dz,.09,2.32,3.55,"#53655e");
+      for(let bar=0;bar<6;bar++)g.box(x+4.19,1.00+bar*.36,z+dz,.12,.10,3.49,"#92a197");
+      g.pole([x+4.2,.63,z+dz],[x+10,.63,z+dz],.48,"#8c9284",8);
+      g.pole([x+10,.63,z+dz],[x+11,.10,z+dz],.48,"#818a7d",8);
+    }
+  }
+  function paint(ctx,street){
+    for(const f of faces){
+      const [a,...rest]=f.points;ctx.beginPath();ctx.moveTo(a.x,a.z);
+      for(const p of rest)ctx.lineTo(p.x,p.z);
+      ctx.closePath();ctx.fillStyle=!street&&f.material==="road"?"#364e51":colors[f.material];ctx.fill();
+    }
+    for(const [i,p] of trees.entries()){
+      if(Math.abs(p.x-pump.x)<7&&Math.abs(p.z-pump.z)<10)continue;
+      ctx.beginPath();ctx.ellipse(p.x,p.z,2.7,2.1,i,0,Math.PI*2);ctx.fillStyle=i%3?"#788a72":"#627c69";ctx.fill();
+    }
+    ctx.fillStyle="#a9a28d";ctx.fillRect(pump.x-4.8,pump.z-7.9,9.6,15.8);
+    ctx.fillStyle="#687d78";ctx.fillRect(pump.x-4.4,pump.z-7.1,8.8,14.2);
+    if(street){
+      ctx.fillStyle="#91a49a";ctx.fillRect(pump.x-1.95,pump.z+1.95,2.3,3.1);
+      for(const dz of [-3.4,3.4])ctx.fillRect(pump.x+4.4,pump.z+dz-.48,6.6,.96);
+    }
+    if(street){
+      ctx.strokeStyle="#b2a78e";ctx.lineWidth=.24;ctx.beginPath();
+      for(const [a,b] of rail){ctx.moveTo(a.x,a.z);ctx.lineTo(b.x,b.z);}ctx.stroke();
+      for(const p of posts){ctx.fillStyle="#9b9077";ctx.fillRect(p.x-.19,p.z-.19,.38,.38);}
+    }
+  }
+  // Avoid walking the graph for ordinary city play or for distant county traffic.
+  const vicinity=(x,z)=>x>=-209&&x<=152&&z>=-206&&z<=205&&(x< -152||z< -152||z>152);
+  // A sixty-metre halo covers both lanes and the entire bank at the grid edge.
+  const cells=new Map(),cellKey=(x,z)=>x+z*128;
+  for(const s of segments){
+    const left=Math.floor((Math.min(s.a.x,s.b.x)-30)/32),right=Math.floor((Math.max(s.a.x,s.b.x)+30)/32);
+    const bottom=Math.floor((Math.min(s.a.z,s.b.z)-30)/32),top=Math.floor((Math.max(s.a.z,s.b.z)+30)/32);
+    for(let x=left;x<=right;x++)for(let z=bottom;z<=top;z++){
+      const key=cellKey(x,z);if(!cells.has(key))cells.set(key,[]);cells.get(key).push(s);
+    }
+  }
+  function closest(p,canalOnly=false){
+    let best,least=Infinity;
+    const local=cells.get(cellKey(Math.floor(p.x/32),Math.floor(p.z/32)));
+    function scan(list){
+      for(const s of list){
+        if(canalOnly&&!s.canal)continue;
+        const t=Math.max(0,Math.min(1,((p.x-s.a.x)*s.dx+(p.z-s.a.z)*s.dz)/(s.length*s.length)));
+        const x=s.a.x+s.dx*t,z=s.a.z+s.dz*t,d2=(p.x-x)**2+(p.z-z)**2;
+        if(d2<least){best={x,z,s,t};least=d2;}
+      }
+    }
+    if(local)scan(local);
+    if(least>900)scan(segments);
+    best.d=Math.sqrt(least);return best;
+  }
+  function land(x,z,r=0){
+    if(!vicinity(x,z))return false;
+    const n=closest({x,z},true),s=n.s;
+    const out=((z-n.z)*s.dx-(x-n.x)*s.dz)/s.length;
+    return n.d<=25-r&&out<=8.7-r;
+  }
+  function route(from,to){
+    const a=closest(from),b=closest(to);
+    const start=node(a.x,a.z),finish=node(b.x,b.z);
+    if(a.s===b.s)return [start,finish];
+    const costs=new Map([[a.s.a,a.t*a.s.length],[a.s.b,(1-a.t)*a.s.length]]),prev=new Map(),done=new Set();
+    for(;;){
+      let p=null,cost=Infinity;
+      for(const [v,c] of costs)if(!done.has(v)&&c<cost){p=v;cost=c;}
+      if(!p||done.has(b.s.a)&&done.has(b.s.b))break;
+      done.add(p);
+      for(const e of links.get(p))if(cost+e.length<(costs.get(e.to)??Infinity)){
+        costs.set(e.to,cost+e.length);prev.set(e.to,p);
+      }
+    }
+    const end=costs.get(b.s.a)+b.t*b.s.length<=costs.get(b.s.b)+(1-b.t)*b.s.length?b.s.a:b.s.b;
+    const chain=[];for(let p=end;p;p=prev.get(p))chain.push(p);
+    const result=[start];
+    for(const p of [...chain.reverse(),finish])if(distance(result.at(-1),p)>.02)result.push(node(p.x,p.z));
+    return result;
+  }
+  window.BayCityEdge={south,west,north,points,along,length,mesh,paint,closest,vicinity,land,route};
+})();
+
+;
 /* city.js */
 /* Static geometry, in metres. The road grid remains open in both directions. */
 window.buildBayCity = function buildBayCity(g,water) {
@@ -6349,7 +6569,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     rect(x,z,between(.18,.55),between(2.5,12),.052,i%3?"#81bdba":"#d4d8c1");
   }
   // The blocks carry their own sidewalk colour. This keeps intersections free of curbs.
-  const edges=[-226,-144,-72,0,72,144,224];
+  const edges=[-193,-144,-72,0,72,144,192];
   for(let ix=0;ix<edges.length-2;ix++){
     for(let iz=0;iz<edges.length-1;iz++){
       const l=edges[ix]+7,r=edges[ix+1]-7,b=edges[iz]+7,t=edges[iz+1]-7;
@@ -6357,25 +6577,37 @@ window.buildBayCity = function buildBayCity(g,water) {
       rect((l+r)/2,(b+t)/2,r-l-5.6,t-b-5.6,.092,pick(["#c4b7a3","#bbb7a4","#c5b6a4","#b5b7a0"]));
     }
   }
-  rect(155.25,0,8.5,454,.085,stone);
-  rect(163.2,0,6.5,453,.095,"#c89d82");
-  for(let z=-214;z<215;z+=2.2) rect(163.2,z,6.5,.065,.104,"#ae8878");
-  for(const c of roads){
-    rect(c,0,14,456,.041,asphalt);
-    rect(-37,c,378,14,.043,asphalt);
+  rect(155.25,1,8.5,362,.085,stone);
+  rect(163.2,1,6.5,362,.095,"#c89d82");
+  for(let z=-179;z<182;z+=2.2)rect(163.2,z,6.5,.065,.104,"#ae8878");
+  const edge=BayCityEdge;
+  for(const [i,c] of roads.entries()){
+    const lo=edge.south[i].z,hi=c===144?182:edge.north[i].z,left=edge.west[i].x;
+    rect(c,(lo+hi)/2,14,hi-lo,.041,asphalt);
+    rect((left+151)/2,c,151-left,14,.043,asphalt);
+  }
+  edge.mesh(g);
+  // A readerboard on each approach sits on the verge, facing arriving traffic.
+  for(const [x,z,nz,label] of [[151,-160,1,"CANAL RD"],[134,181,-1,"PELICAN CUT"]]){
+    const f=facade(x,z,0,nz);
+    for(const u of [-1.35,1.35])f.box(u,1.03,0,.10,2.06,.12,"#899287");
+    f.box(0,2.06,0,3.32,.78,.12,"#36645a");
+    sign(f,label,0,2.06,.065,.063,"#f1e9d4");
   }
   function stripeAlong(x,z,len,vertical,color,thick=.11,y=.105) {
     rect(x,z,vertical?thick:len,vertical?len:thick,y,color);
   }
-  for(const road of roads) {
+  for(const [index,road] of roads.entries()) {
     for(let i=-193;i<194;i+=9){
       if(roads.some(c=>Math.abs(c-i)<11)) continue;
-      stripeAlong(road,i,4.5,true,"#e3bc77",.14);
-      if(i<145) stripeAlong(i,road,4.5,false,"#e3bc77",.14);
+      const vertical=i>edge.south[index].z+(road===144?2:8)&&i<(road===144?182:edge.north[index].z-8);
+      const horizontal=i<145&&i>edge.west[index].x+8;
+      if(vertical)stripeAlong(road,i,4.5,true,"#e3bc77",.14);
+      if(horizontal)stripeAlong(i,road,4.5,false,"#e3bc77",.14);
       if(road===144||road===0){
         for(const s of [-1,1]) {
-          stripeAlong(road+3.55*s,i,3.1,true,"#aab4ae",.095);
-          if(i<=141) stripeAlong(i,road+3.55*s,3.1,false,"#aab4ae",.095);
+          if(vertical)stripeAlong(road+3.55*s,i,3.1,true,"#aab4ae",.095);
+          if(horizontal&&i<=141) stripeAlong(i,road+3.55*s,3.1,false,"#aab4ae",.095);
         }
       }
     }
@@ -14593,6 +14825,9 @@ window.buildBayCity = function buildBayCity(g,water) {
       if(BayCut.area(p)){
         const n=BayCut.nearest(p.x,p.z);return {x:n.x,z:n.z,vertical:Math.abs(n.segment.dz)>Math.abs(n.segment.dx),county:true};
       }
+      if(BayCityEdge.vicinity(p.x,p.z)){
+        const n=BayCityEdge.closest(p);return {x:n.x,z:n.z,vertical:Math.abs(n.s.dz)>Math.abs(n.s.dx)};
+      }
       const x=this.nearest(p.x),z=this.nearest(p.z);
       return Math.abs(p.x-x)<Math.abs(p.z-z)?{x,z:clamp(p.z,-178,178),vertical:true}:
         {x:clamp(p.x,-179,148),z,vertical:false};
@@ -14604,6 +14839,13 @@ window.buildBayCity = function buildBayCity(g,water) {
     }
     route(unit,target){
       const leaving=BayCut.area(unit),arriving=BayCut.area(target);
+      const outer=(!leaving&&BayCityEdge.vicinity(unit.x,unit.z))||(!arriving&&BayCityEdge.vicinity(target.x,target.z));
+      if(outer){
+        const gate=BayCityEdge.north[4];
+        if(leaving)return BayCut.route(unit,gate).concat(BayCityEdge.route(gate,target));
+        if(arriving)return BayCityEdge.route(unit,gate).concat(BayCut.route(gate,target));
+        return BayCityEdge.route(unit,target);
+      }
       if(!leaving&&!arriving)return this.cityRoute(unit,target);
       if(leaving&&arriving)return BayCut.route(unit,target);
       const gate=BayCut.gate;
@@ -15447,7 +15689,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     for(let i=0;i<roads.length;i++) for(let j=0;j<6;j++) for(let axis=0;axis<2;axis++) {
       const a=-180+72*j;
       if(axis && a>144) continue;
-      c.save();c.translate(axis?a:roads[i],axis?roads[i]:a);if(axis)c.rotate(Math.PI/2);
+      c.save();
+      if(j===0||j===5){
+        c.beginPath();
+        if(axis)c.rect(BayCityEdge.west[i].x,roads[i]-7,151-BayCityEdge.west[i].x,14);
+        else c.rect(roads[i]-7,BayCityEdge.south[i].z,14,(i===4?182:BayCityEdge.north[i].z)-BayCityEdge.south[i].z);
+        c.clip();
+      }
+      c.translate(axis?a:roads[i],axis?roads[i]:a);if(axis)c.rotate(Math.PI/2);
       const side=(i+j)%2?1:-1;
       rect(c,side*2.1-.32,-22,.64,45,"#4c565d");
       rect(c,-side*2.1-.38,-20,.76,41,"#4e575c");
@@ -15480,36 +15729,41 @@ window.buildBayCity = function buildBayCity(g,water) {
         line(ctx,bx,bz,bx+.8,bz+2.2+phase,street?"#86b9b6":"#5c9692",.22);
       }
     }
-    const edges=[-225,-144,-72,0,72,144];
-    const zs=[...edges,225];
+    const edges=[-193,-144,-72,0,72,144];
+    const zs=[...edges,192];
     for(let i=0;i<edges.length-1;i++) for(let j=0;j<zs.length-1;j++) {
       const x=edges[i]+7,z=zs[j]+7,w=edges[i+1]-7-x,h=zs[j+1]-7-z;
       rect(ctx,x,z,w,h,p.sidewalk);
       rect(ctx,x+2.6,z+2.6,w-5.2,h-5.2,(i+2*j)%3 ? p.lot : p.land);
     }
-    rect(ctx,151,-229,8.6,458,p.sidewalk);
-    rect(ctx,159.6,-229,6.5,458,p.board);
-    for(let z=-223;z<=224;z+=street?2:6) line(ctx,159.8,z,165.95,z,street?"#a98573":"#938875",.14);
-    for(const r of roads) {
-      rect(ctx,r-7,-229,14,458,p.road);
-      rect(ctx,-229,r-7,380,14,p.road);
+    rect(ctx,151,-180,8.6,362,p.sidewalk);
+    rect(ctx,159.6,-180,6.5,362,p.board);
+    for(let z=-179;z<182;z+=street?2:6)line(ctx,159.8,z,165.95,z,street?"#a98573":"#938875",.14);
+    const edge=BayCityEdge;
+    for(const [i,r] of roads.entries()) {
+      const lo=edge.south[i].z,hi=r===144?182:edge.north[i].z,left=edge.west[i].x;
+      rect(ctx,r-7,lo,14,hi-lo,p.road);
+      rect(ctx,left,r-7,151-left,14,p.road);
       rect(ctx,151,r-2.2,8.7,4.4,p.sidewalk);
     }
     if(street) roadMaterial(ctx);
     const clear = n => roads.every(t=>Math.abs(t-n)>11.5);
-    for(const r of roads) {
+    for(const [index,r] of roads.entries()) {
       for(let k=-221;k<225;k+=9) {
         if(!clear(k)) continue;
-        line(ctx,r,k-1.7,r,k+1.7,p.lane,street?.24:.32);
-        if(k<145) line(ctx,k-1.7,r,k+1.7,r,p.lane,street?.24:.32);
+        const vertical=k>edge.south[index].z+(r===144?2:8)&&k<(r===144?182:edge.north[index].z-8);
+        const horizontal=k<145&&k>edge.west[index].x+8;
+        if(vertical)line(ctx,r,k-1.7,r,k+1.7,p.lane,street?.24:.32);
+        if(horizontal)line(ctx,k-1.7,r,k+1.7,r,p.lane,street?.24:.32);
         if(street && r>=0) {
           for(const side of [-3.5,3.5]) {
-            line(ctx,r+side,k-1.2,r+side,k+1.2,"#98a39f",.13);
-            if(k<141) line(ctx,k-1.2,r+side,k+1.2,r+side,"#98a39f",.13);
+            if(vertical)line(ctx,r+side,k-1.2,r+side,k+1.2,"#98a39f",.13);
+            if(horizontal&&k<141)line(ctx,k-1.2,r+side,k+1.2,r+side,"#98a39f",.13);
           }
         }
       }
     }
+    edge.paint(ctx,street);
     for(const x of roads) for(const z of roads) {
       if(street&&BayStreetArt.signals.some(s=>s.x===x&&s.z===z))continue;
       if(x!==0 && x!==144 && z!==-72) continue;
@@ -32077,7 +32331,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     try{
       const raw=JSON.parse(localStorage.getItem(key)||"null"),v=fleet.find(v=>v.garageKey===raw?.id);
       if(!v||![raw.x,raw.z,raw.yaw].every(Number.isFinite)||
-        (Math.abs(raw.x)>230||Math.abs(raw.z)>190)&&!BayCut.land(raw.x,raw.z))return null;
+        (Math.abs(raw.x)>230||Math.abs(raw.z)>190)&&!BayCut.land(raw.x,raw.z)&&!BayCityEdge.land(raw.x,raw.z,.8))return null;
       const flatSide=[-1,1].includes(raw.flatSide)?raw.flatSide:0;
       const flatAxle=flatSide?bayCarLayout(v.kind).axles.find(axle=>(axle>0)===(raw.flatAxle>0)):null;
       return {v,x:raw.x,z:raw.z,yaw:Math.atan2(Math.sin(raw.yaw),Math.cos(raw.yaw)),flatSide,flatAxle};
@@ -32136,6 +32390,10 @@ window.buildBayCity = function buildBayCity(g,water) {
   function grid(v){const i=Math.max(0,Math.min(4,Math.round((v+144)/72)));return {i,offset:Math.abs(v-(i*72-144))};}
   function through(p,yaw){
     if(p&&p.z>155&&p.x>68){const n=BayCut.nearest(p.x,p.z);if(n.d<n.route.halfWidth+2)return n.route.name;}
+    if(p&&BayCityEdge.vicinity(p.x,p.z)){
+      const n=BayCityEdge.closest(p);
+      if(n.d<=8)return n.s.canal?"Canal Road":Math.abs(n.s.dx)>Math.abs(n.s.dz)?streets[grid(n.z).i]:avenues[grid(n.x).i];
+    }
     if(!p||p.x< -158||p.x>156||p.z< -157||p.z>157)return "";
     const x=grid(p.x),z=grid(p.z);if(Math.min(x.offset,z.offset)>10.5)return "";
     const ns=x.offset<z.offset;
@@ -32143,6 +32401,12 @@ window.buildBayCity = function buildBayCity(g,water) {
     return ns?avenues[x.i]:streets[z.i];
   }
   function segment(a,b){
+    const x=(a.x+b.x)*.5,z=(a.z+b.z)*.5;
+    if(BayCityEdge.vicinity(x,z)&&!BayCut.area({x,z})){
+      const n=BayCityEdge.closest({x,z});
+      if(n.s.canal)return "Canal Road";
+      return Math.abs(n.s.dx)>Math.abs(n.s.dz)?streets[grid(n.z).i]:avenues[grid(n.x).i];
+    }
     if(Math.max(a.z,b.z)>165)return BayCut.nearest((a.x+b.x)*.5,(a.z+b.z)*.5).route.name;
     return Math.abs(b.x-a.x)>Math.abs(b.z-a.z)?streets[grid((a.z+b.z)*.5).i]:avenues[grid((a.x+b.x)*.5).i];
   }
@@ -32185,6 +32449,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     ctx.strokeStyle="#26373d";ctx.fillStyle="#d2d8c9";ctx.lineWidth=2.2;ctx.lineJoin="round";
     [97,-38,-107,36,-108].forEach((z,i)=>print(avenues[i],i*72-144,z,true));
     [32,-106,39,-37,102].forEach((x,i)=>print(streets[i],x,i*72-144,false));
+    print("Canal Road",-195,107,true);
     ctx.restore();
   }
   window.BayStreetNames={through,segment,atlas,maneuver,alongLeg};
@@ -63921,7 +64186,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   function get(key){try{return JSON.parse(localStorage.getItem(key));}catch{return null;}}
   function put(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{return false;}}
   function place(p,id){
-    if(!p||![p.x,p.z,p.yaw].every(Number.isFinite)||Math.abs(p.x)>380||p.z< -195||p.z>420)return {...home[id],ride:""};
+    if(!p||![p.x,p.z,p.yaw].every(Number.isFinite)||Math.abs(p.x)>380||p.z>420||
+      p.z< -195&&!BayCityEdge.land(p.x,p.z,.3))return {...home[id],ride:""};
     return {x:p.x,z:p.z,yaw:Math.atan2(Math.sin(p.yaw),Math.cos(p.yaw)),ride:typeof p.ride==="string"?p.ride.slice(0,100):"",
       flat:p.flat===1||p.flat===-1?p.flat:0,axle:Number.isFinite(p.axle)?p.axle:0};
   }
@@ -74822,7 +75088,8 @@ window.buildBayCity = function buildBayCity(g,water) {
   const axes=[-144,-72,0,72,144];
   // The grid is uniform. At a midpoint the next higher street wins the tie.
   const nearestAxis=v=>axes[Math.max(0,Math.min(4,Math.round(v/72)+2))];
-  const nearStreet=(x,z)=>Math.min(Math.abs(nearestAxis(x)-x),Math.abs(nearestAxis(z)-z))<9;
+  const nearStreet=(x,z)=>BayCityEdge.vicinity(x,z)?BayCityEdge.closest({x,z}).d<7:
+    Math.min(Math.abs(nearestAxis(x)-x),Math.abs(nearestAxis(z)-z))<9;
   const moneyFormat=new Intl.NumberFormat("en-US");
   const cash=n=>"$"+moneyFormat.format(Math.round(n));
   const watch=t=>Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0")+"."+Math.floor(t*10)%10;
@@ -75525,7 +75792,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     {x:155,z:-55,name:"Motel demo"},{x:186,z:83,name:"Saltwater sessions"},{x:-7,z:137,name:"Last picture show"},
     {x:-151,z:-104,name:"Dockside dub"},{x:-82,z:-149,name:"Market mixtape"}
   ];
-  const valid=(x,z,r=.42,blocks=solids)=>(x>=-184+r&&x<=210-r&&z>=-182+r&&z<=182-r||z>176&&BayCut.land(x,z,r)||x>204&&BayButtonwoodYard.onRamp(x,z,r))
+  const valid=(x,z,r=.42,blocks=solids)=>(x>=-184+r&&x<=210-r&&z>=-182+r&&z<=182-r||BayCityEdge.land(x,z,r)||z>176&&BayCut.land(x,z,r)||x>204&&BayButtonwoodYard.onRamp(x,z,r))
     &&(z<231||bridge.roadOpenAt(x,z,r))
     &&!(blocks===solids?streetSpace.near(x,z,r):blocks).some(s=>Math.abs(x-s.x)<s.w/2+r&&Math.abs(z-s.z)<s.d/2+r);
   // Bring any sidewalk collectible that overlaps a facade out onto its nearest street.
@@ -75709,7 +75976,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     if(x>171&&x<183&&z>109&&z<115){const y=BayCoastWheelArt.floor(x,z);if(y!=null)return y;}
     const pier=x>=184.3&&bay.landing(x,z);if(pier)return pier.level;
     if(x>205&&BaySwimming.wetSand(x,z)&&x>BaySwimming.coast(z)-1.2)return Math.max(-.82,BaySwimming.floor(x,z));
-    if(z>181)return BayCut.height(x,z);
+    if(z>181)return BayCut.area({x,z})?BayCut.height(x,z):.10;
     if(x>166.45)return .007;
     if(x>159.5)return .082;
     if(x>=151)return .076;
@@ -77641,7 +77908,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const best=save.moto.wheel[b.kind].metres;
       note("One Wheel · "+metres.toFixed(1)+" m",metres===best&&best>old?(BaySecondSeat.bothMarks(save.moto.wheel)?"Both shop marks beaten · Inés left a note in the print window":"New "+b.name+" record · Coast Camera print window"):"Best on the "+b.name+" · "+best.toFixed(1)+" m",4);
     },
-    grip(b){return (b.z>181?BayCut.surface(b.x,b.z):b.x>166.45?.56:nearStreet(b.x,b.z)?1:.83)*(1-.17*hours.wet);},
+    grip(b){return (b.z>181&&BayCut.area(b)?BayCut.surface(b.x,b.z):b.x>166.45?.56:nearStreet(b.x,b.z)?1:.83)*(1-.17*hours.wet);},
     road(b){const q=chase.road(b),curb=BayCab.streetStop(b,q);return curb&&{...curb,x:q.vertical?q.x+(curb.dir===0?2.48:-2.48):b.x,z:q.vertical?b.z:q.z+(curb.dir===1?-2.48:2.48)};},
     foot(x,z,except){return valid(x,z,.28)&&!cars.concat(motos.all,transit.bus).some(v=>v!==except&&Math.abs(x-v.x)<6&&Math.abs(z-v.z)<6&&BayDriving.clearance(v,{x,z})<.25);},
     walkway(a,q,b){
@@ -84061,7 +84328,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     const pad=v.x>154&&v.x<175&&v.z>-102&&v.z<-83&&BayPalmaWash.floorLevel(v.x,v.z)!=null;
     const sand=v.x>166.45&&!slipPaving&&!pad&&!v.jumpFlight?sandBeach.surface(v,streetTime,footLevel(v.x,v.z),hours.wet):null;
     v.sandSoft=sand?.soft||0;
-    const surface=sand?sand.grip:slipPaving?.93*(1-.18*hours.wet):pad?.96*(1-.13*hours.wet):v.z>181?BayCut.surface(v.x,v.z)*(1-.13*hours.wet):v.x>166.45?.8:(nearStreet(v.x,v.z)?1:.84)*(1-.13*hours.wet);
+    const surface=sand?sand.grip:slipPaving?.93*(1-.18*hours.wet):pad?.96*(1-.13*hours.wet):v.z>181&&BayCut.area(v)?BayCut.surface(v.x,v.z)*(1-.13*hours.wet):v.x>166.45?.8:(nearStreet(v.x,v.z)?1:.84)*(1-.13*hours.wet);
     if(v===iceVan&&campana.phase==="open"||afternoon.inDoor&&afternoon.vehicle===v)parking=true;
     if(active?.cup&&cup.phase==="count")parking=true;
     if(beat.phase==="test"&&beat.stop?.target===v&&beatEnv.braking()&&!held("KeyW","ArrowUp")&&Math.abs(v.speed)<.7)parking=true;
@@ -84078,7 +84345,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       BayDriving.step(v,dt,!parking&&held("KeyW","ArrowUp"),!parking&&held("KeyS","ArrowDown"),steering,!parking&&held("Space"),surface,v.upgrades.engine,parking);
     }
     if(parking&&beat.phase==="test"&&beat.stop?.target===v&&beatEnv.braking())v.brakes=1;
-    if(!parking&&v.z>181&&(Math.abs(v.speed)>.45||v.throttle>.10))v.vz-=9.81*BayCut.grade(v.x,v.z)*dt;
+    if(!parking&&v.z>181&&BayCut.area(v)&&(Math.abs(v.speed)>.45||v.throttle>.10))v.vz-=9.81*BayCut.grade(v.x,v.z)*dt;
     if(Math.abs(v.yaw-oldYaw)>.00001&&!fitsCar(v,v.x,v.z,v.yaw)&&fitsCar(v,v.x,v.z,oldYaw)){v.yaw=oldYaw;v.yawRate*=.3;}
     let impact=0,wallX=0,wallZ=0;
     const x=v.x+v.vx*dt,z=v.z+v.vz*dt;
@@ -84222,13 +84489,14 @@ window.buildBayCity = function buildBayCity(g,water) {
     return true;
   }
   function spaceToSwerve(v,x,z,yaw,ahead,checkPlayer=false){
-    const county=z>181?BayCut.nearest(x,z):null;
+    const county=z>181&&BayCut.area({x,z})?BayCut.nearest(x,z):null;
+    const outer=!county&&BayCityEdge.vicinity(x,z);
     const timingBay=v.greenId&&BayDriving.local(BayOnGreen.route(v.greenId),x,z);
     const apron=timingBay&&timingBay.x<8.45&&timingBay.x>0&&timingBay.z>=-71&&timingBay.z<=-14||
       v.brisasLead&&x>103&&x<143&&z>46.6&&z<77||v.recoveryOwner&&x>-92&&x<-69&&z>-39&&z<2||v.washGuest&&x>146&&x<168&&z>-161&&z<-66;
-    const roadDistance=county?county.d:Math.min(Math.abs(x-nearestAxis(x)),Math.abs(z-nearestAxis(z)));
+    const roadDistance=county?county.d:outer?BayCityEdge.closest({x,z}).d:Math.min(Math.abs(x-nearestAxis(x)),Math.abs(z-nearestAxis(z)));
     if(!apron&&roadDistance>(county?county.route.halfWidth-.55:5.95)){
-      const returning=v.findLane&&(county?BayCut.nearest(v.x,v.z).d:Math.min(Math.abs(v.x-nearestAxis(v.x)),Math.abs(v.z-nearestAxis(v.z))))>roadDistance;
+      const returning=v.findLane&&(county?BayCut.nearest(v.x,v.z).d:outer?BayCityEdge.closest(v).d:Math.min(Math.abs(v.x-nearestAxis(v.x)),Math.abs(v.z-nearestAxis(v.z))))>roadDistance;
       if(!returning)return false;
     }
     if(!fitsCar(v,x,z,yaw))return false;
@@ -88940,7 +89208,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       b.append(list);c.addEventListener("click",ev=>{if(list.disabled)return;const rect=c.getBoundingClientRect(),frame=atlasFrame(),scale=c.width/frame.span;
         const mx=(ev.clientX-rect.left)/rect.width*c.width,my=(ev.clientY-rect.top)/rect.height*c.height;
         const wx=frame.cx+(mx-c.width/2)/scale,wz=frame.cz+(c.height/2-my)/scale;
-        const pin={x:clamp(wx,-181,207),z:clamp(wz,-179,179)};
+        const pin={x:clamp(wx,-209,207),z:clamp(wz,-206,205)};
         const nearDock=bay.docks.find(d=>Math.hypot((chartMode==="bay"?d.x:d.footX+1.4)-wx,d.z-wz)<11);
         const court=courts.find(g=>Math.hypot(g.site.x-wx,g.site.z-wz)<6);
         const venue=court?courtPins[courts.indexOf(court)]:Math.hypot(wx-recoveryYard.drop.x,wz-recoveryYard.drop.z)<4?dispatchPin:locations.find(p=>["room","counter","surf-tower","theater","recovery-desk","wheel-window","bike-rack","pickup-court","valet-stand","sound-shell","skate-spot","bus-stop","air-dock","clinic","camera-shop","motor-sales","boatyard","public-slip","radio-booth","drive-in","engine-house"].includes(p.kind)&&Math.hypot(p.x-wx,p.z-wz)<4)||ranks.find(p=>Math.hypot(p.x-wx,p.z-wz)<4.5);

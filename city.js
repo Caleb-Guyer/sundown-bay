@@ -338,7 +338,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     rect(x,z,between(.18,.55),between(2.5,12),.052,i%3?"#81bdba":"#d4d8c1");
   }
   // The blocks carry their own sidewalk colour. This keeps intersections free of curbs.
-  const edges=[-226,-144,-72,0,72,144,224];
+  const edges=[-193,-144,-72,0,72,144,192];
   for(let ix=0;ix<edges.length-2;ix++){
     for(let iz=0;iz<edges.length-1;iz++){
       const l=edges[ix]+7,r=edges[ix+1]-7,b=edges[iz]+7,t=edges[iz+1]-7;
@@ -346,25 +346,37 @@ window.buildBayCity = function buildBayCity(g,water) {
       rect((l+r)/2,(b+t)/2,r-l-5.6,t-b-5.6,.092,pick(["#c4b7a3","#bbb7a4","#c5b6a4","#b5b7a0"]));
     }
   }
-  rect(155.25,0,8.5,454,.085,stone);
-  rect(163.2,0,6.5,453,.095,"#c89d82");
-  for(let z=-214;z<215;z+=2.2) rect(163.2,z,6.5,.065,.104,"#ae8878");
-  for(const c of roads){
-    rect(c,0,14,456,.041,asphalt);
-    rect(-37,c,378,14,.043,asphalt);
+  rect(155.25,1,8.5,362,.085,stone);
+  rect(163.2,1,6.5,362,.095,"#c89d82");
+  for(let z=-179;z<182;z+=2.2)rect(163.2,z,6.5,.065,.104,"#ae8878");
+  const edge=BayCityEdge;
+  for(const [i,c] of roads.entries()){
+    const lo=edge.south[i].z,hi=c===144?182:edge.north[i].z,left=edge.west[i].x;
+    rect(c,(lo+hi)/2,14,hi-lo,.041,asphalt);
+    rect((left+151)/2,c,151-left,14,.043,asphalt);
+  }
+  edge.mesh(g);
+  // A readerboard on each approach sits on the verge, facing arriving traffic.
+  for(const [x,z,nz,label] of [[151,-160,1,"CANAL RD"],[134,181,-1,"PELICAN CUT"]]){
+    const f=facade(x,z,0,nz);
+    for(const u of [-1.35,1.35])f.box(u,1.03,0,.10,2.06,.12,"#899287");
+    f.box(0,2.06,0,3.32,.78,.12,"#36645a");
+    sign(f,label,0,2.06,.065,.063,"#f1e9d4");
   }
   function stripeAlong(x,z,len,vertical,color,thick=.11,y=.105) {
     rect(x,z,vertical?thick:len,vertical?len:thick,y,color);
   }
-  for(const road of roads) {
+  for(const [index,road] of roads.entries()) {
     for(let i=-193;i<194;i+=9){
       if(roads.some(c=>Math.abs(c-i)<11)) continue;
-      stripeAlong(road,i,4.5,true,"#e3bc77",.14);
-      if(i<145) stripeAlong(i,road,4.5,false,"#e3bc77",.14);
+      const vertical=i>edge.south[index].z+(road===144?2:8)&&i<(road===144?182:edge.north[index].z-8);
+      const horizontal=i<145&&i>edge.west[index].x+8;
+      if(vertical)stripeAlong(road,i,4.5,true,"#e3bc77",.14);
+      if(horizontal)stripeAlong(i,road,4.5,false,"#e3bc77",.14);
       if(road===144||road===0){
         for(const s of [-1,1]) {
-          stripeAlong(road+3.55*s,i,3.1,true,"#aab4ae",.095);
-          if(i<=141) stripeAlong(i,road+3.55*s,3.1,false,"#aab4ae",.095);
+          if(vertical)stripeAlong(road+3.55*s,i,3.1,true,"#aab4ae",.095);
+          if(horizontal&&i<=141) stripeAlong(i,road+3.55*s,3.1,false,"#aab4ae",.095);
         }
       }
     }

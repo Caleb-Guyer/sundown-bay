@@ -60,7 +60,14 @@
     for(let i=0;i<roads.length;i++) for(let j=0;j<6;j++) for(let axis=0;axis<2;axis++) {
       const a=-180+72*j;
       if(axis && a>144) continue;
-      c.save();c.translate(axis?a:roads[i],axis?roads[i]:a);if(axis)c.rotate(Math.PI/2);
+      c.save();
+      if(j===0||j===5){
+        c.beginPath();
+        if(axis)c.rect(BayCityEdge.west[i].x,roads[i]-7,151-BayCityEdge.west[i].x,14);
+        else c.rect(roads[i]-7,BayCityEdge.south[i].z,14,(i===4?182:BayCityEdge.north[i].z)-BayCityEdge.south[i].z);
+        c.clip();
+      }
+      c.translate(axis?a:roads[i],axis?roads[i]:a);if(axis)c.rotate(Math.PI/2);
       const side=(i+j)%2?1:-1;
       rect(c,side*2.1-.32,-22,.64,45,"#4c565d");
       rect(c,-side*2.1-.38,-20,.76,41,"#4e575c");
@@ -93,36 +100,41 @@
         line(ctx,bx,bz,bx+.8,bz+2.2+phase,street?"#86b9b6":"#5c9692",.22);
       }
     }
-    const edges=[-225,-144,-72,0,72,144];
-    const zs=[...edges,225];
+    const edges=[-193,-144,-72,0,72,144];
+    const zs=[...edges,192];
     for(let i=0;i<edges.length-1;i++) for(let j=0;j<zs.length-1;j++) {
       const x=edges[i]+7,z=zs[j]+7,w=edges[i+1]-7-x,h=zs[j+1]-7-z;
       rect(ctx,x,z,w,h,p.sidewalk);
       rect(ctx,x+2.6,z+2.6,w-5.2,h-5.2,(i+2*j)%3 ? p.lot : p.land);
     }
-    rect(ctx,151,-229,8.6,458,p.sidewalk);
-    rect(ctx,159.6,-229,6.5,458,p.board);
-    for(let z=-223;z<=224;z+=street?2:6) line(ctx,159.8,z,165.95,z,street?"#a98573":"#938875",.14);
-    for(const r of roads) {
-      rect(ctx,r-7,-229,14,458,p.road);
-      rect(ctx,-229,r-7,380,14,p.road);
+    rect(ctx,151,-180,8.6,362,p.sidewalk);
+    rect(ctx,159.6,-180,6.5,362,p.board);
+    for(let z=-179;z<182;z+=street?2:6)line(ctx,159.8,z,165.95,z,street?"#a98573":"#938875",.14);
+    const edge=BayCityEdge;
+    for(const [i,r] of roads.entries()) {
+      const lo=edge.south[i].z,hi=r===144?182:edge.north[i].z,left=edge.west[i].x;
+      rect(ctx,r-7,lo,14,hi-lo,p.road);
+      rect(ctx,left,r-7,151-left,14,p.road);
       rect(ctx,151,r-2.2,8.7,4.4,p.sidewalk);
     }
     if(street) roadMaterial(ctx);
     const clear = n => roads.every(t=>Math.abs(t-n)>11.5);
-    for(const r of roads) {
+    for(const [index,r] of roads.entries()) {
       for(let k=-221;k<225;k+=9) {
         if(!clear(k)) continue;
-        line(ctx,r,k-1.7,r,k+1.7,p.lane,street?.24:.32);
-        if(k<145) line(ctx,k-1.7,r,k+1.7,r,p.lane,street?.24:.32);
+        const vertical=k>edge.south[index].z+(r===144?2:8)&&k<(r===144?182:edge.north[index].z-8);
+        const horizontal=k<145&&k>edge.west[index].x+8;
+        if(vertical)line(ctx,r,k-1.7,r,k+1.7,p.lane,street?.24:.32);
+        if(horizontal)line(ctx,k-1.7,r,k+1.7,r,p.lane,street?.24:.32);
         if(street && r>=0) {
           for(const side of [-3.5,3.5]) {
-            line(ctx,r+side,k-1.2,r+side,k+1.2,"#98a39f",.13);
-            if(k<141) line(ctx,k-1.2,r+side,k+1.2,r+side,"#98a39f",.13);
+            if(vertical)line(ctx,r+side,k-1.2,r+side,k+1.2,"#98a39f",.13);
+            if(horizontal&&k<141)line(ctx,k-1.2,r+side,k+1.2,r+side,"#98a39f",.13);
           }
         }
       }
     }
+    edge.paint(ctx,street);
     for(const x of roads) for(const z of roads) {
       if(street&&BayStreetArt.signals.some(s=>s.x===x&&s.z===z))continue;
       if(x!==0 && x!==144 && z!==-72) continue;

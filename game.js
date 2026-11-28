@@ -7,7 +7,8 @@
   const axes=[-144,-72,0,72,144];
   // The grid is uniform. At a midpoint the next higher street wins the tie.
   const nearestAxis=v=>axes[Math.max(0,Math.min(4,Math.round(v/72)+2))];
-  const nearStreet=(x,z)=>Math.min(Math.abs(nearestAxis(x)-x),Math.abs(nearestAxis(z)-z))<9;
+  const nearStreet=(x,z)=>BayCityEdge.vicinity(x,z)?BayCityEdge.closest({x,z}).d<7:
+    Math.min(Math.abs(nearestAxis(x)-x),Math.abs(nearestAxis(z)-z))<9;
   const moneyFormat=new Intl.NumberFormat("en-US");
   const cash=n=>"$"+moneyFormat.format(Math.round(n));
   const watch=t=>Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0")+"."+Math.floor(t*10)%10;
@@ -710,7 +711,7 @@
     {x:155,z:-55,name:"Motel demo"},{x:186,z:83,name:"Saltwater sessions"},{x:-7,z:137,name:"Last picture show"},
     {x:-151,z:-104,name:"Dockside dub"},{x:-82,z:-149,name:"Market mixtape"}
   ];
-  const valid=(x,z,r=.42,blocks=solids)=>(x>=-184+r&&x<=210-r&&z>=-182+r&&z<=182-r||z>176&&BayCut.land(x,z,r)||x>204&&BayButtonwoodYard.onRamp(x,z,r))
+  const valid=(x,z,r=.42,blocks=solids)=>(x>=-184+r&&x<=210-r&&z>=-182+r&&z<=182-r||BayCityEdge.land(x,z,r)||z>176&&BayCut.land(x,z,r)||x>204&&BayButtonwoodYard.onRamp(x,z,r))
     &&(z<231||bridge.roadOpenAt(x,z,r))
     &&!(blocks===solids?streetSpace.near(x,z,r):blocks).some(s=>Math.abs(x-s.x)<s.w/2+r&&Math.abs(z-s.z)<s.d/2+r);
   // Bring any sidewalk collectible that overlaps a facade out onto its nearest street.
@@ -894,7 +895,7 @@
     if(x>171&&x<183&&z>109&&z<115){const y=BayCoastWheelArt.floor(x,z);if(y!=null)return y;}
     const pier=x>=184.3&&bay.landing(x,z);if(pier)return pier.level;
     if(x>205&&BaySwimming.wetSand(x,z)&&x>BaySwimming.coast(z)-1.2)return Math.max(-.82,BaySwimming.floor(x,z));
-    if(z>181)return BayCut.height(x,z);
+    if(z>181)return BayCut.area({x,z})?BayCut.height(x,z):.10;
     if(x>166.45)return .007;
     if(x>159.5)return .082;
     if(x>=151)return .076;
@@ -2826,7 +2827,7 @@
       const best=save.moto.wheel[b.kind].metres;
       note("One Wheel · "+metres.toFixed(1)+" m",metres===best&&best>old?(BaySecondSeat.bothMarks(save.moto.wheel)?"Both shop marks beaten · Inés left a note in the print window":"New "+b.name+" record · Coast Camera print window"):"Best on the "+b.name+" · "+best.toFixed(1)+" m",4);
     },
-    grip(b){return (b.z>181?BayCut.surface(b.x,b.z):b.x>166.45?.56:nearStreet(b.x,b.z)?1:.83)*(1-.17*hours.wet);},
+    grip(b){return (b.z>181&&BayCut.area(b)?BayCut.surface(b.x,b.z):b.x>166.45?.56:nearStreet(b.x,b.z)?1:.83)*(1-.17*hours.wet);},
     road(b){const q=chase.road(b),curb=BayCab.streetStop(b,q);return curb&&{...curb,x:q.vertical?q.x+(curb.dir===0?2.48:-2.48):b.x,z:q.vertical?b.z:q.z+(curb.dir===1?-2.48:2.48)};},
     foot(x,z,except){return valid(x,z,.28)&&!cars.concat(motos.all,transit.bus).some(v=>v!==except&&Math.abs(x-v.x)<6&&Math.abs(z-v.z)<6&&BayDriving.clearance(v,{x,z})<.25);},
     walkway(a,q,b){
@@ -9246,7 +9247,7 @@
     const pad=v.x>154&&v.x<175&&v.z>-102&&v.z<-83&&BayPalmaWash.floorLevel(v.x,v.z)!=null;
     const sand=v.x>166.45&&!slipPaving&&!pad&&!v.jumpFlight?sandBeach.surface(v,streetTime,footLevel(v.x,v.z),hours.wet):null;
     v.sandSoft=sand?.soft||0;
-    const surface=sand?sand.grip:slipPaving?.93*(1-.18*hours.wet):pad?.96*(1-.13*hours.wet):v.z>181?BayCut.surface(v.x,v.z)*(1-.13*hours.wet):v.x>166.45?.8:(nearStreet(v.x,v.z)?1:.84)*(1-.13*hours.wet);
+    const surface=sand?sand.grip:slipPaving?.93*(1-.18*hours.wet):pad?.96*(1-.13*hours.wet):v.z>181&&BayCut.area(v)?BayCut.surface(v.x,v.z)*(1-.13*hours.wet):v.x>166.45?.8:(nearStreet(v.x,v.z)?1:.84)*(1-.13*hours.wet);
     if(v===iceVan&&campana.phase==="open"||afternoon.inDoor&&afternoon.vehicle===v)parking=true;
     if(active?.cup&&cup.phase==="count")parking=true;
     if(beat.phase==="test"&&beat.stop?.target===v&&beatEnv.braking()&&!held("KeyW","ArrowUp")&&Math.abs(v.speed)<.7)parking=true;
@@ -9263,7 +9264,7 @@
       BayDriving.step(v,dt,!parking&&held("KeyW","ArrowUp"),!parking&&held("KeyS","ArrowDown"),steering,!parking&&held("Space"),surface,v.upgrades.engine,parking);
     }
     if(parking&&beat.phase==="test"&&beat.stop?.target===v&&beatEnv.braking())v.brakes=1;
-    if(!parking&&v.z>181&&(Math.abs(v.speed)>.45||v.throttle>.10))v.vz-=9.81*BayCut.grade(v.x,v.z)*dt;
+    if(!parking&&v.z>181&&BayCut.area(v)&&(Math.abs(v.speed)>.45||v.throttle>.10))v.vz-=9.81*BayCut.grade(v.x,v.z)*dt;
     if(Math.abs(v.yaw-oldYaw)>.00001&&!fitsCar(v,v.x,v.z,v.yaw)&&fitsCar(v,v.x,v.z,oldYaw)){v.yaw=oldYaw;v.yawRate*=.3;}
     let impact=0,wallX=0,wallZ=0;
     const x=v.x+v.vx*dt,z=v.z+v.vz*dt;
@@ -9407,13 +9408,14 @@
     return true;
   }
   function spaceToSwerve(v,x,z,yaw,ahead,checkPlayer=false){
-    const county=z>181?BayCut.nearest(x,z):null;
+    const county=z>181&&BayCut.area({x,z})?BayCut.nearest(x,z):null;
+    const outer=!county&&BayCityEdge.vicinity(x,z);
     const timingBay=v.greenId&&BayDriving.local(BayOnGreen.route(v.greenId),x,z);
     const apron=timingBay&&timingBay.x<8.45&&timingBay.x>0&&timingBay.z>=-71&&timingBay.z<=-14||
       v.brisasLead&&x>103&&x<143&&z>46.6&&z<77||v.recoveryOwner&&x>-92&&x<-69&&z>-39&&z<2||v.washGuest&&x>146&&x<168&&z>-161&&z<-66;
-    const roadDistance=county?county.d:Math.min(Math.abs(x-nearestAxis(x)),Math.abs(z-nearestAxis(z)));
+    const roadDistance=county?county.d:outer?BayCityEdge.closest({x,z}).d:Math.min(Math.abs(x-nearestAxis(x)),Math.abs(z-nearestAxis(z)));
     if(!apron&&roadDistance>(county?county.route.halfWidth-.55:5.95)){
-      const returning=v.findLane&&(county?BayCut.nearest(v.x,v.z).d:Math.min(Math.abs(v.x-nearestAxis(v.x)),Math.abs(v.z-nearestAxis(v.z))))>roadDistance;
+      const returning=v.findLane&&(county?BayCut.nearest(v.x,v.z).d:outer?BayCityEdge.closest(v).d:Math.min(Math.abs(v.x-nearestAxis(v.x)),Math.abs(v.z-nearestAxis(v.z))))>roadDistance;
       if(!returning)return false;
     }
     if(!fitsCar(v,x,z,yaw))return false;
@@ -14125,7 +14127,7 @@
       b.append(list);c.addEventListener("click",ev=>{if(list.disabled)return;const rect=c.getBoundingClientRect(),frame=atlasFrame(),scale=c.width/frame.span;
         const mx=(ev.clientX-rect.left)/rect.width*c.width,my=(ev.clientY-rect.top)/rect.height*c.height;
         const wx=frame.cx+(mx-c.width/2)/scale,wz=frame.cz+(c.height/2-my)/scale;
-        const pin={x:clamp(wx,-181,207),z:clamp(wz,-179,179)};
+        const pin={x:clamp(wx,-209,207),z:clamp(wz,-206,205)};
         const nearDock=bay.docks.find(d=>Math.hypot((chartMode==="bay"?d.x:d.footX+1.4)-wx,d.z-wz)<11);
         const court=courts.find(g=>Math.hypot(g.site.x-wx,g.site.z-wz)<6);
         const venue=court?courtPins[courts.indexOf(court)]:Math.hypot(wx-recoveryYard.drop.x,wz-recoveryYard.drop.z)<4?dispatchPin:locations.find(p=>["room","counter","surf-tower","theater","recovery-desk","wheel-window","bike-rack","pickup-court","valet-stand","sound-shell","skate-spot","bus-stop","air-dock","clinic","camera-shop","motor-sales","boatyard","public-slip","radio-booth","drive-in","engine-house"].includes(p.kind)&&Math.hypot(p.x-wx,p.z-wz)<4)||ranks.find(p=>Math.hypot(p.x-wx,p.z-wz)<4.5);
