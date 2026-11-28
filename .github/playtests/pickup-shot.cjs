@@ -76,4 +76,6 @@ module.exports=async({js,send,key,tap,waitFor,mode,errors})=>{
   assert.equal(await js("audioStarts+cursorRequests"),0);assert.deepEqual(errors,[]);
   console.log("PASS",mode,"resumed beyond the former south limit, walked Canal Road and opened the city map");
   await require("./canal-life.cjs")({js,send,waitFor,snap});
+  await require("./freight-run.cjs")({js,send,tap,waitFor,snap});
+  assert.deepEqual(errors,[]);
 };

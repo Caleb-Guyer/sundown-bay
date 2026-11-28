@@ -6,6 +6,58 @@
     {name:"BAY ICE",z:-39,wall:-180.7,berth:-184.25,entry:-59,exit:-20}
   ];
   const pt=(x,z)=>({x,z});
+  const dispatch={id:"canal-haul",x:-182.75,z:-123,name:"Sol Freight · Canal Road deliveries"};
+  const job={id:dispatch.id,name:"Canal Road freight",by:"Sol Freight",pay:125};
+  const bays=yards.map((yard,i)=>({x:yard.berth,z:yard.z,name:i?"Bay Ice receiving":"Sol Freight loading bay"}));
+  const cycleTime=8.5;
+  function pickup(v){return v?.kind==="stepside"&&!v.freightRun?.loaded;}
+  function linedUp(v,i){
+    const b=bays[i];
+    return Math.abs(v.x-b.x)<1.35&&Math.abs(v.z-b.z)<2&&Math.cos(v.yaw)>.91;
+  }
+  class Delivery{
+    constructor(){
+      this.truck=null;this.stop=0;this.handling={loaded:false,berth:-1,dwell:0};
+      const route=freightRoute();
+      this.drive=route.slice(route.findIndex(p=>p.yard===0),route.findIndex(p=>p.yard===1)+1);
+    }
+    target(driver,spare){
+      if(this.truck&&driver!==this.truck)return {x:this.truck.x,z:this.truck.z,name:"Your freight truck"};
+      if(!this.truck&&!pickup(driver))return {x:spare.x,z:spare.z,name:"Sol Freight Stepside"};
+      return bays[this.stop];
+    }
+    guide(driver){
+      if(this.stop!==1||driver!==this.truck)return null;
+      let next=1,closest=Infinity;
+      for(let i=1;i<this.drive.length;i++){
+        const a=this.drive[i-1],b=this.drive[i],dx=b.x-a.x,dz=b.z-a.z;
+        const t=Math.max(0,Math.min(1,((driver.x-a.x)*dx+(driver.z-a.z)*dz)/(dx*dx+dz*dz)));
+        const gap=Math.hypot(driver.x-a.x-dx*t,driver.z-a.z-dz*t);
+        if(gap<closest){closest=gap;next=i;}
+      }
+      if(closest>16)return null;
+      const points=[driver,...this.drive.slice(next)];
+      let meters=0;for(let i=1;i<points.length;i++)meters+=Math.hypot(points[i].x-points[i-1].x,points[i].z-points[i-1].z);
+      return {points,meters,turn:next<=3?"Leave the yard and head north on Canal Road":next<=5?"Take the next Bay Ice driveway on the right":"Park northbound under the hoist"};
+    }
+    step(dt,driver,occupied){
+      const r=this.handling,ready=driver&&(this.truck?driver===this.truck:pickup(driver))&&
+        linedUp(driver,this.stop)&&Math.abs(driver.speed)<.65;
+      if(!ready){
+        if(r.berth>=0){r.berth=-1;r.dwell=0;r.loaded=this.stop===1;}
+        return;
+      }
+      if(r.berth<0){
+        if(occupied(this.stop,driver))return;
+        this.truck=driver;driver.canalTicket=r;r.berth=this.stop;r.dwell=cycleTime;
+        BayDriving.settle(driver);
+      }
+      if(service(driver,dt,r))return;
+      if(this.stop===0){this.stop=1;return "loaded";}
+      this.release();return "delivered";
+    }
+    release(){if(this.truck)delete this.truck.canalTicket;this.handling.berth=-1;}
+  }
   function west(z,offset=-2.65){
     const e=BayCityEdge,q=e.closest({x:-196,z},true);
     return e.along(q.s.a.at+q.s.length*q.t,offset);
@@ -48,8 +100,7 @@
   function apron(x,z){
     return yards.some(y=>z>y.entry-2&&z<y.exit+2&&x>=-201&&x<y.wall-.1);
   }
-  function service(v,dt){
-    const r=v.freightRun;
+  function service(v,dt,r=v.freightRun){
     if(r.berth<0)return false;
     const before=r.dwell;r.dwell=Math.max(0,before-dt);
     if(before>3.5&&r.dwell<=3.5)r.loaded=r.berth===0;
@@ -64,6 +115,8 @@
     return [west(y.entry,-5.77),pt(y.wall-.1,y.z-12),pt(y.wall-.1,y.z+10),west(y.exit,-5.77),west(y.z,-5.77)];
   }
   function mesh(g){
+    g.box(dispatch.x,.075,-125.5,3.9,.13,12.6,"#8c8e80");
+    for(const side of [-1,1])g.box(dispatch.x+side*1.55,.146,-129,.12,.018,5.8,"#d8c29b");
     for(const y of yards){
       const p=apronPoints(y).map(p=>[p.x,.143,p.z]);
       for(let i=1;i<p.length-1;i++)g.tri(p[0],p[i],p[i+1],"#8c8e80");
@@ -80,6 +133,8 @@
     }
   }
   function map(ctx){
+    ctx.fillStyle="#8c8e80";ctx.fillRect(dispatch.x-1.95,-131.8,3.9,12.6);
+    ctx.fillStyle="#d8c29b";for(const side of [-1,1])ctx.fillRect(dispatch.x+side*1.55-.06,-131.9,.12,5.8);
     for(const y of yards){
       const p=apronPoints(y);ctx.beginPath();ctx.moveTo(p[0].x,p[0].z);
       for(const q of p.slice(1))ctx.lineTo(q.x,q.z);ctx.closePath();ctx.fillStyle="#8c8e80";ctx.fill();
@@ -95,8 +150,8 @@
     }
   }
   function lift(v){
-    const r=v.freightRun;if(!r||!v.path||r.berth<0)return null;
-    const y=yards[r.berth],bed=BayDriving.world(v,0,-1.48),t=8.5-r.dwell;
+    const r=v.canalTicket||v.freightRun;if(!r||(!v.path&&!v.canalTicket)||r.berth<0)return null;
+    const y=yards[r.berth],bed=BayDriving.world(v,0,-1.48),t=cycleTime-r.dwell;
     const smooth=(a,b)=>{const u=Math.min(1,Math.max(0,(t-a)/(b-a)));return u*u*(3-2*u);};
     const loading=r.berth===0;
     const reach=loading?smooth(1.6,4.15)-smooth(6,7.9):smooth(0,1.3)-smooth(2.9,4.3);
@@ -121,12 +176,12 @@
       if(k.moving)list.push(["canal-crates",k.x,k.base,k.z]);
       if(k.atDock)list.push(["canal-crates",k.dockX,.91,k.dockZ]);
     }
-    if(k?k.bedVisible:v.freightRun.loaded){
+    if(k?k.bedVisible:(v.canalTicket||v.freightRun).loaded){
       const bed=BayDriving.world(v,0,-1.48);list.push(["canal-crates",bed.x,ground+.94,bed.z,v.yaw,body.pitch,body.lean]);
     }
   }
   function mapCargo(c,v,x,y,s){
-    if(!v.freightRun)return;
+    if(!v.canalTicket&&!v.freightRun)return;
     const k=lift(v);
     function stack(cx,cy,yaw){
       c.save();c.translate(cx,cy);c.rotate(yaw);c.scale(s,s);
@@ -138,7 +193,7 @@
     }
     if(k?.moving)stack(x+(k.x-v.x)*s,y-(k.z-v.z)*s,0);
     if(k?.atDock)stack(x+(k.dockX-v.x)*s,y-(k.dockZ-v.z)*s,0);
-    if(k?k.bedVisible:v.freightRun.loaded){const bed=BayDriving.world(v,0,-1.48);stack(x+(bed.x-v.x)*s,y-(bed.z-v.z)*s,v.yaw);}
+    if(k?k.bedVisible:(v.canalTicket||v.freightRun).loaded){const bed=BayDriving.world(v,0,-1.48);stack(x+(bed.x-v.x)*s,y-(bed.z-v.z)*s,v.yaw);}
   }
-  window.BayCanalTraffic={yards,start,apron,service,approach,mesh,map,lift,world,mapCargo};
+  window.BayCanalTraffic={yards,bays,dispatch,job,Delivery,pickup,linedUp,cycleTime,start,apron,service,approach,mesh,map,lift,world,mapCargo};
 })();
