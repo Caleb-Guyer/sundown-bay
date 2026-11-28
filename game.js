@@ -11803,9 +11803,7 @@
       const shell=closed&&view.scale<=.65&&Math.hypot(eye.x-v.x,eye.z-v.z)>25;
       if(shell&&!view.trafficVisible(v.x,ground,v.z))continue;
       const body=roadBody(v);
-      if(v.freightRun?.loaded&&(!closed||view.trafficVisible(v.x,ground,v.z))){
-        model("canal-crates",BayCanalTraffic.cargo);visible.push(["canal-crates",v.x,ground,v.z,v.yaw,body.pitch,body.lean]);
-      }
+      if(v.freightRun&&(!closed||view.trafficVisible(v.x,ground,v.z)))BayCanalTraffic.world(visible,model,v,ground,body);
       if(shell){
         const name="traffic-shell/"+v.kind+"/"+v.color;
         model(name,g=>buildBayTrafficShell(g,v.kind,v.color));visible.push([name,v.x,ground,v.z,v.yaw,body.pitch,body.lean]);

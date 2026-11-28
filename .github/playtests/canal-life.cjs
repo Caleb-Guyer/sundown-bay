@@ -17,6 +17,8 @@ module.exports=async({js,send,waitFor,snap})=>{
     qa.origins=qa.fleet.filter(v=>!v.freightRun).map(v=>[v,v.x,v.z]);
     Object.assign(qa.hero,{x:-190,z:-119,yaw:.78});qa.rig.reset(qa.hero);`);
   await waitFor("qa.truck.freightRun.berth===0&&!qa.truck.freightRun.loaded",42000);
+  await waitFor("qa.truck.freightRun.dwell<5.7&&BayCanalTraffic.lift(qa.truck)?.moving");
+  await snap("canal-hoist");
   await waitFor("qa.truck.freightRun.loaded");await snap("canal-load");
   assert(await js("qa.truck.speed===0&&Math.abs(qa.truck.x+182.75)<.4"));
   await waitFor("qa.truck.freightRun.berth<0&&qa.truck.z>-98",30000);await snap("canal-depart");

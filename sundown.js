@@ -6262,9 +6262,9 @@
     {name:"BAY ICE",z:-39,wall:-180.7,berth:-184.25,entry:-59,exit:-20}
   ];
   const pt=(x,z)=>({x,z});
-  function west(z){
+  function west(z,offset=-2.65){
     const e=BayCityEdge,q=e.closest({x:-196,z},true);
-    return e.along(q.s.a.at+q.s.length*q.t,-2.65);
+    return e.along(q.s.a.at+q.s.length*q.t,offset);
   }
   function circuit(direction){
     const e=BayCityEdge,points=e.points.map(p=>e.along(p.at,-2.65*direction));
@@ -6317,8 +6317,7 @@
     return y?3.4:v.pace;
   }
   function apronPoints(y){
-    const entry=west(y.entry),exit=west(y.exit);
-    return [entry,pt(y.wall-.1,y.z-12),pt(y.wall-.1,y.z+10),exit,pt(Math.min(entry.x,exit.x)-.3,y.z)];
+    return [west(y.entry,-5.77),pt(y.wall-.1,y.z-12),pt(y.wall-.1,y.z+10),west(y.exit,-5.77),west(y.z,-5.77)];
   }
   function mesh(g){
     for(const y of yards){
@@ -6328,6 +6327,10 @@
       g.box(x,1.80,z,.13,3.45,4.4,"#586760");
       for(let i=0;i<6;i++)g.box(x-.10,.57+i*.45,z,.08,.08,4.12,"#96a59a");
       g.box(x-.65,.48,z,1.3,.86,6,"#a4a08b");g.box(x-.78,3.73,z,1.8,.18,7.6,"#798d83");
+      const beam=y.wall-y.berth+.55,middle=y.wall-beam*.5;
+      g.box(middle,3.54,z-1.48,beam,.19,.23,"#a78753");
+      g.box(middle,3.43,z-1.48,beam,.07,.48,"#c7a467");
+      g.pole([x,4.07,z-1.48],[y.berth+.5,3.58,z-1.48],.06,"#7d8c7e",5);
       for(const dz of [-3.2,3.2])g.box(x-1,.54,z+dz,.23,.85,.28,"#e2b658");
       for(const dz of [-4.4,4.4])g.box(y.berth,.151,z+dz,2.42,.025,.14,"#d8c29b");
     }
@@ -6341,22 +6344,59 @@
     }
   }
   function cargo(g){
-    for(const z of [-1.81,-1.15]){
-      g.box(0,1.22,z,1.27,.56,.61,"#a68459");
-      g.box(0,1.53,z,1.32,.09,.65,"#c3a475");
-      for(const x of [-.39,.39])g.box(x,1.54,z,.083,.12,.67,"#58665a");
+    for(const z of [-.33,.33]){
+      g.box(0,.28,z,1.27,.56,.61,"#a68459");
+      g.box(0,.59,z,1.32,.09,.65,"#c3a475");
+      for(const x of [-.39,.39])g.box(x,.60,z,.083,.12,.67,"#58665a");
+    }
+  }
+  function lift(v){
+    const r=v.freightRun;if(!r||!v.path||r.berth<0)return null;
+    const y=yards[r.berth],bed=BayDriving.world(v,0,-1.48),t=8.5-r.dwell;
+    const smooth=(a,b)=>{const u=Math.min(1,Math.max(0,(t-a)/(b-a)));return u*u*(3-2*u);};
+    const loading=r.berth===0;
+    const reach=loading?smooth(1.6,4.15)-smooth(6,7.9):smooth(0,1.3)-smooth(2.9,4.3);
+    const hoisted=loading?smooth(.8,1.6)-smooth(4.15,5):smooth(2.1,2.9)-smooth(4.3,5);
+    const moving=t>=(loading?.8:2.1)&&t<5;
+    const rest=loading?.91:.95;
+    const hook=loading?2.65-1.10*smooth(0,.8)+hoisted*.91+1.10*smooth(5,5.95):
+      2.65-1.06*smooth(1.3,2.1)+hoisted*.91+1.06*smooth(5,5.95);
+    return {x:(y.wall-.69)*(1-reach)+bed.x*reach,z:(y.z-1.48)*(1-reach)+bed.z*reach,
+      hook,base:rest+hoisted*.91,moving,atDock:loading?t<.8:t>=5,bedVisible:r.loaded&&!moving,
+      dockX:y.wall-.69,dockZ:y.z-1.48};
+  }
+  function world(list,model,v,ground,body){
+    const k=lift(v);
+    model("canal-crates",cargo);
+    if(k){
+      model("canal-hoist",g=>{g.box(0,0,0,.54,.32,.47,"#d3a85c");g.box(0,-.17,0,.30,.11,.31,"#5c6960");});
+      model("canal-rope",g=>g.box(0,-.16,0,.044,.32,.044,"#555e54"));
+      model("canal-hook",g=>g.box(0,.058,0,.17,.15,.19,"#737a6d"));
+      list.push(["canal-hoist",k.x,3.26,k.z],["canal-hook",k.x,k.hook,k.z]);
+      for(let h=3.1;h>k.hook;h-=.32)list.push(["canal-rope",k.x,Math.max(h,k.hook+.32),k.z]);
+      if(k.moving)list.push(["canal-crates",k.x,k.base,k.z]);
+      if(k.atDock)list.push(["canal-crates",k.dockX,.91,k.dockZ]);
+    }
+    if(k?k.bedVisible:v.freightRun.loaded){
+      const bed=BayDriving.world(v,0,-1.48);list.push(["canal-crates",bed.x,ground+.94,bed.z,v.yaw,body.pitch,body.lean]);
     }
   }
   function mapCargo(c,v,x,y,s){
-    if(!v.freightRun?.loaded)return;
-    c.save();c.translate(x,y);c.rotate(v.yaw);c.scale(s,s);
-    for(const z of [1.15,1.81]){
+    if(!v.freightRun)return;
+    const k=lift(v);
+    function stack(cx,cy,yaw){
+      c.save();c.translate(cx,cy);c.rotate(yaw);c.scale(s,s);
+      for(const z of [-.33,.33]){
       c.fillStyle="#c3a475";c.fillRect(-.66,z-.31,1.32,.62);
       c.fillStyle="#58665a";for(const u of [-.39,.39])c.fillRect(u-.04,z-.31,.08,.62);
+      }
+      c.restore();
     }
-    c.restore();
+    if(k?.moving)stack(x+(k.x-v.x)*s,y-(k.z-v.z)*s,0);
+    if(k?.atDock)stack(x+(k.dockX-v.x)*s,y-(k.dockZ-v.z)*s,0);
+    if(k?k.bedVisible:v.freightRun.loaded){const bed=BayDriving.world(v,0,-1.48);stack(x+(bed.x-v.x)*s,y-(bed.z-v.z)*s,v.yaw);}
   }
-  window.BayCanalTraffic={yards,start,apron,service,approach,mesh,map,cargo,mapCargo};
+  window.BayCanalTraffic={yards,start,apron,service,approach,mesh,map,lift,world,mapCargo};
 })();
 
 ;
@@ -87109,9 +87149,7 @@ window.buildBayCity = function buildBayCity(g,water) {
       const shell=closed&&view.scale<=.65&&Math.hypot(eye.x-v.x,eye.z-v.z)>25;
       if(shell&&!view.trafficVisible(v.x,ground,v.z))continue;
       const body=roadBody(v);
-      if(v.freightRun?.loaded&&(!closed||view.trafficVisible(v.x,ground,v.z))){
-        model("canal-crates",BayCanalTraffic.cargo);visible.push(["canal-crates",v.x,ground,v.z,v.yaw,body.pitch,body.lean]);
-      }
+      if(v.freightRun&&(!closed||view.trafficVisible(v.x,ground,v.z)))BayCanalTraffic.world(visible,model,v,ground,body);
       if(shell){
         const name="traffic-shell/"+v.kind+"/"+v.color;
         model(name,g=>buildBayTrafficShell(g,v.kind,v.color));visible.push([name,v.x,ground,v.z,v.yaw,body.pitch,body.lean]);
