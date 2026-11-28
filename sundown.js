@@ -6073,8 +6073,15 @@
       z:a.z+(b.z-a.z)*t+offset*(a.nz+(b.nz-a.nz)*t)};
   }
   const faces=[],posts=[],trees=[],rail=[];
+  const ribbons=new Map(),junctionInk=[];
   function band(a,b,inner,outer,material,y,innerB=inner,outerB=outer){
-    faces.push({points:[along(a,inner),along(b,innerB),along(b,outerB),along(a,outer)],material,y});
+    const quad=[along(a,inner),along(b,innerB),along(b,outerB),along(a,outer)];
+    faces.push({points:quad,material,y});
+    if(!ribbons.has(material))ribbons.set(material,[]);
+    const runs=ribbons.get(material),last=runs.at(-1);
+    if(last&&last.to===a&&distance(last.left.at(-1),quad[0])<.001&&distance(last.right.at(-1),quad[3])<.001){
+      last.left.push(quad[1]);last.right.push(quad[2]);last.to=b;
+    }else runs.push({left:[quad[0],quad[1]],right:[quad[3],quad[2]],to:b});
   }
   const junctions=[...south,...west,...north].map(p=>p.at);
   for(let i=1;i<points.length;i++){
@@ -6107,13 +6114,21 @@
     // Flare the mouth through the gravel shoulder. The stop line faces the bank.
     const aim=(across,inward)=>side==="west"?{x:p.x+inward,z:p.z+across}:
       {x:p.x+across,z:p.z+(side==="south"?inward:-inward)};
-    const polygon=(coords,material,y)=>faces.push({points:coords.map(([u,v])=>aim(u,v)),material,y});
+    const polygon=(coords,material,y)=>{
+      const face={points:coords.map(([u,v])=>aim(u,v)),material,y};
+      faces.push(face);junctionInk.push(face);
+    };
     polygon([[-7.0,12],[-7.0,9],[-9.8,5],[9.8,5],[7.0,9],[7.0,12]],"road",.126);
     const lane=side==="south"?-1:1;
     polygon([[.32*lane,9.8],[6.43*lane,9.8],[6.43*lane,10.13],[.32*lane,10.13]],"edge",.136);
   }
   const colors={grass:"#859773",silt:"#9aa080",water:"#829e92",channel:"#567e78",
     shoulder:"#c4b89c",road:"#525c60",edge:"#d7d0b6",line:"#dfbe79"};
+  // Join contiguous strip edges before rasterizing. Separate antialiased quads
+  // expose the background at every bend when the overhead camera rotates.
+  const ink=Object.keys(colors).flatMap(material=>(ribbons.get(material)||[]).map(run=>({
+    material,points:run.left.concat(run.right.reverse())
+  }))).concat(junctionInk);
   // The pump house sits opposite the freight yards, with two intake bays facing the channel.
   const pump={x:-229,z:-103};
   function mesh(g){
@@ -6130,13 +6145,23 @@
     for(const p of posts){
       g.box(p.x,.52,p.z,.26,.93,.28,"#95856d");g.box(p.x,.88,p.z,.28,.13,.30,"#e1d1a6");
     }
+    // Back-to-back chevrons show each approach which way the carriageway bends.
+    for(const p of points.filter(p=>(p.x===-189||p.x===-194)&&Math.abs(p.z)>=175)){
+      const n=Math.hypot(p.nx,p.nz),nx=-p.nz/n,nz=p.nx/n;
+      const pos=along(p.at,8.8),at=(u,h,v)=>[pos.x-nz*u+nx*v,h,pos.z+nx*u+nz*v];
+      for(const u of [-.8,.8])g.pole(at(u,.10,0),at(u,1.61,0),.055,"#939588",4);
+      g.quad(at(-1.13,1.2,0),at(1.13,1.2,0),at(1.13,1.97,0),at(-1.13,1.97,0),"#ebbe59");
+      for(const v of [-.012,.012])for(const u of [-.58,.53])for(const k of [-1,1])
+        g.quad(at(u-.41,1.585+k*.32,v),at(u-.08,1.585+k*.32,v),at(u+.34,1.585,v),at(u+.01,1.585,v),"#424d46");
+    }
     // Low mangroves on the far bank leave the port skyline visible across the water.
     for(const [i,p] of trees.entries()){
       if(Math.abs(p.x-pump.x)<7&&Math.abs(p.z-pump.z)<10)continue;
-      const h=1.65+.65*Math.sin(i*2.4),r=2.5+.55*Math.sin(i*4.2);
-      g.box(p.x,.6,p.z,.32,1,.34,"#7d7662");
-      g.cyl(p.x,h,p.z,r,1.25,h,6,i%3?"#788a72":"#627c69");
-      g.cyl(p.x+.8,h*1.45,p.z+.5,r*.75,.65,h*.57,5,"#8c9c78");
+      const h=1.35+.65*Math.sin(i*2.4),r=2.5+.85*Math.sin(i*4.2);
+      g.box(p.x,.46,p.z,.32,.86,.34,"#797760");
+      g.cyl(p.x,h,p.z,r*.89,r*.70,h*.86,7,i%3?"#77896a":"#647e66");
+      g.cyl(p.x+.18,h*1.58,p.z+.08,r*.31,r*.89,h*.36,7,i%3?"#8e9d74":"#83946f");
+      if(i%3!==1)g.cyl(p.x-r*.75,h*.73,p.z+.84,r*.49,r*.85,h*.8,6,"#7e926c");
     }
     const {x,z}=pump;
     g.box(x,.34,z,9.6,.65,15.8,"#a9a28d");
@@ -6151,7 +6176,7 @@
     }
   }
   function paint(ctx,street){
-    for(const f of faces){
+    for(const f of ink){
       const [a,...rest]=f.points;ctx.beginPath();ctx.moveTo(a.x,a.z);
       for(const p of rest)ctx.lineTo(p.x,p.z);
       ctx.closePath();ctx.fillStyle=!street&&f.material==="road"?"#364e51":colors[f.material];ctx.fill();
@@ -7297,15 +7322,45 @@ window.buildBayCity = function buildBayCity(g,water) {
     block(x,z,2.70,1.89,.37+(levels-1)*.32);
   }
 
-  // Distant mainland silhouettes give the streets a horizon without filling the bay.
-  for(let i=0;i<23;i++){
-    const x=-227-between(4,49), z=-228+i*21+between(-8,8);
-    const h=between(9,32);
-    g.box(x,h/2-.2,z,between(12,25),h,between(10,22),pick(["#87969b","#969ca0","#aaa49f"]));
+  // The far bank used to be scenery seen only from downtown. Its east face
+  // now fronts a real road, with loading docks, roof monitors and a tank farm.
+  for(const [x,z,w,d,h,paint] of [[-259,-184,18,36,5.8,"#c0af94"],[-271,-138,23,30,7.3,"#a4aaa0"],
+    [-267,-24,21,46,6.1,"#b4a997"],[-268,93,18,34,5.5,"#aba89b"]]){
+    g.box(x,h/2,z,w,h,d,paint);
+    g.box(x,h+.12,z,w+.7,.24,d+.8,"#798881");
+    g.box(x-.8,h+.74,z,w*.41,1.22,d*.77,"#8b9c97");
+    g.box(x-.8,h+1.42,z,w*.45,.18,d*.80,"#b2b6a6");
+    const dock=facade(x+w/2+.015,z,1,0);
+    dock.box(0,.48,.85,d*.87,.96,1.78,"#8e8f7c");
+    for(const u of [-d*.3,-d*.04,d*.22]){
+      dock.face(u,2.30,.03,4.3,2.70,"#677875");
+      dock.face(u,2.99,.04,3.95,.32,"#869a97");
+    }
+    dock.box(0,3.94,1.12,d*.89,.19,2.32,"#81948c");
   }
-  for(let i=0;i<14;i++){
-    const x=between(-202,129),z=(i%2?1:-1)*between(233,267),h=between(8,27);
-    g.box(z>228&&x>52?x-190:x,h/2,z,between(12,23),h,between(11,21),pick(["#aba8a0","#a8a29f","#92a0a1"]));
+  for(const [x,z,r,h] of [[-275,-218,5,9],[-289,-208,5.4,11],[-280,33,6.7,8],[-289,45,5.9,9.6]]){
+    g.cyl(x,h/2,z,r,r,h,12,"#b5b6a5");
+    g.cyl(x,h+.64,z,r*.24,r+.12,1.28,12,"#8f9f97");
+    g.cyl(x,h*.69,z,r+.10,r+.10,.44,12,"#909b91");
+  }
+  const tankX=-259,tankZ=-157;
+  for(const dx of [-2,2])for(const dz of [-2,2]){
+    g.pole([tankX+dx*1.55,.05,tankZ+dz*1.55],[tankX+dx,9.7,tankZ+dz],.22,"#847f6e",5);
+    g.pole([tankX+dx*1.35,3.2,tankZ+dz*1.35],[tankX-dx,8.9,tankZ+dz],.10,"#909180",4);
+  }
+  g.cyl(tankX,11.5,tankZ,3.75,3.45,4,12,"#ab9e88");
+  g.cyl(tankX,14.2,tankZ,.22,3.98,1.45,12,"#788a87");
+  // Leave gaps for the marsh horizon between the mainland buildings. Rooftop
+  // setbacks and continuous gallery shadows stay legible at driving resolution.
+  for(const [x,z,w,d,h] of [[-324,-233,16,21,17],[-310,-166,24,15,12],[-333,-74,15,17,24],
+    [-327,7,26,18,13],[-307,159,17,23,17],[-242,225,24,15,10],[-163,253,17,20,14],
+    [-83,272,21,14,12],[14,252,19,16,9],[-172,-258,20,14,12],[-122,-269,18,15,18],[-30,-251,23,15,9],[67,-256,20,17,12]]){
+    g.box(x,h/2,z,w,h,d,"#acb0a5");
+    for(let y=2.4;y<h-.8;y+=3.25){
+      g.box(x,y,z,w+.14,.85,d+.14,"#859796");
+      g.box(x,y-.52,z,w+.48,.18,d+.48,"#b3b5a8");
+    }
+    g.box(x-w*.11,h+1.25,z,w*.64,2.5,d*.68,"#a4aba1");
   }
   return {solids,cameraObstacles,opaqueBuildings,garage};
 };
@@ -85929,7 +85984,7 @@ window.buildBayCity = function buildBayCity(g,water) {
     radarCar=driving?car:null;radarTime=elapsed;
     drawBayMap(c.getContext("2d"),state);
   }
-  function atlasFrame(){return chartMode==="cut"?{cx:188,cz:254,span:265}:chartMode==="bay"?{cx:309,cz:0,span:463}:{cx:13,cz:0,span:448};}
+  function atlasFrame(){return chartMode==="cut"?{cx:188,cz:254,span:265}:chartMode==="bay"?{cx:309,cz:0,span:463}:{cx:6,cz:0,span:508};}
   function paintAtlas(){
     const c=$("bigmap");if(!c)return;const frame=atlasFrame();
     return drawBayMap(c.getContext("2d"),collectMap("atlas",frame.cx,frame.cz,c.width/frame.span));

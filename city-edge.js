@@ -62,8 +62,15 @@
       z:a.z+(b.z-a.z)*t+offset*(a.nz+(b.nz-a.nz)*t)};
   }
   const faces=[],posts=[],trees=[],rail=[];
+  const ribbons=new Map(),junctionInk=[];
   function band(a,b,inner,outer,material,y,innerB=inner,outerB=outer){
-    faces.push({points:[along(a,inner),along(b,innerB),along(b,outerB),along(a,outer)],material,y});
+    const quad=[along(a,inner),along(b,innerB),along(b,outerB),along(a,outer)];
+    faces.push({points:quad,material,y});
+    if(!ribbons.has(material))ribbons.set(material,[]);
+    const runs=ribbons.get(material),last=runs.at(-1);
+    if(last&&last.to===a&&distance(last.left.at(-1),quad[0])<.001&&distance(last.right.at(-1),quad[3])<.001){
+      last.left.push(quad[1]);last.right.push(quad[2]);last.to=b;
+    }else runs.push({left:[quad[0],quad[1]],right:[quad[3],quad[2]],to:b});
   }
   const junctions=[...south,...west,...north].map(p=>p.at);
   for(let i=1;i<points.length;i++){
@@ -96,13 +103,21 @@
     // Flare the mouth through the gravel shoulder. The stop line faces the bank.
     const aim=(across,inward)=>side==="west"?{x:p.x+inward,z:p.z+across}:
       {x:p.x+across,z:p.z+(side==="south"?inward:-inward)};
-    const polygon=(coords,material,y)=>faces.push({points:coords.map(([u,v])=>aim(u,v)),material,y});
+    const polygon=(coords,material,y)=>{
+      const face={points:coords.map(([u,v])=>aim(u,v)),material,y};
+      faces.push(face);junctionInk.push(face);
+    };
     polygon([[-7.0,12],[-7.0,9],[-9.8,5],[9.8,5],[7.0,9],[7.0,12]],"road",.126);
     const lane=side==="south"?-1:1;
     polygon([[.32*lane,9.8],[6.43*lane,9.8],[6.43*lane,10.13],[.32*lane,10.13]],"edge",.136);
   }
   const colors={grass:"#859773",silt:"#9aa080",water:"#829e92",channel:"#567e78",
     shoulder:"#c4b89c",road:"#525c60",edge:"#d7d0b6",line:"#dfbe79"};
+  // Join contiguous strip edges before rasterizing. Separate antialiased quads
+  // expose the background at every bend when the overhead camera rotates.
+  const ink=Object.keys(colors).flatMap(material=>(ribbons.get(material)||[]).map(run=>({
+    material,points:run.left.concat(run.right.reverse())
+  }))).concat(junctionInk);
   // The pump house sits opposite the freight yards, with two intake bays facing the channel.
   const pump={x:-229,z:-103};
   function mesh(g){
@@ -119,13 +134,23 @@
     for(const p of posts){
       g.box(p.x,.52,p.z,.26,.93,.28,"#95856d");g.box(p.x,.88,p.z,.28,.13,.30,"#e1d1a6");
     }
+    // Back-to-back chevrons show each approach which way the carriageway bends.
+    for(const p of points.filter(p=>(p.x===-189||p.x===-194)&&Math.abs(p.z)>=175)){
+      const n=Math.hypot(p.nx,p.nz),nx=-p.nz/n,nz=p.nx/n;
+      const pos=along(p.at,8.8),at=(u,h,v)=>[pos.x-nz*u+nx*v,h,pos.z+nx*u+nz*v];
+      for(const u of [-.8,.8])g.pole(at(u,.10,0),at(u,1.61,0),.055,"#939588",4);
+      g.quad(at(-1.13,1.2,0),at(1.13,1.2,0),at(1.13,1.97,0),at(-1.13,1.97,0),"#ebbe59");
+      for(const v of [-.012,.012])for(const u of [-.58,.53])for(const k of [-1,1])
+        g.quad(at(u-.41,1.585+k*.32,v),at(u-.08,1.585+k*.32,v),at(u+.34,1.585,v),at(u+.01,1.585,v),"#424d46");
+    }
     // Low mangroves on the far bank leave the port skyline visible across the water.
     for(const [i,p] of trees.entries()){
       if(Math.abs(p.x-pump.x)<7&&Math.abs(p.z-pump.z)<10)continue;
-      const h=1.65+.65*Math.sin(i*2.4),r=2.5+.55*Math.sin(i*4.2);
-      g.box(p.x,.6,p.z,.32,1,.34,"#7d7662");
-      g.cyl(p.x,h,p.z,r,1.25,h,6,i%3?"#788a72":"#627c69");
-      g.cyl(p.x+.8,h*1.45,p.z+.5,r*.75,.65,h*.57,5,"#8c9c78");
+      const h=1.35+.65*Math.sin(i*2.4),r=2.5+.85*Math.sin(i*4.2);
+      g.box(p.x,.46,p.z,.32,.86,.34,"#797760");
+      g.cyl(p.x,h,p.z,r*.89,r*.70,h*.86,7,i%3?"#77896a":"#647e66");
+      g.cyl(p.x+.18,h*1.58,p.z+.08,r*.31,r*.89,h*.36,7,i%3?"#8e9d74":"#83946f");
+      if(i%3!==1)g.cyl(p.x-r*.75,h*.73,p.z+.84,r*.49,r*.85,h*.8,6,"#7e926c");
     }
     const {x,z}=pump;
     g.box(x,.34,z,9.6,.65,15.8,"#a9a28d");
@@ -140,7 +165,7 @@
     }
   }
   function paint(ctx,street){
-    for(const f of faces){
+    for(const f of ink){
       const [a,...rest]=f.points;ctx.beginPath();ctx.moveTo(a.x,a.z);
       for(const p of rest)ctx.lineTo(p.x,p.z);
       ctx.closePath();ctx.fillStyle=!street&&f.material==="road"?"#364e51":colors[f.material];ctx.fill();

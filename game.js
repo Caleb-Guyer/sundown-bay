@@ -10848,7 +10848,7 @@
     radarCar=driving?car:null;radarTime=elapsed;
     drawBayMap(c.getContext("2d"),state);
   }
-  function atlasFrame(){return chartMode==="cut"?{cx:188,cz:254,span:265}:chartMode==="bay"?{cx:309,cz:0,span:463}:{cx:13,cz:0,span:448};}
+  function atlasFrame(){return chartMode==="cut"?{cx:188,cz:254,span:265}:chartMode==="bay"?{cx:309,cz:0,span:463}:{cx:6,cz:0,span:508};}
   function paintAtlas(){
     const c=$("bigmap");if(!c)return;const frame=atlasFrame();
     return drawBayMap(c.getContext("2d"),collectMap("atlas",frame.cx,frame.cz,c.width/frame.span));

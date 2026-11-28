@@ -1066,15 +1066,45 @@ window.buildBayCity = function buildBayCity(g,water) {
     block(x,z,2.70,1.89,.37+(levels-1)*.32);
   }
 
-  // Distant mainland silhouettes give the streets a horizon without filling the bay.
-  for(let i=0;i<23;i++){
-    const x=-227-between(4,49), z=-228+i*21+between(-8,8);
-    const h=between(9,32);
-    g.box(x,h/2-.2,z,between(12,25),h,between(10,22),pick(["#87969b","#969ca0","#aaa49f"]));
+  // The far bank used to be scenery seen only from downtown. Its east face
+  // now fronts a real road, with loading docks, roof monitors and a tank farm.
+  for(const [x,z,w,d,h,paint] of [[-259,-184,18,36,5.8,"#c0af94"],[-271,-138,23,30,7.3,"#a4aaa0"],
+    [-267,-24,21,46,6.1,"#b4a997"],[-268,93,18,34,5.5,"#aba89b"]]){
+    g.box(x,h/2,z,w,h,d,paint);
+    g.box(x,h+.12,z,w+.7,.24,d+.8,"#798881");
+    g.box(x-.8,h+.74,z,w*.41,1.22,d*.77,"#8b9c97");
+    g.box(x-.8,h+1.42,z,w*.45,.18,d*.80,"#b2b6a6");
+    const dock=facade(x+w/2+.015,z,1,0);
+    dock.box(0,.48,.85,d*.87,.96,1.78,"#8e8f7c");
+    for(const u of [-d*.3,-d*.04,d*.22]){
+      dock.face(u,2.30,.03,4.3,2.70,"#677875");
+      dock.face(u,2.99,.04,3.95,.32,"#869a97");
+    }
+    dock.box(0,3.94,1.12,d*.89,.19,2.32,"#81948c");
   }
-  for(let i=0;i<14;i++){
-    const x=between(-202,129),z=(i%2?1:-1)*between(233,267),h=between(8,27);
-    g.box(z>228&&x>52?x-190:x,h/2,z,between(12,23),h,between(11,21),pick(["#aba8a0","#a8a29f","#92a0a1"]));
+  for(const [x,z,r,h] of [[-275,-218,5,9],[-289,-208,5.4,11],[-280,33,6.7,8],[-289,45,5.9,9.6]]){
+    g.cyl(x,h/2,z,r,r,h,12,"#b5b6a5");
+    g.cyl(x,h+.64,z,r*.24,r+.12,1.28,12,"#8f9f97");
+    g.cyl(x,h*.69,z,r+.10,r+.10,.44,12,"#909b91");
+  }
+  const tankX=-259,tankZ=-157;
+  for(const dx of [-2,2])for(const dz of [-2,2]){
+    g.pole([tankX+dx*1.55,.05,tankZ+dz*1.55],[tankX+dx,9.7,tankZ+dz],.22,"#847f6e",5);
+    g.pole([tankX+dx*1.35,3.2,tankZ+dz*1.35],[tankX-dx,8.9,tankZ+dz],.10,"#909180",4);
+  }
+  g.cyl(tankX,11.5,tankZ,3.75,3.45,4,12,"#ab9e88");
+  g.cyl(tankX,14.2,tankZ,.22,3.98,1.45,12,"#788a87");
+  // Leave gaps for the marsh horizon between the mainland buildings. Rooftop
+  // setbacks and continuous gallery shadows stay legible at driving resolution.
+  for(const [x,z,w,d,h] of [[-324,-233,16,21,17],[-310,-166,24,15,12],[-333,-74,15,17,24],
+    [-327,7,26,18,13],[-307,159,17,23,17],[-242,225,24,15,10],[-163,253,17,20,14],
+    [-83,272,21,14,12],[14,252,19,16,9],[-172,-258,20,14,12],[-122,-269,18,15,18],[-30,-251,23,15,9],[67,-256,20,17,12]]){
+    g.box(x,h/2,z,w,h,d,"#acb0a5");
+    for(let y=2.4;y<h-.8;y+=3.25){
+      g.box(x,y,z,w+.14,.85,d+.14,"#859796");
+      g.box(x,y-.52,z,w+.48,.18,d+.48,"#b3b5a8");
+    }
+    g.box(x-w*.11,h+1.25,z,w*.64,2.5,d*.68,"#a4aba1");
   }
   return {solids,cameraObstacles,opaqueBuildings,garage};
 };
