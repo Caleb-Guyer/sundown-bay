@@ -135,6 +135,7 @@
       }
     }
     edge.paint(ctx,street);
+    BayCanalTraffic.map(ctx);
     for(const x of roads) for(const z of roads) {
       if(street&&BayStreetArt.signals.some(s=>s.x===x&&s.z===z))continue;
       if(x!==0 && x!==144 && z!==-72) continue;
@@ -1223,6 +1224,7 @@
       if(player && player.driving && Math.hypot(car.x-player.x,car.z-player.z)<.55) playerCar=car;
       if(street){
         BayMapTraffic.draw(ctx,car,x,y,s,streetTime,opt.lowDetail);
+        BayCanalTraffic.mapCargo(ctx,car,x,y,s);
         if(car.cupNumber)BayCoastCupArt.mapCar(ctx,car,x,y,s);
         if(car.beatCar)BayOceanBeatArt.carMap(ctx,car,x,y,s,streetTime,car.beatLights);
         if(car.greenId)BayOnGreenArt.carMap(ctx,px,py,s,car,car.greenGesture||0);
@@ -1407,6 +1409,7 @@
             ctx.translate(x,y);ctx.scale(1+lift*.048,1+lift*.048);ctx.translate(-x,-y-lift*s*.47);
           }
           carSprite(ctx,v,x,y,s,streetTime);
+          BayCanalTraffic.mapCargo(ctx,opt.streetCar||v,x,y,s);
           if(opt.streetCar){BayStreetCars.map(ctx,v,x,y,s,streetTime,v.mainBeam);BayRoadGlass.map(ctx,v,x,y,s,streetTime,opt.lowDetail);if(v===opt.campana?.vehicle)BayCampanaArt.overhead(ctx,px,py,s,v,opt.campana.open,opt.campana.bell,streetTime);}
           ctx.restore();
         }
@@ -1421,7 +1424,8 @@
         if(opt.skate?.rider)BaySkateArt.map(ctx,opt,px,py,s,opt.skate.rider,streetTime);
         else if(opt.swim)BaySwimmerArt.map(ctx,x,y,s,opt.swim,streetTime);
         else if(!opt.story?.field&&!opt.crew?.finder&&!opt.crew?.afternoon?.photo&&!opt.palmHouse?.playerSeat&&!opt.dealerCrew?.exchange?.ready&&!opt.motos?.player&&!opt.rescue?.holding&&!opt.pickup&&!player.driving&&!player.inCabin&&!opt.aboard&&(!opt.cycles?.riding||opt.cycles.transfer?.approach)){
-          if(opt.roofs?.action)BayTraversalPose.map(ctx,px,py,s,player,opt.roofs.action,streetTime);
+          if(player.down)personSprite(ctx,player,x,y,Math.max(3,s*1.8),true,rotation);
+          else if(opt.roofs?.action)BayTraversalPose.map(ctx,px,py,s,player,opt.roofs.action,streetTime);
           else if(opt.band?.player){const p=opt.band.player;p.kit=player.kit;BayBandPlayers.mapActor(ctx,p,x,y,s,streetTime,opt.band);}
           else if(opt.keyMapActor)BayMotorists.mapActor(ctx,opt.keyMapActor,x,y,s,streetTime,opt.valet.focus);
           else if(opt.airwaves?.mixing)BayAirwavesBooth.mapOperator(ctx,px,py,s,player,streetTime,opt.airwaves);

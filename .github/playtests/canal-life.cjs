@@ -1,0 +1,33 @@
+const assert=require("node:assert/strict");
+module.exports=async({js,send,waitFor,snap})=>{
+  await send("Page.reload");await waitFor("document.readyState==='complete'&&!!window.BayCanalTraffic");
+  await js(`window.dockQA={};
+    const rebuild=BayLaneSpace.prototype.rebuild;
+    BayLaneSpace.prototype.rebuild=function(cars,...args){
+      if(!dockQA.fleet)dockQA.fleet=cars.filter(v=>v.canalTraffic);
+      return rebuild.call(this,cars,...args);
+    };
+    const rescue=BayRescue.Service.prototype.step;
+    BayRescue.Service.prototype.step=function(dt,e){dockQA.hero=e.hero;return rescue.call(this,dt,e);};
+    const update=BayCamera.prototype.update;
+    BayCamera.prototype.update=function(...args){dockQA.rig=this;return update.apply(this,args);};
+    document.querySelector('#play').click();`);
+  await waitFor("dockQA.hero&&dockQA.rig&&dockQA.fleet?.length===6");
+  await js(`const qa=dockQA;qa.truck=qa.fleet.find(v=>v.freightRun&&!v.freightRun.loaded);
+    qa.origins=qa.fleet.filter(v=>!v.freightRun).map(v=>[v,v.x,v.z]);
+    Object.assign(qa.hero,{x:-190,z:-119,yaw:.78});qa.rig.reset(qa.hero);`);
+  await waitFor("qa.truck.freightRun.berth===0&&!qa.truck.freightRun.loaded",42000);
+  await waitFor("qa.truck.freightRun.loaded");await snap("canal-load");
+  assert(await js("qa.truck.speed===0&&Math.abs(qa.truck.x+182.75)<.4"));
+  await waitFor("qa.truck.freightRun.berth<0&&qa.truck.z>-98",30000);await snap("canal-depart");
+  assert(await js("qa.origins.every(([v,x,z])=>Math.hypot(v.x-x,v.z-z)>8)"));
+  await waitFor("qa.fleet.some(v=>!v.freightRun&&v.speed>8.9&&Math.hypot(v.path[v.corner].x-v.x,v.path[v.corner].z-v.z)>14)",30000);
+  await js(`const v=qa.fleet.find(v=>!v.freightRun&&v.speed>8.9&&Math.hypot(v.path[v.corner].x-v.x,v.path[v.corner].z-v.z)>14);
+    Object.assign(qa.hero,BayDriving.world(v,0,bayCarLayout(v.kind).halfLength+.56),{yaw:v.yaw+Math.PI});
+    qa.rig.reset(qa.hero);`);
+  await waitFor("!document.querySelector('#fatalScreen').hidden&&qa.hero.down?.age>.6",12000);await snap("canal-hit");
+  await waitFor("document.querySelector('#fatalScreen').hidden&&Math.hypot(qa.hero.x-BayPalmClinic.site.door.x,qa.hero.z-BayPalmClinic.site.door.z)<2",15000);
+  await snap("canal-clinic");const saved=await js("new BaySecondUnit.Unit().places.guest");
+  assert(Math.abs(saved.x+94.6)<.4);assert.equal(await js("audioStarts+cursorRequests"),0);
+  console.log("PASS two-way canal traffic, freight arriving, loading and merging, fatal vehicle strike and clinic discharge.");
+};

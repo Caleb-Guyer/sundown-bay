@@ -356,6 +356,11 @@ window.buildBayCity = function buildBayCity(g,water) {
     rect((left+151)/2,c,151-left,14,.043,asphalt);
   }
   edge.mesh(g);
+  BayCanalTraffic.mesh(g);
+  for(const y of BayCanalTraffic.yards){
+    const dock=facade(y.wall-.15,y.z,-1,0);
+    dock.box(0,4.25,0,5,.86,.12,"#3d635b");sign(dock,y.name,0,4.25,.068,.087,"#f1dfb3");
+  }
   // A readerboard on each approach sits on the verge, facing arriving traffic.
   for(const [x,z,nz,label] of [[151,-160,1,"CANAL RD"],[134,181,-1,"PELICAN CUT"]]){
     const f=facade(x,z,0,nz);
